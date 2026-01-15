@@ -21,13 +21,10 @@ const RevertirModal = ({ onClose, onRevertir }) => {
         
         const ahora = moment().tz("America/Lima");
         const comandasParaRevertir = response.data.filter(c => {
-          // Solo mostrar comandas en estado "entregado"
-          if (c.status !== "entregado") return false;
+          // Mostrar comandas en estado "recoger" (preparadas) o "entregado"
+          // Esto permite revertir comandas que fueron finalizadas por error
+          if (c.status !== "recoger" && c.status !== "entregado") return false;
           if (!c.platos || c.platos.length === 0) return false;
-          
-          // Verificar que todos los platos estén en estado "entregado"
-          const todosEntregados = c.platos.every(p => p.estado === "entregado");
-          if (!todosEntregados) return false;
           
           // Filtrar por fecha (últimas 24 horas)
           const fechaComanda = moment(c.updatedAt || c.createdAt).tz("America/Lima");
@@ -70,9 +67,9 @@ const RevertirModal = ({ onClose, onRevertir }) => {
         { nuevoStatus: "en_espera" }
       );
       
-      // Cambiar todos los platos en estado "entregado" a "en_espera"
+      // Cambiar todos los platos en estado "recoger" o "entregado" a "en_espera"
       for (const plato of comanda.platos) {
-        if (plato.estado === "entregado") {
+        if (plato.estado === "recoger" || plato.estado === "entregado") {
           await axios.put(
             `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
             { nuevoEstado: "en_espera" }
@@ -106,7 +103,7 @@ const RevertirModal = ({ onClose, onRevertir }) => {
       <div className="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white">
-            ↩️ REVERTIR COMANDAS ENTREGADAS (Últimas 24h)
+            ↩️ REVERTIR COMANDAS PREPARADAS (Últimas 24h)
           </h2>
           <button
             onClick={onClose}
@@ -118,12 +115,12 @@ const RevertirModal = ({ onClose, onRevertir }) => {
 
         {cargando ? (
           <div className="text-center text-gray-500 py-8">
-            <p className="text-xl">Cargando comandas entregadas...</p>
+            <p className="text-xl">Cargando comandas preparadas...</p>
           </div>
         ) : comandasFinalizadas.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
-            <p className="text-xl">No hay comandas entregadas para revertir</p>
-            <p className="text-sm mt-2">Solo se muestran comandas en estado "Entregado" de las últimas 24 horas</p>
+            <p className="text-xl">No hay comandas preparadas para revertir</p>
+            <p className="text-sm mt-2">Solo se muestran comandas en estado "Preparado" (recoger) o "Entregado" de las últimas 24 horas</p>
           </div>
         ) : (
           <div className="space-y-3">

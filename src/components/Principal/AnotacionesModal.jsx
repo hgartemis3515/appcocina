@@ -17,7 +17,13 @@ const AnotacionesModal = ({ comanda, onClose }) => {
       onClose();
     } catch (error) {
       console.error("Error al guardar anotaciones:", error);
-      alert("Error al guardar las anotaciones");
+      // Manejar errores sin crash
+      if (error.response) {
+        const message = error.response.data?.message || error.response.data?.error || 'Error al guardar las anotaciones';
+        alert(`Error: ${message}`);
+      } else {
+        alert("Error de conexión al guardar las anotaciones");
+      }
     }
   };
 
