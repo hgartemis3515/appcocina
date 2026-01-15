@@ -1,0 +1,192 @@
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import moment from "moment-timezone";
+import { FaTimes, FaUndo } from "react-icons/fa";
+
+const RevertirModal = ({ onClose, onRevertir }) => {
+  const [comandasFinalizadas, setComandasFinalizadas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    // Obtener comandas entregadas desde el backend
+    const obtenerComandasEntregadas = async () => {
+      setCargando(true);
+      try {
+        const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
+        // Obtener todas las comandas del día y filtrar las entregadas
+        const apiUrl = `${process.env.REACT_APP_API_COMANDA}/fecha/${fechaActual}`;
+        
+        const response = await axios.get(apiUrl, { timeout: 5000 });
+        
+        const ahora = moment().tz("America/Lima");
+        const comandasParaRevertir = response.data.filter(c => {
+          // Solo mostrar comandas en estado "entregado"
+          if (c.status !== "entregado") return false;
+          if (!c.platos || c.platos.length === 0) return false;
+          
+          // Verificar que todos los platos estén en estado "entregado"
+          const todosEntregados = c.platos.every(p => p.estado === "entregado");
+          if (!todosEntregados) return false;
+          
+          // Filtrar por fecha (últimas 24 horas)
+          const fechaComanda = moment(c.updatedAt || c.createdAt).tz("America/Lima");
+          const diffHoras = ahora.diff(fechaComanda, "hours");
+          return diffHoras <= 24;
+        });
+
+        // Ordenar por fecha de actualización (más recientes primero)
+        const ordenadas = comandasParaRevertir.sort((a, b) => {
+          const fechaA = moment(a.updatedAt || a.createdAt).tz("America/Lima");
+          const fechaB = moment(b.updatedAt || b.createdAt).tz("America/Lima");
+          return fechaB.diff(fechaA);
+        });
+
+        setComandasFinalizadas(ordenadas);
+      } catch (error) {
+        console.error("Error al obtener comandas entregadas:", error);
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    obtenerComandasEntregadas();
+  }, []);
+
+  const revertirComanda = async (comandaId) => {
+    setLoading(true);
+    try {
+      // Buscar la comanda en la lista local
+      const comanda = comandasFinalizadas.find(c => c._id === comandaId);
+      if (!comanda) {
+        alert("Comanda no encontrada");
+        setLoading(false);
+        return;
+      }
+
+      // Cambiar status de comanda a "en_espera"
+      await axios.put(
+        `${process.env.REACT_APP_API_COMANDA}/${comandaId}/status`,
+        { nuevoStatus: "en_espera" }
+      );
+      
+      // Cambiar todos los platos en estado "entregado" a "en_espera"
+      for (const plato of comanda.platos) {
+        if (plato.estado === "entregado") {
+          await axios.put(
+            `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+            { nuevoEstado: "en_espera" }
+          );
+        }
+      }
+
+      // Refrescar comandas
+      if (onRevertir) {
+        onRevertir();
+      }
+      
+      // Remover de la lista
+      setComandasFinalizadas(prev => prev.filter(c => c._id !== comandaId));
+      
+    } catch (error) {
+      console.error("Error al revertir comanda:", error);
+      alert("Error al revertir la comanda. Por favor, intente nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatearFecha = (fecha) => {
+    if (!fecha) return "N/A";
+    return moment(fecha).tz("America/Lima").format("DD/MM/YYYY HH:mm");
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-white">
+            ↩️ REVERTIR COMANDAS ENTREGADAS (Últimas 24h)
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white text-2xl"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {cargando ? (
+          <div className="text-center text-gray-500 py-8">
+            <p className="text-xl">Cargando comandas entregadas...</p>
+          </div>
+        ) : comandasFinalizadas.length === 0 ? (
+          <div className="text-center text-gray-500 py-8">
+            <p className="text-xl">No hay comandas entregadas para revertir</p>
+            <p className="text-sm mt-2">Solo se muestran comandas en estado "Entregado" de las últimas 24 horas</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {comandasFinalizadas.map((comanda) => (
+              <div
+                key={comanda._id}
+                className="bg-gray-700 rounded-lg p-4 border-2 border-gray-600"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="font-bold text-xl text-white">
+                      #{comanda.comandaNumber || "N/A"}
+                    </div>
+                    <div className="text-sm text-gray-300 mt-1">
+                      Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozos?.name || "Sin mozo"}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      Estado: {comanda.status || "N/A"} | {formatearFecha(comanda.updatedAt || comanda.createdAt)}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => revertirComanda(comanda._id)}
+                      disabled={loading}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+                    >
+                      <FaUndo /> Revertir a En Espera
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Lista de platos */}
+                <div className="text-sm text-gray-300">
+                  <strong>Platos:</strong>
+                  <ul className="list-disc list-inside mt-1 ml-2">
+                    {comanda.platos?.map((p, idx) => {
+                      const plato = p.plato || p;
+                      const cantidad = comanda.cantidades?.[idx] || 1;
+                      return (
+                        <li key={idx}>
+                          {cantidad}x {plato.nombre || "Sin nombre"}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RevertirModal;
+

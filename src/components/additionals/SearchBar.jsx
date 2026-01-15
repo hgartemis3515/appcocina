@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FaSearch } from 'react-icons/fa';
 
 const SearchBar = ({ onSearch }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,12 +10,13 @@ const SearchBar = ({ onSearch }) => {
   };
 
   return (
-    <div className="flex justify-center">
-      <div className="flex items-center rounded-xl border-b border-2 border-blue-500 py-4 w-1/2">
+    <div className="flex justify-center w-full">
+      <div className="flex items-center rounded-lg border-2 border-gray-600 bg-gray-700 w-full max-w-2xl">
+        <FaSearch className="text-gray-400 mx-3" />
         <input
-          className={`appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none ${window.innerWidth > 1536 ? 'text-2xl' : ''}`}
+          className="appearance-none bg-transparent border-none w-full text-white py-3 px-2 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg text-lg"
           type="text"
-          placeholder="Buscar platos..."
+          placeholder="Buscar por nombre de plato..."
           value={searchTerm}
           onChange={handleChange}
         />
