@@ -73,7 +73,7 @@ const ComandaStyle = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
-  const [completedPlatos, setCompletedPlatos] = useState(new Set()); // Trackear platos completados (verde)
+  const [platoStates, setPlatoStates] = useState(new Map()); // Trackear estados de platos: 'preparing' (amarillo) o 'completed' (verde)
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
   const lastSuccessTimeRef = useRef(Date.now());
@@ -764,8 +764,8 @@ const ComandaStyle = () => {
                     isSelected={isSelected}
                     onToggleSelect={() => toggleSelectOrder(comanda._id)}
                     fontSize={config.design?.fontSize || 15}
-                    completedPlatos={completedPlatos}
-                    setCompletedPlatos={setCompletedPlatos}
+                    platoStates={platoStates}
+                    setPlatoStates={setPlatoStates}
                     cardNumber={cardNumber}
                     nightMode={nightMode}
                   />
@@ -942,8 +942,8 @@ const SicarComandaCard = ({
   isSelected,
   onToggleSelect,
   fontSize = 15,
-  completedPlatos,
-  setCompletedPlatos,
+  platoStates,
+  setPlatoStates,
   cardNumber = 1,
   nightMode = true
 }) => {
@@ -1025,24 +1025,30 @@ const SicarComandaCard = ({
     return true;
   }) || [];
 
-  // Toggle plato completado (verde)
-  const togglePlatoCompleted = (platoId) => {
-    setCompletedPlatos(prev => {
-      const nuevo = new Set(prev);
-      const platoKey = `${comandaId}-${platoId}`;
-      if (nuevo.has(platoKey)) {
-        nuevo.delete(platoKey);
-      } else {
-        nuevo.add(platoKey);
-      }
-      return nuevo;
-    });
+  // Obtener el estado actual de un plato: null (normal), 'preparing' (amarillo), 'completed' (verde)
+  const getPlatoStatus = (platoId) => {
+    const platoKey = `${comandaId}-${platoId}`;
+    return platoStates.get(platoKey) || null;
   };
 
-  // Verificar si un plato está completado
-  const isPlatoCompleted = (platoId) => {
-    const platoKey = `${comandaId}-${platoId}`;
-    return completedPlatos.has(platoKey);
+  // Toggle plato: normal → preparing (amarillo) → completed (verde) → normal
+  const togglePlatoStatus = (platoId) => {
+    setPlatoStates(prev => {
+      const nuevo = new Map(prev);
+      const platoKey = `${comandaId}-${platoId}`;
+      const estadoActual = nuevo.get(platoKey);
+      
+      // Ciclo: null → 'preparing' → 'completed' → null
+      if (!estadoActual) {
+        nuevo.set(platoKey, 'preparing');
+      } else if (estadoActual === 'preparing') {
+        nuevo.set(platoKey, 'completed');
+      } else {
+        nuevo.delete(platoKey); // Volver a normal
+      }
+      
+      return nuevo;
+    });
   };
 
   // Variables de color según modo nocturno para el área de platos
@@ -1051,6 +1057,9 @@ const SicarComandaCard = ({
   const bgPlatos = nightMode ? "bg-gray-800" : "bg-white";
   const textPlatos = nightMode ? "text-white" : "text-gray-900";
   const textPlatosHover = nightMode ? "hover:bg-gray-700" : "hover:bg-gray-100";
+  // Colores para estado preparando (amarillo)
+  const textPlatosPreparing = nightMode ? "text-yellow-300" : "text-yellow-700";
+  // Colores para estado completado (verde)
   const textPlatosCompleted = nightMode ? "text-green-400" : "text-green-700";
   const bgBadgeEspera = nightMode ? "bg-gray-700" : "bg-white";
   const textBadgeEspera = nightMode ? "text-white" : "text-black";
@@ -1169,7 +1178,27 @@ const SicarComandaCard = ({
               const platoObj = plato.plato || plato;
               const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
               const platoId = platoObj?._id || plato._id || index;
-              const isCompleted = isPlatoCompleted(platoId);
+              const platoStatus = getPlatoStatus(platoId);
+              const isPreparing = platoStatus === 'preparing';
+              const isCompleted = platoStatus === 'completed';
+              
+              // Determinar colores según el estado
+              let backgroundColor = 'transparent';
+              let textColor = nightMode ? '#ffffff' : '#111827';
+              let bgClass = '';
+              let textClass = textPlatos;
+              
+              if (isPreparing) {
+                backgroundColor = 'rgba(234, 179, 8, 0.3)'; // Amarillo con transparencia
+                textColor = nightMode ? '#fde047' : '#a16207'; // Amarillo claro/oscuro
+                bgClass = 'bg-yellow-500/30';
+                textClass = textPlatosPreparing;
+              } else if (isCompleted) {
+                backgroundColor = 'rgba(34, 197, 94, 0.3)'; // Verde con transparencia
+                textColor = nightMode ? '#86efac' : '#15803d'; // Verde claro/oscuro
+                bgClass = 'bg-green-500/30';
+                textClass = textPlatosCompleted;
+              }
               
               return (
                 <motion.div
@@ -1178,17 +1207,17 @@ const SicarComandaCard = ({
                   animate={{ 
                     opacity: 1, 
                     y: 0,
-                    backgroundColor: isCompleted ? 'rgba(34, 197, 94, 0.3)' : 'transparent',
-                    color: isCompleted ? (nightMode ? '#86efac' : '#15803d') : (nightMode ? '#ffffff' : '#111827')
+                    backgroundColor: backgroundColor,
+                    color: textColor
                   }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    togglePlatoCompleted(platoId);
+                    togglePlatoStatus(platoId);
                   }}
                   className={`font-semibold leading-tight px-2 py-1 rounded cursor-pointer transition-all duration-200 ${
-                    isCompleted ? `bg-green-500/30 ${textPlatosCompleted}` : `${textPlatos} ${textPlatosHover}`
+                    isPreparing || isCompleted ? `${bgClass} ${textClass}` : `${textPlatos} ${textPlatosHover}`
                   }`}
                   whileHover={{ scale: 1.02, x: 4 }}
                   whileTap={{ scale: 0.98 }}
@@ -1198,6 +1227,16 @@ const SicarComandaCard = ({
                     }}
                 >
                   <span className="flex items-center gap-2">
+                    {isPreparing && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                        className={textPlatosPreparing}
+                      >
+                        ⏳
+                      </motion.span>
+                    )}
                     {isCompleted && (
                       <motion.span
                         initial={{ scale: 0 }}
