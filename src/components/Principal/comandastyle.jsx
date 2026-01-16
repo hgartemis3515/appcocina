@@ -21,6 +21,7 @@ import {
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
+import useSocketCocina from "../../hooks/useSocketCocina";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -78,6 +79,9 @@ const ComandaStyle = () => {
   const reconnectTimeoutRef = useRef(null);
   const lastSuccessTimeRef = useRef(Date.now());
   const newComandasRef = useRef(new Set());
+  
+  // Estado de conexión Socket.io
+  const [socketConnectionStatus, setSocketConnectionStatus] = useState('desconectado');
 
   // Actualizar hora y fecha cada segundo
   useEffect(() => {
@@ -207,19 +211,88 @@ const ComandaStyle = () => {
     }
   }, [config.soundEnabled]);
 
-  // Polling con intervalo configurable
+  // Callbacks para eventos Socket.io
+  const handleNuevaComanda = useCallback((nuevaComanda) => {
+    console.log('📥 Nueva comanda recibida vía Socket.io:', nuevaComanda.comandaNumber);
+    
+    // Reproducir sonido si está habilitado
+    if (config.soundEnabled) {
+      playNotificationSound();
+    }
+    
+    // Marcar para animación
+    newComandasRef.current.add(nuevaComanda._id);
+    setTimeout(() => {
+      newComandasRef.current.delete(nuevaComanda._id);
+    }, 2000);
+    
+    // Actualizar lista de comandas (agregar nueva o reemplazar si ya existe)
+    setComandas(prev => {
+      const existe = prev.find(c => c._id === nuevaComanda._id);
+      if (existe) {
+        // Actualizar comanda existente
+        return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
+      } else {
+        // Agregar nueva comanda al inicio
+        return [nuevaComanda, ...prev];
+      }
+    });
+    
+    // Actualizar referencia
+    previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
+  }, [config.soundEnabled]);
+
+  const handleComandaActualizada = useCallback((comandaActualizada) => {
+    console.log('📥 Comanda actualizada vía Socket.io:', comandaActualizada.comandaNumber || comandaActualizada._id);
+    
+    // Actualizar comanda en la lista
+    setComandas(prev => {
+      const index = prev.findIndex(c => c._id === comandaActualizada._id);
+      if (index !== -1) {
+        const nuevas = [...prev];
+        nuevas[index] = comandaActualizada;
+        return nuevas;
+      }
+      // Si no existe, refrescar todas las comandas
+      obtenerComandas();
+      return prev;
+    });
+  }, [obtenerComandas]);
+
+  const handlePlatoActualizado = useCallback((data) => {
+    console.log('📥 Plato actualizado vía Socket.io:', data.platoId, data.nuevoEstado);
+    
+    // Refrescar comanda específica o todas las comandas
+    if (data.comanda) {
+      handleComandaActualizada(data.comanda);
+    } else {
+      obtenerComandas();
+    }
+  }, [handleComandaActualizada, obtenerComandas]);
+
+  // Hook Socket.io - REEMPLAZA EL POLLING
+  const { connected, connectionStatus } = useSocketCocina({
+    onNuevaComanda: handleNuevaComanda,
+    onComandaActualizada: handleComandaActualizada,
+    onPlatoActualizado: handlePlatoActualizado,
+    obtenerComandas: obtenerComandas
+  });
+
+  // Actualizar estado de conexión
+  useEffect(() => {
+    setSocketConnectionStatus(connectionStatus);
+  }, [connectionStatus]);
+
+  // Obtener comandas iniciales al montar (SOLO UNA VEZ)
+  // El polling ha sido ELIMINADO - ahora se usa Socket.io para actualizaciones en tiempo real
   useEffect(() => {
     obtenerComandas();
     
-    const intervalId = setInterval(() => {
-      obtenerComandas();
-    }, config.pollingInterval);
-    
+    // Cleanup solo para timeouts
     return () => {
-      clearInterval(intervalId);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
-  }, [obtenerComandas, config.pollingInterval]);
+  }, []); // Solo ejecutar una vez al montar
 
   // Filtrar comandas por término de búsqueda
   useEffect(() => {
@@ -659,6 +732,25 @@ const ComandaStyle = () => {
             <div className="text-2xl font-bold text-yellow-400" style={{ fontFamily: 'Arial, sans-serif' }}>
               {totalComandas}
             </div>
+          </div>
+          
+          {/* Indicador de conexión Socket.io */}
+          <div className="flex items-center gap-2">
+            {socketConnectionStatus === 'conectado' && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-green-600 rounded text-white text-xs font-semibold">
+                <span>●</span> Realtime
+              </div>
+            )}
+            {socketConnectionStatus === 'polling' && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-yellow-500 rounded text-white text-xs font-semibold">
+                <span>●</span> Polling
+              </div>
+            )}
+            {socketConnectionStatus === 'desconectado' && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-red-600 rounded text-white text-xs font-semibold">
+                <span>●</span> Desconectado
+              </div>
+            )}
           </div>
           
           {/* Botones pequeños arriba derecha - Orden: Buscar → Reportes → Config → Revertir */}
