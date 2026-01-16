@@ -55,6 +55,7 @@ const ComandaStyle = () => {
     alertRedMinutes: 20,
     soundEnabled: true,
     autoPrint: false,
+    nightMode: true,
     design: {
       fontSize: 15,
       cols: 5,
@@ -616,29 +617,45 @@ const ComandaStyle = () => {
     });
   });
 
+  // Variables de modo nocturno
+  const nightMode = config.nightMode !== false; // Default true
+  const bgMain = nightMode ? 'bg-black' : 'bg-gray-50';
+  const bgHeader = nightMode ? 'bg-black' : 'bg-white';
+  const bgGrid = nightMode ? 'bg-gray-950' : 'bg-gray-100';
+  const bgSearch = nightMode ? 'bg-gray-900' : 'bg-gray-200';
+  const bgButton = nightMode ? 'bg-gray-800' : 'bg-gray-200';
+  const bgButtonHover = nightMode ? 'hover:bg-gray-700' : 'hover:bg-gray-300';
+  const textMain = nightMode ? 'text-white' : 'text-gray-900';
+  const textSecondary = nightMode ? 'text-gray-400' : 'text-gray-600';
+  const borderMain = nightMode ? 'border-gray-700' : 'border-gray-300';
+  const borderSearch = nightMode ? 'border-gray-800' : 'border-gray-300';
+  const textButton = nightMode ? 'text-white' : 'text-gray-900';
+  const bgBottomBar = nightMode ? 'bg-gray-900' : 'bg-white';
+  const borderBottomBar = nightMode ? 'border-gray-700' : 'border-gray-300';
+
   return (
-    <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col bg-black text-white overflow-hidden`}>
+    <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col ${bgMain} ${textMain} overflow-hidden`}>
       {/* Header fijo estilo SICAR - Mejorado */}
-      <header className="h-16 bg-black border-b-2 border-gray-700 flex items-center justify-between px-6 flex-shrink-0 z-50 relative shadow-lg">
+      <header className={`h-16 ${bgHeader} border-b-2 ${borderMain} flex items-center justify-between px-6 flex-shrink-0 z-50 relative shadow-lg`}>
         {/* Título centrado */}
         <div className="absolute left-1/2 transform -translate-x-1/2">
-          <h1 className="text-2xl font-bold text-white tracking-wide" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '1px' }}>
+          <h1 className={`text-2xl font-bold ${textMain} tracking-wide`} style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '1px' }}>
             COCINA LAS GAMBUSINAS
           </h1>
         </div>
         
         {/* Hora actual a la izquierda */}
         <div className="flex flex-col items-start">
-          <div className="text-2xl font-bold text-white" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className={`text-2xl font-bold ${textMain}`} style={{ fontFamily: 'Arial, sans-serif' }}>
             {horaActual.format("HH:mm")}
           </div>
-          <div className="text-xs text-gray-400">{fechaActual.format("DD/MM/YYYY")}</div>
+          <div className={`text-xs ${textSecondary}`}>{fechaActual.format("DD/MM/YYYY")}</div>
         </div>
 
         {/* Contador y botones a la derecha */}
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <div className="text-xs text-gray-400">Comandas Pendientes:</div>
+            <div className={`text-xs ${textSecondary}`}>Comandas Pendientes:</div>
             <div className="text-2xl font-bold text-yellow-400" style={{ fontFamily: 'Arial, sans-serif' }}>
               {totalComandas}
             </div>
@@ -648,35 +665,35 @@ const ComandaStyle = () => {
           <div className="flex gap-2">
             <button
               onClick={() => setShowSearch(!showSearch)}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md"
+              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
               title="Buscar"
             >
               🔍 Buscar
             </button>
             <button
               onClick={() => setShowReports(true)}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md"
+              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
               title="Reportes"
             >
               📊 Reportes
             </button>
             <button
               onClick={() => setShowConfig(true)}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md"
+              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
               title="Configuración"
             >
               ⚙️ Config
             </button>
             <button
               onClick={() => setShowRevertir(true)}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md"
+              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
               title="Revertir"
             >
               ↩️ Revertir
             </button>
             <button
               onClick={toggleFullscreen}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md"
+              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
               title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
             >
               {isFullscreen ? <FaCompress /> : <FaExpand />}
@@ -687,20 +704,20 @@ const ComandaStyle = () => {
 
       {/* Barra de búsqueda (opcional, se puede ocultar) */}
       {showSearch && (
-        <div className="bg-gray-900 border-b border-gray-800 px-6 py-2 flex-shrink-0">
+        <div className={`${bgSearch} border-b ${borderSearch} px-6 py-2 flex-shrink-0`}>
           <SearchBar onSearch={setSearchTerm} />
         </div>
       )}
 
       {/* Grid principal estilo SICAR - Configurable, mejor espaciado */}
-      <div className="flex-1 overflow-hidden bg-gray-950 p-3 flex flex-col">
+      <div className={`flex-1 overflow-hidden ${bgGrid} p-3 flex flex-col`}>
         {todasComandas.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center text-gray-400">
-              <p className="text-2xl font-bold mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
+            <div className={`text-center ${textSecondary}`}>
+              <p className={`text-2xl font-bold mb-2 ${textMain}`} style={{ fontFamily: 'Arial, sans-serif' }}>
                 No hay comandas activas
               </p>
-              <p className="text-sm text-gray-500">Las comandas aparecerán aquí cuando los mozos las envíen</p>
+              <p className={`text-sm ${textSecondary}`}>Las comandas aparecerán aquí cuando los mozos las envíen</p>
             </div>
           </div>
         ) : (
@@ -724,12 +741,14 @@ const ComandaStyle = () => {
                 }}
               >
                 <AnimatePresence>
-                  {comandasPagina.map((comanda) => {
+                  {comandasPagina.map((comanda, index) => {
                 const tiempo = calcularTiempoTranscurrido(comanda);
                 const isNew = newComandasRef.current.has(comanda._id);
                 // Todas las comandas mostradas están en "en_espera" (ya filtramos las de recoger y mesas pedido)
                 const estadoColumna = "en_espera";
                 const isSelected = selectedOrders.has(comanda._id);
+                // Número de posición de la tarjeta (1, 2, 3, 4, 5...)
+                const cardNumber = (currentPage * COMANDAS_POR_PAGINA) + index + 1;
                 return (
                   <SicarComandaCard
                     key={comanda._id}
@@ -747,6 +766,8 @@ const ComandaStyle = () => {
                     fontSize={config.design?.fontSize || 15}
                     completedPlatos={completedPlatos}
                     setCompletedPlatos={setCompletedPlatos}
+                    cardNumber={cardNumber}
+                    nightMode={nightMode}
                   />
                   );
                 })}
@@ -755,7 +776,7 @@ const ComandaStyle = () => {
             </motion.div>
 
             {/* Barra inferior: Finalizar → Revertir → Paginado (siempre visible) */}
-            <div className="mt-4 flex items-center justify-between px-4 py-3 bg-gray-900 border-t border-gray-700">
+            <div className={`mt-4 flex items-center justify-between px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar}`}>
               {/* Orden: Finalizar → Revertir → Paginado */}
               <div className="flex items-center gap-3">
                 {/* 1. Botón FINALIZAR - Siempre visible, deshabilitado si no hay selección */}
@@ -765,7 +786,7 @@ const ComandaStyle = () => {
                   className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
                     selectedOrders.size > 0
                       ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
-                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
                   }`}
                   whileHover={selectedOrders.size > 0 ? { 
                     scale: 1.05, 
@@ -788,7 +809,7 @@ const ComandaStyle = () => {
                 {/* 2. Botón REVERTIR */}
                 <motion.button
                   onClick={() => setShowRevertir(true)}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg text-sm shadow-md"
+                  className={`px-4 py-2 ${bgButton} ${bgButtonHover} ${textButton} font-semibold rounded-lg text-sm shadow-md`}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -802,19 +823,19 @@ const ComandaStyle = () => {
                   <motion.button
                     onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                     disabled={currentPage === 0}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm shadow-md"
+                    className={`px-4 py-2 ${bgButton} ${bgButtonHover} ${currentPage === 0 ? (nightMode ? 'disabled:bg-gray-900 disabled:text-gray-600' : 'disabled:bg-gray-400 disabled:text-gray-500') : ''} disabled:cursor-not-allowed ${textButton} font-semibold rounded-lg text-sm shadow-md`}
                     whileHover={{ scale: currentPage === 0 ? 1 : 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
                     ← PÁGINA {currentPage + 1}
                   </motion.button>
-                  <div className="text-white font-semibold text-sm">
+                  <div className={`${textMain} font-semibold text-sm`}>
                     de {totalPages}
                   </div>
                   <motion.button
                     onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
                     disabled={currentPage >= totalPages - 1}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm shadow-md"
+                    className={`px-4 py-2 ${bgButton} ${bgButtonHover} ${currentPage >= totalPages - 1 ? (nightMode ? 'disabled:bg-gray-900 disabled:text-gray-600' : 'disabled:bg-gray-400 disabled:text-gray-500') : ''} disabled:cursor-not-allowed ${textButton} font-semibold rounded-lg text-sm shadow-md`}
                     whileHover={{ scale: currentPage >= totalPages - 1 ? 1 : 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -823,7 +844,7 @@ const ComandaStyle = () => {
                 </div>
               )}
               {totalPages <= 1 && (
-                <div className="text-gray-500 text-sm">
+                <div className={`${textSecondary} text-sm`}>
                   Página 1
                 </div>
               )}
@@ -836,6 +857,7 @@ const ComandaStyle = () => {
       {showConfig && (
         <ConfigModal
           config={config}
+          nightMode={nightMode}
           onClose={() => setShowConfig(false)}
           onSave={(newConfig) => {
             setConfig(newConfig);
@@ -848,12 +870,14 @@ const ComandaStyle = () => {
         <ReportsModal
           estadisticas={estadisticas}
           comandas={comandas}
+          nightMode={nightMode}
           onClose={() => setShowReports(false)}
         />
       )}
 
       {showRevertir && (
         <RevertirModal
+          nightMode={nightMode}
           onClose={() => setShowRevertir(false)}
           onRevertir={obtenerComandas}
         />
@@ -871,15 +895,15 @@ const ComandaStyle = () => {
             onClick={() => setShowEntregadoConfirm(false)}
           >
             <motion.div 
-              className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-700"
+              className={`${nightMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border ${borderMain}`}
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
             >
-            <h2 className="text-xl font-bold text-white mb-3">¿Marcar como entregado?</h2>
-            <p className="text-gray-300 text-sm mb-6">
+            <h2 className={`text-xl font-bold ${textMain} mb-3`}>¿Marcar como entregado?</h2>
+            <p className={`${textSecondary} text-sm mb-6`}>
               Se marcarán <span className="font-bold text-yellow-400">{selectedOrders.size}</span> comanda(s) como entregada(s). Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-3">
@@ -891,7 +915,7 @@ const ComandaStyle = () => {
               </button>
               <button
                 onClick={() => setShowEntregadoConfirm(false)}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 active:bg-gray-800 text-white font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95"
+                className={`flex-1 ${nightMode ? 'bg-gray-600 hover:bg-gray-700 active:bg-gray-800' : 'bg-gray-300 hover:bg-gray-400 active:bg-gray-500'} text-white font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95`}
               >
                 Cancelar
               </button>
@@ -919,12 +943,14 @@ const SicarComandaCard = ({
   onToggleSelect,
   fontSize = 15,
   completedPlatos,
-  setCompletedPlatos
+  setCompletedPlatos,
+  cardNumber = 1,
+  nightMode = true
 }) => {
   // Calcular color de fondo según tiempo (actualizado en tiempo real) - Colores mejorados
   const [minutosActuales, setMinutosActuales] = useState(tiempo.minutos);
-  const [bgColor, setBgColor] = useState("bg-gray-800");
-  const [borderColor, setBorderColor] = useState("border-gray-600");
+  const [bgColor, setBgColor] = useState("bg-gray-500");
+  const [borderColor, setBorderColor] = useState("border-gray-500");
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -934,32 +960,32 @@ const SicarComandaCard = ({
       const diffMinutos = ahora.diff(creacion, "minutes");
       setMinutosActuales(diffMinutos);
       
-      // Actualizar colores según tiempo - Colores más suaves y profesionales
+      // Actualizar colores según tiempo - Borde y encabezado con el mismo color
       if (diffMinutos >= alertRedMinutes) {
         setBgColor("bg-red-700");
-        setBorderColor("border-red-600");
+        setBorderColor("border-red-700");
       } else if (diffMinutos >= alertYellowMinutes) {
         setBgColor("bg-yellow-600");
-        setBorderColor("border-yellow-500");
+        setBorderColor("border-yellow-600");
       } else {
-        setBgColor("bg-gray-800");
-        setBorderColor("border-gray-600");
+        setBgColor("bg-gray-500");
+        setBorderColor("border-gray-500");
       }
     }, 1000);
     return () => clearInterval(interval);
   }, [comanda.createdAt, alertYellowMinutes, alertRedMinutes]);
 
-  // Inicializar colores
+  // Inicializar colores - Borde y encabezado con el mismo color
   useEffect(() => {
     if (minutosActuales >= alertRedMinutes) {
       setBgColor("bg-red-700");
-      setBorderColor("border-red-600");
+      setBorderColor("border-red-700");
     } else if (minutosActuales >= alertYellowMinutes) {
       setBgColor("bg-yellow-600");
-      setBorderColor("border-yellow-500");
+      setBorderColor("border-yellow-600");
     } else {
-      setBgColor("bg-gray-800");
-      setBorderColor("border-gray-600");
+      setBgColor("bg-gray-500");
+      setBorderColor("border-gray-500");
     }
   }, [minutosActuales, alertYellowMinutes, alertRedMinutes]);
 
@@ -1018,6 +1044,16 @@ const SicarComandaCard = ({
     const platoKey = `${comandaId}-${platoId}`;
     return completedPlatos.has(platoKey);
   };
+
+  // Variables de color según modo nocturno para el área de platos
+  // En modo nocturno: fondo oscuro, texto claro
+  // En modo claro: fondo claro, texto oscuro
+  const bgPlatos = nightMode ? "bg-gray-800" : "bg-white";
+  const textPlatos = nightMode ? "text-white" : "text-gray-900";
+  const textPlatosHover = nightMode ? "hover:bg-gray-700" : "hover:bg-gray-100";
+  const textPlatosCompleted = nightMode ? "text-green-400" : "text-green-700";
+  const bgBadgeEspera = nightMode ? "bg-gray-700" : "bg-white";
+  const textBadgeEspera = nightMode ? "text-white" : "text-black";
 
   // Los botones PREPARAR y SIN STOCK fueron eliminados
   // Ahora se usa la función FINALIZAR de la barra inferior
@@ -1078,31 +1114,42 @@ const SicarComandaCard = ({
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Header: ORDEN # | MESA # | Tiempo */}
-      <div className={`p-4 ${estadoColumna === "en_espera" || estadoColumna === "recoger" ? "pt-12" : "pt-4"} ${isSelected ? "pt-16" : ""}`}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-red-500 font-bold text-2xl" style={{ 
-            textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
-            fontFamily: 'Arial, sans-serif'
-          }}>
-            ORDEN #{comanda.comandaNumber || "N/A"}
+      {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) */}
+      <div className={`p-4 ${isSelected ? "pt-16" : "pt-4"} ${bgColor}`}>
+        <div className="flex items-start justify-between">
+          {/* Izquierda: Orden # y número de tarjeta */}
+          <div>
+            <div className="text-white font-bold text-xl mb-1" style={{ 
+              fontFamily: 'Arial, sans-serif'
+            }}>
+              Orden #{comanda.comandaNumber || "N/A"}
+            </div>
+            <div className="text-white font-semibold text-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
+              {cardNumber}
+            </div>
           </div>
-          <div className="text-white font-semibold text-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
-            M {comanda.mesas?.nummesa || "N/A"}
-          </div>
-          <div className="text-white font-bold text-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
-            {tiempoDisplay}
+
+          {/* Derecha: Mesa # y Cronómetro */}
+          <div className="flex flex-col items-end">
+            <div className="text-white font-semibold text-lg mb-1" style={{ fontFamily: 'Arial, sans-serif' }}>
+              M{comanda.mesas?.nummesa || "N/A"}
+            </div>
+            <div className="flex items-center gap-1">
+              <FaClock className="text-white text-sm" />
+              <div className="text-white font-bold text-base" style={{ fontFamily: 'Arial, sans-serif' }}>
+                {tiempoDisplay}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Badge de estado - ESPERA o LISTO */}
+      {/* Badge de estado - EN ESPERA (abajo del header, fondo según modo) */}
       {estadoColumna === "en_espera" && (
-        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white font-bold text-base py-2 text-center rounded-t-lg" style={{ 
-          fontFamily: 'Arial, sans-serif',
-          textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
+        <div className={`${bgBadgeEspera} ${textBadgeEspera} font-bold text-base py-2 text-center`} style={{ 
+          fontFamily: 'Arial, sans-serif'
         }}>
-          ⬜ ESPERA
+          EN ESPERA
         </div>
       )}
       {estadoColumna === "recoger" && (
@@ -1114,8 +1161,8 @@ const SicarComandaCard = ({
         </div>
       )}
 
-      {/* Lista de platos vertical - Fuente 18px, mejor espaciado, con interacción */}
-      <div className="flex-1 px-4 py-2 overflow-y-auto">
+      {/* Lista de platos vertical - Fuente 18px, mejor espaciado, con interacción - Fondo según modo */}
+      <div className={`flex-1 px-4 py-2 overflow-y-auto ${bgPlatos}`}>
         <div className="space-y-1.5">
           <AnimatePresence>
             {platosFiltrados.map((plato, index) => {
@@ -1132,7 +1179,7 @@ const SicarComandaCard = ({
                     opacity: 1, 
                     y: 0,
                     backgroundColor: isCompleted ? 'rgba(34, 197, 94, 0.3)' : 'transparent',
-                    color: isCompleted ? '#86efac' : 'white'
+                    color: isCompleted ? (nightMode ? '#86efac' : '#15803d') : (nightMode ? '#ffffff' : '#111827')
                   }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
@@ -1141,13 +1188,12 @@ const SicarComandaCard = ({
                     togglePlatoCompleted(platoId);
                   }}
                   className={`font-semibold leading-tight px-2 py-1 rounded cursor-pointer transition-all duration-200 ${
-                    isCompleted ? 'bg-green-500/30 text-green-200' : 'text-white hover:bg-white/10'
+                    isCompleted ? `bg-green-500/30 ${textPlatosCompleted}` : `${textPlatos} ${textPlatosHover}`
                   }`}
                   whileHover={{ scale: 1.02, x: 4 }}
                   whileTap={{ scale: 0.98 }}
                     style={{ 
                       fontFamily: 'Arial, sans-serif',
-                      textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
                       fontSize: '18px'
                     }}
                 >
@@ -1157,7 +1203,7 @@ const SicarComandaCard = ({
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                        className="text-green-400"
+                        className={textPlatosCompleted}
                       >
                         ✓
                       </motion.span>

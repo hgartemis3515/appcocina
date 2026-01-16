@@ -3,7 +3,13 @@ import jsPDF from "jspdf";
 import moment from "moment-timezone";
 import { FaTimes, FaFilePdf } from "react-icons/fa";
 
-const ReportsModal = ({ estadisticas, comandas, onClose }) => {
+const ReportsModal = ({ estadisticas, comandas, onClose, nightMode = true }) => {
+  const bgModal = nightMode ? "bg-gray-800" : "bg-white";
+  const textModal = nightMode ? "text-white" : "text-gray-900";
+  const textSecondary = nightMode ? "text-gray-400" : "text-gray-600";
+  const borderModal = nightMode ? "border-gray-600" : "border-gray-300";
+  const inputBg = nightMode ? "bg-gray-700" : "bg-gray-100";
+  const inputText = nightMode ? "text-white" : "text-gray-900";
   const [filtroMozo, setFiltroMozo] = useState("");
   const [filtroMesa, setFiltroMesa] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
@@ -133,12 +139,12 @@ const ReportsModal = ({ estadisticas, comandas, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">📊 Reportes y Estadísticas</h2>
+          <h2 className={`text-2xl font-bold ${textModal}`}>📊 Reportes y Estadísticas</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl"
+            className={`${textSecondary} hover:${textModal} text-2xl`}
           >
             <FaTimes />
           </button>
@@ -147,11 +153,11 @@ const ReportsModal = ({ estadisticas, comandas, onClose }) => {
         {/* Filtros */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div>
-            <label className="block text-white font-semibold mb-2">Filtrar por Mozo</label>
+            <label className={`block ${textModal} font-semibold mb-2`}>Filtrar por Mozo</label>
             <select
               value={filtroMozo}
               onChange={(e) => setFiltroMozo(e.target.value)}
-              className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600"
+              className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
             >
               <option value="">Todos los mozos</option>
               {mozos.map(mozo => (
@@ -161,11 +167,11 @@ const ReportsModal = ({ estadisticas, comandas, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-white font-semibold mb-2">Filtrar por Mesa</label>
+            <label className={`block ${textModal} font-semibold mb-2`}>Filtrar por Mesa</label>
             <select
               value={filtroMesa}
               onChange={(e) => setFiltroMesa(e.target.value)}
-              className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600"
+              className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
             >
               <option value="">Todas las mesas</option>
               {mesas.map(mesa => (
@@ -175,11 +181,11 @@ const ReportsModal = ({ estadisticas, comandas, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-white font-semibold mb-2">Filtrar por Estado</label>
+            <label className={`block ${textModal} font-semibold mb-2`}>Filtrar por Estado</label>
             <select
               value={filtroEstado}
               onChange={(e) => setFiltroEstado(e.target.value)}
-              className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600"
+              className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
             >
               <option value="">Todos los estados</option>
               <option value="ingresante">Ingresante</option>
@@ -192,33 +198,33 @@ const ReportsModal = ({ estadisticas, comandas, onClose }) => {
 
         {/* Estadísticas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400 text-sm">Total Comandas</div>
-            <div className="text-2xl font-bold text-white">{estadisticas.totalComandas}</div>
+          <div className={`${inputBg} p-4 rounded-lg`}>
+            <div className={`${textSecondary} text-sm`}>Total Comandas</div>
+            <div className={`text-2xl font-bold ${textModal}`}>{estadisticas.totalComandas}</div>
           </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400 text-sm">Comandas Entregadas</div>
+          <div className={`${inputBg} p-4 rounded-lg`}>
+            <div className={`${textSecondary} text-sm`}>Comandas Entregadas</div>
             <div className="text-2xl font-bold text-green-400">{estadisticas.comandasEntregadas}</div>
           </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400 text-sm">Total Ventas</div>
+          <div className={`${inputBg} p-4 rounded-lg`}>
+            <div className={`${textSecondary} text-sm`}>Total Ventas</div>
             <div className="text-2xl font-bold text-yellow-400">S/.{estadisticas.totalVentas.toFixed(2)}</div>
           </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400 text-sm">Tiempo Promedio</div>
+          <div className={`${inputBg} p-4 rounded-lg`}>
+            <div className={`${textSecondary} text-sm`}>Tiempo Promedio</div>
             <div className="text-2xl font-bold text-blue-400">{calcularTiempoPromedio()} min</div>
           </div>
         </div>
 
         {/* Ventas por Mozo */}
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-white mb-3">Ventas por Mozo</h3>
-          <div className="bg-gray-700 rounded-lg p-4">
+          <h3 className={`text-xl font-bold ${textModal} mb-3`}>Ventas por Mozo</h3>
+          <div className={`${inputBg} rounded-lg p-4`}>
             {Object.entries(estadisticas.ventasPorMozo)
               .sort((a, b) => b[1] - a[1])
               .map(([mozo, venta]) => (
-                <div key={mozo} className="flex justify-between items-center py-2 border-b border-gray-600 last:border-0">
-                  <span className="text-white">{mozo}</span>
+                <div key={mozo} className={`flex justify-between items-center py-2 border-b ${borderModal} last:border-0`}>
+                  <span className={textModal}>{mozo}</span>
                   <span className="text-yellow-400 font-bold">S/.{venta.toFixed(2)}</span>
                 </div>
               ))}
@@ -227,11 +233,11 @@ const ReportsModal = ({ estadisticas, comandas, onClose }) => {
 
         {/* Platos más pedidos */}
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-white mb-3">Platos Más Pedidos</h3>
-          <div className="bg-gray-700 rounded-lg p-4">
+          <h3 className={`text-xl font-bold ${textModal} mb-3`}>Platos Más Pedidos</h3>
+          <div className={`${inputBg} rounded-lg p-4`}>
             {platosMasPedidos.map(([plato, cantidad], index) => (
-              <div key={plato} className="flex justify-between items-center py-2 border-b border-gray-600 last:border-0">
-                <span className="text-white">
+              <div key={plato} className={`flex justify-between items-center py-2 border-b ${borderModal} last:border-0`}>
+                <span className={textModal}>
                   {index + 1}. {plato}
                 </span>
                 <span className="text-green-400 font-bold">{cantidad} unidades</span>

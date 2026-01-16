@@ -3,7 +3,14 @@ import axios from "axios";
 import moment from "moment-timezone";
 import { FaTimes, FaUndo } from "react-icons/fa";
 
-const RevertirModal = ({ onClose, onRevertir }) => {
+const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
+  const bgModal = nightMode ? "bg-gray-800" : "bg-white";
+  const textModal = nightMode ? "text-white" : "text-gray-900";
+  const textSecondary = nightMode ? "text-gray-400" : "text-gray-600";
+  const textTertiary = nightMode ? "text-gray-300" : "text-gray-700";
+  const borderModal = nightMode ? "border-gray-600" : "border-gray-300";
+  const inputBg = nightMode ? "bg-gray-700" : "bg-gray-100";
+  const buttonBg = nightMode ? "bg-gray-600 hover:bg-gray-700" : "bg-gray-300 hover:bg-gray-400";
   const [comandasFinalizadas, setComandasFinalizadas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [cargando, setCargando] = useState(true);
@@ -100,25 +107,25 @@ const RevertirModal = ({ onClose, onRevertir }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">
+          <h2 className={`text-2xl font-bold ${textModal}`}>
             ↩️ REVERTIR COMANDAS PREPARADAS (Últimas 24h)
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl"
+            className={`${textSecondary} hover:${textModal} text-2xl`}
           >
             <FaTimes />
           </button>
         </div>
 
         {cargando ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className={`text-center ${textSecondary} py-8`}>
             <p className="text-xl">Cargando comandas preparadas...</p>
           </div>
         ) : comandasFinalizadas.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className={`text-center ${textSecondary} py-8`}>
             <p className="text-xl">No hay comandas preparadas para revertir</p>
             <p className="text-sm mt-2">Solo se muestran comandas en estado "Preparado" (recoger) o "Entregado" de las últimas 24 horas</p>
           </div>
@@ -127,17 +134,17 @@ const RevertirModal = ({ onClose, onRevertir }) => {
             {comandasFinalizadas.map((comanda) => (
               <div
                 key={comanda._id}
-                className="bg-gray-700 rounded-lg p-4 border-2 border-gray-600"
+                className={`${inputBg} rounded-lg p-4 border-2 ${borderModal}`}
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <div className="font-bold text-xl text-white">
+                    <div className={`font-bold text-xl ${textModal}`}>
                       #{comanda.comandaNumber || "N/A"}
                     </div>
-                    <div className="text-sm text-gray-300 mt-1">
+                    <div className={`text-sm ${textTertiary} mt-1`}>
                       Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozos?.name || "Sin mozo"}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
+                    <div className={`text-xs ${textSecondary} mt-1`}>
                       Estado: {comanda.status || "N/A"} | {formatearFecha(comanda.updatedAt || comanda.createdAt)}
                     </div>
                   </div>
@@ -153,7 +160,7 @@ const RevertirModal = ({ onClose, onRevertir }) => {
                 </div>
                 
                 {/* Lista de platos */}
-                <div className="text-sm text-gray-300">
+                <div className={`text-sm ${textTertiary}`}>
                   <strong>Platos:</strong>
                   <ul className="list-disc list-inside mt-1 ml-2">
                     {comanda.platos?.map((p, idx) => {
@@ -175,7 +182,7 @@ const RevertirModal = ({ onClose, onRevertir }) => {
         <div className="mt-6 flex justify-end">
           <button
             onClick={onClose}
-            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
+            className={`px-6 py-3 ${buttonBg} text-white font-bold rounded-lg transition-colors`}
           >
             Cerrar
           </button>
