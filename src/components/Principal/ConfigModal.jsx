@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FaTimes } from "react-icons/fa";
 import moment from "moment-timezone";
+import { getRawApiUrl, setApiUrl as saveApiUrl, getApiUrl, isValidUrl, formatUrl } from "../../config/apiConfig";
 
 const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
   const [localConfig, setLocalConfig] = useState({
@@ -8,8 +9,26 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
     design: config.design || { fontSize: 15, cols: 5, rows: 1 },
     nightMode: config.nightMode !== undefined ? config.nightMode : true
   });
+  const [apiUrl, setApiUrlLocal] = useState(getRawApiUrl() || 'http://192.168.18.127:3000');
+  const [apiUrlError, setApiUrlError] = useState('');
 
   const handleSave = () => {
+    // Guardar configuración de URL del backend si cambió
+    if (apiUrl && apiUrl.trim() !== '') {
+      const formattedUrl = formatUrl(apiUrl.trim());
+      if (isValidUrl(formattedUrl)) {
+        try {
+          saveApiUrl(formattedUrl);
+          setApiUrlError('');
+        } catch (error) {
+          setApiUrlError('Error al guardar la URL del servidor');
+          return;
+        }
+      } else {
+        setApiUrlError('URL inválida. Debe ser una URL válida (ej: http://192.168.18.127:3000)');
+        return;
+      }
+    }
     onSave(localConfig);
   };
 
@@ -34,6 +53,38 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
         </div>
 
         <div className="space-y-6">
+          {/* Configuración del Servidor */}
+          <div>
+            <h3 className={`text-xl font-bold ${textModal} mb-4`}>🔌 CONFIGURACIÓN DEL SERVIDOR</h3>
+            <div>
+              <label className={`block ${textModal} font-semibold mb-2`}>
+                URL del Servidor Backend
+              </label>
+              <input
+                type="text"
+                value={apiUrl}
+                onChange={(e) => {
+                  setApiUrlLocal(e.target.value);
+                  setApiUrlError('');
+                }}
+                placeholder="http://192.168.18.127:3000"
+                className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal} ${apiUrlError ? 'border-red-500' : ''}`}
+              />
+              {apiUrlError && (
+                <p className="text-red-500 text-sm mt-1">{apiUrlError}</p>
+              )}
+              <p className={`${textSecondary} text-sm mt-1`}>
+                URL base del servidor backend (sin /api/comanda). Ejemplo: http://192.168.18.127:3000
+              </p>
+              <p className={`${textSecondary} text-xs mt-1`}>
+                URL actual: {getApiUrl()}
+              </p>
+            </div>
+          </div>
+
+          {/* Separador */}
+          <div className={`border-t ${borderModal} my-6`}></div>
+
           {/* Intervalo de Polling */}
           <div>
             <label className={`block ${textModal} font-semibold mb-2`}>

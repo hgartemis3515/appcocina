@@ -22,6 +22,7 @@ import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import useSocketCocina from "../../hooks/useSocketCocina";
+import { getApiUrl } from "../../config/apiConfig";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -114,7 +115,7 @@ const ComandaStyle = () => {
   const obtenerComandas = useCallback(async () => {
     try {
       const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
-      const apiUrl = `${process.env.REACT_APP_API_COMANDA}/fechastatus/${fechaActual}`;
+      const apiUrl = `${getApiUrl()}/fechastatus/${fechaActual}`;
       
       console.log('🔍 Obteniendo comandas desde:', apiUrl);
       console.log('📅 Fecha buscada:', fechaActual);
@@ -400,7 +401,7 @@ const ComandaStyle = () => {
             if (plato.estado === "en_espera" || plato.estado === "ingresante") {
               try {
                 await axios.put(
-                  `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+                  `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
                   { nuevoEstado: "recoger" }
                 );
               } catch (error) {
@@ -418,7 +419,7 @@ const ComandaStyle = () => {
             if (plato.estado === "recoger") {
               try {
                 await axios.put(
-                  `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+                  `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
                   { nuevoEstado: "entregado" }
                 );
               } catch (error) {
@@ -430,7 +431,7 @@ const ComandaStyle = () => {
           // Actualizar status de comanda
           try {
             await axios.put(
-              `${process.env.REACT_APP_API_COMANDA}/${comandaId}/status`,
+              `${getApiUrl()}/${comandaId}/status`,
               { nuevoStatus: "entregado" }
             );
           } catch (error) {
@@ -477,10 +478,10 @@ const ComandaStyle = () => {
       updatedComanda.cantidades.splice(platoIndex, 1);
       
       if (updatedComanda.platos.length === 0) {
-        await axios.delete(`${process.env.REACT_APP_API_COMANDA}/${comandaId}`);
+        await axios.delete(`${getApiUrl()}/${comandaId}`);
       } else {
         await axios.put(
-          `${process.env.REACT_APP_API_COMANDA}/${comandaId}`,
+          `${getApiUrl()}/${comandaId}`,
           updatedComanda
         );
       }
@@ -555,7 +556,7 @@ const ComandaStyle = () => {
           if (plato.estado !== "recoger" && plato.estado !== "entregado") {
             try {
               await axios.put(
-                `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+                `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
                 { nuevoEstado: "recoger" }
               );
             } catch (error) {
@@ -567,7 +568,7 @@ const ComandaStyle = () => {
         // Actualizar status de comanda a "recoger" (preparado)
         try {
           await axios.put(
-            `${process.env.REACT_APP_API_COMANDA}/${comandaId}/status`,
+            `${getApiUrl()}/${comandaId}/status`,
             { nuevoStatus: "recoger" }
           );
         } catch (error) {
@@ -603,7 +604,7 @@ const ComandaStyle = () => {
           if (plato.estado !== "entregado") {
             try {
               await axios.put(
-                `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+                `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
                 { nuevoEstado: "entregado" }
               );
             } catch (error) {
@@ -615,7 +616,7 @@ const ComandaStyle = () => {
         // Actualizar status de comanda a entregado
         try {
           await axios.put(
-            `${process.env.REACT_APP_API_COMANDA}/${comandaId}/status`,
+            `${getApiUrl()}/${comandaId}/status`,
             { nuevoStatus: "entregado" }
           );
         } catch (error) {

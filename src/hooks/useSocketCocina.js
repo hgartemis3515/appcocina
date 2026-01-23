@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import moment from 'moment-timezone';
 import axios from 'axios';
+import { getServerBaseUrl } from '../config/apiConfig';
 
 /**
  * Hook personalizado para manejar conexión Socket.io con namespace /cocina
@@ -24,12 +25,9 @@ const useSocketCocina = ({
   const fallbackIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
-  // Obtener URL del servidor desde variable de entorno o usar default
+  // Obtener URL del servidor desde configuración dinámica
   const getServerUrl = () => {
-    const apiUrl = process.env.REACT_APP_API_COMANDA || 'http://192.168.18.11:3000/api/comanda';
-    // Extraer base URL (sin /api/comanda)
-    const baseUrl = apiUrl.replace('/api/comanda', '');
-    return baseUrl;
+    return getServerBaseUrl();
   };
 
   useEffect(() => {

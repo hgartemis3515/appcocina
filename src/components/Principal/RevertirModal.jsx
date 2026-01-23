@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
 import { FaTimes, FaUndo } from "react-icons/fa";
+import { getApiUrl } from "../../config/apiConfig";
 
 const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   const bgModal = nightMode ? "bg-gray-800" : "bg-white";
@@ -22,7 +23,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       try {
         const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
         // Obtener todas las comandas del día y filtrar las entregadas
-        const apiUrl = `${process.env.REACT_APP_API_COMANDA}/fecha/${fechaActual}`;
+        const apiUrl = `${getApiUrl()}/fecha/${fechaActual}`;
         
         const response = await axios.get(apiUrl, { timeout: 5000 });
         
@@ -70,7 +71,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
 
       // Cambiar status de comanda a "en_espera"
       await axios.put(
-        `${process.env.REACT_APP_API_COMANDA}/${comandaId}/status`,
+        `${getApiUrl()}/${comandaId}/status`,
         { nuevoStatus: "en_espera" }
       );
       
@@ -78,7 +79,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       for (const plato of comanda.platos) {
         if (plato.estado === "recoger" || plato.estado === "entregado") {
           await axios.put(
-            `${process.env.REACT_APP_API_COMANDA}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+            `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
             { nuevoEstado: "en_espera" }
           );
         }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FaTimes, FaSave } from "react-icons/fa";
 import axios from "axios";
+import { getApiUrl } from "../../config/apiConfig";
 
 const AnotacionesModal = ({ comanda, onClose }) => {
   const [anotaciones, setAnotaciones] = useState(comanda.observaciones || "");
@@ -8,7 +9,7 @@ const AnotacionesModal = ({ comanda, onClose }) => {
   const guardarAnotaciones = async () => {
     try {
       await axios.put(
-        `${process.env.REACT_APP_API_COMANDA}/${comanda._id}`,
+        `${getApiUrl()}/${comanda._id}`,
         {
           ...comanda,
           observaciones: anotaciones
