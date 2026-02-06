@@ -181,6 +181,26 @@ const useSocketCocina = ({
       }
     });
 
+    // ✅ Evento: Comanda eliminada - Remover tarjeta en tiempo real
+    socket.on('comanda-eliminada', (data) => {
+      console.log('🗑️ Comanda eliminada recibida:', data.comandaId || data.comanda?._id, 'Comanda #:', data.comanda?.comandaNumber);
+      ultimoPingRef.current = Date.now();
+      
+      // Llamar callback si existe, o refrescar comandas
+      if (onComandaActualizada) {
+        // Pasar información de eliminación para que el handler pueda remover la comanda
+        onComandaActualizada({
+          comandaId: data.comandaId || data.comanda?._id,
+          comanda: data.comanda,
+          eliminada: true, // Marcar como eliminada
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
+        // Si no hay callback específico, refrescar todas las comandas
+        obtenerComandas();
+      }
+    });
+
     // Heartbeat para mantener conexión activa
     const heartbeatInterval = setInterval(() => {
       if (socket.connected) {

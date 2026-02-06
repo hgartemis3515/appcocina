@@ -123,8 +123,14 @@ const ComandaStyle = () => {
       
       const response = await axios.get(apiUrl, { timeout: 5000 });
       
-      // VALIDACIÓN CRÍTICA: Filtrar comandas que tienen platos sin nombre cargado
+      // VALIDACIÓN CRÍTICA: Filtrar comandas que tienen platos sin nombre cargado Y comandas eliminadas
       const comandasValidas = response.data.filter(c => {
+        // ✅ FILTRAR COMANDAS ELIMINADAS (IsActive = false)
+        if (c.IsActive === false || c.IsActive === null || c.eliminada === true) {
+          console.warn(`⚠️ Comanda #${c.comandaNumber} filtrada: comanda eliminada (IsActive: ${c.IsActive})`);
+          return false;
+        }
+        
         // Si no tiene platos, no es válida
         if (!c.platos || c.platos.length === 0) return false;
         
@@ -293,6 +299,35 @@ const ComandaStyle = () => {
     if (!data) {
       console.warn('⚠️ handleComandaActualizada recibió data null/undefined');
       return;
+    }
+    
+    // ✅ MANEJAR ELIMINACIÓN DE COMANDA - Remover tarjeta en tiempo real
+    if (data.eliminada === true || (data.comanda && (data.comanda.IsActive === false || data.comanda.eliminada === true))) {
+      const comandaId = data.comandaId || data.comanda?._id || data._id;
+      console.log('🗑️ Removiendo comanda eliminada de la lista:', comandaId);
+      
+      setComandas(prev => {
+        const comandasFiltradas = prev.filter(c => {
+          const cId = c._id?.toString ? c._id.toString() : c._id;
+          const eliminarId = comandaId?.toString ? comandaId.toString() : comandaId;
+          return cId !== eliminarId;
+        });
+        
+        if (comandasFiltradas.length < prev.length) {
+          console.log(`✅ Comanda ${comandaId} removida de la lista. Total: ${prev.length} → ${comandasFiltradas.length}`);
+        }
+        
+        return comandasFiltradas;
+      });
+      
+      // Actualizar referencia
+      previousComandasRef.current = previousComandasRef.current.filter(c => {
+        const cId = c._id?.toString ? c._id.toString() : c._id;
+        const eliminarId = comandaId?.toString ? comandaId.toString() : comandaId;
+        return cId !== eliminarId;
+      });
+      
+      return; // No continuar con la actualización normal
     }
     
     // data puede ser la comanda directamente o un objeto con comanda y platosEliminados
