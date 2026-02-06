@@ -139,17 +139,32 @@ const useSocketCocina = ({
 
     // Evento: Comanda actualizada
     socket.on('comanda-actualizada', async (data) => {
-      console.log('📥 Comanda actualizada recibida:', data.comandaId);
+      console.log('📥 Comanda actualizada recibida:', data.comandaId || data.comanda?._id);
       ultimoPingRef.current = Date.now();
       
       if (onComandaActualizada) {
-        // Si viene la comanda completa, usarla; sino, hacer fetch
+        // Si viene la comanda completa, pasar el objeto completo con platosEliminados
         if (data.comanda) {
-          onComandaActualizada(data.comanda);
+          onComandaActualizada(data); // Pasar el objeto completo, no solo la comanda
         } else if (data.comandaId && obtenerComandas) {
           // Refrescar todas las comandas si no viene la comanda completa
           obtenerComandas();
         }
+      }
+    });
+    
+    // 🔥 AUDITORÍA: Evento específico para plato eliminado
+    socket.on('comanda:plato-eliminado', async (data) => {
+      console.log('🗑️ Plato eliminado recibido:', data.platoEliminado?.nombre, 'Comanda:', data.comandaId);
+      ultimoPingRef.current = Date.now();
+      
+      if (onComandaActualizada && data.comanda) {
+        // Pasar la comanda actualizada con el plato marcado como eliminado
+        onComandaActualizada({
+          comanda: data.comanda,
+          platosEliminados: data.comanda.historialPlatos?.filter(h => h.estado === 'eliminado') || [],
+          auditoria: data.auditoria
+        });
       }
     });
 

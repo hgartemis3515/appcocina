@@ -76,6 +76,7 @@ const ComandaStyle = () => {
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
   const [platoStates, setPlatoStates] = useState(new Map()); // Trackear estados de platos: 'preparing' (amarillo) o 'completed' (verde)
+  const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
   const lastSuccessTimeRef = useRef(Date.now());
@@ -122,33 +123,62 @@ const ComandaStyle = () => {
       
       const response = await axios.get(apiUrl, { timeout: 5000 });
       
+      // VALIDACIÓN CRÍTICA: Filtrar comandas que tienen platos sin nombre cargado
+      const comandasValidas = response.data.filter(c => {
+        // Si no tiene platos, no es válida
+        if (!c.platos || c.platos.length === 0) return false;
+        
+        // Verificar que TODOS los platos tengan nombre cargado completamente
+        const todosPlatosConNombre = c.platos.every(plato => {
+          const platoObj = plato.plato || plato;
+          const nombre = platoObj?.nombre || plato?.nombre;
+          return nombre && nombre.trim().length > 0;
+        });
+        
+        if (!todosPlatosConNombre) {
+          console.warn(`⚠️ Comanda #${c.comandaNumber} filtrada: tiene platos sin nombre cargado`);
+          return false;
+        }
+        
+        return true;
+      });
+      
       console.log('✅ Comandas recibidas:', response.data.length);
-      if (response.data.length > 0) {
-        console.log('📋 Primera comanda:', {
-          _id: response.data[0]._id,
-          numero: response.data[0].comandaNumber,
-          status: response.data[0].status,
-          IsActive: response.data[0].IsActive,
-          platos: response.data[0].platos?.length,
-          createdAt: response.data[0].createdAt,
-          estadosPlatos: response.data[0].platos?.map(p => ({
+      console.log(`✅ Comandas válidas (con nombres cargados): ${comandasValidas.length}`);
+      
+      if (comandasValidas.length > 0) {
+        console.log('📋 Primera comanda válida:', {
+          _id: comandasValidas[0]._id,
+          numero: comandasValidas[0].comandaNumber,
+          status: comandasValidas[0].status,
+          IsActive: comandasValidas[0].IsActive,
+          platos: comandasValidas[0].platos?.length,
+          createdAt: comandasValidas[0].createdAt,
+          estadosPlatos: comandasValidas[0].platos?.map(p => ({
             estado: p.estado,
             nombre: p.plato?.nombre || p.nombre || 'Sin nombre'
           })) || []
         });
-        
-        // Verificar si hay comandas sin platos
-        const comandasSinPlatos = response.data.filter(c => !c.platos || c.platos.length === 0);
-        if (comandasSinPlatos.length > 0) {
-          console.warn(`⚠️ ${comandasSinPlatos.length} comandas sin platos:`, comandasSinPlatos.map(c => c.comandaNumber));
-        }
-      } else {
-        console.warn('⚠️ No se recibieron comandas del servidor');
       }
       
-      // Detectar nuevas comandas para reproducir sonido y animación
+      // Verificar si hay comandas sin platos o con platos sin nombre
+      const comandasSinPlatos = response.data.filter(c => !c.platos || c.platos.length === 0);
+      const comandasConPlatosSinNombre = response.data.length - comandasValidas.length - comandasSinPlatos.length;
+      
+      if (comandasSinPlatos.length > 0) {
+        console.warn(`⚠️ ${comandasSinPlatos.length} comandas sin platos:`, comandasSinPlatos.map(c => c.comandaNumber));
+      }
+      if (comandasConPlatosSinNombre > 0) {
+        console.warn(`⚠️ ${comandasConPlatosSinNombre} comandas con platos sin nombre (filtradas, esperando carga completa)`);
+      }
+      
+      if (comandasValidas.length === 0 && response.data.length > 0) {
+        console.warn('⚠️ No hay comandas válidas (todas tienen platos sin nombre o sin platos)');
+      }
+      
+      // Detectar nuevas comandas para reproducir sonido y animación (solo de comandas válidas)
       if (config.soundEnabled && previousComandasRef.current.length > 0) {
-        const nuevasComandas = response.data.filter(
+        const nuevasComandas = comandasValidas.filter(
           nueva => !previousComandasRef.current.some(
             anterior => anterior._id === nueva._id
           )
@@ -170,8 +200,8 @@ const ComandaStyle = () => {
         }
       }
       
-      previousComandasRef.current = response.data;
-      setComandas(response.data);
+      previousComandasRef.current = comandasValidas;
+      setComandas(comandasValidas);
       lastSuccessTimeRef.current = Date.now();
       
       if (reconnectTimeoutRef.current) {
@@ -216,6 +246,21 @@ const ComandaStyle = () => {
   const handleNuevaComanda = useCallback((nuevaComanda) => {
     console.log('📥 Nueva comanda recibida vía Socket.io:', nuevaComanda.comandaNumber);
     
+    // VALIDACIÓN: Verificar que todos los platos tengan nombre antes de agregar
+    if (nuevaComanda.platos && nuevaComanda.platos.length > 0) {
+      const todosPlatosConNombre = nuevaComanda.platos.every(plato => {
+        const platoObj = plato.plato || plato;
+        const nombre = platoObj?.nombre || plato?.nombre;
+        return nombre && nombre.trim().length > 0;
+      });
+      
+      if (!todosPlatosConNombre) {
+        console.warn(`⚠️ Comanda #${nuevaComanda.comandaNumber} recibida vía Socket.io pero tiene platos sin nombre. Esperando a que se carguen...`);
+        // No agregar la comanda todavía, esperar a que llegue actualizada con los nombres
+        return;
+      }
+    }
+    
     // Reproducir sonido si está habilitado
     if (config.soundEnabled) {
       playNotificationSound();
@@ -243,21 +288,171 @@ const ComandaStyle = () => {
     previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
   }, [config.soundEnabled]);
 
-  const handleComandaActualizada = useCallback((comandaActualizada) => {
-    console.log('📥 Comanda actualizada vía Socket.io:', comandaActualizada.comandaNumber || comandaActualizada._id);
+  const handleComandaActualizada = useCallback((data) => {
+    // Validar que data existe
+    if (!data) {
+      console.warn('⚠️ handleComandaActualizada recibió data null/undefined');
+      return;
+    }
     
-    // Actualizar comanda en la lista
+    // data puede ser la comanda directamente o un objeto con comanda y platosEliminados
+    const comandaActualizada = data.comanda || data;
+    const platosEliminadosData = data.platosEliminados || [];
+    
+    // Validar que comandaActualizada existe y tiene _id
+    if (!comandaActualizada || !comandaActualizada._id) {
+      console.warn('⚠️ Comanda actualizada no tiene _id válido:', data);
+      return;
+    }
+    
+    console.log('📥 Comanda actualizada vía Socket.io:', comandaActualizada.comandaNumber || comandaActualizada._id);
+    console.log('📋 Datos recibidos:', {
+      comandaId: comandaActualizada._id,
+      platos: comandaActualizada.platos?.length || 0,
+      status: comandaActualizada.status
+    });
+    
+    // VALIDACIÓN: Verificar que todos los platos tengan nombre antes de actualizar
+    if (comandaActualizada.platos && comandaActualizada.platos.length > 0) {
+      const todosPlatosConNombre = comandaActualizada.platos.every(plato => {
+        const platoObj = plato.plato || plato;
+        const nombre = platoObj?.nombre || plato?.nombre;
+        return nombre && nombre.trim().length > 0;
+      });
+      
+      if (!todosPlatosConNombre) {
+        console.warn(`⚠️ Comanda #${comandaActualizada.comandaNumber} actualizada pero tiene platos sin nombre. Esperando actualización completa...`);
+        // No actualizar todavía, esperar a que llegue con los nombres completos
+        return;
+      }
+    }
+    
+    // Detectar platos eliminados comparando la comanda anterior con la nueva
     setComandas(prev => {
+      console.log('🔄 Actualizando comanda en estado. Total comandas antes:', prev.length);
       const index = prev.findIndex(c => c._id === comandaActualizada._id);
       if (index !== -1) {
+        const comandaAnterior = prev[index];
+        
+        // Detectar platos que estaban antes pero ya no están
+        const platosAnteriores = new Map();
+        comandaAnterior.platos?.forEach((p, idx) => {
+          const platoId = p.plato?._id || p.plato || p.platoId;
+          const platoObj = p.plato || p;
+          const nombre = platoObj?.nombre || p?.nombre;
+          const cantidad = comandaAnterior.cantidades?.[idx] || 1;
+          if (platoId) {
+            platosAnteriores.set(platoId.toString(), { platoId, nombre, cantidad });
+          }
+        });
+        
+        const platosActuales = new Set();
+        comandaActualizada.platos?.forEach(p => {
+          const platoId = p.plato?._id || p.plato || p.platoId;
+          if (platoId) {
+            platosActuales.add(platoId.toString());
+          }
+        });
+        
+        // Encontrar platos eliminados
+        // PRIORIDAD: Usar datos del historial si vienen (más confiables), sino usar comparación
+        const eliminados = [];
+        
+        if (platosEliminadosData && platosEliminadosData.length > 0) {
+          // Usar datos del historial del backend (más confiables, tienen nombres correctos)
+          platosEliminadosData.forEach(h => {
+            if (h.estado === 'eliminado') {
+              eliminados.push({
+                platoId: h.platoId,
+                nombre: h.nombreOriginal || 'Plato eliminado',
+                cantidad: h.cantidadOriginal || 1,
+                timestamp: h.timestamp || new Date().toISOString()
+              });
+            }
+          });
+        } else {
+          // Si no vienen del historial, usar comparación local
+          platosAnteriores.forEach((info, platoId) => {
+            if (!platosActuales.has(platoId)) {
+              eliminados.push({
+                platoId: info.platoId,
+                nombre: info.nombre || 'Plato eliminado',
+                cantidad: info.cantidad,
+                timestamp: new Date().toISOString()
+              });
+            }
+          });
+        }
+        
+        // Guardar platos eliminados en el estado
+        if (eliminados.length > 0) {
+          setPlatosEliminados(prevEliminados => {
+            const nuevo = new Map(prevEliminados);
+            const comandaId = comandaActualizada._id;
+            const eliminadosActuales = nuevo.get(comandaId) || [];
+            // Agregar nuevos eliminados sin duplicar por platoId
+            eliminados.forEach(eliminado => {
+              // Verificar si ya existe un plato eliminado con el mismo platoId
+              const existe = eliminadosActuales.some(e => {
+                // Comparar por platoId (puede ser número o string)
+                const mismoPlatoId = e.platoId?.toString() === eliminado.platoId?.toString();
+                // Si tienen el mismo platoId, es un duplicado
+                return mismoPlatoId;
+              });
+              
+              if (!existe) {
+                eliminadosActuales.push(eliminado);
+              } else {
+                console.log(`⚠️ Plato eliminado duplicado ignorado: ${eliminado.nombre} (ID: ${eliminado.platoId})`);
+              }
+            });
+            
+            nuevo.set(comandaId, eliminadosActuales);
+            console.log(`🗑️ Platos eliminados en comanda #${comandaActualizada.comandaNumber}:`, eliminadosActuales.length, 'únicos');
+            return nuevo;
+          });
+        }
+        
         const nuevas = [...prev];
-        nuevas[index] = comandaActualizada;
+        // Crear una nueva referencia completa del objeto para forzar re-render
+        // Esto asegura que React detecte el cambio y re-renderice
+        nuevas[index] = JSON.parse(JSON.stringify(comandaActualizada));
+        console.log('✅ Comanda actualizada en estado. Nueva versión:', {
+          _id: nuevas[index]._id,
+          comandaNumber: nuevas[index].comandaNumber,
+          platos: nuevas[index].platos?.length || 0,
+          status: nuevas[index].status,
+          platosDetalle: nuevas[index].platos?.map(p => ({
+            nombre: p.plato?.nombre || p.nombre,
+            estado: p.estado
+          }))
+        });
         return nuevas;
+      } else {
+        // Si la comanda no existe en el estado anterior, agregarla si tiene platos válidos
+        if (comandaActualizada.platos && comandaActualizada.platos.length > 0) {
+          const todasPlatosConNombre = comandaActualizada.platos.every(plato => {
+            const platoObj = plato.plato || plato;
+            const nombre = platoObj?.nombre || plato?.nombre;
+            return nombre && nombre.trim().length > 0;
+          });
+          
+          if (todasPlatosConNombre) {
+            return [comandaActualizada, ...prev];
+          }
+        }
       }
-      // Si no existe, refrescar todas las comandas
+      // Si no existe y no se puede agregar, refrescar todas las comandas
       obtenerComandas();
       return prev;
     });
+    
+    // Forzar actualización del filtro después de actualizar comandas
+    // El useEffect de filteredComandas se ejecutará automáticamente cuando cambie 'comandas'
+    // También forzar un pequeño delay para asegurar que React procese el cambio
+    setTimeout(() => {
+      console.log('🔄 Forzando actualización de filtros después de actualizar comanda');
+    }, 100);
   }, [obtenerComandas]);
 
   const handlePlatoActualizado = useCallback((data) => {
@@ -314,7 +509,23 @@ const ComandaStyle = () => {
     
     // SOLO mostrar comandas con status "en_espera"
     // NO mostrar comandas con status "recoger" o "entregado"
-    return c.status === "en_espera";
+    if (c.status !== "en_espera") return false;
+    
+    // VALIDACIÓN CRÍTICA: Solo mostrar comandas donde TODOS los platos tengan nombre cargado
+    // Esto evita mostrar tarjetas con platos sin nombre que luego se cargan
+    const todosPlatosConNombre = c.platos.every(plato => {
+      const platoObj = plato.plato || plato;
+      const nombre = platoObj?.nombre || plato?.nombre;
+      // Verificar que el nombre existe, no está vacío y no es solo espacios
+      return nombre && nombre.trim().length > 0;
+    });
+    
+    if (!todosPlatosConNombre) {
+      console.warn(`⚠️ Comanda #${c.comandaNumber} oculta: tiene platos sin nombre cargado`);
+      return false;
+    }
+    
+    return true;
   });
 
   // Ya no mostramos comandas en "recoger" o "entregado" en el panel principal
@@ -861,6 +1072,7 @@ const ComandaStyle = () => {
                     setPlatoStates={setPlatoStates}
                     cardNumber={cardNumber}
                     nightMode={nightMode}
+                    platosEliminados={platosEliminados.get(comanda._id) || []}
                   />
                   );
                 })}
@@ -1038,8 +1250,93 @@ const SicarComandaCard = ({
   platoStates,
   setPlatoStates,
   cardNumber = 1,
-  nightMode = true
+  nightMode = true,
+  platosEliminados = [] // Mantener para compatibilidad, pero usar historialPlatos
 }) => {
+  // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
+  const platosEliminadosHistorial = React.useMemo(() => {
+    if (!comanda.historialPlatos || !Array.isArray(comanda.historialPlatos)) {
+      return [];
+    }
+    
+    return comanda.historialPlatos
+      .filter(h => h.estado === 'eliminado')
+      .map(h => {
+        // Intentar obtener el nombre desde diferentes fuentes
+        let nombre = h.nombreOriginal;
+        
+        // Si no hay nombreOriginal o es un placeholder, intentar desde otros campos
+        if (!nombre || nombre === 'Plato desconocido' || nombre === 'Sin nombre' || nombre === 'Plato eliminado' || nombre.startsWith('Plato #')) {
+          // Intentar buscar en el plato original si está disponible
+          if (h.plato && typeof h.plato === 'object' && h.plato.nombre) {
+            nombre = h.plato.nombre;
+          } else if (h.nombre) {
+            nombre = h.nombre;
+          } else {
+            // Si aún no hay nombre, intentar buscarlo desde la API
+            // Por ahora, mostrar un mensaje indicando que se está cargando
+            nombre = null; // Marcar como pendiente de carga
+          }
+        }
+        
+        return {
+          platoId: h.platoId,
+          nombre: nombre, // Puede ser null si no se encontró
+          cantidad: h.cantidadOriginal || h.cantidad || 1,
+          motivo: h.motivo || 'Eliminado',
+          timestamp: h.timestamp || new Date(),
+          usuario: h.usuario,
+          necesitaBuscarNombre: !nombre || nombre.startsWith('Plato #')
+        };
+      });
+  }, [comanda.historialPlatos]);
+  
+  // 🔥 AUDITORÍA: Buscar nombres faltantes desde la API si es necesario
+  const [nombresPlatos, setNombresPlatos] = React.useState(new Map());
+  
+  React.useEffect(() => {
+    const buscarNombresFaltantes = async () => {
+      const platosSinNombre = platosEliminadosHistorial.filter(p => p.necesitaBuscarNombre && p.platoId);
+      
+      if (platosSinNombre.length === 0) return;
+      
+      // Buscar nombres desde la API
+      for (const plato of platosSinNombre) {
+        if (nombresPlatos.has(plato.platoId)) continue; // Ya se buscó
+        
+        try {
+          // Usar getApiUrl importado al inicio del archivo
+          const apiUrl = getApiUrl();
+          const baseUrl = apiUrl.replace('/api/comanda', '');
+          
+          // Buscar el plato por ID
+          const response = await fetch(`${baseUrl}/api/platos/${plato.platoId}`);
+          if (response.ok) {
+            const platoData = await response.json();
+            if (platoData && platoData.nombre) {
+              setNombresPlatos(prev => new Map(prev).set(plato.platoId, platoData.nombre));
+              console.log(`✅ Nombre obtenido desde API: platoId=${plato.platoId}, nombre=${platoData.nombre}`);
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ No se pudo obtener nombre del plato ${plato.platoId}:`, error);
+        }
+      }
+    };
+    
+    buscarNombresFaltantes();
+  }, [platosEliminadosHistorial, nombresPlatos]);
+  
+  // Combinar nombres obtenidos con los platos eliminados
+  const platosEliminadosConNombres = platosEliminadosHistorial.map(p => ({
+    ...p,
+    nombre: p.nombre || nombresPlatos.get(p.platoId) || `Plato #${p.platoId || 'N/A'}`
+  }));
+  
+  // Usar historialPlatos si está disponible, sino usar el prop platosEliminados
+  const platosEliminadosFinal = platosEliminadosConNombres.length > 0 
+    ? platosEliminadosConNombres 
+    : platosEliminados;
   // Calcular color de fondo según tiempo (actualizado en tiempo real) - Colores mejorados
   const [minutosActuales, setMinutosActuales] = useState(tiempo.minutos);
   const [bgColor, setBgColor] = useState("bg-gray-500");
@@ -1112,6 +1409,17 @@ const SicarComandaCard = ({
 
   // Filtrar platos por estado según columna
   const platosFiltrados = comanda.platos?.filter(p => {
+    // VALIDACIÓN CRÍTICA: Solo incluir platos que tengan nombre cargado completamente
+    const platoObj = p.plato || p;
+    const nombre = platoObj?.nombre || p?.nombre;
+    const tieneNombre = nombre && nombre.trim().length > 0;
+    
+    if (!tieneNombre) {
+      console.warn(`⚠️ Plato sin nombre filtrado en comanda #${comanda.comandaNumber}`);
+      return false;
+    }
+    
+    // Filtrar por estado
     const estado = p.estado || "en_espera";
     if (estadoColumna === "en_espera") return estado === "en_espera" || estado === "ingresante";
     if (estadoColumna === "recoger") return estado === "recoger";
@@ -1246,6 +1554,30 @@ const SicarComandaCard = ({
         </div>
       </div>
 
+      {/* 🔥 AUDITORÍA: Panel de auditoría (activos vs eliminados del historial) */}
+      {(() => {
+        // Contar platos activos (los que están en el array platos)
+        const platosActivos = comanda.platos?.length || 0;
+        // Contar platos eliminados del historial
+        const platosEliminadosCount = platosEliminadosFinal.length;
+        if (platosEliminadosCount > 0) {
+          return (
+            <div className={`px-4 py-2 ${nightMode ? 'bg-blue-900/30' : 'bg-blue-100'} border-b ${nightMode ? 'border-gray-700' : 'border-gray-300'}`}>
+              <div className="flex items-center justify-center gap-3 text-sm font-semibold">
+                <span className={nightMode ? 'text-green-400' : 'text-green-700'}>
+                  ✅ {platosActivos}
+                </span>
+                <span className={nightMode ? 'text-gray-400' : 'text-gray-600'}>|</span>
+                <span className="text-red-500">
+                  ❌ {platosEliminadosCount}
+                </span>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* Badge de estado - EN ESPERA (abajo del header, fondo según modo) */}
       {estadoColumna === "en_espera" && (
         <div className={`${bgBadgeEspera} ${textBadgeEspera} font-bold text-base py-2 text-center`} style={{ 
@@ -1275,13 +1607,22 @@ const SicarComandaCard = ({
               const isPreparing = platoStatus === 'preparing';
               const isCompleted = platoStatus === 'completed';
               
+              // 🔥 AUDITORÍA: Verificar si el plato está eliminado
+              const isEliminado = plato.eliminado === true;
+              
               // Determinar colores según el estado
               let backgroundColor = 'transparent';
               let textColor = nightMode ? '#ffffff' : '#111827';
               let bgClass = '';
               let textClass = textPlatos;
               
-              if (isPreparing) {
+              // 🔥 AUDITORÍA: Si está eliminado, usar rojo tachado
+              if (isEliminado) {
+                backgroundColor = 'rgba(239, 68, 68, 0.15)'; // Rojo con transparencia
+                textColor = '#ef4444'; // Rojo #FF3B30 equivalente
+                bgClass = 'bg-red-500/15';
+                textClass = 'text-red-500';
+              } else if (isPreparing) {
                 backgroundColor = 'rgba(234, 179, 8, 0.3)'; // Amarillo con transparencia
                 textColor = nightMode ? '#fde047' : '#a16207'; // Amarillo claro/oscuro
                 bgClass = 'bg-yellow-500/30';
@@ -1307,10 +1648,13 @@ const SicarComandaCard = ({
                   transition={{ duration: 0.2 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    togglePlatoStatus(platoId);
+                    // No permitir cambiar estado si está eliminado
+                    if (!isEliminado) {
+                      togglePlatoStatus(platoId);
+                    }
                   }}
-                  className={`font-semibold leading-tight px-2 py-1 rounded cursor-pointer transition-all duration-200 ${
-                    isPreparing || isCompleted ? `${bgClass} ${textClass}` : `${textPlatos} ${textPlatosHover}`
+                  className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 ${
+                    isEliminado ? `${bgClass} ${textClass} line-through cursor-not-allowed` : `cursor-pointer ${isPreparing || isCompleted ? `${bgClass} ${textClass}` : `${textPlatos} ${textPlatosHover}`}`
                   }`}
                   whileHover={{ scale: 1.02, x: 4 }}
                   whileTap={{ scale: 0.98 }}
@@ -1340,7 +1684,70 @@ const SicarComandaCard = ({
                         ✓
                       </motion.span>
                     )}
-                    <span>{cantidad} {platoObj?.nombre || "Sin nombre"}</span>
+                    <span className={isEliminado ? 'line-through' : ''}>
+                      {cantidad} {platoObj?.nombre || "Sin nombre"}
+                    </span>
+                    {/* 🔥 AUDITORÍA: Badge de razón si está eliminado */}
+                    {isEliminado && (
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                          color: '#ef4444'
+                        }}
+                      >
+                        🗑️ {plato.eliminadoRazon || 'Eliminado'}
+                      </motion.span>
+                    )}
+                  </span>
+                </motion.div>
+              );
+            })}
+            
+            {/* 🔥 AUDITORÍA: Mostrar platos eliminados del historial en tachado y rojo */}
+            {platosEliminadosFinal.map((platoEliminado, index) => {
+              const motivo = platoEliminado.motivo || 'Eliminado';
+              const timestamp = platoEliminado.timestamp 
+                ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm')
+                : '';
+              
+              return (
+                <motion.div
+                  key={`eliminado-${platoEliminado.platoId}-${index}`}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 bg-red-500/15 text-red-500"
+                  style={{ 
+                    fontFamily: 'Arial, sans-serif',
+                    fontSize: '18px',
+                    textDecoration: 'line-through',
+                    opacity: 0.8
+                  }}
+                >
+                  <span className="flex items-center gap-2 flex-wrap">
+                    <span className="text-red-500">🗑️</span>
+                    <span style={{ textDecoration: 'line-through' }}>
+                      {platoEliminado.cantidad} {platoEliminado.nombre}
+                    </span>
+                    {motivo && motivo !== 'Eliminado' && (
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: 'rgba(239, 68, 68, 0.3)',
+                          color: '#ef4444'
+                        }}
+                        title={timestamp ? `Eliminado a las ${timestamp}` : ''}
+                      >
+                        {motivo}
+                        {timestamp && ` (${timestamp})`}
+                      </motion.span>
+                    )}
                   </span>
                 </motion.div>
               );
