@@ -490,16 +490,108 @@ const ComandaStyle = () => {
     }, 100);
   }, [obtenerComandas]);
 
+  // FASE 3: Actualización granular de plato (solo actualiza 1 plato, no toda la comanda)
   const handlePlatoActualizado = useCallback((data) => {
-    console.log('📥 Plato actualizado vía Socket.io:', data.platoId, data.nuevoEstado);
+    console.log('📥 FASE3: Plato actualizado granular vía Socket.io:', {
+      comandaId: data.comandaId,
+      platoId: data.platoId,
+      nuevoEstado: data.nuevoEstado,
+      estadoAnterior: data.estadoAnterior
+    });
     
-    // Refrescar comanda específica o todas las comandas
-    if (data.comanda) {
-      handleComandaActualizada(data.comanda);
-    } else {
+    // Validar datos mínimos requeridos
+    if (!data.comandaId || !data.platoId || !data.nuevoEstado) {
+      console.warn('⚠️ FASE3: Datos incompletos en plato-actualizado, refrescando todas las comandas');
       obtenerComandas();
+      return;
     }
-  }, [handleComandaActualizada, obtenerComandas]);
+    
+    // FASE 3: Actualización GRANULAR - Solo actualizar el plato específico
+    setComandas(prev => {
+      const comandaIndex = prev.findIndex(c => {
+        const cId = c._id?.toString ? c._id.toString() : c._id;
+        const dataComandaId = data.comandaId?.toString ? data.comandaId.toString() : data.comandaId;
+        return cId === dataComandaId;
+      });
+      
+      if (comandaIndex === -1) {
+        console.warn('⚠️ FASE3: Comanda no encontrada para actualizar plato, refrescando todas las comandas');
+        // Si no encontramos la comanda, refrescar todas (fallback)
+        setTimeout(() => obtenerComandas(), 100);
+        return prev;
+      }
+      
+      const comanda = prev[comandaIndex];
+      const platoIdStr = data.platoId?.toString ? data.platoId.toString() : data.platoId;
+      
+      // Buscar el plato en la comanda
+      const platoIndex = comanda.platos?.findIndex(p => {
+        const pId = p.plato?._id?.toString ? p.plato._id.toString() : 
+                    p.plato?.toString ? p.plato.toString() : 
+                    p.platoId?.toString ? p.platoId.toString() : 
+                    p.plato;
+        return pId === platoIdStr;
+      });
+      
+      if (platoIndex === -1 || !comanda.platos) {
+        console.warn('⚠️ FASE3: Plato no encontrado en comanda, refrescando comanda completa');
+        // Si no encontramos el plato, refrescar solo esta comanda (fallback)
+        setTimeout(() => obtenerComandas(), 100);
+        return prev;
+      }
+      
+      // FASE 3: Actualizar SOLO el estado del plato específico (inmutable)
+      const nuevasComandas = [...prev];
+      const nuevaComanda = { ...comanda };
+      const nuevosPlatos = [...nuevaComanda.platos];
+      const platoActualizado = { ...nuevosPlatos[platoIndex] };
+      
+      // Actualizar estado del plato
+      platoActualizado.estado = data.nuevoEstado;
+      
+      // Actualizar timestamp si existe
+      if (!platoActualizado.tiempos) {
+        platoActualizado.tiempos = {};
+      }
+      platoActualizado.tiempos[data.nuevoEstado] = data.timestamp || new Date();
+      
+      nuevosPlatos[platoIndex] = platoActualizado;
+      nuevaComanda.platos = nuevosPlatos;
+      nuevasComandas[comandaIndex] = nuevaComanda;
+      
+      // Reproducir sonido si está habilitado
+      if (config.soundEnabled) {
+        playNotificationSound();
+      }
+      
+      // FASE 3: Animación visual - Marcar plato como actualizado
+      const platoKey = `${data.comandaId}-${data.platoId}`;
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        nuevo.set(platoKey, {
+          estado: data.nuevoEstado,
+          timestamp: Date.now(),
+          animando: true
+        });
+        // Limpiar animación después de 2 segundos
+        setTimeout(() => {
+          setPlatoStates(prev => {
+            const limpio = new Map(prev);
+            const estado = limpio.get(platoKey);
+            if (estado) {
+              limpio.set(platoKey, { ...estado, animando: false });
+            }
+            return limpio;
+          });
+        }, 2000);
+        return nuevo;
+      });
+      
+      console.log(`✅ FASE3: Plato ${data.platoId} actualizado a "${data.nuevoEstado}" en comanda ${data.comandaId} (sin recargar comanda completa)`);
+      
+      return nuevasComandas;
+    });
+  }, [config.soundEnabled, obtenerComandas]);
 
   // Hook Socket.io - REEMPLAZA EL POLLING
   const { connected, connectionStatus } = useSocketCocina({
@@ -1642,6 +1734,12 @@ const SicarComandaCard = ({
               const isPreparing = platoStatus === 'preparing';
               const isCompleted = platoStatus === 'completed';
               
+              // FASE 3: Obtener estado granular del plato (desde WebSocket o estado local)
+              const platoKey = `${comandaId}-${platoId}`;
+              const platoStateData = platoStates.get(platoKey);
+              const isAnimando = platoStateData?.animando === true;
+              const estadoRealPlato = plato.estado || 'pedido'; // Estado real del backend
+              
               // 🔥 AUDITORÍA: Verificar si el plato está eliminado
               const isEliminado = plato.eliminado === true;
               
@@ -1651,21 +1749,29 @@ const SicarComandaCard = ({
               let bgClass = '';
               let textClass = textPlatos;
               
+              // FASE 3: Mapear estados del backend a colores visuales
+              // 'pedido'/'en_espera' → normal, 'recoger' → amarillo (preparando), 'entregado' → verde (completado)
+              const estadoVisual = estadoRealPlato === 'recoger' ? 'preparing' : 
+                                   estadoRealPlato === 'entregado' ? 'completed' : 
+                                   null;
+              
               // 🔥 AUDITORÍA: Si está eliminado, usar rojo tachado
               if (isEliminado) {
                 backgroundColor = 'rgba(239, 68, 68, 0.15)'; // Rojo con transparencia
                 textColor = '#ef4444'; // Rojo #FF3B30 equivalente
                 bgClass = 'bg-red-500/15';
                 textClass = 'text-red-500';
-              } else if (isPreparing) {
-                backgroundColor = 'rgba(234, 179, 8, 0.3)'; // Amarillo con transparencia
+              } else if (estadoVisual === 'preparing' || isPreparing) {
+                // FASE 3: Amarillo cuando está en 'recoger' o marcado como preparando
+                backgroundColor = isAnimando ? 'rgba(234, 179, 8, 0.5)' : 'rgba(234, 179, 8, 0.3)'; // Más intenso si está animando
                 textColor = nightMode ? '#fde047' : '#a16207'; // Amarillo claro/oscuro
-                bgClass = 'bg-yellow-500/30';
+                bgClass = isAnimando ? 'bg-yellow-500/50' : 'bg-yellow-500/30';
                 textClass = textPlatosPreparing;
-              } else if (isCompleted) {
-                backgroundColor = 'rgba(34, 197, 94, 0.3)'; // Verde con transparencia
+              } else if (estadoVisual === 'completed' || isCompleted) {
+                // FASE 3: Verde cuando está en 'entregado' o marcado como completado
+                backgroundColor = isAnimando ? 'rgba(34, 197, 94, 0.5)' : 'rgba(34, 197, 94, 0.3)'; // Más intenso si está animando
                 textColor = nightMode ? '#86efac' : '#15803d'; // Verde claro/oscuro
-                bgClass = 'bg-green-500/30';
+                bgClass = isAnimando ? 'bg-green-500/50' : 'bg-green-500/30';
                 textClass = textPlatosCompleted;
               }
               
@@ -1677,10 +1783,22 @@ const SicarComandaCard = ({
                     opacity: 1, 
                     y: 0,
                     backgroundColor: backgroundColor,
-                    color: textColor
+                    color: textColor,
+                    // FASE 3: Animación cuando el plato cambia de estado vía WebSocket
+                    scale: isAnimando ? [1, 1.05, 1] : 1,
+                    boxShadow: isAnimando ? [
+                      '0 0 0px rgba(34, 197, 94, 0)',
+                      '0 0 20px rgba(34, 197, 94, 0.6)',
+                      '0 0 0px rgba(34, 197, 94, 0)'
+                    ] : 'none'
                   }}
                   exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ 
+                    duration: isAnimando ? 0.3 : 0.2,
+                    type: isAnimando ? "spring" : "tween",
+                    stiffness: isAnimando ? 300 : undefined,
+                    damping: isAnimando ? 20 : undefined
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     // No permitir cambiar estado si está eliminado
