@@ -74,7 +74,8 @@ const ComandaStyle = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
-  const [platoStates, setPlatoStates] = useState(new Map()); // Trackear estados de platos: 'preparing' (amarillo) o 'completed' (verde)
+  // Estados visuales de platos: 'normal' | 'procesando' | 'seleccionado' (local-only, persistente)
+  const [platoStates, setPlatoStates] = useState(new Map()); // Map<`${comandaId}-${platoId}`, 'normal'|'procesando'|'seleccionado'>
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
   // Estado para checkboxes de platos individuales: Map<`${comandaId}-${platoId}`, boolean>
   const [platosChecked, setPlatosChecked] = useState(new Map());
@@ -121,6 +122,31 @@ const ComandaStyle = () => {
   useEffect(() => {
     localStorage.setItem('kdsConfig', JSON.stringify(config));
   }, [config]);
+
+  // Cargar estados de platos desde localStorage al montar
+  useEffect(() => {
+    try {
+      const savedStates = localStorage.getItem('platoStates');
+      if (savedStates) {
+        const parsed = JSON.parse(savedStates);
+        const statesMap = new Map(parsed);
+        setPlatoStates(statesMap);
+        console.log('✅ Estados de platos cargados desde localStorage:', statesMap.size);
+      }
+    } catch (error) {
+      console.warn('⚠️ Error cargando estados de platos desde localStorage:', error);
+    }
+  }, []);
+
+  // Persistir estados de platos en localStorage
+  useEffect(() => {
+    try {
+      const statesArray = Array.from(platoStates.entries());
+      localStorage.setItem('platoStates', JSON.stringify(statesArray));
+    } catch (error) {
+      console.warn('⚠️ Error guardando estados de platos en localStorage:', error);
+    }
+  }, [platoStates]);
 
   const obtenerComandas = useCallback(async () => {
     try {
@@ -596,40 +622,28 @@ const ComandaStyle = () => {
         playNotificationSound();
       }
       
-      // FASE 3: Animación visual - Marcar plato como actualizado
+      // Resetear estado visual local cuando Socket actualiza plato (backend cambió estado)
       const platoKey = `${data.comandaId}-${data.platoId}`;
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
-        nuevo.set(platoKey, {
-          estado: data.nuevoEstado,
-          timestamp: Date.now(),
-          animando: true
-        });
-        // Limpiar animación después de 2 segundos
-        setTimeout(() => {
-          setPlatoStates(prev => {
-            const limpio = new Map(prev);
-            const estado = limpio.get(platoKey);
-            if (estado) {
-              limpio.set(platoKey, { ...estado, animando: false });
-            }
-            return limpio;
-          });
-        }, 2000);
+        // Reset a 'normal' cuando backend actualiza (plato ya procesado)
+        if (data.nuevoEstado === "recoger") {
+          nuevo.set(platoKey, 'normal');
+        }
+        return nuevo;
+      });
+      
+      // Limpiar checkbox antiguo si existe (compatibilidad)
+      setPlatosChecked(prev => {
+        const nuevo = new Map(prev);
+        nuevo.delete(platoKey);
         return nuevo;
       });
       
       console.log(`✅ FASE3: Plato ${data.platoId} actualizado a "${data.nuevoEstado}" en comanda ${data.comandaId} (sin recargar comanda completa)`);
       
-      // Limpiar checkbox del plato actualizado si cambió a "recoger" (REGLA: cocina solo maneja 'recoger')
-      if (data.nuevoEstado === "recoger") {
-        setPlatosChecked(prev => {
-          const nuevo = new Map(prev);
-          const key = `${data.comandaId}-${data.platoId}`;
-          nuevo.delete(key);
-          return nuevo;
-        });
-      }
+      // Resetear estado visual local cuando Socket actualiza plato (ya está en reset arriba)
+      // No necesita código adicional aquí, ya se resetea arriba
       
       return nuevasComandas;
     });
@@ -927,14 +941,45 @@ const ComandaStyle = () => {
     });
   };
 
-  // Toggle checkbox de plato individual
+  // Toggle checkbox de plato individual - Ciclo 3 estados: Normal → Procesando → Seleccionado → Normal
   const togglePlatoCheck = useCallback((comandaId, platoId) => {
-    setPlatosChecked(prev => {
+    const key = `${comandaId}-${platoId}`;
+    
+    setPlatoStates(prev => {
       const nuevo = new Map(prev);
-      const key = `${comandaId}-${platoId}`;
-      nuevo.set(key, !(nuevo.get(key) || false));
+      const estadoActual = nuevo.get(key) || 'normal';
+      
+      // Ciclo: Normal → Procesando → Seleccionado → Normal
+      let nuevoEstado;
+      if (estadoActual === 'normal') {
+        nuevoEstado = 'procesando'; // → Amarillo ⏳
+      } else if (estadoActual === 'procesando') {
+        nuevoEstado = 'seleccionado'; // → Verde ✓
+      } else {
+        nuevoEstado = 'normal'; // Reset □
+      }
+      
+      nuevo.set(key, nuevoEstado);
+      
+      // SYNC: Sincronizar platoStates 'seleccionado' → platosChecked true (para batch)
+      if (nuevoEstado === 'seleccionado') {
+        setPlatosChecked(prev => {
+          const nuevoChecks = new Map(prev);
+          nuevoChecks.set(key, true); // Check interno ON cuando verde
+          return nuevoChecks;
+        });
+      } else {
+        // Reset check cuando no está seleccionado
+        setPlatosChecked(prev => {
+          const nuevoChecks = new Map(prev);
+          nuevoChecks.delete(key);
+          return nuevoChecks;
+        });
+      }
+      
       return nuevo;
     });
+    
     // Auto-seleccionar comanda cuando se marca un plato
     setSelectedOrders(prev => {
       const nuevo = new Set(prev);
@@ -1157,12 +1202,35 @@ const ComandaStyle = () => {
     setIsFinalizandoPlatos(true);
 
     try {
-      // Recopilar todos los platos marcados
+      // DEBUG: Verificar estados antes de procesar
+      const visualVerdes = Array.from(platoStates.entries()).filter(([k, v]) => v === 'seleccionado');
+      console.log('🔍 DEBUG Batch Finalizar:', {
+        totalChecked: platosChecked.size,
+        visualVerdes: visualVerdes.length,
+        visualVerdesKeys: visualVerdes.map(([k]) => k)
+      });
+      
+      // Recopilar TODOS los platos finalizables:
+      // 1. Platos con estado visual 'seleccionado' (verde ✓)
+      // 2. Platos con check boolean activo (compatibilidad legacy)
       const platosProcesados = [];
-      platosChecked.forEach((checked, key) => {
-        if (!checked) return;
+      const platosProcesadosSet = new Set(); // Para deduplicar
+      
+      // Método 1: Platos con estado visual 'seleccionado' (verde ✓)
+      platoStates.forEach((estado, key) => {
+        if (estado !== 'seleccionado') return;
         
-        const [comandaId, platoId] = key.split('-');
+        // Parsear key de forma segura (puede tener guiones en platoId)
+        const lastDashIndex = key.lastIndexOf('-');
+        if (lastDashIndex === -1) return;
+        
+        const comandaId = key.substring(0, lastDashIndex);
+        const platoId = key.substring(lastDashIndex + 1);
+        const uniqueKey = `${comandaId}-${platoId}`;
+        
+        if (platosProcesadosSet.has(uniqueKey)) return;
+        platosProcesadosSet.add(uniqueKey);
+        
         const comanda = comandas.find(c => c._id === comandaId);
         if (!comanda) return;
         
@@ -1172,22 +1240,65 @@ const ComandaStyle = () => {
         });
         
         // Solo procesar platos que no estén ya en 'recoger'
-        if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante")) {
+        if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido")) {
+          platosProcesados.push({ comandaId, platoId });
+        }
+      });
+      
+      // Método 2: Platos con check boolean activo (compatibilidad legacy)
+      platosChecked.forEach((checked, key) => {
+        if (!checked) return;
+        
+        // Parsear key de forma segura
+        const lastDashIndex = key.lastIndexOf('-');
+        if (lastDashIndex === -1) return;
+        
+        const comandaId = key.substring(0, lastDashIndex);
+        const platoId = key.substring(lastDashIndex + 1);
+        const uniqueKey = `${comandaId}-${platoId}`;
+        
+        if (platosProcesadosSet.has(uniqueKey)) return; // Ya incluido
+        platosProcesadosSet.add(uniqueKey);
+        
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (!comanda) return;
+        
+        const plato = comanda.platos?.find(p => {
+          const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
+          return pId === platoId;
+        });
+        
+        // Solo procesar platos que no estén ya en 'recoger'
+        if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido")) {
           platosProcesados.push({ comandaId, platoId });
         }
       });
 
       if (platosProcesados.length === 0) {
         console.warn('⚠️ No hay platos válidos para finalizar');
+        console.warn('🔍 DEBUG: Verificar que platos estén en estado "seleccionado" (verde ✓)');
         return;
       }
 
-      console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`);
+      console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`, platosProcesados);
 
       // Usar función genérica batch
       const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(platosProcesados);
 
-      // Limpiar checkboxes exitosos
+      // Resetear estados de platos exitosos a 'normal' (post-success) + limpiar checks
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        resultados.forEach(result => {
+          if (result.status === 'fulfilled' && result.value.exito) {
+            const { comandaId, platoId } = result.value;
+            const key = `${comandaId}-${platoId}`;
+            nuevo.set(key, 'normal'); // Reset a normal después de finalizar
+          }
+        });
+        return nuevo;
+      });
+      
+      // Limpiar checks boolean también
       setPlatosChecked(prev => {
         const nuevo = new Map(prev);
         resultados.forEach(result => {
@@ -1210,7 +1321,7 @@ const ComandaStyle = () => {
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [platosChecked, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos]);
+  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos]);
 
   // Handler para finalizar comanda completa - REGLA: Solo batch platos a 'recoger', nunca 'entregado'
   const handleFinalizarComandaCompletaGlobal = useCallback(async () => {
@@ -2052,30 +2163,10 @@ const SicarComandaCard = ({
     return true;
   }) || [];
 
-  // Obtener el estado actual de un plato: null (normal), 'preparing' (amarillo), 'completed' (verde)
+  // Obtener el estado visual actual de un plato: 'normal' | 'procesando' | 'seleccionado'
   const getPlatoStatus = (platoId) => {
     const platoKey = `${comandaId}-${platoId}`;
-    return platoStates.get(platoKey) || null;
-  };
-
-  // Toggle plato: normal → preparing (amarillo) → completed (verde) → normal
-  const togglePlatoStatus = (platoId) => {
-    setPlatoStates(prev => {
-      const nuevo = new Map(prev);
-      const platoKey = `${comandaId}-${platoId}`;
-      const estadoActual = nuevo.get(platoKey);
-      
-      // Ciclo: null → 'preparing' → 'completed' → null
-      if (!estadoActual) {
-        nuevo.set(platoKey, 'preparing');
-      } else if (estadoActual === 'preparing') {
-        nuevo.set(platoKey, 'completed');
-      } else {
-        nuevo.delete(platoKey); // Volver a normal
-      }
-      
-      return nuevo;
-    });
+    return platoStates.get(platoKey) || 'normal';
   };
 
   // Variables de color según modo nocturno para el área de platos
@@ -2125,33 +2216,38 @@ const SicarComandaCard = ({
         stiffness: 300, 
         damping: 24
       }}
-      onClick={onToggleSelect}
+      // onClick removido - Solo header y barras seleccionan comanda (zonas click precisas)
     >
-      {/* Checkmark grande animado cuando está seleccionada */}
-      <AnimatePresence>
-        {isSelected && (
-          <motion.div
-            className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ 
-              type: "spring", 
-              stiffness: 500, 
-              damping: 15 
-            }}
-          >
-            <div className="text-white text-5xl font-bold" style={{ 
-              textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-              fontFamily: 'Arial, sans-serif'
-            }}>
-              ✓
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) */}
-      <div className={`p-4 ${isSelected ? "pt-16" : "pt-4"} ${bgColor}`}>
+      {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) - Zona Click 1 */}
+      <div className={`relative p-3 ${bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`} onClick={onToggleSelect}>
+        {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
+        <AnimatePresence>
+          {isSelected && (
+            <motion.div
+              className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 500, 
+                damping: 15 
+              }}
+            >
+              <div 
+                className="text-white text-4xl font-bold" 
+                style={{ 
+                  textShadow: '0 0 20px rgba(34, 197, 94, 0.8), 2px 2px 4px rgba(0,0,0,0.8)',
+                  fontFamily: 'Arial, sans-serif',
+                  filter: 'drop-shadow(0 0 20px rgba(34, 197, 94, 0.8))',
+                  animation: 'glow 2s ease-in-out infinite'
+                }}
+              >
+                ✓
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="flex items-start justify-between mb-2">
           {/* Izquierda: Orden # y número de tarjeta */}
           <div>
@@ -2233,12 +2329,25 @@ const SicarComandaCard = ({
         return null;
       })()}
 
-      {/* Badge de estado - EN ESPERA (abajo del header, fondo según modo) */}
+      {/* Badge de estado - EN ESPERA - Zona Click 1 (Uniforme con Prep/Preparados) */}
       {estadoColumna === "en_espera" && (
-        <div className={`${bgBadgeEspera} ${textBadgeEspera} font-bold text-base py-2 text-center`} style={{ 
-          fontFamily: 'Arial, sans-serif'
-        }}>
-          EN ESPERA
+        <div 
+          className={`h-8 px-3 flex items-center gap-2 cursor-pointer hover:bg-opacity-80 hover:shadow-md hover:scale-[1.01] transition-all ${bgBadgeEspera} ${textBadgeEspera}`}
+          onClick={onToggleSelect}
+          style={{ 
+            fontFamily: 'Arial, sans-serif'
+          }}
+        >
+          <span className={`font-semibold text-xs uppercase tracking-wide ${textBadgeEspera}`}>
+            📋 EN ESPERA
+          </span>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+            nightMode 
+              ? 'bg-gray-600 text-gray-200' 
+              : 'bg-gray-300 text-gray-800'
+          }`}>
+            {totalPlatos}/{totalPlatos}
+          </span>
         </div>
       )}
       {estadoColumna === "recoger" && (
@@ -2253,16 +2362,17 @@ const SicarComandaCard = ({
       {/* Lista de platos vertical - Dos secciones: EN PREPARACIÓN y PLATOS LISTOS */}
       <div className={`flex-1 overflow-y-auto ${bgPlatos}`}>
         <div className="flex flex-col h-full">
-          {/* Sección 1: EN PREPARACIÓN */}
+          {/* Sección 1: EN PREPARACIÓN - Zona Click 2 (Wrapper Header + Prep) */}
           {platosPreparacion.length > 0 && (
-            <div className="flex-shrink-0">
-              {/* Header de sección EN PREPARACIÓN */}
-              <div className={`px-4 py-2 ${nightMode ? 'bg-gray-700' : 'bg-gray-200'} border-b ${nightMode ? 'border-gray-600' : 'border-gray-300'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`font-bold text-sm ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                    📋 EN PREPARACIÓN ({platosPreparacion.length}/{totalPlatos})
-                  </span>
-                </div>
+            <div className="flex-shrink-0 cursor-pointer hover:bg-opacity-80 hover:shadow-md hover:scale-[1.01] transition-all" onClick={onToggleSelect}>
+              {/* Header de sección EN PREPARACIÓN - Compacto h-8 */}
+              <div className={`h-8 px-3 flex items-center gap-2 ${nightMode ? 'bg-gray-700' : 'bg-gray-200'} border-b ${nightMode ? 'border-gray-600' : 'border-gray-300'}`}>
+                <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                  📋 EN PREPARACIÓN
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${nightMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-800'}`}>
+                  {platosPreparacion.length}/{totalPlatos}
+                </span>
               </div>
               {/* Lista de platos en preparación */}
               <div className="px-4 py-2 space-y-1.5">
@@ -2271,53 +2381,87 @@ const SicarComandaCard = ({
               const platoObj = plato.plato || plato;
               const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
               const platoId = platoObj?._id || plato._id || index;
-              const platoStatus = getPlatoStatus(platoId);
-              const isPreparing = platoStatus === 'preparing';
-              const isCompleted = platoStatus === 'completed';
               
-              // FASE 3: Obtener estado granular del plato (desde WebSocket o estado local)
+              // Obtener estado visual local (3 estados: 'normal' | 'procesando' | 'seleccionado')
               const platoKey = `${comandaId}-${platoId}`;
-              const platoStateData = platoStates.get(platoKey);
-              const isAnimando = platoStateData?.animando === true;
-              const estadoRealPlato = plato.estado || 'pedido'; // Estado real del backend
+              const estadoVisual = platoStates.get(platoKey) || 'normal';
+              const isNormal = estadoVisual === 'normal';
+              const isProcesando = estadoVisual === 'procesando';
+              const isSeleccionado = estadoVisual === 'seleccionado';
               
-              // 🔥 AUDITORÍA: Verificar si el plato está eliminado
+              const estadoRealPlato = plato.estado || 'pedido'; // Estado real del backend
               const isEliminado = plato.eliminado === true;
               
-              // Determinar colores según el estado
+              // Determinar colores según el estado visual local
               let backgroundColor = 'transparent';
               let textColor = nightMode ? '#ffffff' : '#111827';
               let bgClass = '';
               let textClass = textPlatos;
-              
-              // FASE 3: Mapear estados del backend a colores visuales
-              // REGLA COCINA: Solo 'recoger' (nunca 'entregado' - exclusivo de mozos)
-              // 'pedido'/'en_espera' → normal, 'recoger' → amarillo (preparando)
-              const estadoVisual = estadoRealPlato === 'recoger' ? 'preparing' : null;
+              let checkBgClass = '';
+              let checkBorderClass = '';
+              let checkIcon = null;
               
               // 🔥 AUDITORÍA: Si está eliminado, usar rojo tachado
               if (isEliminado) {
-                backgroundColor = 'rgba(239, 68, 68, 0.15)'; // Rojo con transparencia
-                textColor = '#ef4444'; // Rojo #FF3B30 equivalente
+                backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                textColor = '#ef4444';
                 bgClass = 'bg-red-500/15';
                 textClass = 'text-red-500';
-              } else if (estadoVisual === 'preparing' || isPreparing) {
-                // FASE 3: Amarillo cuando está en 'recoger' o marcado como preparando
-                backgroundColor = isAnimando ? 'rgba(234, 179, 8, 0.5)' : 'rgba(234, 179, 8, 0.3)'; // Más intenso si está animando
-                textColor = nightMode ? '#fde047' : '#a16207'; // Amarillo claro/oscuro
-                bgClass = isAnimando ? 'bg-yellow-500/50' : 'bg-yellow-500/30';
-                textClass = textPlatosPreparing;
-              } else if (estadoVisual === 'completed' || isCompleted) {
-                // FASE 3: Verde cuando está en 'entregado' o marcado como completado
-                backgroundColor = isAnimando ? 'rgba(34, 197, 94, 0.5)' : 'rgba(34, 197, 94, 0.3)'; // Más intenso si está animando
-                textColor = nightMode ? '#86efac' : '#15803d'; // Verde claro/oscuro
-                bgClass = isAnimando ? 'bg-green-500/50' : 'bg-green-500/30';
-                textClass = textPlatosCompleted;
+                checkBgClass = nightMode ? 'bg-gray-800' : 'bg-white';
+                checkBorderClass = nightMode ? 'border-gray-500' : 'border-gray-400';
+              } else if (isProcesando) {
+                // Estado 2: Procesando ⏳ - Amarillo #FCD34D con reloj arena bounce suave
+                backgroundColor = 'rgba(252, 211, 77, 0.3)'; // #FCD34D con transparencia
+                textColor = nightMode ? '#fde047' : '#a16207';
+                bgClass = 'bg-yellow-400/30';
+                textClass = 'text-yellow-600 font-bold';
+                checkBgClass = 'bg-yellow-400 border-yellow-500';
+                checkBorderClass = 'border-yellow-500';
+                checkIcon = (
+                  <motion.span
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ 
+                      duration: 1, 
+                      repeat: Infinity, 
+                      ease: "easeInOut"
+                    }}
+                    className="text-2xl flex items-center justify-center w-8 h-8"
+                    style={{ 
+                      filter: 'drop-shadow(0 2px 4px rgba(252, 211, 77, 0.5))'
+                    }}
+                  >
+                    ⏳
+                  </motion.span>
+                );
+              } else if (isSeleccionado) {
+                // Estado 3: Seleccionado ✓ - Verde #10B981 glow permanente
+                backgroundColor = 'rgba(16, 185, 129, 0.3)'; // #10B981 con transparencia
+                textColor = nightMode ? '#86efac' : '#15803d';
+                bgClass = 'bg-green-500/30';
+                textClass = 'text-green-700 font-bold';
+                checkBgClass = 'bg-green-500 border-green-600';
+                checkBorderClass = 'border-green-600';
+                checkIcon = (
+                  <motion.svg
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                    className="w-5 h-5 text-white font-bold"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    style={{ 
+                      filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.8))',
+                      animation: 'glow 2s ease-in-out infinite'
+                    }}
+                  >
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </motion.svg>
+                );
+              } else {
+                // Estado 1: Normal □ - Gris, hover disponible
+                checkBgClass = nightMode ? 'bg-gray-800' : 'bg-white';
+                checkBorderClass = nightMode ? 'border-gray-500' : 'border-gray-400';
               }
-              
-              // Obtener estado del checkbox
-              const checkKey = `${comandaId}-${platoId}`;
-              const isChecked = platosChecked.get(checkKey) || false;
               
               return (
                 <motion.div
@@ -2326,26 +2470,39 @@ const SicarComandaCard = ({
                   animate={{ 
                     opacity: 1, 
                     y: 0,
-                    backgroundColor: isChecked ? 'rgba(34, 197, 94, 0.3)' : backgroundColor,
-                    color: isChecked ? (nightMode ? '#86efac' : '#15803d') : textColor,
-                    // FASE 3: Animación cuando el plato cambia de estado vía WebSocket
-                    scale: isAnimando ? [1, 1.05, 1] : 1,
-                    boxShadow: isAnimando ? [
-                      '0 0 0px rgba(34, 197, 94, 0)',
-                      '0 0 20px rgba(34, 197, 94, 0.6)',
-                      '0 0 0px rgba(34, 197, 94, 0)'
-                    ] : 'none'
+                    backgroundColor: backgroundColor,
+                    color: textColor,
+                    scale: isSeleccionado ? [1, 1.02, 1] : 1,
+                    boxShadow: isSeleccionado 
+                      ? '0 0 20px rgba(16, 185, 129, 0.5)' 
+                      : isProcesando
+                      ? '0 0 10px rgba(251, 191, 36, 0.3)'
+                      : 'none'
                   }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ 
-                    duration: isAnimando ? 0.3 : 0.2,
-                    type: isAnimando ? "spring" : "tween",
-                    stiffness: isAnimando ? 300 : undefined,
-                    damping: isAnimando ? 20 : undefined
+                    duration: isSeleccionado ? 0.3 : 0.2,
+                    type: isSeleccionado ? "spring" : "tween",
+                    stiffness: isSeleccionado ? 300 : undefined,
+                    damping: isSeleccionado ? 20 : undefined
                   }}
-                  className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 ${
-                    isEliminado ? `${bgClass} ${textClass} line-through cursor-not-allowed` : `cursor-pointer ${isPreparing || isCompleted || isChecked ? `${bgClass} ${textClass}` : `${textPlatos} ${textPlatosHover}`}`
+                  // CLICK ZONA COMPLETA: Todo el contenedor plato es clickeable
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevenir selección de comanda
+                    if (!isEliminado) {
+                      togglePlatoCheck(comandaId, platoId);
+                    }
+                  }}
+                  className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 group ${
+                    isEliminado 
+                      ? `${bgClass} ${textClass} line-through cursor-not-allowed` 
+                      : `cursor-pointer ${bgClass} ${textClass} ${isProcesando ? '' : ''} ${isSeleccionado ? 'shadow-lg' : ''} hover:bg-opacity-80`
                   }`}
+                  title={
+                    isProcesando ? '⏳ Procesando... (Click para seleccionar)' :
+                    isSeleccionado ? '✓ Seleccionado - Listo para finalizar' :
+                    'Click para procesar'
+                  }
                   whileHover={{ scale: 1.02, x: 4 }}
                   whileTap={{ scale: 0.98 }}
                   style={{ 
@@ -2353,57 +2510,23 @@ const SicarComandaCard = ({
                     fontSize: '18px'
                   }}
                 >
-                  {/* Checkbox cuadrado 24x24px */}
+                  {/* Checkbox w-8 h-8 centrado - 3 estados visuales: □ / ⏳ bounce / ✓ glow */}
                   <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isEliminado) {
-                        togglePlatoCheck(comandaId, platoId);
-                      }
-                    }}
-                    className={`w-6 h-6 border-2 rounded flex items-center justify-center transition-all duration-200 ${
-                      isChecked 
-                        ? 'bg-green-500 border-green-600' 
-                        : nightMode 
-                          ? 'border-gray-500 bg-gray-800 hover:border-gray-400' 
-                          : 'border-gray-400 bg-white hover:border-gray-500'
-                    } ${isEliminado ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-110'}`}
+                    className={`w-8 h-8 border-2 rounded flex items-center justify-center transition-all duration-200 ${
+                      checkBgClass || (nightMode ? 'bg-gray-800' : 'bg-white')
+                    } ${checkBorderClass || (nightMode ? 'border-gray-500' : 'border-gray-400')} ${
+                      isEliminado 
+                        ? 'cursor-not-allowed opacity-50' 
+                        : ''
+                    } ${isSeleccionado ? 'shadow-lg' : ''}`}
                   >
-                    {isChecked && (
-                      <motion.svg
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                        className="w-4 h-4 text-white"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </motion.svg>
+                    {checkIcon || (
+                      // Estado Normal: Check vacío □
+                      <div className={`w-4 h-4 ${nightMode ? 'bg-gray-600' : 'bg-gray-300'} rounded border-2 ${nightMode ? 'border-gray-500' : 'border-gray-400'}`} />
                     )}
                   </div>
                   
                   <span className="flex items-center gap-2 flex-1">
-                    {isPreparing && !isChecked && (
-                      <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                        className={textPlatosPreparing}
-                      >
-                        ⏳
-                      </motion.span>
-                    )}
-                    {isCompleted && !isChecked && (
-                      <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                        className={textPlatosCompleted}
-                      >
-                        ✓
-                      </motion.span>
-                    )}
                     <span className={isEliminado ? 'line-through' : ''}>
                       {cantidad} {platoObj?.nombre || "Sin nombre"}
                     </span>
@@ -2435,23 +2558,24 @@ const SicarComandaCard = ({
             <div className={`h-px ${nightMode ? 'bg-gray-600' : 'bg-gray-300'} mx-4 my-2`} />
           )}
 
-          {/* Sección 2: PLATOS LISTOS */}
+          {/* Sección 2: PREPARADOS - Zona Click 3 (Wrapper Preparados) */}
           {platosListos.length > 0 && (
-            <div className="flex-shrink-0">
-              {/* Header de sección PLATOS LISTOS */}
-              <div className={`px-4 py-2 ${nightMode ? 'bg-green-900/50' : 'bg-green-100'} border-b ${nightMode ? 'border-green-700' : 'border-green-300'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`font-bold text-sm ${nightMode ? 'text-green-300' : 'text-green-700'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                    ✅ PLATOS LISTOS ({platosListos.length}/{totalPlatos})
-                  </span>
-                  <motion.span
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="text-lg"
-                  >
-                    🏆
-                  </motion.span>
-                </div>
+            <div className="flex-shrink-0 cursor-pointer hover:bg-opacity-80 hover:shadow-md hover:scale-[1.01] transition-all" onClick={onToggleSelect}>
+              {/* Header de sección PREPARADOS - Compacto h-8 */}
+              <div className={`h-8 px-3 flex items-center gap-2 ${nightMode ? 'bg-green-900/50' : 'bg-green-100'} border-b ${nightMode ? 'border-green-700' : 'border-green-300'}`}>
+                <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-green-300' : 'text-green-700'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                  ✅ PREPARADOS
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${nightMode ? 'bg-green-800 text-green-200' : 'bg-green-200 text-green-800'}`}>
+                  {platosListos.length}/{totalPlatos}
+                </span>
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="text-sm ml-auto"
+                >
+                  🏆
+                </motion.span>
               </div>
               {/* Lista de platos listos */}
               <div className={`px-4 py-2 space-y-1.5 ${nightMode ? 'bg-green-900/20' : 'bg-green-50'}`}>
