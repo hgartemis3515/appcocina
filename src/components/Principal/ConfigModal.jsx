@@ -85,30 +85,18 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
           {/* Separador */}
           <div className={`border-t ${borderModal} my-6`}></div>
 
-          {/* Intervalo de Polling */}
+          {/* Información WebSocket */}
           <div>
             <label className={`block ${textModal} font-semibold mb-2`}>
-              Intervalo de Actualización (segundos)
+              🔌 Sistema de Actualización
             </label>
-            <select
-              value={localConfig.pollingInterval / 1000}
-              onChange={(e) =>
-                setLocalConfig({
-                  ...localConfig,
-                  pollingInterval: parseInt(e.target.value) * 1000,
-                })
-              }
-              className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-            >
-              <option value={3}>3 segundos</option>
-              <option value={5}>5 segundos</option>
-              <option value={10}>10 segundos</option>
-              <option value={15}>15 segundos</option>
-              <option value={30}>30 segundos</option>
-            </select>
-            <p className={`${textSecondary} text-sm mt-1`}>
-              Frecuencia con la que se actualizan las comandas desde el servidor
-            </p>
+            <div className={`${inputBg} ${inputText} p-3 rounded border ${borderModal}`}>
+              <p className={`${textModal} font-semibold mb-2`}>✅ WebSocket en Tiempo Real</p>
+              <p className={`${textSecondary} text-sm`}>
+                El sistema ahora usa WebSocket con Redis Adapter para actualizaciones instantáneas.
+                No se requiere polling, reduciendo el tráfico de red en un 80%.
+              </p>
+            </div>
           </div>
 
           {/* Tiempo de Alerta Amarilla */}

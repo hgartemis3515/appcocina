@@ -52,7 +52,6 @@ const ComandaStyle = () => {
   const [filteredComandas, setFilteredComandas] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [config, setConfig] = useState({
-    pollingInterval: 3000,
     alertYellowMinutes: 15,
     alertRedMinutes: 20,
     soundEnabled: true,
@@ -1078,11 +1077,6 @@ const ComandaStyle = () => {
             {socketConnectionStatus === 'conectado' && (
               <div className="flex items-center gap-1 px-2 py-1 bg-green-600 rounded text-white text-xs font-semibold">
                 <span>●</span> Realtime
-              </div>
-            )}
-            {socketConnectionStatus === 'polling' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-yellow-500 rounded text-white text-xs font-semibold">
-                <span>●</span> Polling
               </div>
             )}
             {socketConnectionStatus === 'desconectado' && (

@@ -19,10 +19,9 @@ const useSocketCocina = ({
   obtenerComandas
 }) => {
   const [connected, setConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('desconectado'); // 'conectado', 'polling', 'desconectado'
+  const [connectionStatus, setConnectionStatus] = useState('desconectado'); // 'conectado', 'desconectado'
   const socketRef = useRef(null);
   const ultimoPingRef = useRef(Date.now());
-  const fallbackIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
   // Obtener URL del servidor desde configuración dinámica
@@ -54,12 +53,6 @@ const useSocketCocina = ({
       setConnected(true);
       setConnectionStatus('conectado');
       ultimoPingRef.current = Date.now();
-      
-      // Limpiar fallback polling si existe
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-        fallbackIntervalRef.current = null;
-      }
 
       // Unirse a room por fecha
       socket.emit('join-fecha', fechaActual);
@@ -75,28 +68,14 @@ const useSocketCocina = ({
     socket.on('disconnect', (reason) => {
       console.warn('❌ Socket cocina desconectado:', reason);
       setConnected(false);
+      setConnectionStatus('desconectado');
       
-      // Si la desconexión es por error del servidor, activar fallback
-      if (reason === 'io server disconnect' || reason === 'transport close') {
-        setConnectionStatus('desconectado');
-        
-        // Activar fallback polling después de 2 minutos sin conexión
-        if (!fallbackIntervalRef.current) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (!socket.connected && Date.now() - ultimoPingRef.current > 120000) {
-              console.warn('⚠️ Socket desconectado > 2min, activando fallback polling');
-              setConnectionStatus('polling');
-              
-              // Fallback polling cada 30 segundos
-              fallbackIntervalRef.current = setInterval(() => {
-                if (obtenerComandas) {
-                  obtenerComandas();
-                }
-              }, 30000);
-            }
-          }, 120000);
+      // Si desconexión > 30 segundos, mostrar warning
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (!socket.connected && Date.now() - ultimoPingRef.current > 30000) {
+          console.warn('⚠️ Conexión perdida > 30s. Redis Adapter garantiza estabilidad. Reconectando...');
         }
-      }
+      }, 30000);
     });
 
     // Evento: Reconexión
@@ -106,10 +85,10 @@ const useSocketCocina = ({
       setConnectionStatus('conectado');
       ultimoPingRef.current = Date.now();
       
-      // Limpiar fallback
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-        fallbackIntervalRef.current = null;
+      // Limpiar timeout de warning
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       
       // Re-unirse a room
@@ -215,9 +194,6 @@ const useSocketCocina = ({
     return () => {
       console.log('🧹 Limpiando conexión Socket.io');
       clearInterval(heartbeatInterval);
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-      }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
