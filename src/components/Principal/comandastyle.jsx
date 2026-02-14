@@ -76,6 +76,10 @@ const ComandaStyle = () => {
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
   const [platoStates, setPlatoStates] = useState(new Map()); // Trackear estados de platos: 'preparing' (amarillo) o 'completed' (verde)
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
+  // Estado para checkboxes de platos individuales: Map<`${comandaId}-${platoId}`, boolean>
+  const [platosChecked, setPlatosChecked] = useState(new Map());
+  // Estado para tiempos formateados HH:MM:SS por comanda: Map<comandaId, string>
+  const [tiemposComandas, setTiemposComandas] = useState(new Map());
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
   const lastSuccessTimeRef = useRef(Date.now());
@@ -588,6 +592,16 @@ const ComandaStyle = () => {
       
       console.log(`✅ FASE3: Plato ${data.platoId} actualizado a "${data.nuevoEstado}" en comanda ${data.comandaId} (sin recargar comanda completa)`);
       
+      // Limpiar checkbox del plato actualizado si cambió a "recoger" o "entregado"
+      if (data.nuevoEstado === "recoger" || data.nuevoEstado === "entregado") {
+        setPlatosChecked(prev => {
+          const nuevo = new Map(prev);
+          const key = `${data.comandaId}-${data.platoId}`;
+          nuevo.delete(key);
+          return nuevo;
+        });
+      }
+      
       return nuevasComandas;
     });
   }, [config.soundEnabled, obtenerComandas]);
@@ -687,19 +701,50 @@ const ComandaStyle = () => {
     }
   }, [comandas, filteredComandas, enEspera.length, recoger.length]);
 
-  // Calcular tiempo transcurrido
+  // Calcular tiempo transcurrido (mantener para compatibilidad)
   const calcularTiempoTranscurrido = (comanda) => {
-    if (!comanda.createdAt) return { minutos: 0, texto: "0min" };
+    if (!comanda.createdAt) return { minutos: 0, texto: "0min", horas: 0, minutosRestantes: 0, segundos: 0 };
     
     const ahora = moment().tz("America/Lima");
     const creacion = moment(comanda.createdAt).tz("America/Lima");
-    const diff = ahora.diff(creacion, "minutes");
+    const diffSegundos = ahora.diff(creacion, "seconds");
+    const diffMinutos = Math.floor(diffSegundos / 60);
     
     return {
-      minutos: diff,
-      texto: diff < 60 ? `${diff}min` : `${Math.floor(diff / 60)}h ${diff % 60}min`
+      minutos: diffMinutos,
+      horas: Math.floor(diffSegundos / 3600),
+      minutosRestantes: Math.floor((diffSegundos % 3600) / 60),
+      segundos: diffSegundos % 60,
+      texto: diffMinutos < 60 ? `${diffMinutos}min` : `${Math.floor(diffMinutos / 60)}h ${diffMinutos % 60}min`
     };
   };
+
+  // Actualizar tiempos formateados HH:MM:SS cada segundo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTiemposComandas(prev => {
+        const nuevo = new Map(prev);
+        comandas.forEach(comanda => {
+          if (!comanda.createdAt) {
+            nuevo.set(comanda._id, "00:00:00");
+            return;
+          }
+          const ahora = moment().tz("America/Lima");
+          const creacion = moment(comanda.createdAt).tz("America/Lima");
+          const diffSegundos = ahora.diff(creacion, "seconds");
+          
+          const horas = Math.floor(diffSegundos / 3600);
+          const minutos = Math.floor((diffSegundos % 3600) / 60);
+          const segundos = diffSegundos % 60;
+          
+          const tiempoFormateado = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+          nuevo.set(comanda._id, tiempoFormateado);
+        });
+        return nuevo;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [comandas]);
 
   // Obtener color de alerta por tiempo (SICAR)
   const getColorAlerta = (minutos) => {
@@ -876,6 +921,202 @@ const ComandaStyle = () => {
       return nuevo;
     });
   };
+
+  // Toggle checkbox de plato individual
+  const togglePlatoCheck = useCallback((comandaId, platoId) => {
+    setPlatosChecked(prev => {
+      const nuevo = new Map(prev);
+      const key = `${comandaId}-${platoId}`;
+      nuevo.set(key, !(nuevo.get(key) || false));
+      return nuevo;
+    });
+    // Auto-seleccionar comanda cuando se marca un plato
+    setSelectedOrders(prev => {
+      const nuevo = new Set(prev);
+      nuevo.add(comandaId);
+      return nuevo;
+    });
+  }, []);
+
+  // Obtener total de platos marcados
+  const getTotalPlatosMarcados = useCallback(() => {
+    let total = 0;
+    platosChecked.forEach((checked) => {
+      if (checked) total++;
+    });
+    return total;
+  }, [platosChecked]);
+
+  // Verificar si una comanda tiene todos los platos listos (en "recoger" o "entregado")
+  const comandaTieneTodosPlatosListos = useCallback((comandaId) => {
+    const comanda = comandas.find(c => c._id === comandaId);
+    if (!comanda || !comanda.platos || comanda.platos.length === 0) return false;
+    
+    return comanda.platos.every(plato => {
+      const estado = plato.estado;
+      return estado === "recoger" || estado === "entregado";
+    });
+  }, [comandas]);
+
+  // Handler para finalizar platos marcados con checkboxes
+  const handleFinalizarPlatosGlobal = useCallback(async () => {
+    const totalMarcados = getTotalPlatosMarcados();
+    if (totalMarcados === 0) {
+      console.warn('⚠️ No hay platos seleccionados');
+      return;
+    }
+
+    // Recopilar todos los platos marcados
+    const platosProcesados = [];
+    platosChecked.forEach((checked, key) => {
+      if (!checked) return;
+      
+      const [comandaId, platoId] = key.split('-');
+      const comanda = comandas.find(c => c._id === comandaId);
+      if (!comanda) return;
+      
+      const plato = comanda.platos?.find(p => {
+        const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
+        return pId === platoId;
+      });
+      
+      if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante")) {
+        platosProcesados.push({ comandaId, platoId });
+      }
+    });
+
+    if (platosProcesados.length === 0) {
+      console.warn('⚠️ No hay platos válidos para finalizar');
+      return;
+    }
+
+    // Procesar en paralelo
+    const resultados = await Promise.allSettled(
+      platosProcesados.map(async ({ comandaId, platoId }) => {
+        try {
+          const comanda = comandas.find(c => c._id === comandaId);
+          if (!comanda) return { comandaId, platoId, exito: false, error: 'Comanda no encontrada' };
+          
+          const plato = comanda.platos?.find(p => {
+            const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
+            return pId === platoId;
+          });
+          
+          if (!plato) return { comandaId, platoId, exito: false, error: 'Plato no encontrado' };
+          
+          const platoIdFinal = plato.plato?._id || plato._id || platoId;
+          
+          await axios.put(
+            `${getApiUrl()}/${comandaId}/plato/${platoIdFinal}/estado`,
+            { nuevoEstado: "recoger" }
+          );
+          return { comandaId, platoId, exito: true };
+        } catch (error) {
+          console.error(`Error finalizando plato ${platoId}:`, error);
+          return { comandaId, platoId, exito: false, error: error.message };
+        }
+      })
+    );
+
+    // Limpiar checkboxes exitosos
+    setPlatosChecked(prev => {
+      const nuevo = new Map(prev);
+      resultados.forEach(result => {
+        if (result.status === 'fulfilled' && result.value.exito) {
+          const { comandaId, platoId } = result.value;
+          const key = `${comandaId}-${platoId}`;
+          nuevo.delete(key);
+        }
+      });
+      return nuevo;
+    });
+
+    const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
+    const fallidos = resultados.length - exitosos;
+    
+    if (exitosos > 0) {
+      console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente`);
+    }
+    if (fallidos > 0) {
+      console.warn(`⚠️ ${fallidos} plato(s) fallaron al finalizar`);
+    }
+  }, [platosChecked, comandas, getTotalPlatosMarcados]);
+
+  // Handler para finalizar comanda completa
+  const handleFinalizarComandaCompletaGlobal = useCallback(async () => {
+    if (selectedOrders.size === 0) {
+      alert('⚠️ Por favor, selecciona al menos una comanda para finalizar.');
+      return;
+    }
+
+    // Obtener comandas seleccionadas
+    const comandasParaFinalizar = Array.from(selectedOrders).map(comandaId => {
+      return comandas.find(c => c._id === comandaId);
+    }).filter(Boolean);
+
+    if (comandasParaFinalizar.length === 0) {
+      alert('⚠️ No se encontraron comandas seleccionadas.');
+      return;
+    }
+
+    // Advertencia opcional si hay platos en preparación (no bloquea, solo informa)
+    const comandasConPlatosEnPreparacion = comandasParaFinalizar.filter(comanda => {
+      if (!comanda.platos || comanda.platos.length === 0) return false;
+      return comanda.platos.some(plato => {
+        const estado = plato.estado;
+        return estado === "en_espera" || estado === "ingresante";
+      });
+    });
+
+    if (comandasConPlatosEnPreparacion.length > 0) {
+      const numeros = comandasConPlatosEnPreparacion.map(c => `#${c.comandaNumber || c._id}`).join(', ');
+      const continuar = window.confirm(
+        `⚠️ ${comandasConPlatosEnPreparacion.length} comanda(s) tiene(n) platos aún en preparación: ${numeros}\n\n` +
+        `¿Deseas continuar? Todos los platos se marcarán como entregados automáticamente.`
+      );
+      if (!continuar) {
+        return;
+      }
+    }
+
+    // Mostrar modal de confirmación
+    const comandaPrincipal = comandasParaFinalizar[0];
+    const textoConfirmacion = comandasParaFinalizar.length === 1
+      ? `¿Finalizar Orden #${comandaPrincipal.comandaNumber}? Todos los platos se marcarán como entregados.`
+      : `¿Finalizar ${comandasParaFinalizar.length} comandas? Todos los platos se marcarán como entregados.`;
+
+    if (!window.confirm(textoConfirmacion)) {
+      return;
+    }
+
+    // Batch API para todas las comandas
+    const resultados = await Promise.allSettled(
+      comandasParaFinalizar.map(async (comanda) => {
+        try {
+          await axios.put(`${getApiUrl()}/${comanda._id}/status`, { nuevoStatus: "entregado" });
+          return { comandaId: comanda._id, exito: true };
+        } catch (error) {
+          console.error(`Error finalizando comanda ${comanda._id}:`, error);
+          return { comandaId: comanda._id, exito: false, error: error.message };
+        }
+      })
+    );
+
+    // Limpiar selección y checks
+    setSelectedOrders(new Set());
+    setPlatosChecked(new Map());
+    
+    const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
+    const fallidos = resultados.length - exitosos;
+    
+    if (exitosos > 0) {
+      console.log(`✅ ${exitosos} comanda(s) finalizada(s) exitosamente`);
+    }
+    if (fallidos > 0) {
+      console.warn(`⚠️ ${fallidos} comanda(s) fallaron al finalizar`);
+      alert(`⚠️ ${fallidos} comanda(s) no se pudieron finalizar. Por favor, inténtalo de nuevo.`);
+    }
+  }, [comandas, selectedOrders]);
 
   // Finalizar comandas seleccionadas (marcar como preparadas)
   const handleFinalizar = async () => {
@@ -1135,7 +1376,8 @@ const ComandaStyle = () => {
       )}
 
       {/* Grid principal estilo SICAR - Configurable, mejor espaciado */}
-      <div className={`flex-1 overflow-hidden ${bgGrid} p-3 flex flex-col`}>
+      {/* Padding inferior para la barra sticky */}
+      <div className={`flex-1 overflow-hidden ${bgGrid} p-3 flex flex-col pb-24`}>
         {todasComandas.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className={`text-center ${textSecondary}`}>
@@ -1174,11 +1416,14 @@ const ComandaStyle = () => {
                 const isSelected = selectedOrders.has(comanda._id);
                 // Número de posición de la tarjeta (1, 2, 3, 4, 5...)
                 const cardNumber = (currentPage * COMANDAS_POR_PAGINA) + index + 1;
+                // Obtener tiempo formateado HH:MM:SS
+                const tiempoFormateado = tiemposComandas.get(comanda._id) || "00:00:00";
                 return (
                   <SicarComandaCard
                     key={comanda._id}
                     comanda={comanda}
                     tiempo={tiempo}
+                    tiempoFormateado={tiempoFormateado}
                     getColorAlerta={getColorAlerta}
                     onListo={() => avanzarEstadoComanda(comanda._id, "recoger")}
                     estadoColumna={estadoColumna}
@@ -1194,6 +1439,8 @@ const ComandaStyle = () => {
                     cardNumber={cardNumber}
                     nightMode={nightMode}
                     platosEliminados={platosEliminados.get(comanda._id) || []}
+                    platosChecked={platosChecked}
+                    togglePlatoCheck={togglePlatoCheck}
                   />
                   );
                 })}
@@ -1201,22 +1448,49 @@ const ComandaStyle = () => {
               </div>
             </motion.div>
 
-            {/* Barra inferior: Finalizar → Revertir → Paginado (siempre visible) */}
-            <div className={`mt-4 flex items-center justify-between px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar}`}>
-              {/* Orden: Finalizar → Revertir → Paginado */}
+            {/* Barra inferior sticky: Finalizar Platos → Finalizar Comanda → Revertir → Paginado */}
+            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar} z-50`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
+              {/* Orden: Finalizar Platos → Finalizar Comanda → Revertir → Paginado */}
               <div className="flex items-center gap-3">
-                {/* 1. Botón FINALIZAR - Siempre visible, deshabilitado si no hay selección */}
+                {/* 1. Botón FINALIZAR PLATOS (Verde) - Finaliza platos marcados con checkboxes */}
                 <motion.button
-                  onClick={handleFinalizar}
+                  onClick={handleFinalizarPlatosGlobal}
+                  disabled={getTotalPlatosMarcados() === 0}
+                  className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
+                    getTotalPlatosMarcados() > 0
+                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                      : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                  }`}
+                  whileHover={getTotalPlatosMarcados() > 0 ? { 
+                    scale: 1.05, 
+                    boxShadow: "0 0 30px rgba(34, 197, 94, 0.7)" 
+                  } : {}}
+                  whileTap={getTotalPlatosMarcados() > 0 ? { scale: 0.95 } : {}}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                >
+                  {getTotalPlatosMarcados() > 0 && (
+                    <motion.span
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                    >
+                      ✓
+                    </motion.span>
+                  )}
+                  Finalizar {getTotalPlatosMarcados() > 0 ? `${getTotalPlatosMarcados()} ` : ''}Platos
+                </motion.button>
+
+                {/* 2. Botón FINALIZAR COMANDA (Azul) - Finaliza comanda(s) seleccionada(s) completa(s) */}
+                <motion.button
+                  onClick={handleFinalizarComandaCompletaGlobal}
                   disabled={selectedOrders.size === 0}
                   className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
                     selectedOrders.size > 0
-                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
                       : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
                   }`}
                   whileHover={selectedOrders.size > 0 ? { 
                     scale: 1.05, 
-                    boxShadow: "0 0 30px rgba(34, 197, 94, 0.7)" 
+                    boxShadow: "0 0 30px rgba(59, 130, 246, 0.7)" 
                   } : {}}
                   whileTap={selectedOrders.size > 0 ? { scale: 0.95 } : {}}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
@@ -1229,12 +1503,20 @@ const ComandaStyle = () => {
                       ✓
                     </motion.span>
                   )}
-                  FINALIZAR {selectedOrders.size > 0 && `(${selectedOrders.size})`}
+                  {selectedOrders.size === 0 
+                    ? 'Finalizar Comanda' 
+                    : selectedOrders.size === 1
+                      ? `Finalizar #${comandas.find(c => c._id === Array.from(selectedOrders)[0])?.comandaNumber || ''} ✓`
+                      : `Finalizar ${selectedOrders.size} Comandas ✓`
+                  }
                 </motion.button>
 
-                {/* 2. Botón REVERTIR */}
+                {/* 3. Botón REVERTIR (Gris) - Limpia checks */}
                 <motion.button
-                  onClick={() => setShowRevertir(true)}
+                  onClick={() => {
+                    setPlatosChecked(new Map());
+                    setShowRevertir(true);
+                  }}
                   className={`px-4 py-2 ${bgButton} ${bgButtonHover} ${textButton} font-semibold rounded-lg text-sm shadow-md`}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -1358,6 +1640,7 @@ const ComandaStyle = () => {
 const SicarComandaCard = ({ 
   comanda, 
   tiempo, 
+  tiempoFormateado = "00:00:00",
   getColorAlerta, 
   onListo,
   estadoColumna,
@@ -1372,7 +1655,9 @@ const SicarComandaCard = ({
   setPlatoStates,
   cardNumber = 1,
   nightMode = true,
-  platosEliminados = [] // Mantener para compatibilidad, pero usar historialPlatos
+  platosEliminados = [], // Mantener para compatibilidad, pero usar historialPlatos
+  platosChecked = new Map(),
+  togglePlatoCheck = () => {}
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   const platosEliminadosHistorial = React.useMemo(() => {
@@ -1500,33 +1785,6 @@ const SicarComandaCard = ({
     }
   }, [minutosActuales, alertYellowMinutes, alertRedMinutes]);
 
-  // Formatear tiempo como MM:SS (actualizado en tiempo real)
-  const [tiempoDisplay, setTiempoDisplay] = useState(() => {
-    const horas = Math.floor(minutosActuales / 60);
-    const minsRestantes = minutosActuales % 60;
-    if (horas > 0) {
-      return `${horas}:${minsRestantes.toString().padStart(2, '0')}`;
-    }
-    return `${minutosActuales.toString().padStart(2, '0')}:00`;
-  });
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!comanda.createdAt) return;
-      const ahora = moment().tz("America/Lima");
-      const creacion = moment(comanda.createdAt).tz("America/Lima");
-      const diffMinutos = ahora.diff(creacion, "minutes");
-      
-      const horas = Math.floor(diffMinutos / 60);
-      const minsRestantes = diffMinutos % 60;
-      if (horas > 0) {
-        setTiempoDisplay(`${horas}:${minsRestantes.toString().padStart(2, '0')}`);
-      } else {
-        setTiempoDisplay(`${diffMinutos.toString().padStart(2, '0')}:00`);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [comanda.createdAt]);
 
   // Filtrar platos por estado según columna
   const platosFiltrados = comanda.platos?.filter(p => {
@@ -1647,7 +1905,7 @@ const SicarComandaCard = ({
       </AnimatePresence>
       {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) */}
       <div className={`p-4 ${isSelected ? "pt-16" : "pt-4"} ${bgColor}`}>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between mb-2">
           {/* Izquierda: Orden # y número de tarjeta */}
           <div>
             <div className="text-white font-bold text-xl mb-1" style={{ 
@@ -1667,11 +1925,17 @@ const SicarComandaCard = ({
             </div>
             <div className="flex items-center gap-1">
               <FaClock className="text-white text-sm" />
-              <div className="text-white font-bold text-base" style={{ fontFamily: 'Arial, sans-serif' }}>
-                {tiempoDisplay}
+              <div className={`text-white font-bold text-base ${minutosActuales >= alertRedMinutes ? 'text-red-200' : minutosActuales >= alertYellowMinutes ? 'text-yellow-200' : 'text-white'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                {tiempoFormateado}
               </div>
             </div>
           </div>
+        </div>
+        {/* Mozo y tiempo en una línea */}
+        <div className="flex items-center justify-between text-white text-sm">
+          <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
+            👤 {comanda.mozos?.name || comanda.mozos?.nombre || 'admin'}
+          </span>
         </div>
       </div>
 
@@ -1769,6 +2033,10 @@ const SicarComandaCard = ({
                 textClass = textPlatosCompleted;
               }
               
+              // Obtener estado del checkbox
+              const checkKey = `${comandaId}-${platoId}`;
+              const isChecked = platosChecked.get(checkKey) || false;
+              
               return (
                 <motion.div
                   key={platoId}
@@ -1776,8 +2044,8 @@ const SicarComandaCard = ({
                   animate={{ 
                     opacity: 1, 
                     y: 0,
-                    backgroundColor: backgroundColor,
-                    color: textColor,
+                    backgroundColor: isChecked ? 'rgba(34, 197, 94, 0.3)' : backgroundColor,
+                    color: isChecked ? (nightMode ? '#86efac' : '#15803d') : textColor,
                     // FASE 3: Animación cuando el plato cambia de estado vía WebSocket
                     scale: isAnimando ? [1, 1.05, 1] : 1,
                     boxShadow: isAnimando ? [
@@ -1793,25 +2061,48 @@ const SicarComandaCard = ({
                     stiffness: isAnimando ? 300 : undefined,
                     damping: isAnimando ? 20 : undefined
                   }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // No permitir cambiar estado si está eliminado
-                    if (!isEliminado) {
-                      togglePlatoStatus(platoId);
-                    }
-                  }}
-                  className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 ${
-                    isEliminado ? `${bgClass} ${textClass} line-through cursor-not-allowed` : `cursor-pointer ${isPreparing || isCompleted ? `${bgClass} ${textClass}` : `${textPlatos} ${textPlatosHover}`}`
+                  className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 ${
+                    isEliminado ? `${bgClass} ${textClass} line-through cursor-not-allowed` : `cursor-pointer ${isPreparing || isCompleted || isChecked ? `${bgClass} ${textClass}` : `${textPlatos} ${textPlatosHover}`}`
                   }`}
                   whileHover={{ scale: 1.02, x: 4 }}
                   whileTap={{ scale: 0.98 }}
-                    style={{ 
-                      fontFamily: 'Arial, sans-serif',
-                      fontSize: '18px'
-                    }}
+                  style={{ 
+                    fontFamily: 'Arial, sans-serif',
+                    fontSize: '18px'
+                  }}
                 >
-                  <span className="flex items-center gap-2">
-                    {isPreparing && (
+                  {/* Checkbox cuadrado 24x24px */}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isEliminado) {
+                        togglePlatoCheck(comandaId, platoId);
+                      }
+                    }}
+                    className={`w-6 h-6 border-2 rounded flex items-center justify-center transition-all duration-200 ${
+                      isChecked 
+                        ? 'bg-green-500 border-green-600' 
+                        : nightMode 
+                          ? 'border-gray-500 bg-gray-800 hover:border-gray-400' 
+                          : 'border-gray-400 bg-white hover:border-gray-500'
+                    } ${isEliminado ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-110'}`}
+                  >
+                    {isChecked && (
+                      <motion.svg
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                        className="w-4 h-4 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </motion.svg>
+                    )}
+                  </div>
+                  
+                  <span className="flex items-center gap-2 flex-1">
+                    {isPreparing && !isChecked && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
@@ -1821,7 +2112,7 @@ const SicarComandaCard = ({
                         ⏳
                       </motion.span>
                     )}
-                    {isCompleted && (
+                    {isCompleted && !isChecked && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
