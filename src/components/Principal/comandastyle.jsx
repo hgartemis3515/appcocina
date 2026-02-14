@@ -80,6 +80,12 @@ const ComandaStyle = () => {
   const [platosChecked, setPlatosChecked] = useState(new Map());
   // Estado para tiempos formateados HH:MM:SS por comanda: Map<comandaId, string>
   const [tiemposComandas, setTiemposComandas] = useState(new Map());
+  // Estado para prevenir double-submit en finalizar platos
+  const [isFinalizandoPlatos, setIsFinalizandoPlatos] = useState(false);
+  // Estado para trackear comandas que ya fueron auto-completadas (evitar loops)
+  const [comandasAutoCompletadas, setComandasAutoCompletadas] = useState(new Set());
+  // Estado para toast notifications simples
+  const [toastMessage, setToastMessage] = useState(null);
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
   const lastSuccessTimeRef = useRef(Date.now());
@@ -303,6 +309,31 @@ const ComandaStyle = () => {
       console.warn('⚠️ handleComandaActualizada recibió data null/undefined');
       return;
     }
+
+    // AUTO-TRIGGER: Detectar cuando comanda pasa a 'recoger' y mostrar feedback
+    const comandaParaVerificar = data.comanda || data;
+    if (comandaParaVerificar && comandaParaVerificar.status === 'recoger') {
+      const comandaAnterior = comandas.find(c => c._id === comandaParaVerificar._id);
+      if (comandaAnterior && comandaAnterior.status !== 'recoger') {
+        // Comanda acaba de pasar a 'recoger' - mostrar toast y sonido
+        setToastMessage({
+          type: 'success',
+          message: `✅ Comanda #${comandaParaVerificar.comandaNumber || ''} → Mozos recogerán`,
+          duration: 4000
+        });
+        
+        if (config.soundEnabled) {
+          playNotificationSound();
+        }
+        
+        // Remover de auto-completadas para permitir re-procesamiento si es necesario
+        setComandasAutoCompletadas(prev => {
+          const nuevo = new Set(prev);
+          nuevo.delete(comandaParaVerificar._id);
+          return nuevo;
+        });
+      }
+    }
     
     // ✅ MANEJAR ELIMINACIÓN DE COMANDA - Remover tarjeta en tiempo real
     if (data.eliminada === true || (data.comanda && (data.comanda.IsActive === false || data.comanda.eliminada === true))) {
@@ -488,9 +519,7 @@ const ComandaStyle = () => {
     // Forzar actualización del filtro después de actualizar comandas
     // El useEffect de filteredComandas se ejecutará automáticamente cuando cambie 'comandas'
     // También forzar un pequeño delay para asegurar que React procese el cambio
-    setTimeout(() => {
-      console.log('🔄 Forzando actualización de filtros después de actualizar comanda');
-    }, 100);
+    // (Delay silencioso, sin logs innecesarios)
   }, [obtenerComandas]);
 
   // FASE 3: Actualización granular de plato (solo actualiza 1 plato, no toda la comanda)
@@ -592,8 +621,8 @@ const ComandaStyle = () => {
       
       console.log(`✅ FASE3: Plato ${data.platoId} actualizado a "${data.nuevoEstado}" en comanda ${data.comandaId} (sin recargar comanda completa)`);
       
-      // Limpiar checkbox del plato actualizado si cambió a "recoger" o "entregado"
-      if (data.nuevoEstado === "recoger" || data.nuevoEstado === "entregado") {
+      // Limpiar checkbox del plato actualizado si cambió a "recoger" (REGLA: cocina solo maneja 'recoger')
+      if (data.nuevoEstado === "recoger") {
         setPlatosChecked(prev => {
           const nuevo = new Map(prev);
           const key = `${data.comandaId}-${data.platoId}`;
@@ -648,7 +677,8 @@ const ComandaStyle = () => {
     if (!c.platos || c.platos.length === 0) return false;
     
     // SOLO mostrar comandas con status "en_espera"
-    // NO mostrar comandas con status "recoger" o "entregado"
+    // REGLA COCINA: NO mostrar comandas con status "recoger" o "entregado" (solo mozos manejan entregado)
+    // Cocina solo maneja 'en_espera' → 'recoger'
     if (c.status !== "en_espera") return false;
     
     // VALIDACIÓN CRÍTICA: Solo mostrar comandas donde TODOS los platos tengan nombre cargado
@@ -793,35 +823,10 @@ const ComandaStyle = () => {
             }
           }
         }
-      } else if (estadoActual === "recoger") {
-        // RECOGER → MOZOS: Cambiar todos los platos recoger a entregado
-        const comanda = comandas.find(c => c._id === comandaId);
-        if (comanda) {
-          for (const plato of comanda.platos) {
-            if (plato.estado === "recoger") {
-              try {
-                await axios.put(
-                  `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
-                  { nuevoEstado: "entregado" }
-                );
-              } catch (error) {
-                console.error(`Error actualizando plato ${plato.plato?._id || plato._id}:`, error);
-                // Continuar con los demás platos aunque uno falle
-              }
-            }
-          }
-          // Actualizar status de comanda
-          try {
-            await axios.put(
-              `${getApiUrl()}/${comandaId}/status`,
-              { nuevoStatus: "entregado" }
-            );
-          } catch (error) {
-            console.error("Error actualizando status de comanda:", error);
-            // No bloquear si falla la actualización del status
-          }
-        }
       }
+      // REGLA COCINA: No se maneja 'entregado' aquí (exclusivo de mozos)
+      // Si estadoActual === "recoger", la comanda ya está lista para que mozos la recojan
+      // No hacer cambios adicionales desde cocina
       
       obtenerComandas();
     } catch (error) {
@@ -947,52 +952,163 @@ const ComandaStyle = () => {
     return total;
   }, [platosChecked]);
 
-  // Verificar si una comanda tiene todos los platos listos (en "recoger" o "entregado")
+  // Verificar si una comanda tiene todos los platos listos (solo "recoger" - cocina nunca maneja "entregado")
   const comandaTieneTodosPlatosListos = useCallback((comandaId) => {
     const comanda = comandas.find(c => c._id === comandaId);
     if (!comanda || !comanda.platos || comanda.platos.length === 0) return false;
     
-    return comanda.platos.every(plato => {
+    // Filtrar solo platos no eliminados
+    const platosActivos = comanda.platos.filter(p => !p.eliminado);
+    if (platosActivos.length === 0) return false;
+    
+    // REGLA COCINA: Solo considerar 'recoger', nunca 'entregado' (exclusivo de mozos)
+    return platosActivos.every(plato => {
       const estado = plato.estado;
-      return estado === "recoger" || estado === "entregado";
+      return estado === "recoger";
     });
   }, [comandas]);
 
-  // Handler para finalizar platos marcados con checkboxes
-  const handleFinalizarPlatosGlobal = useCallback(async () => {
-    const totalMarcados = getTotalPlatosMarcados();
-    if (totalMarcados === 0) {
-      console.warn('⚠️ No hay platos seleccionados');
-      return;
-    }
+  // Contar platos listos (solo "recoger" - cocina nunca maneja "entregado") vs total por comanda
+  const getPlatosListosCount = useCallback((comandaId) => {
+    const comanda = comandas.find(c => c._id === comandaId);
+    if (!comanda || !comanda.platos || comanda.platos.length === 0) return { listos: 0, total: 0 };
+    
+    const platosActivos = comanda.platos.filter(p => !p.eliminado);
+    // REGLA COCINA: Solo contar 'recoger', nunca 'entregado' (exclusivo de mozos)
+    const listos = platosActivos.filter(p => {
+      const estado = p.estado;
+      return estado === "recoger";
+    }).length;
+    
+    return { listos, total: platosActivos.length };
+  }, [comandas]);
 
-    // Recopilar todos los platos marcados
-    const platosProcesados = [];
-    platosChecked.forEach((checked, key) => {
-      if (!checked) return;
-      
-      const [comandaId, platoId] = key.split('-');
-      const comanda = comandas.find(c => c._id === comandaId);
-      if (!comanda) return;
-      
-      const plato = comanda.platos?.find(p => {
-        const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
-        return pId === platoId;
-      });
-      
-      if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante")) {
-        platosProcesados.push({ comandaId, platoId });
+  // Verificar si las comandas seleccionadas tienen todos los platos listos
+  const comandasSeleccionadasTienenTodosPlatosListos = useCallback(() => {
+    if (selectedOrders.size === 0) return false;
+    
+    const comandasSeleccionadas = Array.from(selectedOrders).map(id => 
+      comandas.find(c => c._id === id)
+    ).filter(Boolean);
+    
+    if (comandasSeleccionadas.length === 0) return false;
+    
+    // Todas las comandas seleccionadas deben tener todos los platos listos
+    return comandasSeleccionadas.every(comanda => comandaTieneTodosPlatosListos(comanda._id));
+  }, [selectedOrders, comandas, comandaTieneTodosPlatosListos]);
+
+  // AUTO-TRIGGER: Monitorear cuando todos los platos están en 'recoger' y auto-cambiar comanda.status
+  useEffect(() => {
+    const verificarYAutoCompletar = async () => {
+      // Iterar sobre todas las comandas visibles
+      for (const comanda of comandas) {
+        // Solo procesar comandas en 'en_espera' que no hayan sido auto-completadas
+        if (comanda.status !== 'en_espera' && comanda.status !== 'ingresante') continue;
+        if (comandasAutoCompletadas.has(comanda._id)) continue;
+        
+        // Verificar si todos los platos están en 'recoger'
+        const platosActivos = (comanda.platos || []).filter(p => !p.eliminado);
+        if (platosActivos.length === 0) continue;
+        
+        const todosRecoger = platosActivos.every(p => {
+          const estado = p.estado || 'en_espera';
+          return estado === 'recoger';
+        });
+        
+        if (todosRecoger) {
+          // Chequeo adicional: Si ya está en 'recoger', skip (idempotente)
+          if (comanda.status === 'recoger') {
+            // Ya completada, marcar como procesada para evitar futuros intentos
+            setComandasAutoCompletadas(prev => new Set(prev).add(comanda._id));
+            return; // Early return, no hacer PUT redundante
+          }
+          
+          // Auto-completar: cambiar comanda.status a 'recoger'
+          try {
+            const apiUrl = getApiUrl();
+            await axios.put(`${apiUrl}/${comanda._id}/status`, { nuevoStatus: "recoger" });
+            
+            // Marcar como auto-completada para evitar loops
+            setComandasAutoCompletadas(prev => new Set(prev).add(comanda._id));
+            
+            // Toast notification
+            setToastMessage({
+              type: 'success',
+              message: `✅ Comanda #${comanda.comandaNumber} lista para recoger`,
+              duration: 3000
+            });
+            
+            // Sonido de confirmación
+            if (config.soundEnabled) {
+              playNotificationSound();
+            }
+          } catch (error) {
+            // Manejar error idempotente silenciosamente (ya está en 'recoger')
+            const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || '';
+            if (errorMessage.includes('Transición inválida') && errorMessage.includes('recoger')) {
+              // Error idempotente: comanda ya está en 'recoger', marcar como procesada silenciosamente
+              setComandasAutoCompletadas(prev => new Set(prev).add(comanda._id));
+              return; // Silencioso, no mostrar error
+            }
+            
+            // Otros errores: mostrar toast de error
+            console.error(`❌ AUTO-TRIGGER: Error al auto-completar comanda #${comanda.comandaNumber}:`, error);
+            setToastMessage({
+              type: 'error',
+              message: `⚠️ Error al completar comanda #${comanda.comandaNumber}`,
+              duration: 3000
+            });
+          }
+        }
       }
-    });
+    };
+    
+    // Ejecutar verificación después de un pequeño delay para evitar ejecuciones excesivas
+    const timeoutId = setTimeout(() => {
+      verificarYAutoCompletar();
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [comandas, comandasAutoCompletadas, config.soundEnabled]);
 
-    if (platosProcesados.length === 0) {
-      console.warn('⚠️ No hay platos válidos para finalizar');
-      return;
+  // Limpiar comandas auto-completadas cuando cambian (para permitir re-procesamiento si es necesario)
+  useEffect(() => {
+    // Si una comanda ya no está en 'en_espera', removerla del set de auto-completadas
+    setComandasAutoCompletadas(prev => {
+      const nuevo = new Set();
+      prev.forEach(comandaId => {
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (comanda && (comanda.status === 'en_espera' || comanda.status === 'ingresante')) {
+          nuevo.add(comandaId);
+        }
+      });
+      return nuevo;
+    });
+  }, [comandas]);
+
+  // Auto-ocultar toast después de duración
+  useEffect(() => {
+    if (toastMessage) {
+      const timeoutId = setTimeout(() => {
+        setToastMessage(null);
+      }, toastMessage.duration || 3000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [toastMessage]);
+
+  // Función genérica para batch finalizar platos (unifica lógica FinalizarPlatos y FinalizarComanda)
+  // REGLA COCINA: Siempre usa 'recoger', nunca 'entregado' (exclusivo de mozos)
+  const batchFinalizarPlatos = useCallback(async (platosParaProcesar) => {
+    if (platosParaProcesar.length === 0) {
+      return { exitosos: 0, fallidos: 0, resultados: [] };
     }
 
-    // Procesar en paralelo
+    const apiUrl = getApiUrl();
+    
+    // Procesar en paralelo - SOLO API de platos, NO tocar comanda.status directamente
+    // Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén en 'recoger'
     const resultados = await Promise.allSettled(
-      platosProcesados.map(async ({ comandaId, platoId }) => {
+      platosParaProcesar.map(async ({ comandaId, platoId }) => {
         try {
           const comanda = comandas.find(c => c._id === comandaId);
           if (!comanda) return { comandaId, platoId, exito: false, error: 'Comanda no encontrada' };
@@ -1004,45 +1120,99 @@ const ComandaStyle = () => {
           
           if (!plato) return { comandaId, platoId, exito: false, error: 'Plato no encontrado' };
           
+          // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
           const platoIdFinal = plato.plato?._id || plato._id || platoId;
-          
           await axios.put(
-            `${getApiUrl()}/${comandaId}/plato/${platoIdFinal}/estado`,
+            `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
             { nuevoEstado: "recoger" }
           );
           return { comandaId, platoId, exito: true };
         } catch (error) {
-          console.error(`Error finalizando plato ${platoId}:`, error);
+          console.error(`❌ Error finalizando plato ${platoId}:`, error);
           return { comandaId, platoId, exito: false, error: error.message };
         }
       })
     );
 
-    // Limpiar checkboxes exitosos
-    setPlatosChecked(prev => {
-      const nuevo = new Map(prev);
-      resultados.forEach(result => {
-        if (result.status === 'fulfilled' && result.value.exito) {
-          const { comandaId, platoId } = result.value;
-          const key = `${comandaId}-${platoId}`;
-          nuevo.delete(key);
-        }
-      });
-      return nuevo;
-    });
-
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
     const fallidos = resultados.length - exitosos;
-    
-    if (exitosos > 0) {
-      console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente`);
-    }
-    if (fallidos > 0) {
-      console.warn(`⚠️ ${fallidos} plato(s) fallaron al finalizar`);
-    }
-  }, [platosChecked, comandas, getTotalPlatosMarcados]);
 
-  // Handler para finalizar comanda completa
+    return { exitosos, fallidos, resultados };
+  }, [comandas]);
+
+  // Handler para finalizar platos marcados con checkboxes
+  const handleFinalizarPlatosGlobal = useCallback(async () => {
+    // Prevenir double-submit
+    if (isFinalizandoPlatos) {
+      console.warn('⚠️ Ya se están finalizando platos, por favor espera...');
+      return;
+    }
+
+    const totalMarcados = getTotalPlatosMarcados();
+    if (totalMarcados === 0) {
+      console.warn('⚠️ No hay platos seleccionados');
+      return;
+    }
+
+    setIsFinalizandoPlatos(true);
+
+    try {
+      // Recopilar todos los platos marcados
+      const platosProcesados = [];
+      platosChecked.forEach((checked, key) => {
+        if (!checked) return;
+        
+        const [comandaId, platoId] = key.split('-');
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (!comanda) return;
+        
+        const plato = comanda.platos?.find(p => {
+          const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
+          return pId === platoId;
+        });
+        
+        // Solo procesar platos que no estén ya en 'recoger'
+        if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante")) {
+          platosProcesados.push({ comandaId, platoId });
+        }
+      });
+
+      if (platosProcesados.length === 0) {
+        console.warn('⚠️ No hay platos válidos para finalizar');
+        return;
+      }
+
+      console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`);
+
+      // Usar función genérica batch
+      const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(platosProcesados);
+
+      // Limpiar checkboxes exitosos
+      setPlatosChecked(prev => {
+        const nuevo = new Map(prev);
+        resultados.forEach(result => {
+          if (result.status === 'fulfilled' && result.value.exito) {
+            const { comandaId, platoId } = result.value;
+            const key = `${comandaId}-${platoId}`;
+            nuevo.delete(key);
+          }
+        });
+        return nuevo;
+      });
+      
+      if (exitosos > 0) {
+        console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente - Estado: 'recoger'`);
+        console.log(`ℹ️ La comanda permanecerá en 'en_espera' hasta que TODOS los platos estén listos`);
+      }
+      if (fallidos > 0) {
+        console.warn(`⚠️ ${fallidos} plato(s) fallaron al finalizar`);
+      }
+    } finally {
+      setIsFinalizandoPlatos(false);
+    }
+  }, [platosChecked, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos]);
+
+  // Handler para finalizar comanda completa - REGLA: Solo batch platos a 'recoger', nunca 'entregado'
   const handleFinalizarComandaCompletaGlobal = useCallback(async () => {
     if (selectedOrders.size === 0) {
       alert('⚠️ Por favor, selecciona al menos una comanda para finalizar.');
@@ -1059,64 +1229,99 @@ const ComandaStyle = () => {
       return;
     }
 
-    // Advertencia opcional si hay platos en preparación (no bloquea, solo informa)
-    const comandasConPlatosEnPreparacion = comandasParaFinalizar.filter(comanda => {
-      if (!comanda.platos || comanda.platos.length === 0) return false;
-      return comanda.platos.some(plato => {
-        const estado = plato.estado;
-        return estado === "en_espera" || estado === "ingresante";
-      });
-    });
-
-    if (comandasConPlatosEnPreparacion.length > 0) {
-      const numeros = comandasConPlatosEnPreparacion.map(c => `#${c.comandaNumber || c._id}`).join(', ');
-      const continuar = window.confirm(
-        `⚠️ ${comandasConPlatosEnPreparacion.length} comanda(s) tiene(n) platos aún en preparación: ${numeros}\n\n` +
-        `¿Deseas continuar? Todos los platos se marcarán como entregados automáticamente.`
-      );
-      if (!continuar) {
-        return;
-      }
-    }
-
-    // Mostrar modal de confirmación
+    // Mostrar confirmación
     const comandaPrincipal = comandasParaFinalizar[0];
     const textoConfirmacion = comandasParaFinalizar.length === 1
-      ? `¿Finalizar Orden #${comandaPrincipal.comandaNumber}? Todos los platos se marcarán como entregados.`
-      : `¿Finalizar ${comandasParaFinalizar.length} comandas? Todos los platos se marcarán como entregados.`;
+      ? `¿Finalizar Orden #${comandaPrincipal.comandaNumber}? Todos los platos se marcarán como listos para recoger.`
+      : `¿Finalizar ${comandasParaFinalizar.length} comandas? Todos los platos se marcarán como listos para recoger.`;
 
     if (!window.confirm(textoConfirmacion)) {
       return;
     }
 
-    // Batch API para todas las comandas
-    const resultados = await Promise.allSettled(
-      comandasParaFinalizar.map(async (comanda) => {
-        try {
-          await axios.put(`${getApiUrl()}/${comanda._id}/status`, { nuevoStatus: "entregado" });
-          return { comandaId: comanda._id, exito: true };
-        } catch (error) {
-          console.error(`Error finalizando comanda ${comanda._id}:`, error);
-          return { comandaId: comanda._id, exito: false, error: error.message };
+    // REGLA COCINA: Extraer TODOS los platos 'en_espera' de todas las comandas seleccionadas
+    const platosParaProcesar = [];
+    comandasParaFinalizar.forEach(comanda => {
+      const platosActivos = (comanda.platos || []).filter(p => !p.eliminado);
+      platosActivos.forEach(plato => {
+        const estado = plato.estado || 'en_espera';
+        // Solo procesar platos que no estén ya en 'recoger'
+        if (estado === 'en_espera' || estado === 'ingresante' || estado === 'pedido') {
+          const platoId = plato.plato?._id || plato._id || plato.platoId;
+          if (platoId) {
+            platosParaProcesar.push({ comandaId: comanda._id, platoId });
+          }
         }
-      })
-    );
+      });
+    });
 
-    // Limpiar selección y checks
-    setSelectedOrders(new Set());
-    setPlatosChecked(new Map());
-    
-    const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
-    const fallidos = resultados.length - exitosos;
-    
+    if (platosParaProcesar.length === 0) {
+      alert('⚠️ No hay platos para finalizar en las comandas seleccionadas.');
+      return;
+    }
+
+    console.log(`🔄 Finalizando ${platosParaProcesar.length} plato(s) de ${comandasParaFinalizar.length} comanda(s)...`);
+
+    // Usar función genérica batch (misma lógica que FinalizarPlatos)
+    const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(platosParaProcesar);
+
+    // Limpiar selección y checks de comandas exitosas
     if (exitosos > 0) {
-      console.log(`✅ ${exitosos} comanda(s) finalizada(s) exitosamente`);
+      const comandasExitosas = new Set();
+      resultados.forEach(result => {
+        if (result.status === 'fulfilled' && result.value.exito) {
+          comandasExitosas.add(result.value.comandaId);
+        }
+      });
+
+      // Limpiar selección
+      setSelectedOrders(prev => {
+        const nuevo = new Set(prev);
+        comandasExitosas.forEach(id => nuevo.delete(id));
+        return nuevo;
+      });
+
+      // Limpiar checks de comandas exitosas
+      setPlatosChecked(prev => {
+        const nuevo = new Map(prev);
+        comandasExitosas.forEach(comandaId => {
+          nuevo.forEach((checked, key) => {
+            if (key.startsWith(`${comandaId}-`)) {
+              nuevo.delete(key);
+            }
+          });
+        });
+        return nuevo;
+      });
+
+      // Toast de éxito
+      const mensaje = comandasParaFinalizar.length === 1
+        ? `✅ Comanda #${comandaPrincipal.comandaNumber} lista para recoger`
+        : `✅ ${comandasParaFinalizar.length} comandas listas para recoger`;
+      
+      setToastMessage({
+        type: 'success',
+        message: mensaje,
+        duration: 3000
+      });
+
+      if (config.soundEnabled) {
+        playNotificationSound();
+      }
+
+      console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente - Estado: 'recoger'`);
+      console.log(`ℹ️ Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén listos`);
     }
+
     if (fallidos > 0) {
-      console.warn(`⚠️ ${fallidos} comanda(s) fallaron al finalizar`);
-      alert(`⚠️ ${fallidos} comanda(s) no se pudieron finalizar. Por favor, inténtalo de nuevo.`);
+      console.warn(`⚠️ ${fallidos} plato(s) fallaron al finalizar`);
+      setToastMessage({
+        type: 'error',
+        message: `⚠️ ${fallidos} plato(s) no se pudieron finalizar`,
+        duration: 3000
+      });
     }
-  }, [comandas, selectedOrders]);
+  }, [comandas, selectedOrders, batchFinalizarPlatos, config.soundEnabled]);
 
   // Finalizar comandas seleccionadas (marcar como preparadas)
   const handleFinalizar = async () => {
@@ -1166,51 +1371,8 @@ const ComandaStyle = () => {
     }
   };
 
-  // Marcar comandas seleccionadas como entregadas
-  const marcarEntregadas = async () => {
-    if (selectedOrders.size === 0) return;
-    
-    try {
-      const comandasParaEntregar = Array.from(selectedOrders);
-      
-      for (const comandaId of comandasParaEntregar) {
-        const comanda = todasComandas.find(c => c._id === comandaId);
-        if (!comanda) continue;
-
-        // Cambiar todos los platos a entregado
-        for (const plato of comanda.platos) {
-          if (plato.estado !== "entregado") {
-            try {
-              await axios.put(
-                `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
-                { nuevoEstado: "entregado" }
-              );
-            } catch (error) {
-              console.error(`Error actualizando plato ${plato.plato?._id || plato._id}:`, error);
-            }
-          }
-        }
-
-        // Actualizar status de comanda a entregado
-        try {
-          await axios.put(
-            `${getApiUrl()}/${comandaId}/status`,
-            { nuevoStatus: "entregado" }
-          );
-        } catch (error) {
-          console.error("Error actualizando status de comanda:", error);
-        }
-      }
-
-      // Limpiar selección y refrescar
-      setSelectedOrders(new Set());
-      setShowEntregadoConfirm(false);
-      obtenerComandas();
-    } catch (error) {
-      console.error("Error al marcar comandas como entregadas:", error);
-      alert("Error al marcar comandas como entregadas. Por favor, intente nuevamente.");
-    }
-  };
+  // REGLA COCINA: Esta función fue eliminada - Cocina nunca maneja 'entregado' (exclusivo de mozos)
+  // La función marcarEntregadas ya no existe en cocina
 
   // Resetear página cuando cambian las comandas o la configuración de diseño
   useEffect(() => {
@@ -1455,20 +1617,20 @@ const ComandaStyle = () => {
                 {/* 1. Botón FINALIZAR PLATOS (Verde) - Finaliza platos marcados con checkboxes */}
                 <motion.button
                   onClick={handleFinalizarPlatosGlobal}
-                  disabled={getTotalPlatosMarcados() === 0}
+                  disabled={getTotalPlatosMarcados() === 0 || isFinalizandoPlatos}
                   className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
-                    getTotalPlatosMarcados() > 0
+                    getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos
                       ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
                       : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
                   }`}
-                  whileHover={getTotalPlatosMarcados() > 0 ? { 
+                  whileHover={getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos ? { 
                     scale: 1.05, 
                     boxShadow: "0 0 30px rgba(34, 197, 94, 0.7)" 
                   } : {}}
-                  whileTap={getTotalPlatosMarcados() > 0 ? { scale: 0.95 } : {}}
+                  whileTap={getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos ? { scale: 0.95 } : {}}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 >
-                  {getTotalPlatosMarcados() > 0 && (
+                  {getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos && (
                     <motion.span
                       animate={{ rotate: [0, 10, -10, 0] }}
                       transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
@@ -1476,40 +1638,64 @@ const ComandaStyle = () => {
                       ✓
                     </motion.span>
                   )}
-                  Finalizar {getTotalPlatosMarcados() > 0 ? `${getTotalPlatosMarcados()} ` : ''}Platos
+                  {isFinalizandoPlatos ? 'Procesando...' : `Finalizar ${getTotalPlatosMarcados() > 0 ? `${getTotalPlatosMarcados()} ` : ''}Platos`}
                 </motion.button>
 
-                {/* 2. Botón FINALIZAR COMANDA (Azul) - Finaliza comanda(s) seleccionada(s) completa(s) */}
-                <motion.button
-                  onClick={handleFinalizarComandaCompletaGlobal}
-                  disabled={selectedOrders.size === 0}
-                  className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
-                    selectedOrders.size > 0
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                      : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
-                  }`}
-                  whileHover={selectedOrders.size > 0 ? { 
-                    scale: 1.05, 
-                    boxShadow: "0 0 30px rgba(59, 130, 246, 0.7)" 
-                  } : {}}
-                  whileTap={selectedOrders.size > 0 ? { scale: 0.95 } : {}}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                >
-                  {selectedOrders.size > 0 && (
-                    <motion.span
-                      animate={{ rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
-                    >
-                      ✓
-                    </motion.span>
-                  )}
-                  {selectedOrders.size === 0 
-                    ? 'Finalizar Comanda' 
-                    : selectedOrders.size === 1
-                      ? `Finalizar #${comandas.find(c => c._id === Array.from(selectedOrders)[0])?.comandaNumber || ''} ✓`
-                      : `Finalizar ${selectedOrders.size} Comandas ✓`
+                {/* 2. Botón FINALIZAR COMANDA (Azul) - Oculto cuando todos están listos (auto-trigger activo) */}
+                {(() => {
+                  const todasListas = comandasSeleccionadasTienenTodosPlatosListos();
+                  const comandaPrincipal = selectedOrders.size === 1 
+                    ? comandas.find(c => c._id === Array.from(selectedOrders)[0])
+                    : null;
+                  const progressInfo = comandaPrincipal 
+                    ? getPlatosListosCount(comandaPrincipal._id)
+                    : { listos: 0, total: 0 };
+                  
+                  // REGLA: Si todos los platos están listos, el auto-trigger ya cambió el status
+                  // Ocultar botón o mostrar mensaje "¡Listo! Esperando mozos..."
+                  if (todasListas && selectedOrders.size > 0) {
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="px-6 py-3 font-bold rounded-lg text-lg bg-green-500 text-white flex items-center gap-2"
+                      >
+                        <motion.span
+                          animate={{ rotate: [0, 10, -10, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                        >
+                          ✓
+                        </motion.span>
+                        ¡Listo! Esperando mozos...
+                      </motion.div>
+                    );
                   }
-                </motion.button>
+                  
+                  return (
+                    <motion.button
+                      onClick={handleFinalizarComandaCompletaGlobal}
+                      disabled={selectedOrders.size === 0}
+                      className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
+                        selectedOrders.size > 0
+                          ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                          : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                      }`}
+                      whileHover={selectedOrders.size > 0 ? { 
+                        scale: 1.05, 
+                        boxShadow: "0 0 30px rgba(59, 130, 246, 0.7)" 
+                      } : {}}
+                      whileTap={selectedOrders.size > 0 ? { scale: 0.95 } : {}}
+                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
+                      {selectedOrders.size === 0 
+                        ? 'Finalizar Comanda' 
+                        : selectedOrders.size === 1 && progressInfo.total > 0
+                          ? `Finalizar #${comandaPrincipal?.comandaNumber || ''} (${progressInfo.listos}/${progressInfo.total} listos)`
+                          : `Finalizar ${selectedOrders.size} Comandas`
+                      }
+                    </motion.button>
+                  );
+                })()}
 
                 {/* 3. Botón REVERTIR (Gris) - Limpia checks */}
                 <motion.button
@@ -1632,6 +1818,41 @@ const ComandaStyle = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl ${
+              toastMessage.type === 'success' 
+                ? 'bg-green-500 text-white' 
+                : toastMessage.type === 'error'
+                ? 'bg-red-500 text-white'
+                : 'bg-blue-500 text-white'
+            }`}
+            style={{ fontFamily: 'Arial, sans-serif' }}
+          >
+            <div className="flex items-center gap-3">
+              {toastMessage.type === 'success' && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                  className="text-2xl"
+                >
+                  ✓
+                </motion.span>
+              )}
+              <span className="font-bold text-lg">{toastMessage.message}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
     </div>
   );
 };
@@ -1786,7 +2007,33 @@ const SicarComandaCard = ({
   }, [minutosActuales, alertYellowMinutes, alertRedMinutes]);
 
 
-  // Filtrar platos por estado según columna
+  // Agrupar platos en dos secciones: EN PREPARACIÓN y PLATOS LISTOS
+  const { platosPreparacion, platosListos, totalPlatos } = React.useMemo(() => {
+    const platosConNombre = (comanda.platos || []).filter(p => {
+      const platoObj = p.plato || p;
+      const nombre = platoObj?.nombre || p?.nombre;
+      return nombre && nombre.trim().length > 0 && !p.eliminado;
+    });
+
+    const preparacion = platosConNombre.filter(p => {
+      const estado = p.estado || "en_espera";
+      return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
+    });
+
+    // REGLA COCINA: Solo considerar 'recoger', nunca 'entregado' (exclusivo de mozos)
+    const listos = platosConNombre.filter(p => {
+      const estado = p.estado || "en_espera";
+      return estado === "recoger";
+    });
+
+    return {
+      platosPreparacion: preparacion,
+      platosListos: listos,
+      totalPlatos: platosConNombre.length
+    };
+  }, [comanda.platos]);
+
+  // Filtrar platos por estado según columna (mantener para compatibilidad)
   const platosFiltrados = comanda.platos?.filter(p => {
     // VALIDACIÓN CRÍTICA: Solo incluir platos que tengan nombre cargado completamente
     const platoObj = p.plato || p;
@@ -1936,6 +2183,29 @@ const SicarComandaCard = ({
           <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
             👤 {comanda.mozos?.name || comanda.mozos?.nombre || 'admin'}
           </span>
+          {/* Badge de platos listos en header */}
+          {platosListos.length > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="px-2 py-0.5 bg-green-500 rounded-full text-xs font-bold"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            >
+              {platosListos.length} listo{platosListos.length > 1 ? 's' : ''}
+            </motion.span>
+          )}
+          {/* Badge urgente si >20min */}
+          {minutosActuales >= alertRedMinutes && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="px-2 py-0.5 bg-red-600 rounded-full text-xs font-bold"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            >
+              ¡Urgente!
+            </motion.span>
+          )}
         </div>
       </div>
 
@@ -1980,11 +2250,24 @@ const SicarComandaCard = ({
         </div>
       )}
 
-      {/* Lista de platos vertical - Fuente 18px, mejor espaciado, con interacción - Fondo según modo */}
-      <div className={`flex-1 px-4 py-2 overflow-y-auto ${bgPlatos}`}>
-        <div className="space-y-1.5">
-          <AnimatePresence>
-            {platosFiltrados.map((plato, index) => {
+      {/* Lista de platos vertical - Dos secciones: EN PREPARACIÓN y PLATOS LISTOS */}
+      <div className={`flex-1 overflow-y-auto ${bgPlatos}`}>
+        <div className="flex flex-col h-full">
+          {/* Sección 1: EN PREPARACIÓN */}
+          {platosPreparacion.length > 0 && (
+            <div className="flex-shrink-0">
+              {/* Header de sección EN PREPARACIÓN */}
+              <div className={`px-4 py-2 ${nightMode ? 'bg-gray-700' : 'bg-gray-200'} border-b ${nightMode ? 'border-gray-600' : 'border-gray-300'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`font-bold text-sm ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                    📋 EN PREPARACIÓN ({platosPreparacion.length}/{totalPlatos})
+                  </span>
+                </div>
+              </div>
+              {/* Lista de platos en preparación */}
+              <div className="px-4 py-2 space-y-1.5">
+                <AnimatePresence>
+                  {platosPreparacion.map((plato, index) => {
               const platoObj = plato.plato || plato;
               const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
               const platoId = platoObj?._id || plato._id || index;
@@ -2008,10 +2291,9 @@ const SicarComandaCard = ({
               let textClass = textPlatos;
               
               // FASE 3: Mapear estados del backend a colores visuales
-              // 'pedido'/'en_espera' → normal, 'recoger' → amarillo (preparando), 'entregado' → verde (completado)
-              const estadoVisual = estadoRealPlato === 'recoger' ? 'preparing' : 
-                                   estadoRealPlato === 'entregado' ? 'completed' : 
-                                   null;
+              // REGLA COCINA: Solo 'recoger' (nunca 'entregado' - exclusivo de mozos)
+              // 'pedido'/'en_espera' → normal, 'recoger' → amarillo (preparando)
+              const estadoVisual = estadoRealPlato === 'recoger' ? 'preparing' : null;
               
               // 🔥 AUDITORÍA: Si está eliminado, usar rojo tachado
               if (isEliminado) {
@@ -2142,10 +2424,98 @@ const SicarComandaCard = ({
                   </span>
                 </motion.div>
               );
-            })}
-            
-            {/* 🔥 AUDITORÍA: Mostrar platos eliminados del historial en tachado y rojo */}
-            {platosEliminadosFinal.map((platoEliminado, index) => {
+                  })}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+
+          {/* Separador visual entre secciones */}
+          {platosPreparacion.length > 0 && platosListos.length > 0 && (
+            <div className={`h-px ${nightMode ? 'bg-gray-600' : 'bg-gray-300'} mx-4 my-2`} />
+          )}
+
+          {/* Sección 2: PLATOS LISTOS */}
+          {platosListos.length > 0 && (
+            <div className="flex-shrink-0">
+              {/* Header de sección PLATOS LISTOS */}
+              <div className={`px-4 py-2 ${nightMode ? 'bg-green-900/50' : 'bg-green-100'} border-b ${nightMode ? 'border-green-700' : 'border-green-300'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`font-bold text-sm ${nightMode ? 'text-green-300' : 'text-green-700'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                    ✅ PLATOS LISTOS ({platosListos.length}/{totalPlatos})
+                  </span>
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="text-lg"
+                  >
+                    🏆
+                  </motion.span>
+                </div>
+              </div>
+              {/* Lista de platos listos */}
+              <div className={`px-4 py-2 space-y-1.5 ${nightMode ? 'bg-green-900/20' : 'bg-green-50'}`}>
+                <AnimatePresence>
+                  {platosListos.map((plato, index) => {
+                    const platoObj = plato.plato || plato;
+                    const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
+                    const platoId = platoObj?._id || plato._id || index;
+                    const estadoRealPlato = plato.estado || 'recoger';
+                    
+                    return (
+                      <motion.div
+                        key={`listo-${platoId}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        transition={{ duration: 0.3 }}
+                        className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 ${
+                          nightMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'
+                        }`}
+                        whileHover={{ scale: 1.02, x: 4 }}
+                        style={{ 
+                          fontFamily: 'Arial, sans-serif',
+                          fontSize: '18px'
+                        }}
+                        title="Listo para finalizar comanda completa"
+                      >
+                        {/* Check verde bold (no interactivo) */}
+                        <div className={`w-6 h-6 border-2 rounded flex items-center justify-center ${
+                          nightMode ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-600'
+                        }`}>
+                          <motion.svg
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                            className="w-4 h-4 text-white font-bold"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </motion.svg>
+                        </div>
+                        
+                        <span className="flex items-center gap-2 flex-1 font-bold">
+                          <span className={nightMode ? 'text-green-300' : 'text-green-700'}>
+                            ✓
+                          </span>
+                          <span>
+                            {cantidad} {platoObj?.nombre || "Sin nombre"}
+                          </span>
+                        </span>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+
+          {/* 🔥 AUDITORÍA: Mostrar platos eliminados del historial en tachado y rojo */}
+          {platosEliminadosFinal.length > 0 && (
+            <div className="px-4 py-2 space-y-1.5 border-t border-red-500/30">
+              <AnimatePresence>
+                {platosEliminadosFinal.map((platoEliminado, index) => {
               const motivo = platoEliminado.motivo || 'Eliminado';
               const timestamp = platoEliminado.timestamp 
                 ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm')
@@ -2189,8 +2559,10 @@ const SicarComandaCard = ({
                   </span>
                 </motion.div>
               );
-            })}
-          </AnimatePresence>
+                })}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
 
