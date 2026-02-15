@@ -2443,7 +2443,18 @@ const SicarComandaCard = ({
           {/* NUEVA SECCIÓN EN PREPARACIÓN - Arquitectura limpia, zero bubbling */}
           {platosPreparacion.length > 0 && (
             <div className="flex-shrink-0 cursor-default">
-              <div className={`h-8 px-3 flex items-center gap-2 ${nightMode ? 'bg-gray-700' : 'bg-gray-200'} border-b ${nightMode ? 'border-gray-600' : 'border-gray-300'}`}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={onToggleSelect}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleSelect();
+                  }
+                }}
+                className={`h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors border-b ${nightMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border-gray-600' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-gray-300'}`}
+              >
                 <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
                   📋 EN PREPARACIÓN
                 </span>
