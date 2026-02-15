@@ -2448,11 +2448,14 @@ const SicarComandaCard = ({
       {/* Lista de platos vertical - Dos secciones: EN PREPARACIÓN y PLATOS LISTOS */}
       <div className={`flex-1 overflow-y-auto ${bgPlatos}`}>
         <div className="flex flex-col h-full">
-          {/* Sección 1: EN PREPARACIÓN - Zona Click 2 (Wrapper Header + Prep) */}
+          {/* Sección 1: EN PREPARACIÓN - Barra clickeable para seleccionar comanda */}
           {platosPreparacion.length > 0 && (
-            <div className="flex-shrink-0 cursor-pointer hover:bg-opacity-80 hover:shadow-md hover:scale-[1.01] transition-all" onClick={onToggleSelect}>
-              {/* Header de sección EN PREPARACIÓN - Compacto h-8 */}
-              <div className={`h-8 px-3 flex items-center gap-2 ${nightMode ? 'bg-gray-700' : 'bg-gray-200'} border-b ${nightMode ? 'border-gray-600' : 'border-gray-300'}`}>
+            <div className="flex-shrink-0 cursor-default">
+              {/* Header de sección EN PREPARACIÓN - Compacto h-8 (SÍ clickeable para seleccionar comanda) */}
+              <div 
+                className={`h-8 px-3 flex items-center gap-2 cursor-pointer hover:bg-opacity-80 hover:shadow-md transition-all ${nightMode ? 'bg-gray-700' : 'bg-gray-200'} border-b ${nightMode ? 'border-gray-600' : 'border-gray-300'}`}
+                onClick={onToggleSelect}
+              >
                 <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
                   📋 EN PREPARACIÓN
                 </span>
@@ -2461,7 +2464,15 @@ const SicarComandaCard = ({
                 </span>
               </div>
               {/* Lista de platos en preparación + platos eliminados inline */}
-              <div className="px-4 py-2 space-y-1.5">
+              <div 
+                className="px-4 py-2 space-y-1.5"
+                onClick={(e) => {
+                  // Solo bloquear si el click es en el contenedor mismo, no en los platos
+                  if (e.target === e.currentTarget) {
+                    e.stopPropagation();
+                  }
+                }}
+              >
                 <AnimatePresence>
                   {/* Primero mostrar platos en preparación activos */}
                   {platosPreparacion.map((plato, index) => {
@@ -2573,12 +2584,16 @@ const SicarComandaCard = ({
                     stiffness: isSeleccionado ? 300 : undefined,
                     damping: isSeleccionado ? 20 : undefined
                   }}
-                  // CLICK ZONA COMPLETA: Todo el contenedor plato es clickeable
+                  // CLICK ZONA COMPLETA: Todo el contenedor plato es clickeable - BLOQUEAR BUBBLING
                   onClick={(e) => {
-                    e.stopPropagation(); // Prevenir selección de comanda
+                    // 🔥 CRÍTICO: Bloquear bubbling a comanda - PRIMERA LÍNEA
+                    e.stopPropagation();
+                    e.preventDefault();
+                    e.nativeEvent?.stopImmediatePropagation?.();
                     if (!isEliminado) {
                       togglePlatoCheck(comandaId, platoId);
                     }
+                    return false; // Prevenir cualquier propagación adicional
                   }}
                   className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 group ${
                     isEliminado 
@@ -2598,22 +2613,24 @@ const SicarComandaCard = ({
                   }}
                 >
                   {/* Checkbox w-8 h-8 centrado - 3 estados visuales: □ / ⏳ bounce / ✓ glow */}
-                  <div
-                    className={`w-8 h-8 border-2 rounded flex items-center justify-center transition-all duration-200 ${
+                  <motion.div
+                    className={`w-8 h-8 border-2 rounded flex items-center justify-center transition-all duration-200 pointer-events-none ${
                       checkBgClass || (nightMode ? 'bg-gray-800' : 'bg-white')
                     } ${checkBorderClass || (nightMode ? 'border-gray-500' : 'border-gray-400')} ${
                       isEliminado 
                         ? 'cursor-not-allowed opacity-50' 
                         : ''
                     } ${isSeleccionado ? 'shadow-lg' : ''}`}
+                    whileHover={!isEliminado ? { scale: 1.1 } : {}}
+                    whileTap={!isEliminado ? { scale: 0.95 } : {}}
                   >
                     {checkIcon || (
                       // Estado Normal: Check vacío □
                       <div className={`w-4 h-4 ${nightMode ? 'bg-gray-600' : 'bg-gray-300'} rounded border-2 ${nightMode ? 'border-gray-500' : 'border-gray-400'}`} />
                     )}
-                  </div>
+                  </motion.div>
                   
-                  <span className="flex items-center gap-2 flex-1">
+                  <span className="flex items-center gap-2 flex-1 pointer-events-none">
                     <span className={isEliminado ? 'line-through' : ''}>
                       {cantidad} {platoObj?.nombre || "Sin nombre"}
                     </span>
@@ -2651,6 +2668,9 @@ const SicarComandaCard = ({
                         exit={{ opacity: 0, x: -20 }}
                         transition={{ duration: 0.3 }}
                         className="font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 bg-red-500/15 text-red-400 line-through opacity-60 cursor-not-allowed"
+                        onClick={(e) => {
+                          e.stopPropagation(); // 🔥 CRÍTICO: Bloquear bubbling - platos eliminados NO seleccionan comanda
+                        }}
                         style={{ 
                           fontFamily: 'Arial, sans-serif',
                           fontSize: '18px'
@@ -2725,20 +2745,26 @@ const SicarComandaCard = ({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
                         transition={{ duration: 0.3 }}
-                        className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 ${
+                        className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 cursor-pointer ${
                           nightMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'
                         }`}
+                        onClick={(e) => {
+                          // Click en plato Preparado → seleccionar comanda
+                          onToggleSelect(e);
+                        }}
                         whileHover={{ scale: 1.02, x: 4 }}
                         style={{ 
                           fontFamily: 'Arial, sans-serif',
                           fontSize: '18px'
                         }}
-                        title="Listo para finalizar comanda completa"
+                        title="Click para seleccionar comanda"
                       >
                         {/* Check verde bold (no interactivo) */}
-                        <div className={`w-6 h-6 border-2 rounded flex items-center justify-center ${
-                          nightMode ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-600'
-                        }`}>
+                        <div 
+                          className={`w-6 h-6 border-2 rounded flex items-center justify-center pointer-events-none ${
+                            nightMode ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-600'
+                          }`}
+                        >
                           <motion.svg
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -2751,7 +2777,7 @@ const SicarComandaCard = ({
                           </motion.svg>
                         </div>
                         
-                        <span className="flex items-center gap-2 flex-1 font-bold">
+                        <span className="flex items-center gap-2 flex-1 font-bold pointer-events-none">
                           <span className={nightMode ? 'text-green-300' : 'text-green-700'}>
                             ✓
                           </span>
