@@ -453,7 +453,36 @@ const ComandaStyle = () => {
         // PRIORIDAD: Usar datos del historial si vienen (más confiables), sino usar comparación
         const eliminados = [];
         
-        if (platosEliminadosData && platosEliminadosData.length > 0) {
+        // Usar historialPlatos de la comanda actualizada si está disponible
+        const historialPlatos = comandaActualizada.historialPlatos || [];
+        
+        if (historialPlatos.length > 0) {
+          // Usar historialPlatos del backend (más confiables, tienen nombres correctos y mozo)
+          historialPlatos.forEach(h => {
+            if (h.estado === 'eliminado') {
+              // Obtener nombre del mozo
+              let nombreMozo = 'Mozo';
+              if (h.usuario) {
+                if (typeof h.usuario === 'object' && h.usuario.name) {
+                  nombreMozo = h.usuario.name;
+                } else if (typeof h.usuario === 'object' && h.usuario.nombre) {
+                  nombreMozo = h.usuario.nombre;
+                } else if (h.nombreMozo) {
+                  nombreMozo = h.nombreMozo;
+                }
+              }
+              
+              eliminados.push({
+                platoId: h.platoId,
+                nombre: h.nombreOriginal || 'Plato eliminado',
+                cantidad: h.cantidadOriginal || 1,
+                timestamp: h.timestamp || new Date().toISOString(),
+                nombreMozo: nombreMozo,
+                motivo: h.motivo || 'Eliminado'
+              });
+            }
+          });
+        } else if (platosEliminadosData && platosEliminadosData.length > 0) {
           // Usar datos del historial del backend (más confiables, tienen nombres correctos)
           platosEliminadosData.forEach(h => {
             if (h.estado === 'eliminado') {
@@ -461,7 +490,9 @@ const ComandaStyle = () => {
                 platoId: h.platoId,
                 nombre: h.nombreOriginal || 'Plato eliminado',
                 cantidad: h.cantidadOriginal || 1,
-                timestamp: h.timestamp || new Date().toISOString()
+                timestamp: h.timestamp || new Date().toISOString(),
+                nombreMozo: h.usuario?.name || h.usuario?.nombre || h.nombreMozo || 'Mozo',
+                motivo: h.motivo || 'Eliminado'
               });
             }
           });
@@ -554,12 +585,62 @@ const ComandaStyle = () => {
       comandaId: data.comandaId,
       platoId: data.platoId,
       nuevoEstado: data.nuevoEstado,
-      estadoAnterior: data.estadoAnterior
+      estadoAnterior: data.estadoAnterior,
+      plato: data.plato,
+      comanda: data.comanda
     });
     
+    // 🔥 AUDITORÍA: Detectar si el plato fue eliminado
+    const platoEliminado = data.plato?.eliminado === true || data.eliminado === true;
+    
+    // Si el plato fue eliminado, actualizar historial de platos eliminados
+    if (platoEliminado && data.comanda?.historialPlatos) {
+      const historialEliminado = data.comanda.historialPlatos.filter(h => 
+        h.estado === 'eliminado' && 
+        (h.platoId?.toString() === data.platoId?.toString() || 
+         h.plato?.toString() === data.platoId?.toString())
+      );
+      
+      if (historialEliminado.length > 0) {
+        const ultimoEliminado = historialEliminado[historialEliminado.length - 1];
+        setPlatosEliminados(prevEliminados => {
+          const nuevo = new Map(prevEliminados);
+          const comandaId = data.comandaId;
+          const eliminadosActuales = nuevo.get(comandaId) || [];
+          
+          // Verificar si ya existe
+          const existe = eliminadosActuales.some(e => 
+            e.platoId?.toString() === data.platoId?.toString()
+          );
+          
+          if (!existe) {
+            eliminadosActuales.push({
+              platoId: data.platoId,
+              nombre: ultimoEliminado.nombreOriginal || data.plato?.nombre || 'Plato eliminado',
+              cantidad: ultimoEliminado.cantidadOriginal || 1,
+              timestamp: ultimoEliminado.timestamp || new Date(),
+              nombreMozo: ultimoEliminado.usuario?.name || ultimoEliminado.usuario?.nombre || ultimoEliminado.nombreMozo || 'Mozo',
+              motivo: ultimoEliminado.motivo || 'Eliminado'
+            });
+            nuevo.set(comandaId, eliminadosActuales);
+            console.log(`🗑️ Plato eliminado detectado: ${data.platoId} por ${ultimoEliminado.usuario?.name || 'Mozo'}`);
+          }
+          
+          return nuevo;
+        });
+      }
+    }
+    
     // Validar datos mínimos requeridos
-    if (!data.comandaId || !data.platoId || !data.nuevoEstado) {
+    if (!data.comandaId || !data.platoId) {
       console.warn('⚠️ FASE3: Datos incompletos en plato-actualizado, refrescando todas las comandas');
+      obtenerComandas();
+      return;
+    }
+    
+    // Si no hay nuevoEstado pero el plato fue eliminado, refrescar comanda completa
+    if (!data.nuevoEstado && platoEliminado) {
+      console.log('🔄 Plato eliminado detectado, refrescando comanda completa para obtener historial');
       obtenerComandas();
       return;
     }
@@ -604,8 +685,29 @@ const ComandaStyle = () => {
       const nuevosPlatos = [...nuevaComanda.platos];
       const platoActualizado = { ...nuevosPlatos[platoIndex] };
       
-      // Actualizar estado del plato
-      platoActualizado.estado = data.nuevoEstado;
+      // 🔥 AUDITORÍA: Si el plato fue eliminado, marcar como eliminado
+      if (platoEliminado) {
+        platoActualizado.eliminado = true;
+        if (data.plato?.eliminadoPor) {
+          platoActualizado.eliminadoPor = data.plato.eliminadoPor;
+        }
+        if (data.plato?.eliminadoAt) {
+          platoActualizado.eliminadoAt = data.plato.eliminadoAt;
+        }
+        if (data.plato?.eliminadoRazon) {
+          platoActualizado.eliminadoRazon = data.plato.eliminadoRazon;
+        }
+      }
+      
+      // Actualizar estado del plato (si existe)
+      if (data.nuevoEstado) {
+        platoActualizado.estado = data.nuevoEstado;
+      }
+      
+      // Si el plato fue eliminado, también actualizar historialPlatos de la comanda
+      if (platoEliminado && data.comanda?.historialPlatos) {
+        nuevaComanda.historialPlatos = data.comanda.historialPlatos;
+      }
       
       // Actualizar timestamp si existe
       if (!platoActualizado.tiempos) {
@@ -2017,6 +2119,18 @@ const SicarComandaCard = ({
           }
         }
         
+        // Obtener nombre del mozo desde usuario (puede ser ObjectId o objeto populado)
+        let nombreMozo = null;
+        if (h.usuario) {
+          if (typeof h.usuario === 'object' && h.usuario.name) {
+            nombreMozo = h.usuario.name;
+          } else if (typeof h.usuario === 'object' && h.usuario.nombre) {
+            nombreMozo = h.usuario.nombre;
+          } else if (h.nombreMozo) {
+            nombreMozo = h.nombreMozo;
+          }
+        }
+        
         return {
           platoId: h.platoId,
           nombre: nombre, // Puede ser null si no se encontró
@@ -2024,6 +2138,7 @@ const SicarComandaCard = ({
           motivo: h.motivo || 'Eliminado',
           timestamp: h.timestamp || new Date(),
           usuario: h.usuario,
+          nombreMozo: nombreMozo || 'Mozo',
           necesitaBuscarNombre: !nombre || nombre.startsWith('Plato #')
         };
       });
@@ -2274,82 +2389,53 @@ const SicarComandaCard = ({
             </div>
           </div>
         </div>
-        {/* Mozo y tiempo en una línea */}
-        <div className="flex items-center justify-between text-white text-sm">
+        {/* Mozo y badges inline en header - Compacto */}
+        <div className="flex items-center justify-between text-white text-xs flex-wrap gap-1">
           <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
             👤 {comanda.mozos?.name || comanda.mozos?.nombre || 'admin'}
           </span>
-          {/* Badge de platos listos en header */}
-          {platosListos.length > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="px-2 py-0.5 bg-green-500 rounded-full text-xs font-bold"
-              style={{ fontFamily: 'Arial, sans-serif' }}
-            >
-              {platosListos.length} listo{platosListos.length > 1 ? 's' : ''}
-            </motion.span>
-          )}
-          {/* Badge urgente si >20min */}
-          {minutosActuales >= alertRedMinutes && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="px-2 py-0.5 bg-red-600 rounded-full text-xs font-bold"
-              style={{ fontFamily: 'Arial, sans-serif' }}
-            >
-              ¡Urgente!
-            </motion.span>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Badge Espera X/Total (Y elim) */}
+            {platosPreparacion.length > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="px-1.5 py-0.5 bg-gray-600/70 rounded text-xs font-semibold"
+                style={{ fontFamily: 'Arial, sans-serif' }}
+                title={platosEliminadosFinal.length > 0 ? `Prep ${platosPreparacion.length}/${totalPlatos} (${platosEliminadosFinal.length} elim)` : `Prep ${platosPreparacion.length}/${totalPlatos}`}
+              >
+                Prep {platosPreparacion.length}/{totalPlatos}
+                {platosEliminadosFinal.length > 0 && ` (${platosEliminadosFinal.length} elim)`}
+              </motion.span>
+            )}
+            {/* Badge Listos Y */}
+            {platosListos.length > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="px-1.5 py-0.5 bg-green-500 rounded text-xs font-bold"
+                style={{ fontFamily: 'Arial, sans-serif' }}
+              >
+                Listos {platosListos.length}
+              </motion.span>
+            )}
+            {/* Badge urgente si >20min */}
+            {minutosActuales >= alertRedMinutes && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="px-1.5 py-0.5 bg-red-600 rounded text-xs font-bold"
+                style={{ fontFamily: 'Arial, sans-serif' }}
+              >
+                ¡Urgente!
+              </motion.span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 🔥 AUDITORÍA: Panel de auditoría (activos vs eliminados del historial) */}
-      {(() => {
-        // Contar platos activos (los que están en el array platos)
-        const platosActivos = comanda.platos?.length || 0;
-        // Contar platos eliminados del historial
-        const platosEliminadosCount = platosEliminadosFinal.length;
-        if (platosEliminadosCount > 0) {
-          return (
-            <div className={`px-4 py-2 ${nightMode ? 'bg-blue-900/30' : 'bg-blue-100'} border-b ${nightMode ? 'border-gray-700' : 'border-gray-300'}`}>
-              <div className="flex items-center justify-center gap-3 text-sm font-semibold">
-                <span className={nightMode ? 'text-green-400' : 'text-green-700'}>
-                  ✅ {platosActivos}
-                </span>
-                <span className={nightMode ? 'text-gray-400' : 'text-gray-600'}>|</span>
-                <span className="text-red-500">
-                  ❌ {platosEliminadosCount}
-                </span>
-              </div>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* Badge de estado - EN ESPERA - Zona Click 1 (Uniforme con Prep/Preparados) */}
-      {estadoColumna === "en_espera" && (
-        <div 
-          className={`h-8 px-3 flex items-center gap-2 cursor-pointer hover:bg-opacity-80 hover:shadow-md hover:scale-[1.01] transition-all ${bgBadgeEspera} ${textBadgeEspera}`}
-          onClick={onToggleSelect}
-          style={{ 
-            fontFamily: 'Arial, sans-serif'
-          }}
-        >
-          <span className={`font-semibold text-xs uppercase tracking-wide ${textBadgeEspera}`}>
-            📋 EN ESPERA
-          </span>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-            nightMode 
-              ? 'bg-gray-600 text-gray-200' 
-              : 'bg-gray-300 text-gray-800'
-          }`}>
-            {totalPlatos}/{totalPlatos}
-          </span>
-        </div>
-      )}
+      {/* Badges movidos al header - ya no hay sección "EN ESPERA" separada */}
       {estadoColumna === "recoger" && (
         <div className="absolute top-0 left-0 right-0 bg-green-500 text-white font-bold text-base py-2 text-center rounded-t-lg" style={{ 
           fontFamily: 'Arial, sans-serif',
@@ -2374,9 +2460,10 @@ const SicarComandaCard = ({
                   {platosPreparacion.length}/{totalPlatos}
                 </span>
               </div>
-              {/* Lista de platos en preparación */}
+              {/* Lista de platos en preparación + platos eliminados inline */}
               <div className="px-4 py-2 space-y-1.5">
                 <AnimatePresence>
+                  {/* Primero mostrar platos en preparación activos */}
                   {platosPreparacion.map((plato, index) => {
               const platoObj = plato.plato || plato;
               const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
@@ -2548,6 +2635,51 @@ const SicarComandaCard = ({
                 </motion.div>
               );
                   })}
+                  {/* 🔥 AUDITORÍA: Platos eliminados inline en Preparación con strike-through rojo */}
+                  {platosEliminadosFinal.map((platoEliminado, index) => {
+                    const timestamp = platoEliminado.timestamp 
+                      ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm')
+                      : '';
+                    const nombreMozo = platoEliminado.nombreMozo || 'Mozo';
+                    const tooltipText = `Eliminado por ${nombreMozo} ${timestamp ? `a las ${timestamp}` : ''}`;
+                    
+                    return (
+                      <motion.div
+                        key={`eliminado-${platoEliminado.platoId}-${index}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                        className="font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 bg-red-500/15 text-red-400 line-through opacity-60 cursor-not-allowed"
+                        style={{ 
+                          fontFamily: 'Arial, sans-serif',
+                          fontSize: '18px'
+                        }}
+                        title={tooltipText}
+                      >
+                        {/* Checkbox deshabilitado */}
+                        <div className="w-8 h-8 border-2 rounded flex items-center justify-center bg-gray-800 border-gray-500 opacity-50">
+                          <span className="text-red-500 text-xs">🗑️</span>
+                        </div>
+                        
+                        <span className="flex items-center gap-2 flex-1">
+                          <span className="line-through">
+                            {platoEliminado.cantidad} {platoEliminado.nombre}
+                          </span>
+                          {/* Badge con nombre del mozo */}
+                          <motion.span
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/30 text-red-400 border border-red-500/50"
+                            title={tooltipText}
+                          >
+                            🔴 {nombreMozo}
+                            {timestamp && ` ${timestamp}`}
+                          </motion.span>
+                        </span>
+                      </motion.div>
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             </div>
@@ -2635,58 +2767,7 @@ const SicarComandaCard = ({
             </div>
           )}
 
-          {/* 🔥 AUDITORÍA: Mostrar platos eliminados del historial en tachado y rojo */}
-          {platosEliminadosFinal.length > 0 && (
-            <div className="px-4 py-2 space-y-1.5 border-t border-red-500/30">
-              <AnimatePresence>
-                {platosEliminadosFinal.map((platoEliminado, index) => {
-              const motivo = platoEliminado.motivo || 'Eliminado';
-              const timestamp = platoEliminado.timestamp 
-                ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm')
-                : '';
-              
-              return (
-                <motion.div
-                  key={`eliminado-${platoEliminado.platoId}-${index}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 bg-red-500/15 text-red-500"
-                  style={{ 
-                    fontFamily: 'Arial, sans-serif',
-                    fontSize: '18px',
-                    textDecoration: 'line-through',
-                    opacity: 0.8
-                  }}
-                >
-                  <span className="flex items-center gap-2 flex-wrap">
-                    <span className="text-red-500">🗑️</span>
-                    <span style={{ textDecoration: 'line-through' }}>
-                      {platoEliminado.cantidad} {platoEliminado.nombre}
-                    </span>
-                    {motivo && motivo !== 'Eliminado' && (
-                      <motion.span
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={{
-                          backgroundColor: 'rgba(239, 68, 68, 0.3)',
-                          color: '#ef4444'
-                        }}
-                        title={timestamp ? `Eliminado a las ${timestamp}` : ''}
-                      >
-                        {motivo}
-                        {timestamp && ` (${timestamp})`}
-                      </motion.span>
-                    )}
-                  </span>
-                </motion.div>
-              );
-                })}
-              </AnimatePresence>
-            </div>
-          )}
+          {/* Platos eliminados ahora se muestran inline en Preparación con strike-through rojo */}
         </div>
       </div>
 
