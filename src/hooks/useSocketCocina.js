@@ -26,15 +26,14 @@ const useSocketCocina = ({
   const ultimoPingRef = useRef(Date.now());
   const reconnectTimeoutRef = useRef(null);
 
-  // Obtener URL del servidor desde configuración dinámica
-  const getServerUrl = () => {
-    return getServerBaseUrl();
-  };
+  // URL del servidor: process.env.REACT_APP_IP → localStorage → localhost
+  const getServerUrl = () => getServerBaseUrl();
 
   useEffect(() => {
     const serverUrl = getServerUrl();
     const fechaActual = moment().tz("America/Lima").format('YYYY-MM-DD');
-    
+
+    console.log('[apiConfig] getServerUrl:', serverUrl);
     console.log('🔌 Conectando a Socket.io:', `${serverUrl}/cocina`);
 
     // Crear conexión Socket.io al namespace /cocina
@@ -220,10 +219,19 @@ const useSocketCocina = ({
       }
     }, 30000); // Cada 30 segundos
 
+    // Polling fallback: si está desconectado, refrescar comandas cada 30s vía HTTP
+    const pollingFallbackInterval = setInterval(() => {
+      if (!socket.connected && obtenerComandas) {
+        console.log('🔄 [Socket cocina] Desconectado — polling fallback: obteniendo comandas');
+        obtenerComandas();
+      }
+    }, 30000);
+
     // Cleanup
     return () => {
       console.log('🧹 Limpiando conexión Socket.io');
       clearInterval(heartbeatInterval);
+      clearInterval(pollingFallbackInterval);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

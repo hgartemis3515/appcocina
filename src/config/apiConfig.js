@@ -4,11 +4,26 @@
  */
 
 const CONFIG_KEY = 'kdsConfig';
-const DEFAULT_API_URL = 'http://192.168.18.127:3000/api/comanda';
+const DEFAULT_API_URL = 'http://localhost:3000/api/comanda';
+const BACKEND_PORT = 3000;
 
 /**
- * Obtiene la URL del API desde localStorage o usa el valor por defecto
- * PRIORIDAD: localStorage > REACT_APP_API_COMANDA > DEFAULT
+ * Indica si hay configuración guardada en localStorage (usuario ya configuró)
+ */
+export const isConfigured = () => {
+  try {
+    const savedConfig = localStorage.getItem(CONFIG_KEY);
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      return !!(config.apiUrl && config.apiUrl.trim() !== '');
+    }
+  } catch (_) {}
+  return false;
+};
+
+/**
+ * Obtiene la URL del API
+ * PRIORIDAD: localStorage > REACT_APP_IP (si !isConfigured) > REACT_APP_API_COMANDA > DEFAULT (localhost)
  * @returns {string} URL completa del API
  */
 export const getApiUrl = () => {
@@ -17,15 +32,9 @@ export const getApiUrl = () => {
     if (savedConfig) {
       const config = JSON.parse(savedConfig);
       if (config.apiUrl && config.apiUrl.trim() !== '') {
-        // Asegurar que la URL termine correctamente
         let url = config.apiUrl.trim();
-        // Si no termina con /api/comanda, agregarlo
         if (!url.includes('/api/comanda')) {
-          // Si termina con /, quitar el /
-          if (url.endsWith('/')) {
-            url = url.slice(0, -1);
-          }
-          // Agregar /api/comanda si no está presente
+          if (url.endsWith('/')) url = url.slice(0, -1);
           if (!url.endsWith('/api/comanda')) {
             url = url.endsWith('/api') ? `${url}/comanda` : `${url}/api/comanda`;
           }
@@ -36,34 +45,38 @@ export const getApiUrl = () => {
   } catch (error) {
     console.warn('[apiConfig] Error leyendo configuración:', error);
   }
-  
-  // Fallback a variable de entorno (si existe) o valor por defecto
-  // NOTA: process.env.REACT_APP_API_COMANDA solo está disponible en tiempo de compilación
-  const envUrl = process.env.REACT_APP_API_COMANDA;
-  if (envUrl && envUrl.trim() !== '') {
-    return envUrl;
+
+  // Fallback prioritario: IP centralizada del .env si no hay config en localStorage
+  const envIP = process.env.REACT_APP_IP;
+  if (envIP && envIP.trim() !== '') {
+    const base = `http://${envIP.trim()}:${BACKEND_PORT}`;
+    return `${base}/api/comanda`;
   }
-  
+
+  const envUrl = process.env.REACT_APP_API_COMANDA;
+  if (envUrl && envUrl.trim() !== '') return envUrl;
+
   return DEFAULT_API_URL;
 };
 
 /**
- * Obtiene la URL base del servidor (sin /api/comanda) para Socket.io
+ * Obtiene la URL base del servidor (sin /api/comanda) para Socket.io y axios baseURL
+ * Misma prioridad que getApiUrl: localStorage > REACT_APP_IP > REACT_APP_API_COMANDA > localhost
  * @returns {string} URL base del servidor
  */
 export const getServerBaseUrl = () => {
   try {
     const apiUrl = getApiUrl();
-    // Remover /api/comanda del final
     let baseUrl = apiUrl.replace(/\/api\/comanda\/?$/, '');
-    // Si está vacío, usar el default
     if (!baseUrl || baseUrl.trim() === '') {
-      baseUrl = 'http://192.168.18.127:3000';
+      const envIP = process.env.REACT_APP_IP;
+      baseUrl = envIP && envIP.trim() ? `http://${envIP.trim()}:${BACKEND_PORT}` : 'http://localhost:3000';
     }
     return baseUrl;
   } catch (error) {
     console.warn('[apiConfig] Error obteniendo URL base:', error);
-    return 'http://192.168.18.127:3000';
+    const envIP = process.env.REACT_APP_IP;
+    return envIP && envIP.trim() ? `http://${envIP.trim()}:${BACKEND_PORT}` : 'http://localhost:3000';
   }
 };
 
@@ -170,20 +183,19 @@ export const getBaseUrlFromConfig = () => {
     if (savedConfig) {
       const config = JSON.parse(savedConfig);
       if (config.apiUrl && config.apiUrl.trim() !== '') {
-        const url = config.apiUrl.trim();
-        return url.replace(/\/api\/comanda\/?$/, '');
+        return config.apiUrl.trim().replace(/\/api\/comanda\/?$/, '');
       }
     }
   } catch (error) {
     console.warn('[apiConfig] Error leyendo configuración:', error);
   }
-  
-  // Fallback a variable de entorno
+
+  const envIP = process.env.REACT_APP_IP;
+  if (envIP && envIP.trim() !== '') return `http://${envIP.trim()}:${BACKEND_PORT}`;
+
   const envUrl = process.env.REACT_APP_API_COMANDA;
-  if (envUrl && envUrl.trim() !== '') {
-    return envUrl.replace(/\/api\/comanda\/?$/, '');
-  }
-  
-  return 'http://192.168.18.127:3000';
+  if (envUrl && envUrl.trim() !== '') return envUrl.replace(/\/api\/comanda\/?$/, '');
+
+  return 'http://localhost:3000';
 };
 
