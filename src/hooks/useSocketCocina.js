@@ -155,7 +155,23 @@ const useSocketCocina = ({
       if (onPlatoActualizado) {
         onPlatoActualizado(data);
       } else if (obtenerComandas) {
-        // Si no hay callback específico, refrescar todas las comandas
+        obtenerComandas();
+      }
+    });
+
+    // Evento: Plato marcado como entregado por mozo (sincronizar vista cocina)
+    socket.on('plato-entregado', (data) => {
+      console.log('📥 Plato entregado recibido (mozo):', data.platoId, data.comandaId);
+      ultimoPingRef.current = Date.now();
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          comandaId: data.comandaId,
+          platoId: data.platoId,
+          nuevoEstado: 'entregado',
+          estadoAnterior: data.estadoAnterior || 'recoger',
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
         obtenerComandas();
       }
     });

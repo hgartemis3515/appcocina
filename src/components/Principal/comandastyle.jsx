@@ -788,30 +788,38 @@ const ComandaStyle = () => {
   }, [comandas, searchTerm]);
 
   // Filtrar comandas por estado (SICAR) - Solo se muestran comandas con status "en_espera"
-  // Cuando se finaliza, el status cambia a "recoger" y desaparecen automáticamente
+  // y que tengan al menos un plato aún no entregado (filtro por estado individual de plato).
+  // No mostrar comandas donde TODOS los platos están entregado/pagado (ya salieron del ámbito cocina).
   const enEspera = filteredComandas.filter(c => {
     // Si no tiene platos, no mostrar
     if (!c.platos || c.platos.length === 0) return false;
-    
+
+    const platosActivos = c.platos.filter(p => p.eliminado !== true);
+    if (platosActivos.length === 0) return false;
+
+    // REGLA: No mostrar comanda si TODOS los platos están en estado entregado o pagado
+    const todosEntregadosOPagados = platosActivos.every(p => {
+      const e = (p.estado || '').toLowerCase();
+      return e === 'entregado' || e === 'pagado';
+    });
+    if (todosEntregadosOPagados) return false;
+
     // SOLO mostrar comandas con status "en_espera"
     // REGLA COCINA: NO mostrar comandas con status "recoger" o "entregado" (solo mozos manejan entregado)
-    // Cocina solo maneja 'en_espera' → 'recoger'
     if (c.status !== "en_espera") return false;
-    
+
     // VALIDACIÓN CRÍTICA: Solo mostrar comandas donde TODOS los platos tengan nombre cargado
-    // Esto evita mostrar tarjetas con platos sin nombre que luego se cargan
     const todosPlatosConNombre = c.platos.every(plato => {
       const platoObj = plato.plato || plato;
       const nombre = platoObj?.nombre || plato?.nombre;
-      // Verificar que el nombre existe, no está vacío y no es solo espacios
       return nombre && nombre.trim().length > 0;
     });
-    
+
     if (!todosPlatosConNombre) {
       console.warn(`⚠️ Comanda #${c.comandaNumber} oculta: tiene platos sin nombre cargado`);
       return false;
     }
-    
+
     return true;
   });
 
@@ -2240,9 +2248,9 @@ const SicarComandaCard = ({
       return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
     });
 
-    // REGLA COCINA: Solo considerar 'recoger', nunca 'entregado' (exclusivo de mozos)
+    // REGLA COCINA: Solo platos en "recoger" (listos para que mozo recoga). No mostrar entregado/pagado.
     const listos = platosConNombre.filter(p => {
-      const estado = p.estado || "en_espera";
+      const estado = (p.estado || "en_espera").toLowerCase();
       return estado === "recoger";
     });
 
