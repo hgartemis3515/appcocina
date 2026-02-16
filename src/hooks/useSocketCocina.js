@@ -9,6 +9,7 @@ import { getServerBaseUrl } from '../config/apiConfig';
  * @param {Function} onNuevaComanda - Callback cuando llega nueva comanda
  * @param {Function} onComandaActualizada - Callback cuando se actualiza una comanda
  * @param {Function} onPlatoActualizado - Callback cuando se actualiza un plato
+ * @param {Function} onPlatoCanceladoUrgente - Callback cuando mozos eliminan plato ya listo (recoger): { comandaNumber, platos: [{ nombre, motivo }], motivo }
  * @param {Function} obtenerComandas - Función para obtener comandas iniciales
  * @returns {Object} { socket, connected, connectionStatus }
  */
@@ -16,6 +17,7 @@ const useSocketCocina = ({
   onNuevaComanda,
   onComandaActualizada,
   onPlatoActualizado,
+  onPlatoCanceladoUrgente,
   obtenerComandas
 }) => {
   const [connected, setConnected] = useState(false);
@@ -172,6 +174,18 @@ const useSocketCocina = ({
           timestamp: data.timestamp
         });
       } else if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
+    // Evento: Plato cancelado por mozo (estaba en recoger) - notificación urgente a cocina
+    socket.on('plato-cancelado-urgente', (data) => {
+      console.log('🚨 Plato cancelado (urgente):', data.comandaNumber, data.platos?.map(p => p.nombre), data.motivo);
+      ultimoPingRef.current = Date.now();
+      if (onPlatoCanceladoUrgente) {
+        onPlatoCanceladoUrgente(data);
+      }
+      if (obtenerComandas) {
         obtenerComandas();
       }
     });
