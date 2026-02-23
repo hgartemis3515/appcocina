@@ -2489,6 +2489,7 @@ const SicarComandaCard = ({
                       nightMode={nightMode}
                       isEliminado={plato.eliminado === true}
                       onToggle={togglePlatoCheck}
+                      complementosSeleccionados={plato.complementosSeleccionados || []}
                     />
                   );
                 })}

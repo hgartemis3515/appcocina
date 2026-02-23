@@ -15,6 +15,7 @@ const PlatoPreparacion = ({
   nightMode = true,
   isEliminado = false,
   onToggle,
+  complementosSeleccionados = [],
 }) => {
   const handleClick = (e) => {
     e.stopPropagation();
@@ -128,7 +129,7 @@ const PlatoPreparacion = ({
           onToggle(comandaId, platoId);
         }
       }}
-      className={`font-semibold leading-tight px-3 py-2 rounded-lg flex items-center gap-3 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
+      className={`font-semibold leading-tight px-3 py-2 rounded-lg flex items-start gap-3 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
       style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px' }}
       title={isEliminado ? 'Plato eliminado' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
       variants={containerVariants}
@@ -179,9 +180,24 @@ const PlatoPreparacion = ({
           <span className="text-red-500 text-lg font-bold" aria-hidden>✕</span>
         )}
       </div>
-      <span className="flex-1 pointer-events-none">
-        {cantidad} {nombre}
-      </span>
+      <div className="flex-1 pointer-events-none">
+        <span>{cantidad} {nombre}</span>
+        {complementosSeleccionados && complementosSeleccionados.length > 0 && (
+          <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
+            {complementosSeleccionados.map((comp, i) => (
+              <span
+                key={i}
+                className={`text-xs leading-tight pl-1 ${
+                  nightMode ? 'text-gray-400' : 'text-gray-500'
+                }`}
+                style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
+              >
+                · {Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 };
