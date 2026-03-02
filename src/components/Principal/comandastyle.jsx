@@ -1,3 +1,4 @@
+// PLAN v5.5: 1. Refina botón toolbar (texto dinámico). 2. Handler auto-selección. 3. API+toast+sonido. 4. Sort prioritario en useEffect/socket. 5. Icono 🚀 rojo header. 6. Reset 'recoger'.
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
@@ -1023,12 +1024,14 @@ const ComandaStyle = () => {
   // Contadores (solo en_espera - ya no mostramos recoger)
   const totalComandas = enEspera.length;
 
-  // Combinar y ordenar comandas por tiempo (más antiguas primero) - estilo SICAR
-  // Solo mostramos comandas en espera
-  const todasComandas = enEspera.sort((a, b) => {
+  // PARRAFO 4 - REORDEN: Sort prioritario v5.5 - prioridadOrden primero (más reciente arriba), luego por createdAt
+  const todasComandas = [...enEspera].sort((a, b) => {
+    const prioA = a.prioridadOrden || 0;
+    const prioB = b.prioridadOrden || 0;
+    if (prioA !== prioB) return prioB - prioA; // Mayor prioridadOrden arriba
     const tiempoA = a.createdAt ? moment(a.createdAt).valueOf() : 0;
     const tiempoB = b.createdAt ? moment(b.createdAt).valueOf() : 0;
-    return tiempoA - tiempoB; // Más antiguas primero
+    return tiempoA - tiempoB; // Más antiguas primero si igual prioridad
   });
 
   // Paginación: basada en configuración de diseño (cols * rows)
@@ -1415,6 +1418,24 @@ const ComandaStyle = () => {
         return nuevo;
       });
       
+      // PARRAFO 6 - RESET UX v5.5: Resetear prioridadOrden=0 cuando todos los platos estén en recoger
+      const comandasAResetear = new Set();
+      resultados.forEach(result => {
+        if (result.status === 'fulfilled' && result.value.exito) {
+          comandasAResetear.add(result.value.comandaId);
+        }
+      });
+      comandasAResetear.forEach(async (comandaId) => {
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (comanda && comanda.prioridadOrden > 0) {
+          try {
+            await axios.put(`${getApiUrl()}/${comandaId}/prioridad`, { prioridadOrden: 0 });
+          } catch (err) {
+            console.warn('⚠️ No se pudo resetear prioridad:', err);
+          }
+        }
+      });
+      
       if (exitosos > 0) {
         console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente - Estado: 'recoger'`);
         console.log(`ℹ️ La comanda permanecerá en 'en_espera' hasta que TODOS los platos estén listos`);
@@ -1489,6 +1510,15 @@ const ComandaStyle = () => {
         }
       });
 
+      // PARRAFO 6 - RESET UX v5.5: Resetear prioridadOrden=0 al finalizar
+      comandasExitosas.forEach(async (comandaId) => {
+        try {
+          await axios.put(`${getApiUrl()}/${comandaId}/prioridad`, { prioridadOrden: 0 });
+        } catch (err) {
+          console.warn('⚠️ No se pudo resetear prioridad:', err);
+        }
+      });
+
       // Limpiar selección
       setSelectedOrders(prev => {
         const nuevo = new Set(prev);
@@ -1537,6 +1567,39 @@ const ComandaStyle = () => {
       });
     }
   }, [comandas, selectedOrders, batchFinalizarPlatos, config.soundEnabled]);
+
+  // PARRAFO 3 - HANDLER: Prioridad Alta v5.5 - Toggle: asigna o quita prioridadOrden
+  const handlePrioridadAlta = useCallback(async () => {
+    const userRole = localStorage.getItem('userRole') || 'cocina';
+    // Buscar comanda: seleccionada o primera en espera
+    let comanda = null;
+    if (selectedOrders.size === 1) {
+      comanda = comandas.find(c => c._id === Array.from(selectedOrders)[0]);
+    } else {
+      comanda = comandas.find(c => c.status === 'enespera' || c.status === 'en_espera');
+    }
+    if (!comanda) {
+      setToastMessage({ type: 'error', message: '⚠️ No hay comanda para priorizar' });
+      return;
+    }
+    try {
+      // TOGGLE: Si ya tiene prioridad, quitarla; si no, asignarla
+      const tienePrioridad = comanda.prioridadOrden > 0;
+      const nuevaPrioridad = tienePrioridad ? 0 : Date.now();
+      await axios.put(`${getApiUrl()}/${comanda._id}/prioridad`, { prioridadOrden: nuevaPrioridad });
+      setSelectedOrders(new Set());
+      setToastMessage({ 
+        type: 'success', 
+        message: tienePrioridad 
+          ? `✅ #${comanda.comandaNumber} prioridad cancelada` 
+          : `✅ #${comanda.comandaNumber} priorizada`
+      });
+      if (config.soundEnabled) playNotificationSound();
+    } catch (err) {
+      console.error('Error al priorizar:', err);
+      setToastMessage({ type: 'error', message: '⚠️ Error al priorizar' });
+    }
+  }, [comandas, selectedOrders, config.soundEnabled]);
 
   // Finalizar comandas seleccionadas (marcar como preparadas)
   const handleFinalizar = async () => {
@@ -1924,6 +1987,40 @@ const ComandaStyle = () => {
                 >
                   REVERTIR
                 </motion.button>
+
+                {/* PARRAFO 2 - BOTÓN TOOLBAR v5.5: 🚀 Prioridad Alta - Toggle según estado actual */}
+                {(() => {
+                  const userRole = localStorage.getItem('userRole') || 'cocina';
+                  const hayEnEspera = enEspera.length > 0;
+                  const isEnabled = hayEnEspera && userRole === 'cocina';
+                  // Determinar si la comanda seleccionada ya tiene prioridad
+                  let comandaSeleccionada = null;
+                  if (selectedOrders.size === 1) {
+                    comandaSeleccionada = comandas.find(c => c._id === Array.from(selectedOrders)[0]);
+                  }
+                  const tienePrioridad = comandaSeleccionada?.prioridadOrden > 0;
+                  const bgColorDynamic = tienePrioridad 
+                    ? 'bg-red-600 hover:bg-red-700' 
+                    : 'bg-green-600 hover:bg-green-700';
+                  return (
+                    <motion.button
+                      onClick={handlePrioridadAlta}
+                      disabled={!isEnabled}
+                      className={`px-4 py-2 font-semibold rounded-lg text-sm shadow-md flex items-center gap-1 ${
+                        isEnabled
+                          ? `${bgColorDynamic} text-white cursor-pointer`
+                          : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                      }`}
+                      whileHover={isEnabled ? { scale: 1.05 } : {}}
+                      whileTap={isEnabled ? { scale: 0.95 } : {}}
+                    >
+                      {tienePrioridad 
+                        ? '❌ Quitar Prioridad' 
+                        : `🚀 Prioridad ${selectedOrders.size === 1 ? '(1)' : hayEnEspera ? '(Auto)' : ''}`
+                      }
+                    </motion.button>
+                  );
+                })()}
               </div>
 
               {/* 3. Paginación - Siempre visible si hay más de 1 página */}
@@ -2429,6 +2526,18 @@ const SicarComandaCard = ({
                 style={{ fontFamily: 'Arial, sans-serif' }}
               >
                 ¡Urgente!
+              </motion.span>
+            )}
+            {/* PARRAFO 5 - ICONO 🚀 rojo v5.5: Si comanda tiene prioridadOrden > 0 */}
+            {comanda.prioridadOrden > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                className="ml-2 text-red-500 text-base font-bold"
+                title="Prioridad Alta"
+              >
+                🚀
               </motion.span>
             )}
           </div>
