@@ -1,4 +1,5 @@
 // PLAN v5.5: 1. Refina botón toolbar (texto dinámico). 2. Handler auto-selección. 3. API+toast+sonido. 4. Sort prioritario en useEffect/socket. 5. Icono 🚀 rojo header. 6. Reset 'recoger'.
+// PLAN REVERTIR v5.5: 1. Refina botón/menú. 2. Lista platos reversibles. 3. Handler plato granular. 4. Modal checkboxes. 5. Socket/UI update. 6. Toast confirm.
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
@@ -733,6 +734,11 @@ const ComandaStyle = () => {
         // Reset a 'normal' cuando backend actualiza (plato ya procesado)
         if (data.nuevoEstado === "recoger") {
           nuevo.set(platoKey, 'normal');
+        }
+        // PARRAFO 5: Si vuelve a 'en_espera' (revertido), también resetear
+        if (data.nuevoEstado === "en_espera") {
+          nuevo.set(platoKey, 'normal');
+          console.log(`↩️ Plato revertido a preparación: ${data.platoId}`);
         }
         return nuevo;
       });
@@ -1975,18 +1981,47 @@ const ComandaStyle = () => {
                   );
                 })()}
 
-                {/* 3. Botón REVERTIR (Gris) - Limpia checks */}
-                <motion.button
-                  onClick={() => {
-                    setPlatosChecked(new Map());
-                    setShowRevertir(true);
-                  }}
-                  className={`px-4 py-2 ${bgButton} ${bgButtonHover} ${textButton} font-semibold rounded-lg text-sm shadow-md`}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  REVERTIR
-                </motion.button>
+                {/* 3. Botón REVERTIR v5.5 - Texto dinámico con conteo de platos reversibles */}
+                {(() => {
+                  // PARRAFO 2: Recolectar platos reversibles (recoger/entregado, últimos 30min, NO eliminados)
+                  const ahora = moment().tz("America/Lima");
+                  const platosReversibles = comandas.flatMap(c => 
+                    (c.platos || [])
+                      .filter(p => {
+                        // EXCLUIR platos eliminados
+                        if (p.eliminado === true) return false;
+                        const estado = p.estado || 'en_espera';
+                        if (estado !== 'recoger' && estado !== 'entregado') return false;
+                        const tiempo = p.tiempos?.[estado] || c.updatedAt || c.createdAt;
+                        const diffMin = ahora.diff(moment(tiempo), 'minutes');
+                        return diffMin <= 30;
+                      })
+                      .map(p => ({
+                        comandaId: c._id,
+                        comandaNumber: c.comandaNumber,
+                        platoId: p.plato?._id || p._id || p.platoId,
+                        nombre: p.plato?.nombre || p.nombre || 'Sin nombre',
+                        estado: p.estado,
+                        mozo: c.mozos?.name || 'Sin mozo',
+                        mesa: c.mesas?.nummesa || 'N/A'
+                      }))
+                  );
+                  const totalReversibles = platosReversibles.length;
+                  return (
+                    <motion.button
+                      onClick={() => {
+                        setPlatosChecked(new Map());
+                        setShowRevertir(true);
+                      }}
+                      className={`px-4 py-2 ${bgButton} ${bgButtonHover} ${textButton} font-semibold rounded-lg text-sm shadow-md flex items-center gap-1`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <FaUndo className="text-sm" />
+                      REVERTIR{totalReversibles > 0 ? ` (${totalReversibles})` : ''}
+                    </motion.button>
+                  );
+                })()}
 
                 {/* PARRAFO 2 - BOTÓN TOOLBAR v5.5: 🚀 Prioridad Alta - Toggle según estado actual */}
                 {(() => {
