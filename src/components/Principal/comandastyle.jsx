@@ -1272,17 +1272,23 @@ const ComandaStyle = () => {
     // Procesar en paralelo - SOLO API de platos, NO tocar comanda.status directamente
     // Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén en 'recoger'
     const resultados = await Promise.allSettled(
-      platosParaProcesar.map(async ({ comandaId, platoId }) => {
+      platosParaProcesar.map(async ({ comandaId, platoId, platoIndex }) => {
         try {
           const comanda = comandas.find(c => c._id === comandaId);
-          if (!comanda) return { comandaId, platoId, exito: false, error: 'Comanda no encontrada' };
+          if (!comanda) return { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' };
           
-          const plato = comanda.platos?.find(p => {
-            const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
-            return pId === platoId;
-          });
+          // Si tenemos platoIndex, usarlo; si no, buscar por platoId
+          let plato;
+          if (platoIndex !== undefined && comanda.platos?.[platoIndex]) {
+            plato = comanda.platos[platoIndex];
+          } else {
+            plato = comanda.platos?.find(p => {
+              const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
+              return pId === platoId;
+            });
+          }
           
-          if (!plato) return { comandaId, platoId, exito: false, error: 'Plato no encontrado' };
+          if (!plato) return { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' };
           
           // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
           const platoIdFinal = plato.plato?._id || plato._id || platoId;
@@ -1290,10 +1296,10 @@ const ComandaStyle = () => {
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
             { nuevoEstado: "recoger" }
           );
-          return { comandaId, platoId, exito: true };
+          return { comandaId, platoId: platoIdFinal, platoIndex, exito: true };
         } catch (error) {
           console.error(`❌ Error finalizando plato ${platoId}:`, error);
-          return { comandaId, platoId, exito: false, error: error.message };
+          return { comandaId, platoId, platoIndex, exito: false, error: error.message };
         }
       })
     );
@@ -1339,28 +1345,34 @@ const ComandaStyle = () => {
       platoStates.forEach((estado, key) => {
         if (estado !== 'seleccionado') return;
         
-        // Parsear key de forma segura (puede tener guiones en platoId)
+        // Parsear key: formato es ${comandaId}-${platoIndex} (índice, NO ID)
         const lastDashIndex = key.lastIndexOf('-');
         if (lastDashIndex === -1) return;
         
         const comandaId = key.substring(0, lastDashIndex);
-        const platoId = key.substring(lastDashIndex + 1);
-        const uniqueKey = `${comandaId}-${platoId}`;
+        const platoIndexStr = key.substring(lastDashIndex + 1);
+        const platoIndex = parseInt(platoIndexStr, 10);
         
+        if (isNaN(platoIndex)) return;
+        
+        const uniqueKey = `${comandaId}-${platoIndex}`;
         if (platosProcesadosSet.has(uniqueKey)) return;
         platosProcesadosSet.add(uniqueKey);
         
         const comanda = comandas.find(c => c._id === comandaId);
         if (!comanda) return;
         
-        const plato = comanda.platos?.find(p => {
-          const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
-          return pId === platoId;
-        });
+        // Obtener plato por ÍNDICE
+        const plato = comanda.platos?.[platoIndex];
+        if (!plato) return;
+        
+        // Obtener el ID real del plato
+        const platoId = plato.plato?._id?.toString() || plato._id?.toString() || plato.platoId?.toString();
+        if (!platoId) return;
         
         // Solo procesar platos que no estén ya en 'recoger'
-        if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido")) {
-          platosProcesados.push({ comandaId, platoId });
+        if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
+          platosProcesados.push({ comandaId, platoId, platoIndex });
         }
       });
       
@@ -1368,28 +1380,34 @@ const ComandaStyle = () => {
       platosChecked.forEach((checked, key) => {
         if (!checked) return;
         
-        // Parsear key de forma segura
+        // Parsear key: formato es ${comandaId}-${platoIndex} (índice, NO ID)
         const lastDashIndex = key.lastIndexOf('-');
         if (lastDashIndex === -1) return;
         
         const comandaId = key.substring(0, lastDashIndex);
-        const platoId = key.substring(lastDashIndex + 1);
-        const uniqueKey = `${comandaId}-${platoId}`;
+        const platoIndexStr = key.substring(lastDashIndex + 1);
+        const platoIndex = parseInt(platoIndexStr, 10);
         
+        if (isNaN(platoIndex)) return;
+        
+        const uniqueKey = `${comandaId}-${platoIndex}`;
         if (platosProcesadosSet.has(uniqueKey)) return; // Ya incluido
         platosProcesadosSet.add(uniqueKey);
         
         const comanda = comandas.find(c => c._id === comandaId);
         if (!comanda) return;
         
-        const plato = comanda.platos?.find(p => {
-          const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
-          return pId === platoId;
-        });
+        // Obtener plato por ÍNDICE
+        const plato = comanda.platos?.[platoIndex];
+        if (!plato) return;
+        
+        // Obtener el ID real del plato
+        const platoId = plato.plato?._id?.toString() || plato._id?.toString() || plato.platoId?.toString();
+        if (!platoId) return;
         
         // Solo procesar platos que no estén ya en 'recoger'
-        if (plato && (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido")) {
-          platosProcesados.push({ comandaId, platoId });
+        if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
+          platosProcesados.push({ comandaId, platoId, platoIndex });
         }
       });
 
@@ -1409,8 +1427,9 @@ const ComandaStyle = () => {
         const nuevo = new Map(prev);
         resultados.forEach(result => {
           if (result.status === 'fulfilled' && result.value.exito) {
-            const { comandaId, platoId } = result.value;
-            const key = `${comandaId}-${platoId}`;
+            const { comandaId, platoIndex } = result.value;
+            // Usar platoIndex para el key (igual que en togglePlatoCheck)
+            const key = `${comandaId}-${platoIndex}`;
             nuevo.set(key, 'normal'); // Reset a normal después de finalizar
           }
         });
@@ -1422,8 +1441,9 @@ const ComandaStyle = () => {
         const nuevo = new Map(prev);
         resultados.forEach(result => {
           if (result.status === 'fulfilled' && result.value.exito) {
-            const { comandaId, platoId } = result.value;
-            const key = `${comandaId}-${platoId}`;
+            const { comandaId, platoIndex } = result.value;
+            // Usar platoIndex para el key
+            const key = `${comandaId}-${platoIndex}`;
             nuevo.delete(key);
           }
         });
@@ -1491,13 +1511,17 @@ const ComandaStyle = () => {
     const platosParaProcesar = [];
     comandasParaFinalizar.forEach(comanda => {
       const platosActivos = (comanda.platos || []).filter(p => !p.eliminado);
-      platosActivos.forEach(plato => {
+      platosActivos.forEach((plato, idx) => {
         const estado = plato.estado || 'en_espera';
         // Solo procesar platos que no estén ya en 'recoger'
         if (estado === 'en_espera' || estado === 'ingresante' || estado === 'pedido') {
           const platoId = plato.plato?._id || plato._id || plato.platoId;
           if (platoId) {
-            platosParaProcesar.push({ comandaId: comanda._id, platoId });
+            // Buscar el índice real en el array original (con eliminados)
+            const realIndex = comanda.platos.findIndex(p => 
+              (p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString()) === platoId?.toString()
+            );
+            platosParaProcesar.push({ comandaId: comanda._id, platoId, platoIndex: realIndex >= 0 ? realIndex : idx });
           }
         }
       });
@@ -2109,9 +2133,9 @@ const ComandaStyle = () => {
                   );
                 })()}
 
-                {/* 3. Botón REVERTIR v5.5 - Texto dinámico con conteo de platos reversibles */}
+                {/* 3. Botón REVERTIR v5.5 - Texto dinámico con conteo de platos en RECOGER */}
                 {(() => {
-                  // PARRAFO 2: Recolectar platos reversibles (recoger/entregado, últimos 30min, NO eliminados)
+                  // Solo platos en estado RECOGER (no entregado), últimos 30min, NO eliminados
                   const ahora = moment().tz("America/Lima");
                   const platosReversibles = comandas.flatMap(c => 
                     (c.platos || [])
@@ -2119,7 +2143,8 @@ const ComandaStyle = () => {
                         // EXCLUIR platos eliminados
                         if (p.eliminado === true) return false;
                         const estado = p.estado || 'en_espera';
-                        if (estado !== 'recoger' && estado !== 'entregado') return false;
+                        // SOLO platos en estado 'recoger' son reversibles
+                        if (estado !== 'recoger') return false;
                         const tiempo = p.tiempos?.[estado] || c.updatedAt || c.createdAt;
                         const diffMin = ahora.diff(moment(tiempo), 'minutes');
                         return diffMin <= 30;

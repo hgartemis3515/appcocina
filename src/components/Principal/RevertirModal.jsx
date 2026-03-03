@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
-import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash } from "react-icons/fa";
+import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaExclamationTriangle } from "react-icons/fa";
 import { getApiUrl } from "../../config/apiConfig";
 
 const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
@@ -13,14 +13,19 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   const inputBg = nightMode ? "bg-gray-700" : "bg-gray-100";
   const buttonBg = nightMode ? "bg-gray-600 hover:bg-gray-700" : "bg-gray-300 hover:bg-gray-400";
   const [comandasFinalizadas, setComandasFinalizadas] = useState([]);
-  // PARRAFO 3: Estado para checkboxes de platos individuales
   const [platosSeleccionados, setPlatosSeleccionados] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [toastMsg, setToastMsg] = useState(null);
+  
+  // Estado para modal de confirmación con motivo
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [revertirType, setRevertirType] = useState(null); // 'plato' | 'seleccionados' | 'todo'
+  const [revertirData, setRevertirData] = useState(null); // datos para revertir
 
   useEffect(() => {
-    const obtenerComandasEntregadas = async () => {
+    const obtenerComandasConPlatosReversibles = async () => {
       setCargando(true);
       try {
         const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
@@ -28,9 +33,21 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
         const response = await axios.get(apiUrl, { timeout: 5000 });
         const ahora = moment().tz("America/Lima");
         
+        // INCLUIR: comandas con platos en estado RECOGER (solo recoger, NO entregado)
+        // EXCLUIR: comandas con status "pagado" (nunca se revierten)
         const comandasParaRevertir = response.data.filter(c => {
-          if (c.status !== "recoger" && c.status !== "entregado") return false;
+          if (c.status === "pagado") return false;
           if (!c.platos || c.platos.length === 0) return false;
+          
+          // Verificar si tiene al menos un plato en estado RECOGER (no eliminado)
+          const tienePlatosReversibles = c.platos.some(p => {
+            if (p.eliminado === true) return false;
+            const estado = p.estado || 'en_espera';
+            return estado === 'recoger';
+          });
+          
+          if (!tienePlatosReversibles) return false;
+          
           const fechaComanda = moment(c.updatedAt || c.createdAt).tz("America/Lima");
           const diffHoras = ahora.diff(fechaComanda, "hours");
           return diffHoras <= 24;
@@ -44,16 +61,15 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
 
         setComandasFinalizadas(ordenadas);
       } catch (error) {
-        console.error("Error al obtener comandas entregadas:", error);
+        console.error("Error al obtener comandas:", error);
       } finally {
         setCargando(false);
       }
     };
 
-    obtenerComandasEntregadas();
+    obtenerComandasConPlatosReversibles();
   }, []);
 
-  // PARRAFO 3: Toggle checkbox de plato individual
   const togglePlatoSeleccion = (comandaId, platoId) => {
     const key = `${comandaId}-${platoId}`;
     setPlatosSeleccionados(prev => {
@@ -67,130 +83,179 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     });
   };
 
-  // PARRAFO 4: Handler granular para revertir plato individual
-  const handleRevertirPlato = async (comandaId, platoId, platoNombre) => {
+  // Abrir modal de confirmación con motivo
+  const openConfirmModal = (type, data = null) => {
+    setRevertirType(type);
+    setRevertirData(data);
+    setMotivo("");
+    setShowConfirmModal(true);
+  };
+
+  // Ejecutar reversión después de confirmar motivo
+  const ejecutarReversion = async () => {
+    if (!motivo.trim()) {
+      alert("Debe ingresar un motivo para la reversión");
+      return;
+    }
+    
+    setShowConfirmModal(false);
     setLoading(true);
+    
     try {
-      // Actualizar estado del plato a en_espera
-      await axios.put(
-        `${getApiUrl()}/${comandaId}/plato/${platoId}/estado`,
-        { nuevoEstado: "en_espera" }
-      );
-      
-      // Actualizar status de la comanda a en_espera para que vuelva a aparecer en cocina
-      await axios.put(
-        `${getApiUrl()}/${comandaId}/status`,
-        { nuevoStatus: "en_espera" }
-      );
-      
-      // Toast de confirmación
-      setToastMsg(`✅ "${platoNombre}" revertido a preparación`);
-      setTimeout(() => setToastMsg(null), 3000);
-      
-      // Limpiar checkbox
-      const key = `${comandaId}-${platoId}`;
-      setPlatosSeleccionados(prev => {
-        const nuevo = new Set(prev);
-        nuevo.delete(key);
-        return nuevo;
-      });
-      
-      // Refrescar comandas
-      if (onRevertir) onRevertir();
-      
-      // Remover comanda de la lista local si ya no tiene platos reversibles
-      setComandasFinalizadas(prev => prev.filter(c => c._id !== comandaId));
+      if (revertirType === 'plato') {
+        await revertirPlatoIndividual(revertirData);
+      } else if (revertirType === 'seleccionados') {
+        await revertirPlatosSeleccionados();
+      } else if (revertirType === 'todo') {
+        await revertirComandaCompleta(revertirData);
+      }
     } catch (error) {
-      console.error("Error al revertir plato:", error);
-      setToastMsg("❌ Error al revertir plato");
+      console.error("Error en reversión:", error);
+      setToastMsg("❌ Error al revertir");
       setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setLoading(false);
     }
   };
 
-  // PARRAFO 3: Revertir múltiples platos seleccionados
-  const handleRevertirSeleccionados = async () => {
-    if (platosSeleccionados.size === 0) return;
-    setLoading(true);
-    try {
-      // Agrupar por comanda para actualizar status
-      const comandasAfectadas = new Set();
+  // Revertir un plato individual
+  const revertirPlatoIndividual = async (data) => {
+    const { comandaId, platoId, platoNombre, comandaStatus } = data;
+    
+    await axios.put(
+      `${getApiUrl()}/${comandaId}/plato/${platoId}/estado`,
+      { nuevoEstado: "en_espera", motivo: motivo.trim() }
+    );
+    
+    if (comandaStatus !== "en_espera") {
+      await axios.put(
+        `${getApiUrl()}/${comandaId}/status`,
+        { nuevoStatus: "en_espera", motivo: motivo.trim() }
+      );
+    }
+    
+    setToastMsg(`✅ "${platoNombre}" revertido a preparación`);
+    setTimeout(() => setToastMsg(null), 3000);
+    
+    const key = `${comandaId}-${platoId}`;
+    setPlatosSeleccionados(prev => {
+      const nuevo = new Set(prev);
+      nuevo.delete(key);
+      return nuevo;
+    });
+    
+    if (onRevertir) onRevertir();
+    await recargarLista();
+  };
+
+  // Revertir múltiples platos seleccionados
+  const revertirPlatosSeleccionados = async () => {
+    const comandasInfo = new Map();
+    
+    const promesas = [];
+    platosSeleccionados.forEach(key => {
+      const [comandaId, platoId] = key.split("-");
+      const comanda = comandasFinalizadas.find(c => c._id === comandaId);
+      const currentStatus = comanda?.status || 'en_espera';
       
-      const promesas = [];
-      platosSeleccionados.forEach(key => {
-        const [comandaId, platoId] = key.split("-");
-        comandasAfectadas.add(comandaId);
-        promesas.push(
-          axios.put(
-            `${getApiUrl()}/${comandaId}/plato/${platoId}/estado`,
-            { nuevoEstado: "en_espera" }
-          )
-        );
-      });
-      await Promise.all(promesas);
+      if (!comandasInfo.has(comandaId)) {
+        comandasInfo.set(comandaId, currentStatus);
+      }
       
-      // Actualizar status de todas las comandas afectadas a en_espera
-      const statusPromesas = Array.from(comandasAfectadas).map(comandaId =>
+      promesas.push(
         axios.put(
-          `${getApiUrl()}/${comandaId}/status`,
-          { nuevoStatus: "en_espera" }
+          `${getApiUrl()}/${comandaId}/plato/${platoId}/estado`,
+          { nuevoEstado: "en_espera", motivo: motivo.trim() }
         )
       );
-      await Promise.all(statusPromesas);
-      
-      setToastMsg(`✅ ${platosSeleccionados.size} plato(s) revertido(s) a preparación`);
-      setTimeout(() => setToastMsg(null), 3000);
-      setPlatosSeleccionados(new Set());
-      if (onRevertir) onRevertir();
-      
-      // Remover comandas afectadas de la lista local
-      setComandasFinalizadas(prev => prev.filter(c => !comandasAfectadas.has(c._id)));
-    } catch (error) {
-      console.error("Error al revertir platos:", error);
-      setToastMsg("❌ Error al revertir algunos platos");
-      setTimeout(() => setToastMsg(null), 3000);
-    } finally {
-      setLoading(false);
-    }
+    });
+    await Promise.all(promesas);
+    
+    const statusPromesas = [];
+    comandasInfo.forEach((status, comandaId) => {
+      if (status !== "en_espera") {
+        statusPromesas.push(
+          axios.put(
+            `${getApiUrl()}/${comandaId}/status`,
+            { nuevoStatus: "en_espera", motivo: motivo.trim() }
+          )
+        );
+      }
+    });
+    await Promise.all(statusPromesas);
+    
+    setToastMsg(`✅ ${platosSeleccionados.size} plato(s) revertido(s) a preparación`);
+    setTimeout(() => setToastMsg(null), 3000);
+    setPlatosSeleccionados(new Set());
+    if (onRevertir) onRevertir();
+    await recargarLista();
   };
 
-  // Revertir comanda completa (existente)
-  const revertirComanda = async (comandaId) => {
-    setLoading(true);
-    try {
-      const comanda = comandasFinalizadas.find(c => c._id === comandaId);
-      if (!comanda) {
-        alert("Comanda no encontrada");
-        setLoading(false);
-        return;
-      }
-      
-      // Actualizar status de la comanda
+  // Revertir comanda completa
+  const revertirComandaCompleta = async (data) => {
+    const { comandaId, comandaStatus } = data;
+    const comanda = comandasFinalizadas.find(c => c._id === comandaId);
+    
+    if (!comanda) {
+      alert("Comanda no encontrada");
+      return;
+    }
+    
+    if (comandaStatus !== "en_espera") {
       await axios.put(
         `${getApiUrl()}/${comandaId}/status`,
-        { nuevoStatus: "en_espera" }
+        { nuevoStatus: "en_espera", motivo: motivo.trim() }
       );
-      
-      // Revertir solo platos NO eliminados
-      const platosActivos = (comanda.platos || []).filter(p => p.eliminado !== true);
-      for (const plato of platosActivos) {
-        if (plato.estado === "recoger" || plato.estado === "entregado") {
-          await axios.put(
-            `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
-            { nuevoEstado: "en_espera" }
-          );
-        }
-      }
-      
-      if (onRevertir) onRevertir();
-      setComandasFinalizadas(prev => prev.filter(c => c._id !== comandaId));
-    } catch (error) {
-      console.error("Error al revertir comanda:", error);
-      alert("Error al revertir la comanda. Por favor, intente nuevamente.");
-    } finally {
-      setLoading(false);
     }
+    
+    const platosARevertir = (comanda.platos || []).filter(p => 
+      p.eliminado !== true && p.estado === "recoger"
+    );
+    
+    for (const plato of platosARevertir) {
+      await axios.put(
+        `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+        { nuevoEstado: "en_espera", motivo: motivo.trim() }
+      );
+    }
+    
+    setToastMsg(`✅ Comanda #${comanda.comandaNumber} revertida completamente`);
+    setTimeout(() => setToastMsg(null), 3000);
+    if (onRevertir) onRevertir();
+    
+    setComandasFinalizadas(prev => prev.filter(c => c._id !== comandaId));
+  };
+
+  // Recargar lista de comandas
+  const recargarLista = async () => {
+    setCargando(true);
+    const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
+    const apiUrl = `${getApiUrl()}/fecha/${fechaActual}`;
+    const response = await axios.get(apiUrl, { timeout: 5000 });
+    const ahora = moment().tz("America/Lima");
+    
+    const comandasParaRevertir = response.data.filter(c => {
+      if (c.status === "pagado") return false;
+      if (!c.platos || c.platos.length === 0) return false;
+      const tienePlatosReversibles = c.platos.some(p => {
+        if (p.eliminado === true) return false;
+        const estado = p.estado || 'en_espera';
+        return estado === 'recoger';
+      });
+      if (!tienePlatosReversibles) return false;
+      const fechaComanda = moment(c.updatedAt || c.createdAt).tz("America/Lima");
+      const diffHoras = ahora.diff(fechaComanda, "hours");
+      return diffHoras <= 24;
+    });
+    
+    const ordenadas = comandasParaRevertir.sort((a, b) => {
+      const fechaA = moment(a.updatedAt || a.createdAt).tz("America/Lima");
+      const fechaB = moment(b.updatedAt || b.createdAt).tz("America/Lima");
+      return fechaB.diff(fechaA);
+    });
+    
+    setComandasFinalizadas(ordenadas);
+    setCargando(false);
   };
 
   const formatearFecha = (fecha) => {
@@ -198,188 +263,274 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     return moment(fecha).tz("America/Lima").format("DD/MM/YYYY HH:mm");
   };
 
-  // PARRAFO 6: Filtrar platos reversibles (últimos 30min, NO eliminados)
+  // SOLO platos en RECOGER son reversibles (últimos 30min, NO eliminados)
   const ahora = moment().tz("America/Lima");
   const esPlatoReversible = (plato, comanda) => {
-    // EXCLUIR platos eliminados
     if (plato.eliminado === true) return false;
-    
     const estado = plato.estado || 'en_espera';
-    if (estado !== 'recoger' && estado !== 'entregado') return false;
+    // SOLO permitir revertir platos en estado 'recoger'
+    if (estado !== 'recoger') return false;
     const tiempo = plato.tiempos?.[estado] || comanda.updatedAt || comanda.createdAt;
     const diffMin = ahora.diff(moment(tiempo), 'minutes');
     return diffMin <= 30;
   };
 
+  // Determinar si TODOS los platos activos están en recoger (para mostrar "Revertir Todo")
+  const todosPlatosEnRecoger = (comanda) => {
+    const platosActivos = (comanda.platos || []).filter(p => p.eliminado !== true);
+    if (platosActivos.length === 0) return false;
+    return platosActivos.every(p => p.estado === 'recoger');
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className={`text-2xl font-bold ${textModal}`}>
-            ↩️ REVERTIR PLATOS/COMANDAS (Últimas 24h)
-          </h2>
-          <button onClick={onClose} className={`${textSecondary} hover:${textModal} text-2xl`}>
-            <FaTimes />
-          </button>
-        </div>
-
-        {/* Toast notification */}
-        {toastMsg && (
-          <div className="mb-4 p-3 rounded-lg bg-green-600 text-white text-center font-semibold animate-pulse">
-            {toastMsg}
-          </div>
-        )}
-
-        {/* PARRAFO 3: Botón revertir seleccionados */}
-        {platosSeleccionados.size > 0 && (
-          <div className="mb-4 flex gap-3 items-center">
-            <span className={`${textTertiary} font-semibold`}>
-              {platosSeleccionados.size} plato(s) seleccionado(s)
-            </span>
-            <button
-              onClick={handleRevertirSeleccionados}
-              disabled={loading}
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-semibold rounded-lg flex items-center gap-2"
-            >
-              <FaUndo /> Revertir Seleccionados
+    <>
+      {/* Modal principal */}
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className={`text-2xl font-bold ${textModal}`}>
+              ↩️ REVERTIR PLATOS A PREPARACIÓN
+            </h2>
+            <button onClick={onClose} className={`${textSecondary} hover:${textModal} text-2xl`}>
+              <FaTimes />
             </button>
           </div>
-        )}
 
-        {cargando ? (
-          <div className={`text-center ${textSecondary} py-8`}>
-            <p className="text-xl">Cargando comandas preparadas...</p>
+          {/* Info banner */}
+          <div className={`mb-4 p-3 rounded-lg ${nightMode ? 'bg-blue-900/30 border border-blue-500/50' : 'bg-blue-100 border border-blue-300'}`}>
+            <p className={`text-sm ${textTertiary}`}>
+              <strong>📌 Solo se pueden revertir platos en estado "RECOGER"</strong>
+              <br />
+              Los platos "ENTREGADO" no se pueden revertir desde cocina. Los platos deben tener máximo 30 minutos en estado recoger.
+            </p>
           </div>
-        ) : comandasFinalizadas.length === 0 ? (
-          <div className={`text-center ${textSecondary} py-8`}>
-            <p className="text-xl">No hay comandas preparadas para revertir</p>
-            <p className="text-sm mt-2">Solo se muestran comandas en estado "Preparado" (recoger) o "Entregado" de las últimas 24 horas</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {comandasFinalizadas.map((comanda) => {
-              // Filtrar platos NO eliminados para mostrar
-              const platosMostrar = (comanda.platos || []).filter(p => p.eliminado !== true);
-              const platosEliminados = (comanda.platos || []).filter(p => p.eliminado === true);
-              const platosReversibles = platosMostrar.filter(p => esPlatoReversible(p, comanda));
-              
-              return (
-                <div key={comanda._id} className={`${inputBg} rounded-lg p-4 border-2 ${borderModal}`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <div className={`font-bold text-xl ${textModal}`}>
-                        #{comanda.comandaNumber || "N/A"}
+
+          {/* Toast notification */}
+          {toastMsg && (
+            <div className="mb-4 p-3 rounded-lg bg-green-600 text-white text-center font-semibold animate-pulse">
+              {toastMsg}
+            </div>
+          )}
+
+          {/* Botón revertir seleccionados */}
+          {platosSeleccionados.size > 0 && (
+            <div className="mb-4 flex gap-3 items-center">
+              <span className={`${textTertiary} font-semibold`}>
+                {platosSeleccionados.size} plato(s) seleccionado(s)
+              </span>
+              <button
+                onClick={() => openConfirmModal('seleccionados')}
+                disabled={loading}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-semibold rounded-lg flex items-center gap-2"
+              >
+                <FaUndo /> Revertir Seleccionados
+              </button>
+            </div>
+          )}
+
+          {cargando ? (
+            <div className={`text-center ${textSecondary} py-8`}>
+              <p className="text-xl">Cargando platos...</p>
+            </div>
+          ) : comandasFinalizadas.length === 0 ? (
+            <div className={`text-center ${textSecondary} py-8`}>
+              <p className="text-xl">No hay platos en "RECOGER" para revertir</p>
+              <p className="text-sm mt-2">Se muestran platos en estado "recoger" (máximo 30 minutos) de las últimas 24 horas</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {comandasFinalizadas.map((comanda) => {
+                const platosMostrar = (comanda.platos || []).filter(p => p.eliminado !== true);
+                const platosEliminados = (comanda.platos || []).filter(p => p.eliminado === true);
+                const platosReversibles = platosMostrar.filter(p => esPlatoReversible(p, comanda));
+                const esComandaActiva = comanda.status === "en_espera";
+                const puedeRevertirTodo = todosPlatosEnRecoger(comanda) && !esComandaActiva;
+                
+                return (
+                  <div key={comanda._id} className={`${inputBg} rounded-lg p-4 border-2 ${esComandaActiva ? 'border-yellow-500/50' : 'border-blue-500/50'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className={`font-bold text-xl ${textModal} flex items-center gap-2`}>
+                          #{comanda.comandaNumber || "N/A"}
+                          {esComandaActiva && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-yellow-600/30 text-yellow-300">
+                              ACTIVA
+                            </span>
+                          )}
+                          {puedeRevertirTodo && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300">
+                              REVERTIR TODO
+                            </span>
+                          )}
+                        </div>
+                        <div className={`text-sm ${textTertiary} mt-1`}>
+                          Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozos?.name || "Sin mozo"}
+                        </div>
+                        <div className={`text-xs ${textSecondary} mt-1`}>
+                          Estado: <span className={`font-medium ${esComandaActiva ? 'text-yellow-300' : 'text-blue-300'}`}>{comanda.status || "N/A"}</span> | {formatearFecha(comanda.updatedAt || comanda.createdAt)}
+                        </div>
                       </div>
-                      <div className={`text-sm ${textTertiary} mt-1`}>
-                        Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozos?.name || "Sin mozo"}
-                      </div>
-                      <div className={`text-xs ${textSecondary} mt-1`}>
-                        Estado: {comanda.status || "N/A"} | {formatearFecha(comanda.updatedAt || comanda.createdAt)}
+                      <div className="flex gap-2">
+                        {/* Solo mostrar "Revertir Todo" si TODOS los platos están en recoger y NO es activa */}
+                        {puedeRevertirTodo && (
+                          <button
+                            onClick={() => openConfirmModal('todo', { comandaId: comanda._id, comandaStatus: comanda.status })}
+                            disabled={loading}
+                            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+                          >
+                            <FaUndo /> Revertir Todo
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => revertirComanda(comanda._id)}
-                        disabled={loading}
-                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
-                      >
-                        <FaUndo /> Revertir Todo
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* PARRAFO 3: Lista de platos con checkboxes - SOLO NO ELIMINADOS */}
-                  {platosMostrar.length > 0 && (
-                    <div className={`text-sm ${textTertiary}`}>
-                      <strong>Platos activos (✓ = revertible en últimos 30min):</strong>
-                      <ul className="list-none mt-2 space-y-1">
-                        {platosMostrar.map((p, idx) => {
-                          const plato = p.plato || p;
-                          const platoId = plato._id || p._id || p.platoId;
-                          const cantidad = comanda.cantidades?.[idx] || 1;
-                          const reversible = esPlatoReversible(p, comanda);
-                          const key = `${comanda._id}-${platoId}`;
-                          const seleccionado = platosSeleccionados.has(key);
-                          
-                          return (
-                            <li key={idx} className={`flex items-center justify-between py-2 px-2 rounded ${reversible ? 'bg-gray-600/30' : 'opacity-50'}`}>
-                              <div className="flex items-center gap-3">
-                                {/* Checkbox solo para platos reversibles */}
-                                {reversible ? (
+                    
+                    {/* Lista de platos */}
+                    {platosMostrar.length > 0 && (
+                      <div className={`text-sm ${textTertiary}`}>
+                        <strong>Platos (solo RECOGER es reversible):</strong>
+                        <ul className="list-none mt-2 space-y-1">
+                          {platosMostrar.map((p, idx) => {
+                            const plato = p.plato || p;
+                            const platoId = plato._id || p._id || p.platoId;
+                            const cantidad = comanda.cantidades?.[idx] || 1;
+                            const reversible = esPlatoReversible(p, comanda);
+                            const key = `${comanda._id}-${platoId}`;
+                            const seleccionado = platosSeleccionados.has(key);
+                            
+                            return (
+                              <li key={idx} className={`flex items-center justify-between py-2 px-2 rounded ${reversible ? 'bg-blue-900/20 border border-blue-500/30' : 'opacity-60'}`}>
+                                <div className="flex items-center gap-3">
+                                  {reversible ? (
+                                    <button
+                                      onClick={() => togglePlatoSeleccion(comanda._id, platoId)}
+                                      className={`text-xl ${seleccionado ? 'text-orange-400' : 'text-blue-400'}`}
+                                    >
+                                      {seleccionado ? <FaCheckSquare /> : <FaSquare />}
+                                    </button>
+                                  ) : (
+                                    <span className="text-xl opacity-30"><FaSquare /></span>
+                                  )}
+                                  <span className={reversible ? 'font-medium' : ''}>
+                                    {cantidad}x {plato.nombre || "Sin nombre"}
+                                  </span>
+                                  <span className={`text-xs px-2 py-0.5 rounded ${
+                                    p.estado === 'entregado' ? 'bg-green-600/30 text-green-300' :
+                                    p.estado === 'recoger' ? 'bg-blue-600/30 text-blue-300' :
+                                    p.estado === 'en_espera' ? 'bg-yellow-600/30 text-yellow-300' :
+                                    'bg-gray-600/30'
+                                  }`}>
+                                    {p.estado || 'en_espera'}
+                                  </span>
+                                </div>
+                                {reversible && (
                                   <button
-                                    onClick={() => togglePlatoSeleccion(comanda._id, platoId)}
-                                    className={`text-xl ${seleccionado ? 'text-orange-400' : textSecondary}`}
+                                    onClick={() => openConfirmModal('plato', { 
+                                      comandaId: comanda._id, 
+                                      platoId, 
+                                      platoNombre: plato.nombre || 'Plato', 
+                                      comandaStatus: comanda.status 
+                                    })}
+                                    disabled={loading}
+                                    className="px-3 py-1 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded flex items-center gap-1"
                                   >
-                                    {seleccionado ? <FaCheckSquare /> : <FaSquare />}
+                                    <FaUndo /> Revertir
                                   </button>
-                                ) : (
-                                  <span className="text-xl opacity-30"><FaSquare /></span>
                                 )}
-                                <span className={reversible ? 'font-medium' : ''}>
-                                  {cantidad}x {plato.nombre || "Sin nombre"}
-                                </span>
-                                <span className={`text-xs px-2 py-0.5 rounded ${
-                                  p.estado === 'entregado' ? 'bg-green-600/30 text-green-300' :
-                                  p.estado === 'recoger' ? 'bg-blue-600/30 text-blue-300' :
-                                  'bg-gray-600/30'
-                                }`}>
-                                  {p.estado || 'en_espera'}
-                                </span>
-                              </div>
-                              {/* Botón individual para platos reversibles */}
-                              {reversible && (
-                                <button
-                                  onClick={() => handleRevertirPlato(comanda._id, platoId, plato.nombre || 'Plato')}
-                                  disabled={loading}
-                                  className="px-3 py-1 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded flex items-center gap-1"
-                                >
-                                  <FaUndo /> Revertir
-                                </button>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Mostrar platos eliminados (solo lectura, no reversibles) */}
-                  {platosEliminados.length > 0 && (
-                    <div className={`text-sm ${textSecondary} mt-3 pt-3 border-t ${borderModal}`}>
-                      <strong className="flex items-center gap-2">
-                        <FaTrash className="text-red-400" /> Platos eliminados (no reversibles):
-                      </strong>
-                      <ul className="list-none mt-2 space-y-1">
-                        {platosEliminados.map((p, idx) => {
-                          const plato = p.plato || p;
-                          const cantidad = comanda.cantidades?.[idx] || 1;
-                          return (
-                            <li key={`elim-${idx}`} className="flex items-center gap-2 py-1 px-2 rounded bg-red-900/20 line-through opacity-60">
-                              <FaTrash className="text-red-400 text-xs" />
-                              {cantidad}x {plato.nombre || "Sin nombre"}
-                              <span className="text-xs text-red-400">(eliminado)</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Platos eliminados */}
+                    {platosEliminados.length > 0 && (
+                      <div className={`text-sm ${textSecondary} mt-3 pt-3 border-t ${borderModal}`}>
+                        <strong className="flex items-center gap-2">
+                          <FaTrash className="text-red-400" /> Platos eliminados:
+                        </strong>
+                        <ul className="list-none mt-2 space-y-1">
+                          {platosEliminados.map((p, idx) => {
+                            const plato = p.plato || p;
+                            const cantidad = comanda.cantidades?.[idx] || 1;
+                            return (
+                              <li key={`elim-${idx}`} className="flex items-center gap-2 py-1 px-2 rounded bg-red-900/20 line-through opacity-60">
+                                <FaTrash className="text-red-400 text-xs" />
+                                {cantidad}x {plato.nombre || "Sin nombre"}
+                                <span className="text-xs text-red-400">(eliminado)</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={onClose}
-            className={`px-6 py-3 ${buttonBg} text-white font-bold rounded-lg transition-colors`}
-          >
-            Cerrar
-          </button>
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={onClose}
+              className={`px-6 py-3 ${buttonBg} text-white font-bold rounded-lg transition-colors`}
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Modal de confirmación con motivo */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60]">
+          <div className={`${bgModal} rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border-2 border-orange-500`}>
+            <div className="flex items-center gap-3 mb-4">
+              <FaExclamationTriangle className="text-orange-500 text-2xl" />
+              <h3 className={`text-xl font-bold ${textModal}`}>Confirmar Reversión</h3>
+            </div>
+            
+            <p className={`${textTertiary} mb-4`}>
+              Esta acción revertirá {
+                revertirType === 'plato' ? 'el plato seleccionado' :
+                revertirType === 'seleccionados' ? `${platosSeleccionados.size} platos` :
+                'toda la comanda'
+              } a estado "EN PREPARACIÓN".
+            </p>
+            
+            <div className="mb-4">
+              <label className={`block text-sm font-semibold ${textModal} mb-2`}>
+                Motivo de la reversión <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Ej: Error en la preparación, Cliente solicitó cambio..."
+                className={`w-full p-3 rounded-lg ${inputBg} ${textModal} border ${borderModal} focus:border-orange-500 focus:outline-none resize-none`}
+                rows={3}
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className={`px-4 py-2 ${buttonBg} text-white font-semibold rounded-lg`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={ejecutarReversion}
+                disabled={!motivo.trim() || loading}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-semibold rounded-lg flex items-center gap-2"
+              >
+                {loading ? 'Procesando...' : 'Confirmar Reversión'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
