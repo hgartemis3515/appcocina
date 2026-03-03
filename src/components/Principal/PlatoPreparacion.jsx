@@ -4,11 +4,13 @@ import { motion } from 'framer-motion';
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
  * Un solo contenedor clickeable con stopPropagation; animaciones Framer Motion por estado.
+ * 🔥 CORREGIDO: Ahora usa platoIndex en lugar de platoId para el endpoint de anulación
  */
 const PlatoPreparacion = ({
   plato,
   comandaId,
   platoId,
+  platoIndex, // 🔥 NUEVO: Índice del plato en el array (necesario para anulación)
   cantidad,
   nombre,
   estadoVisual,
@@ -20,8 +22,8 @@ const PlatoPreparacion = ({
   const handleClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!isEliminado && onToggle) {
-      onToggle(comandaId, platoId);
+    if (!isEliminado && onToggle && platoIndex !== undefined) {
+      onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
     }
   };
 
@@ -123,10 +125,10 @@ const PlatoPreparacion = ({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && !isEliminado && onToggle) {
+        if ((e.key === 'Enter' || e.key === ' ') && !isEliminado && onToggle && platoIndex !== undefined) {
           e.stopPropagation();
           e.preventDefault();
-          onToggle(comandaId, platoId);
+          onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
         }
       }}
       className={`font-semibold leading-tight px-3 py-2 rounded-lg flex items-start gap-3 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}

@@ -69,6 +69,11 @@ const ComandaStyle = () => {
   const [showConfig, setShowConfig] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showRevertir, setShowRevertir] = useState(false);
+  // 🔥 NUEVO: Estado para modal de anular plato
+  const [showAnularModal, setShowAnularModal] = useState(false);
+  const [anularMotivo, setAnularMotivo] = useState('');
+  const [anularObservaciones, setAnularObservaciones] = useState('');
+  const [anularLoading, setAnularLoading] = useState(false);
   const [expandedComandas, setExpandedComandas] = useState(new Set());
   const [horaActual, setHoraActual] = useState(moment().tz("America/Lima"));
   const [fechaActual, setFechaActual] = useState(moment().tz("America/Lima"));
@@ -1062,8 +1067,9 @@ const ComandaStyle = () => {
   };
 
   // Toggle checkbox de plato individual - Ciclo 3 estados: Normal → Procesando → Seleccionado → Normal
-  const togglePlatoCheck = useCallback((comandaId, platoId) => {
-    const key = `${comandaId}-${platoId}`;
+  const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
+    // 🔥 CORREGIDO: Usar índice del plato en lugar de ID
+    const key = `${comandaId}-${platoIndex}`;
     
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
@@ -1655,6 +1661,128 @@ const ComandaStyle = () => {
     }
   };
 
+  // 🔥 NUEVO: Función para anular plato individual desde cocina
+  const handleAnularPlato = useCallback(async () => {
+    if (selectedOrders.size !== 1) {
+      alert('Seleccione una sola comanda para anular un plato');
+      return;
+    }
+    
+    const comandaId = Array.from(selectedOrders)[0];
+    const platosMarcados = [];
+    
+    platosChecked.forEach((checked, key) => {
+      if (checked) {
+        const [cid, platoIdx] = key.split('-');
+        if (cid === comandaId) {
+          platosMarcados.push(parseInt(platoIdx));
+        }
+      }
+    });
+    
+    if (platosMarcados.length === 0) {
+      alert('Seleccione al menos un plato para anular');
+      return;
+    }
+    
+    if (!anularMotivo) {
+      alert('Seleccione un motivo de anulación');
+      return;
+    }
+    
+    setAnularLoading(true);
+    
+    try {
+      // Anular cada plato marcado
+      for (const platoIndex of platosMarcados) {
+        await axios.put(
+          `${getApiUrl()}/${comandaId}/anular-plato/${platoIndex}`,
+          {
+            motivo: anularMotivo,
+            observaciones: anularObservaciones,
+            sourceApp: 'cocina'
+          }
+        );
+      }
+      
+      // Limpiar estados
+      setAnularMotivo('');
+      setAnularObservaciones('');
+      setShowAnularModal(false);
+      setPlatosChecked(new Map());
+      setSelectedOrders(new Set());
+      
+      // Refrescar comandas
+      obtenerComandas();
+      
+      console.log(`✅ ${platosMarcados.length} plato(s) anulado(s) correctamente`);
+      
+    } catch (error) {
+      console.error('Error al anular plato:', error);
+      alert(error.response?.data?.message || 'Error al anular el plato');
+    } finally {
+      setAnularLoading(false);
+    }
+  }, [selectedOrders, platosChecked, anularMotivo, anularObservaciones, obtenerComandas]);
+
+  // 🔥 NUEVO: Función para anular toda la comanda
+  const handleAnularComandaCompleta = useCallback(async () => {
+    if (selectedOrders.size !== 1) {
+      alert('Seleccione una sola comanda para anular');
+      return;
+    }
+    
+    if (!anularMotivo) {
+      alert('Seleccione un motivo de anulación');
+      return;
+    }
+    
+    const comandaId = Array.from(selectedOrders)[0];
+    const comanda = comandas.find(c => c._id === comandaId);
+    
+    if (!comanda) {
+      alert('Comanda no encontrada');
+      return;
+    }
+    
+    const confirmar = window.confirm(
+      `¿Está seguro de anular TODA la comanda #${comanda.comandaNumber}?\n` +
+      `Esto anulará todos los platos y la comanda pasará a estado CANCELADO.`
+    );
+    
+    if (!confirmar) return;
+    
+    setAnularLoading(true);
+    
+    try {
+      await axios.put(
+        `${getApiUrl()}/${comandaId}/anular-todo`,
+        {
+          motivo: anularMotivo,
+          observaciones: anularObservaciones,
+          sourceApp: 'cocina'
+        }
+      );
+      
+      // Limpiar estados
+      setAnularMotivo('');
+      setAnularObservaciones('');
+      setShowAnularModal(false);
+      setSelectedOrders(new Set());
+      
+      // Refrescar comandas
+      obtenerComandas();
+      
+      console.log(`✅ Comanda #${comanda.comandaNumber} anulada completamente`);
+      
+    } catch (error) {
+      console.error('Error al anular comanda:', error);
+      alert(error.response?.data?.message || 'Error al anular la comanda');
+    } finally {
+      setAnularLoading(false);
+    }
+  }, [selectedOrders, anularMotivo, anularObservaciones, comandas, obtenerComandas]);
+
   // REGLA COCINA: Esta función fue eliminada - Cocina nunca maneja 'entregado' (exclusivo de mozos)
   // La función marcarEntregadas ya no existe en cocina
 
@@ -2023,6 +2151,32 @@ const ComandaStyle = () => {
                   );
                 })()}
 
+                {/* 🔥 NUEVO: Botón ANULAR - Anular platos desde cocina */}
+                {(() => {
+                  const platosMarcados = getTotalPlatosMarcados();
+                  const hasSelection = selectedOrders.size === 1;
+                  const comandaSeleccionada = hasSelection 
+                    ? comandas.find(c => c._id === Array.from(selectedOrders)[0])
+                    : null;
+                  const platosAnuladosEnComanda = comandaSeleccionada?.platos?.filter(p => p.anulado).length || 0;
+                  
+                  return (
+                    <motion.button
+                      onClick={() => setShowAnularModal(true)}
+                      disabled={!hasSelection}
+                      className={`px-4 py-2 font-semibold rounded-lg text-sm shadow-md flex items-center gap-1 ${
+                        hasSelection
+                          ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                          : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                      }`}
+                      whileHover={hasSelection ? { scale: 1.05 } : {}}
+                      whileTap={hasSelection ? { scale: 0.95 } : {}}
+                    >
+                      ❌ ANULAR{platosMarcados > 0 ? ` (${platosMarcados})` : ''}
+                    </motion.button>
+                  );
+                })()}
+
                 {/* PARRAFO 2 - BOTÓN TOOLBAR v5.5: 🚀 Prioridad Alta - Toggle según estado actual */}
                 {(() => {
                   const userRole = localStorage.getItem('userRole') || 'cocina';
@@ -2123,6 +2277,144 @@ const ComandaStyle = () => {
           onRevertir={obtenerComandas}
         />
       )}
+
+      {/* 🔥 NUEVO: Modal de Anulación desde Cocina */}
+      <AnimatePresence>
+        {showAnularModal && (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowAnularModal(false)}
+          >
+            <motion.div 
+              className={`${nightMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border ${borderMain}`}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className={`text-xl font-bold ${textMain} mb-4 flex items-center gap-2`}>
+                ❌ Anular Plato(s) desde Cocina
+              </h2>
+              
+              {/* Motivo de anulación */}
+              <div className="mb-4">
+                <label className={`block text-sm font-medium ${textSecondary} mb-2`}>
+                  Motivo de anulación *
+                </label>
+                <select
+                  value={anularMotivo}
+                  onChange={(e) => setAnularMotivo(e.target.value)}
+                  className={`w-full p-3 rounded-lg border ${nightMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                >
+                  <option value="">Seleccione un motivo...</option>
+                  <option value="producto_roto">Producto roto/deteriorado</option>
+                  <option value="insumo_agotado">Insumo agotado</option>
+                  <option value="error_preparacion">Error de preparación</option>
+                  <option value="cliente_cancelo">Cliente canceló el pedido</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              
+              {/* Observaciones */}
+              <div className="mb-6">
+                <label className={`block text-sm font-medium ${textSecondary} mb-2`}>
+                  Observaciones (opcional)
+                </label>
+                <textarea
+                  value={anularObservaciones}
+                  onChange={(e) => setAnularObservaciones(e.target.value)}
+                  placeholder="Detalles adicionales..."
+                  maxLength={200}
+                  rows={3}
+                  className={`w-full p-3 rounded-lg border ${nightMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
+                />
+                <p className={`text-xs ${textSecondary} mt-1`}>
+                  {anularObservaciones.length}/200 caracteres
+                </p>
+              </div>
+              
+              {/* Resumen de platos a anular */}
+              {(() => {
+                const platosMarcados = [];
+                platosChecked.forEach((checked, key) => {
+                  if (checked && selectedOrders.size === 1) {
+                    const comandaId = Array.from(selectedOrders)[0];
+                    const [cid, platoIdx] = key.split('-');
+                    if (cid === comandaId) {
+                      const comanda = comandas.find(c => c._id === comandaId);
+                      const plato = comanda?.platos?.[parseInt(platoIdx)];
+                      if (plato) {
+                        platosMarcados.push({
+                          nombre: plato.plato?.nombre || 'Sin nombre',
+                          cantidad: comanda?.cantidades?.[parseInt(platoIdx)] || 1
+                        });
+                      }
+                    }
+                  }
+                });
+                
+                if (platosMarcados.length > 0) {
+                  return (
+                    <div className={`mb-4 p-3 rounded-lg ${nightMode ? 'bg-orange-900/30' : 'bg-orange-50'}`}>
+                      <p className={`text-sm font-medium ${nightMode ? 'text-orange-300' : 'text-orange-700'} mb-2`}>
+                        Platos seleccionados para anular:
+                      </p>
+                      <ul className={`text-sm ${nightMode ? 'text-orange-200' : 'text-orange-800'}`}>
+                        {platosMarcados.map((p, i) => (
+                          <li key={i}>• {p.cantidad}x {p.nombre}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
+              {/* Botones */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAnularPlato}
+                  disabled={!anularMotivo || anularLoading}
+                  className={`flex-1 font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95 ${
+                    anularMotivo && !anularLoading
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  {anularLoading ? 'Procesando...' : 'Anular Plato(s)'}
+                </button>
+                <button
+                  onClick={handleAnularComandaCompleta}
+                  disabled={!anularMotivo || anularLoading}
+                  className={`flex-1 font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95 ${
+                    anularMotivo && !anularLoading
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  {anularLoading ? 'Procesando...' : 'Anular Toda la Comanda'}
+                </button>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowAnularModal(false);
+                  setAnularMotivo('');
+                  setAnularObservaciones('');
+                }}
+                className={`w-full mt-3 py-2 px-4 rounded-lg ${nightMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} font-medium transition-colors`}
+              >
+                Cancelar
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de confirmación ENTREGADO - Mejorado con Framer Motion */}
       <AnimatePresence>
@@ -2368,11 +2660,12 @@ const SicarComandaCard = ({
 
 
   // Agrupar platos en dos secciones: EN PREPARACIÓN y PLATOS LISTOS
-  const { platosPreparacion, platosListos, totalPlatos } = React.useMemo(() => {
+  // 🔥 NUEVO: También filtrar platos anulados
+  const { platosPreparacion, platosListos, platosAnulados, totalPlatos } = React.useMemo(() => {
     const platosConNombre = (comanda.platos || []).filter(p => {
       const platoObj = p.plato || p;
       const nombre = platoObj?.nombre || p?.nombre;
-      return nombre && nombre.trim().length > 0 && !p.eliminado;
+      return nombre && nombre.trim().length > 0 && !p.eliminado && !p.anulado;
     });
 
     const preparacion = platosConNombre.filter(p => {
@@ -2386,9 +2679,15 @@ const SicarComandaCard = ({
       return estado === "recoger";
     });
 
+    // 🔥 NUEVO: Platos anulados desde cocina
+    const anulados = (comanda.platos || []).filter(p => {
+      return p.anulado === true;
+    });
+
     return {
       platosPreparacion: preparacion,
       platosListos: listos,
+      platosAnulados: anulados,
       totalPlatos: platosConNombre.length
     };
   }, [comanda.platos]);
@@ -2619,7 +2918,9 @@ const SicarComandaCard = ({
                   const platoObj = plato.plato || plato;
                   const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
                   const platoId = platoObj?._id || plato._id || index;
-                  const platoKey = `${comandaId}-${platoId}`;
+                  // 🔥 CORREGIDO: Obtener el índice real del plato en comanda.platos
+                  const platoIndex = comanda.platos.indexOf(plato);
+                  const platoKey = `${comandaId}-${platoIndex}`;
                   const estadoVisual = platoStates.get(platoKey) || 'normal';
                   return (
                     <PlatoPreparacion
@@ -2627,6 +2928,7 @@ const SicarComandaCard = ({
                       plato={plato}
                       comandaId={comandaId}
                       platoId={platoId}
+                      platoIndex={platoIndex}
                       cantidad={cantidad}
                       nombre={platoObj?.nombre || plato?.nombre || 'Sin nombre'}
                       estadoVisual={estadoVisual}
@@ -2654,6 +2956,32 @@ const SicarComandaCard = ({
                       <span className="flex-1">{platoEliminado.cantidad} {platoEliminado.nombre}</span>
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/30 text-red-400 border border-red-500/50">
                         🔴 {nombreMozo}{timestamp ? ` ${timestamp}` : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+                {/* 🔥 NUEVO: Platos anulados desde cocina */}
+                {platosAnulados.map((plato, index) => {
+                  const platoObj = plato.plato || plato;
+                  const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
+                  const nombre = platoObj?.nombre || 'Plato desconocido';
+                  const timestamp = plato.anuladoAt ? moment(plato.anuladoAt).tz("America/Lima").format('HH:mm') : '';
+                  const motivo = plato.anuladoRazon || plato.tipoAnulacion || 'Sin motivo';
+                  const tipoAnulacion = plato.tipoAnulacion || '';
+                  const tooltipText = `Anulado por Cocina - ${motivo}${timestamp ? ` a las ${timestamp}` : ''}`;
+                  return (
+                    <div
+                      key={`anulado-${plato.platoId}-${index}`}
+                      className="font-semibold leading-tight px-3 py-2 rounded-lg flex items-center gap-3 bg-orange-500/15 text-orange-400 line-through opacity-60 cursor-not-allowed"
+                      style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px' }}
+                      title={tooltipText}
+                    >
+                      <div className="w-8 h-8 border-2 rounded flex items-center justify-center bg-gray-800 border-orange-500/50 opacity-50 flex-shrink-0">
+                        <span className="text-orange-500 text-xs">❌</span>
+                      </div>
+                      <span className="flex-1">{cantidad} {nombre}</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/30 text-orange-400 border border-orange-500/50">
+                        ❌ ANULADO{timestamp ? ` ${timestamp}` : ''}
                       </span>
                     </div>
                   );

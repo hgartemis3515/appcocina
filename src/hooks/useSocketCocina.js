@@ -10,6 +10,8 @@ import { getServerBaseUrl } from '../config/apiConfig';
  * @param {Function} onComandaActualizada - Callback cuando se actualiza una comanda
  * @param {Function} onPlatoActualizado - Callback cuando se actualiza un plato
  * @param {Function} onPlatoCanceladoUrgente - Callback cuando mozos eliminan plato ya listo (recoger): { comandaNumber, platos: [{ nombre, motivo }], motivo }
+ * @param {Function} onPlatoAnulado - Callback cuando cocina anula un plato
+ * @param {Function} onComandaAnulada - Callback cuando cocina anula toda la comanda
  * @param {Function} obtenerComandas - Función para obtener comandas iniciales
  * @returns {Object} { socket, connected, connectionStatus }
  */
@@ -18,6 +20,8 @@ const useSocketCocina = ({
   onComandaActualizada,
   onPlatoActualizado,
   onPlatoCanceladoUrgente,
+  onPlatoAnulado,
+  onComandaAnulada,
   obtenerComandas
 }) => {
   const [connected, setConnected] = useState(false);
@@ -205,6 +209,51 @@ const useSocketCocina = ({
         });
       } else if (obtenerComandas) {
         // Si no hay callback específico, refrescar todas las comandas
+        obtenerComandas();
+      }
+    });
+
+    // 🔥 NUEVO: Evento de plato anulado por cocina
+    socket.on('plato-anulado', (data) => {
+      console.log('❌ Plato anulado recibido:', data.platoAnulado?.nombre, 'Comanda:', data.comandaId);
+      console.log('   Motivo:', data.platoAnulado?.motivo, 'Estado al anular:', data.platoAnulado?.estadoAlAnular);
+      ultimoPingRef.current = Date.now();
+      
+      if (onPlatoAnulado && data.comanda) {
+        onPlatoAnulado(data);
+      } else if (onComandaActualizada && data.comanda) {
+        // Fallback: usar el callback de comanda actualizada
+        onComandaActualizada({
+          comanda: data.comanda,
+          platoAnulado: data.platoAnulado,
+          auditoria: data.auditoria,
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
+    // 🔥 NUEVO: Evento de comanda completamente anulada por cocina
+    socket.on('comanda-anulada', (data) => {
+      console.log('❌ Comanda anulada completamente:', data.comandaNumber);
+      console.log('   Total anulado:', data.totalAnulado, 'Platos:', data.platosAnulados?.length);
+      console.log('   Motivo:', data.motivoGeneral);
+      ultimoPingRef.current = Date.now();
+      
+      if (onComandaAnulada && data.comanda) {
+        onComandaAnulada(data);
+      } else if (onComandaActualizada && data.comanda) {
+        // Fallback: usar el callback de comanda actualizada
+        onComandaActualizada({
+          comanda: data.comanda,
+          anulada: true,
+          platosAnulados: data.platosAnulados,
+          totalAnulado: data.totalAnulado,
+          motivoGeneral: data.motivoGeneral,
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
         obtenerComandas();
       }
     });
