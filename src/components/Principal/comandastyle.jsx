@@ -2135,19 +2135,15 @@ const ComandaStyle = () => {
 
                 {/* 3. Botón REVERTIR v5.5 - Texto dinámico con conteo de platos en RECOGER */}
                 {(() => {
-                  // Solo platos en estado RECOGER (no entregado), últimos 30min, NO eliminados
-                  const ahora = moment().tz("America/Lima");
+                  // Solo platos en estado RECOGER - SIN límite de tiempo
                   const platosReversibles = comandas.flatMap(c => 
                     (c.platos || [])
                       .filter(p => {
                         // EXCLUIR platos eliminados
                         if (p.eliminado === true) return false;
                         const estado = p.estado || 'en_espera';
-                        // SOLO platos en estado 'recoger' son reversibles
-                        if (estado !== 'recoger') return false;
-                        const tiempo = p.tiempos?.[estado] || c.updatedAt || c.createdAt;
-                        const diffMin = ahora.diff(moment(tiempo), 'minutes');
-                        return diffMin <= 30;
+                        // SOLO platos en estado 'recoger' son reversibles - SIN límite de tiempo
+                        return estado === 'recoger';
                       })
                       .map(p => ({
                         comandaId: c._id,
