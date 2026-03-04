@@ -2544,13 +2544,21 @@ const SicarComandaCard = ({
   togglePlatoCheck = () => {}
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
+  // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
   const platosEliminadosHistorial = React.useMemo(() => {
     if (!comanda.historialPlatos || !Array.isArray(comanda.historialPlatos)) {
       return [];
     }
     
+    // Obtener IDs de platos anulados para excluirlos de la lista de eliminados
+    const platosAnuladosIds = new Set(
+      (comanda.platos || [])
+        .filter(p => p.anulado === true)
+        .map(p => p.platoId?.toString())
+    );
+    
     return comanda.historialPlatos
-      .filter(h => h.estado === 'eliminado')
+      .filter(h => h.estado === 'eliminado' && !platosAnuladosIds.has(h.platoId?.toString()))
       .map(h => {
         // Intentar obtener el nombre desde diferentes fuentes
         let nombre = h.nombreOriginal;
@@ -2592,7 +2600,7 @@ const SicarComandaCard = ({
           necesitaBuscarNombre: !nombre || nombre.startsWith('Plato #')
         };
       });
-  }, [comanda.historialPlatos]);
+  }, [comanda.historialPlatos, comanda.platos]);
   
   // 🔥 AUDITORÍA: Buscar nombres faltantes desde la API si es necesario
   const [nombresPlatos, setNombresPlatos] = React.useState(new Map());
