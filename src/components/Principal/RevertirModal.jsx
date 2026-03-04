@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
-import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaExclamationTriangle } from "react-icons/fa";
+import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaBan, FaExclamationTriangle } from "react-icons/fa";
 import { getApiUrl } from "../../config/apiConfig";
 
 const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
@@ -35,14 +35,19 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
         
         // INCLUIR: comandas con platos en estado RECOGER
         // EXCLUIR: comandas con status "pagado" (nunca se revierten)
+        // EXCLUIR: platos ANULADOS (anulado: true) - irreversibles desde cocina
         // SIN LÍMITE DE TIEMPO - cualquier plato en recoger es reversible
         const comandasParaRevertir = response.data.filter(c => {
           if (c.status === "pagado") return false;
           if (!c.platos || c.platos.length === 0) return false;
           
-          // Verificar si tiene al menos un plato en estado RECOGER (no eliminado)
+          // Verificar si tiene al menos un plato REVERSIBLE en estado RECOGER
+          // Plato reversible = eliminado !== true AND anulado !== true AND estado === 'recoger'
           const tienePlatosReversibles = c.platos.some(p => {
+            // EXCLUIR platos eliminados (soft delete técnico)
             if (p.eliminado === true) return false;
+            // EXCLUIR platos anulados (acción de mozo - IRREVERSIBLE)
+            if (p.anulado === true) return false;
             const estado = p.estado || 'en_espera';
             return estado === 'recoger';
           });
@@ -215,9 +220,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       );
     }
     
-    // Revertir cada plato con motivo (backend registra auditoría)
+    // Revertir cada plato REVERSIBLE (excluir eliminados y anulados)
     const platosARevertir = (comanda.platos || []).filter(p => 
-      p.eliminado !== true && p.estado === "recoger"
+      p.eliminado !== true && p.anulado !== true && p.estado === "recoger"
     );
     
     for (const plato of platosARevertir) {
@@ -246,7 +251,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       if (c.status === "pagado") return false;
       if (!c.platos || c.platos.length === 0) return false;
       const tienePlatosReversibles = c.platos.some(p => {
+        // EXCLUIR eliminados Y anulados
         if (p.eliminado === true) return false;
+        if (p.anulado === true) return false;
         const estado = p.estado || 'en_espera';
         return estado === 'recoger';
       });
@@ -271,17 +278,32 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     return moment(fecha).tz("America/Lima").format("DD/MM/YYYY HH:mm");
   };
 
-  // Platos en RECOGER son reversibles - SIN LÍMITE DE TIEMPO
+  // FUNCIONES DE CLASIFICACIÓN DE PLATOS
+
+  // Plato reversible: en estado 'recoger', NO eliminado, NO anulado
   const esPlatoReversible = (plato) => {
     if (plato.eliminado === true) return false;
+    if (plato.anulado === true) return false;
     const estado = plato.estado || 'en_espera';
-    // Solo permitir revertir platos en estado 'recoger' - SIN límite de tiempo
     return estado === 'recoger';
   };
 
+  // Plato anulado: acción irreversible de mozo
+  const esPlatoAnulado = (plato) => {
+    return plato.anulado === true;
+  };
+
+  // Plato eliminado: soft delete técnico (reversible)
+  const esPlatoEliminado = (plato) => {
+    return plato.eliminado === true && plato.anulado !== true;
+  };
+
   // Determinar si TODOS los platos activos están en recoger (para mostrar "Revertir Todo")
+  // Excluyendo eliminados y anulados
   const todosPlatosEnRecoger = (comanda) => {
-    const platosActivos = (comanda.platos || []).filter(p => p.eliminado !== true);
+    const platosActivos = (comanda.platos || []).filter(p => 
+      p.eliminado !== true && p.anulado !== true
+    );
     if (platosActivos.length === 0) return false;
     return platosActivos.every(p => p.estado === 'recoger');
   };
@@ -305,7 +327,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
             <p className={`text-sm ${textTertiary}`}>
               <strong>📌 Solo se pueden revertir platos en estado "RECOGER"</strong>
               <br />
-              Los platos "ENTREGADO" no se pueden revertir desde cocina. Todas las reversiones quedan registradas en auditoría con el motivo.
+              <span className="text-red-400">🚫 Los platos ANULADOS por mozos NO se pueden revertir desde cocina.</span>
+              <br />
+              Todas las reversiones quedan registradas en auditoría con el motivo.
             </p>
           </div>
 
@@ -339,14 +363,22 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
           ) : comandasFinalizadas.length === 0 ? (
             <div className={`text-center ${textSecondary} py-8`}>
               <p className="text-xl">No hay platos en "RECOGER" para revertir</p>
-              <p className="text-sm mt-2">Se muestran platos en estado "recoger" de las últimas 24 horas</p>
+              <p className="text-sm mt-2">Se muestran platos en estado "recoger" (excluyendo anulados) de las últimas 24 horas</p>
             </div>
           ) : (
             <div className="space-y-3">
               {comandasFinalizadas.map((comanda) => {
-                const platosMostrar = (comanda.platos || []).filter(p => p.eliminado !== true);
-                const platosEliminados = (comanda.platos || []).filter(p => p.eliminado === true);
-                const platosReversibles = platosMostrar.filter(p => esPlatoReversible(p));
+                // Clasificar platos correctamente
+                const platosActivos = (comanda.platos || []).filter(p => 
+                  p.eliminado !== true && p.anulado !== true
+                );
+                const platosEliminados = (comanda.platos || []).filter(p => 
+                  p.eliminado === true && p.anulado !== true
+                );
+                const platosAnulados = (comanda.platos || []).filter(p => 
+                  p.anulado === true
+                );
+                const platosReversibles = platosActivos.filter(p => esPlatoReversible(p));
                 const esComandaActiva = comanda.status === "en_espera";
                 const puedeRevertirTodo = todosPlatosEnRecoger(comanda) && !esComandaActiva;
                 
@@ -375,7 +407,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        {/* Solo mostrar "Revertir Todo" si TODOS los platos están en recoger y NO es activa */}
+                        {/* Solo mostrar "Revertir Todo" si TODOS los platos activos están en recoger */}
                         {puedeRevertirTodo && (
                           <button
                             onClick={() => openConfirmModal('todo', { comandaId: comanda._id, comandaStatus: comanda.status })}
@@ -388,12 +420,12 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                       </div>
                     </div>
                     
-                    {/* Lista de platos */}
-                    {platosMostrar.length > 0 && (
+                    {/* Lista de platos activos */}
+                    {platosActivos.length > 0 && (
                       <div className={`text-sm ${textTertiary}`}>
                         <strong>Platos (solo RECOGER es reversible):</strong>
                         <ul className="list-none mt-2 space-y-1">
-                          {platosMostrar.map((p, idx) => {
+                          {platosActivos.map((p, idx) => {
                             const plato = p.plato || p;
                             const platoId = plato._id || p._id || p.platoId;
                             const cantidad = comanda.cantidades?.[idx] || 1;
@@ -447,21 +479,54 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                       </div>
                     )}
                     
-                    {/* Platos eliminados */}
+                    {/* Platos ELIMINADOS (reversibles técnicamente, pero no mostramos aquí) */}
                     {platosEliminados.length > 0 && (
                       <div className={`text-sm ${textSecondary} mt-3 pt-3 border-t ${borderModal}`}>
-                        <strong className="flex items-center gap-2">
-                          <FaTrash className="text-red-400" /> Platos eliminados:
+                        <strong className="flex items-center gap-2 text-gray-400">
+                          <FaTrash className="text-gray-500" /> Platos eliminados (no reversibles desde cocina):
                         </strong>
                         <ul className="list-none mt-2 space-y-1">
                           {platosEliminados.map((p, idx) => {
                             const plato = p.plato || p;
                             const cantidad = comanda.cantidades?.[idx] || 1;
                             return (
-                              <li key={`elim-${idx}`} className="flex items-center gap-2 py-1 px-2 rounded bg-red-900/20 line-through opacity-60">
-                                <FaTrash className="text-red-400 text-xs" />
+                              <li key={`elim-${idx}`} className="flex items-center gap-2 py-1 px-2 rounded bg-gray-700/30 line-through opacity-50">
+                                <FaTrash className="text-gray-500 text-xs" />
                                 {cantidad}x {plato.nombre || "Sin nombre"}
-                                <span className="text-xs text-red-400">(eliminado)</span>
+                                <span className="text-xs text-gray-500">(eliminado)</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Platos ANULADOS (IRREVERSIBLES - destacar visualmente) */}
+                    {platosAnulados.length > 0 && (
+                      <div className={`text-sm mt-3 pt-3 border-t border-red-500/30`}>
+                        <strong className="flex items-center gap-2 text-red-400">
+                          <FaBan className="text-red-500" /> Platos ANULADOS (irreversibles):
+                        </strong>
+                        <p className="text-xs text-red-400/70 mt-1 mb-2">
+                          ⚠️ Estos platos fueron anulados por mozo y no pueden revertirse desde cocina.
+                        </p>
+                        <ul className="list-none space-y-1">
+                          {platosAnulados.map((p, idx) => {
+                            const plato = p.plato || p;
+                            const cantidad = comanda.cantidades?.[idx] || 1;
+                            const motivoAnulacion = p.anuladoRazon || p.motivoAnulacion || p.tipoAnulacion || 'Sin motivo';
+                            const anuladoPor = p.anuladoPor?.name || p.anuladoPor?.nombre || 'Mozo';
+                            
+                            return (
+                              <li key={`anulado-${idx}`} className="flex items-center gap-2 py-2 px-2 rounded bg-red-900/20 border border-red-500/20">
+                                <FaBan className="text-red-500 text-sm" />
+                                <span className="line-through text-red-400/80">{cantidad}x {plato.nombre || "Sin nombre"}</span>
+                                <span className="text-xs px-2 py-0.5 rounded bg-red-600/40 text-red-300 font-semibold">
+                                  ANULADO
+                                </span>
+                                <span className="text-xs text-red-400/60 ml-auto">
+                                  Por: {anuladoPor} | {motivoAnulacion}
+                                </span>
                               </li>
                             );
                           })}

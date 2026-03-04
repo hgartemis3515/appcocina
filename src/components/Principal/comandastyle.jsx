@@ -2136,13 +2136,16 @@ const ComandaStyle = () => {
                 {/* 3. Botón REVERTIR v5.5 - Texto dinámico con conteo de platos en RECOGER */}
                 {(() => {
                   // Solo platos en estado RECOGER - SIN límite de tiempo
+                  // EXCLUIR platos eliminados y ANULADOS (irreversibles desde cocina)
                   const platosReversibles = comandas.flatMap(c => 
                     (c.platos || [])
                       .filter(p => {
-                        // EXCLUIR platos eliminados
+                        // EXCLUIR platos eliminados (soft delete técnico)
                         if (p.eliminado === true) return false;
+                        // EXCLUIR platos ANULADOS (acción de mozo - IRREVERSIBLE)
+                        if (p.anulado === true) return false;
                         const estado = p.estado || 'en_espera';
-                        // SOLO platos en estado 'recoger' son reversibles - SIN límite de tiempo
+                        // SOLO platos en estado 'recoger' son reversibles
                         return estado === 'recoger';
                       })
                       .map(p => ({
