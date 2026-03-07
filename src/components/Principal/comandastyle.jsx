@@ -159,12 +159,19 @@ const ComandaStyle = () => {
   const obtenerComandas = useCallback(async () => {
     try {
       const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
-      const apiUrl = `${getApiUrl()}/fechastatus/${fechaActual}`;
+      // 🚀 FASE A1: Usar endpoint optimizado para cocina
+      const apiUrl = `${getApiUrl()}/cocina/${fechaActual}`;
       
-      console.log('🔍 Obteniendo comandas desde:', apiUrl);
+      console.log('🔍 [FASE A1] Obteniendo comandas desde endpoint optimizado:', apiUrl);
       console.log('📅 Fecha buscada:', fechaActual);
       
+      const startTime = Date.now();
       const response = await axios.get(apiUrl, { timeout: 5000 });
+      const elapsedMs = Date.now() - startTime;
+      
+      // Log del tiempo de respuesta (el backend también lo envía en header)
+      const serverTime = response.headers['x-response-time'];
+      console.log(`✅ [FASE A1] Respuesta recibida en ${elapsedMs}ms (servidor: ${serverTime || 'N/A'})`);
       
       // VALIDACIÓN CRÍTICA: Filtrar comandas que tienen platos sin nombre cargado Y comandas eliminadas
       const comandasValidas = response.data.filter(c => {
@@ -179,8 +186,8 @@ const ComandaStyle = () => {
         
         // Verificar que TODOS los platos tengan nombre cargado completamente
         const todosPlatosConNombre = c.platos.every(plato => {
-          const platoObj = plato.plato || plato;
-          const nombre = platoObj?.nombre || plato?.nombre;
+          // 🚀 FASE A1: Usar campos desnormalizados si están disponibles
+          const nombre = plato.plato?.nombre || plato.nombre;
           return nombre && nombre.trim().length > 0;
         });
         
@@ -193,7 +200,7 @@ const ComandaStyle = () => {
       });
       
       console.log('✅ Comandas recibidas:', response.data.length);
-      console.log(`✅ Comandas válidas (con nombres cargados): ${comandasValidas.length}`);
+      console.log(`✅ Comandas válidas: ${comandasValidas.length}`);
       
       if (comandasValidas.length > 0) {
         console.log('📋 Primera comanda válida:', {
@@ -949,12 +956,13 @@ const ComandaStyle = () => {
           for (const plato of comanda.platos) {
             if (plato.estado === "en_espera" || plato.estado === "ingresante") {
               try {
+                // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
                 await axios.put(
-                  `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+                  `${getApiUrl()}/${comandaId}/plato/${plato._id || plato.plato?._id}/estado`,
                   { nuevoEstado: "recoger" }
                 );
               } catch (error) {
-                console.error(`Error actualizando plato ${plato.plato?._id || plato._id}:`, error);
+                console.error(`Error actualizando plato ${plato._id || plato.plato?._id}:`, error);
                 // Continuar con los demás platos aunque uno falle
               }
             }
@@ -1275,37 +1283,96 @@ const ComandaStyle = () => {
       platosParaProcesar.map(async ({ comandaId, platoId, platoIndex }) => {
         try {
           const comanda = comandas.find(c => c._id === comandaId);
-          if (!comanda) return { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' };
+          if (!comanda) {
+            console.error(`❌ [batchFinalizarPlatos] Comanda ${comandaId} no encontrada`);
+            return { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' };
+          }
           
           // Si tenemos platoIndex, usarlo; si no, buscar por platoId
           let plato;
           if (platoIndex !== undefined && comanda.platos?.[platoIndex]) {
             plato = comanda.platos[platoIndex];
           } else {
+            // 🔥 FIX: Buscar PRIORITARIAMENTE por _id del subdocumento (único)
             plato = comanda.platos?.find(p => {
-              const pId = p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString();
-              return pId === platoId;
+              const pId = p._id?.toString() || p.plato?._id?.toString() || p.platoId?.toString();
+              return pId === platoId?.toString();
             });
           }
           
-          if (!plato) return { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' };
+          if (!plato) {
+            console.error(`❌ [batchFinalizarPlatos] Plato ${platoId} no encontrado en comanda ${comandaId}`);
+            console.error(`   Platos disponibles:`, comanda.platos?.map(p => ({
+              _id: p._id?.toString(),
+              platoId: p.platoId,
+              estado: p.estado
+            })));
+            return { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' };
+          }
+          
+          // 🔥 FIX CRÍTICO: Priorizar SIEMPRE plato._id (subdocumento único)
+          // Esto es crucial cuando hay 2+ platos del mismo tipo con complementos diferentes
+          const platoIdFinal = plato._id?.toString() || plato.plato?._id?.toString() || platoId?.toString();
+          
+          if (!platoIdFinal) {
+            console.error(`❌ [batchFinalizarPlatos] No se pudo obtener ID del plato`);
+            return { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' };
+          }
+          
+          console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
           
           // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
-          const platoIdFinal = plato.plato?._id || plato._id || platoId;
-          await axios.put(
+          const response = await axios.put(
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
             { nuevoEstado: "recoger" }
           );
-          return { comandaId, platoId: platoIdFinal, platoIndex, exito: true };
+          
+          console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
+          return { 
+            comandaId, 
+            platoId: platoIdFinal, 
+            platoIndex, 
+            exito: true,
+            nombre: plato.plato?.nombre || plato.nombre || 'Plato'
+          };
         } catch (error) {
-          console.error(`❌ Error finalizando plato ${platoId}:`, error);
-          return { comandaId, platoId, platoIndex, exito: false, error: error.message };
+          // 🔥 FIX: Log detallado y mensaje de error específico
+          const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
+          console.error(`❌ [batchFinalizarPlatos] Error finalizando plato ${platoId}:`);
+          console.error(`   Error: ${errorMsg}`);
+          console.error(`   Status: ${error.response?.status}`);
+          console.error(`   Data:`, error.response?.data);
+          
+          // Obtener nombre del plato para el mensaje de error
+          const comanda = comandas.find(c => c._id === comandaId);
+          const platoNombre = comanda?.platos?.[platoIndex]?.plato?.nombre || 
+                              comanda?.platos?.find(p => p._id?.toString() === platoId?.toString())?.plato?.nombre ||
+                              `Plato ${platoIndex !== undefined ? `#${platoIndex + 1}` : platoId}`;
+          
+          return { 
+            comandaId, 
+            platoId, 
+            platoIndex, 
+            exito: false, 
+            error: errorMsg,
+            nombre: platoNombre
+          };
         }
       })
     );
 
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
     const fallidos = resultados.length - exitosos;
+    
+    // 🔥 FIX: Mostrar Toast específico por cada plato fallido
+    resultados.forEach(result => {
+      if (result.status === 'fulfilled' && !result.value.exito) {
+        const { nombre, error } = result.value;
+        console.error(`⚠️ Plato "${nombre}" falló: ${error}`);
+        // Aquí se podría agregar un toast.error si está disponible
+        // toast.error(`Plato "${nombre}": ${error}`);
+      }
+    });
 
     return { exitosos, fallidos, resultados };
   }, [comandas]);
@@ -1366,8 +1433,8 @@ const ComandaStyle = () => {
         const plato = comanda.platos?.[platoIndex];
         if (!plato) return;
         
-        // Obtener el ID real del plato
-        const platoId = plato.plato?._id?.toString() || plato._id?.toString() || plato.platoId?.toString();
+        // 🔥 CORREGIDO: Priorizar plato._id (subdocumento único) sobre plato.plato._id (compartido entre duplicados)
+        const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
         if (!platoId) return;
         
         // Solo procesar platos que no estén ya en 'recoger'
@@ -1401,8 +1468,8 @@ const ComandaStyle = () => {
         const plato = comanda.platos?.[platoIndex];
         if (!plato) return;
         
-        // Obtener el ID real del plato
-        const platoId = plato.plato?._id?.toString() || plato._id?.toString() || plato.platoId?.toString();
+        // 🔥 CORREGIDO: Priorizar plato._id (subdocumento único) sobre plato.plato._id (compartido entre duplicados)
+        const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
         if (!platoId) return;
         
         // Solo procesar platos que no estén ya en 'recoger'
@@ -1474,6 +1541,19 @@ const ComandaStyle = () => {
       }
       if (fallidos > 0) {
         console.warn(`⚠️ ${fallidos} plato(s) fallaron al finalizar`);
+        
+        // 🔥 FIX: Mostrar alert con detalles de platos fallidos
+        const platosFallidos = resultados
+          .filter(r => r.status === 'fulfilled' && !r.value.exito)
+          .map(r => {
+            const { nombre, error } = r.value;
+            return `• ${nombre}: ${error}`;
+          })
+          .join('\n');
+        
+        if (platosFallidos) {
+          alert(`⚠️ ${fallidos} plato(s) no pudieron ser finalizados:\n\n${platosFallidos}\n\nRevisa la consola para más detalles.`);
+        }
       }
     } finally {
       setIsFinalizandoPlatos(false);
@@ -1515,11 +1595,12 @@ const ComandaStyle = () => {
         const estado = plato.estado || 'en_espera';
         // Solo procesar platos que no estén ya en 'recoger'
         if (estado === 'en_espera' || estado === 'ingresante' || estado === 'pedido') {
-          const platoId = plato.plato?._id || plato._id || plato.platoId;
+          // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
+          const platoId = plato._id || plato.plato?._id || plato.platoId;
           if (platoId) {
-            // Buscar el índice real en el array original (con eliminados)
+            // 🔥 CORREGIDO: Buscar el índice por subdocumento _id (único) para mayor precisión
             const realIndex = comanda.platos.findIndex(p => 
-              (p.plato?._id?.toString() || p._id?.toString() || p.platoId?.toString()) === platoId?.toString()
+              p._id?.toString() === plato._id?.toString()
             );
             platosParaProcesar.push({ comandaId: comanda._id, platoId, platoIndex: realIndex >= 0 ? realIndex : idx });
           }
@@ -1652,12 +1733,13 @@ const ComandaStyle = () => {
         for (const plato of comanda.platos) {
           if (plato.estado !== "recoger" && plato.estado !== "entregado") {
             try {
+              // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
               await axios.put(
-                `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+                `${getApiUrl()}/${comandaId}/plato/${plato._id || plato.plato?._id}/estado`,
                 { nuevoEstado: "recoger" }
               );
             } catch (error) {
-              console.error(`Error actualizando plato ${plato.plato?._id || plato._id}:`, error);
+              console.error(`Error actualizando plato ${plato._id || plato.plato?._id}:`, error);
             }
           }
         }

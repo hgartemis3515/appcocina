@@ -226,8 +226,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     );
     
     for (const plato of platosARevertir) {
+      // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
       await axios.put(
-        `${getApiUrl()}/${comandaId}/plato/${plato.plato?._id || plato._id}/estado`,
+        `${getApiUrl()}/${comandaId}/plato/${plato._id || plato.plato?._id}/estado`,
         { nuevoEstado: "en_espera", motivo: motivo.trim() }
       );
     }
