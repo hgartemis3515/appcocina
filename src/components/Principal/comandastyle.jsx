@@ -18,7 +18,8 @@ import {
   FaUserFriends,
   FaExpand,
   FaCompress,
-  FaSearch
+  FaSearch,
+  FaArrowLeft
 } from "react-icons/fa";
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
@@ -50,7 +51,7 @@ const playNotificationSound = () => {
   }
 };
 
-const ComandaStyle = () => {
+const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -155,6 +156,28 @@ const ComandaStyle = () => {
       console.warn('⚠️ Error guardando estados de platos en localStorage:', error);
     }
   }, [platoStates]);
+
+  // Manejar opciones iniciales (por ejemplo, abrir configuración automáticamente)
+  useEffect(() => {
+    if (initialOptions?.openConfig) {
+      setShowConfig(true);
+    }
+  }, [initialOptions]);
+
+  // Función para regresar al menú (cierra todos los modales primero)
+  const handleGoToMenu = useCallback(() => {
+    // Cerrar todos los modales abiertos
+    setShowConfig(false);
+    setShowReports(false);
+    setShowRevertir(false);
+    setShowSearch(false);
+    setShowAnularModal(false);
+    
+    // Navegar al menú
+    if (onGoToMenu) {
+      onGoToMenu();
+    }
+  }, [onGoToMenu]);
 
   const obtenerComandas = useCallback(async () => {
     try {
@@ -2007,8 +2030,16 @@ const ComandaStyle = () => {
             )}
           </div>
           
-          {/* Botones pequeños arriba derecha - Orden: Buscar → Reportes → Config → Revertir */}
+          {/* Botones pequeños arriba derecha - Orden: Regresar → Buscar → Reportes → Config → Revertir */}
           <div className="flex gap-2">
+            {/* Botón Regresar al Menú */}
+            <button
+              onClick={handleGoToMenu}
+              className={`px-3 py-1.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1`}
+              title="Volver al Menú Principal"
+            >
+              <FaArrowLeft /> Menú
+            </button>
             <button
               onClick={() => setShowSearch(!showSearch)}
               className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
