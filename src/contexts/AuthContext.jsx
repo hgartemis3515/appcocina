@@ -15,6 +15,7 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 const AUTH_STORAGE_KEY = 'cocinaAuth';
+const REMEMBERED_USER_KEY = 'cocinaRememberedUser';
 
 // Configuración de seguridad
 const TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 minutos antes de expirar
@@ -65,6 +66,45 @@ const checkTokenExpiry = (token) => {
 };
 
 /**
+ * Guarda el usuario para "Recordarme"
+ * @param {string} username - Nombre de usuario
+ * @param {string} name - Nombre del usuario
+ */
+const saveRememberedUser = (username, name) => {
+  try {
+    const userData = { username, name, savedAt: Date.now() };
+    localStorage.setItem(REMEMBERED_USER_KEY, JSON.stringify(userData));
+    console.log('[AuthContext] Usuario guardado para recordar:', name);
+  } catch (err) {
+    console.warn('[AuthContext] Error guardando usuario recordado:', err);
+  }
+};
+
+/**
+ * Obtiene el usuario recordado
+ * @returns {{username: string, name: string} | null}
+ */
+const getRememberedUser = () => {
+  try {
+    const stored = localStorage.getItem(REMEMBERED_USER_KEY);
+    if (stored) {
+      const userData = JSON.parse(stored);
+      return userData;
+    }
+  } catch (err) {
+    console.warn('[AuthContext] Error obteniendo usuario recordado:', err);
+  }
+  return null;
+};
+
+/**
+ * Limpia el usuario recordado
+ */
+const clearRememberedUser = () => {
+  localStorage.removeItem(REMEMBERED_USER_KEY);
+};
+
+/**
  * Proveedor de contexto de autenticación
  */
 export const AuthProvider = ({ children }) => {
@@ -100,10 +140,17 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Cierra sesión completamente
+   * @param {boolean} keepRemembered - Si true, mantiene el usuario recordado
    */
-  const logout = useCallback(() => {
+  const logout = useCallback((keepRemembered = true) => {
     clearSecurityTimers();
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    
+    // Si no se quiere mantener el recordado, limpiarlo
+    if (!keepRemembered) {
+      clearRememberedUser();
+    }
+    
     setToken(null);
     setUser(null);
     setError(null);
@@ -259,17 +306,22 @@ export const AuthProvider = ({ children }) => {
   }, [token, startSecurityTimers, clearSecurityTimers]);
 
   /**
-   * Iniciar sesión con DNI
-   * @param {string} dni - DNI del usuario
+   * Iniciar sesión con usuario y contraseña
+   * @param {string} username - Nombre de usuario
+   * @param {string} password - Contraseña (DNI)
+   * @param {boolean} recordar - Si true, guarda el usuario para futuros logins
    * @returns {Promise<{success: boolean, error?: string, usuario?: Object}>}
    */
-  const login = useCallback(async (dni) => {
+  const login = useCallback(async (username, password, recordar = false) => {
     setError(null);
     setLoading(true);
 
     try {
       const serverUrl = getServerBaseUrl();
-      const response = await axios.post(`${serverUrl}/api/admin/cocina/auth`, { dni }, {
+      const response = await axios.post(`${serverUrl}/api/admin/cocina/auth`, { 
+        username, 
+        password 
+      }, {
         timeout: 10000,
         headers: {
           'Content-Type': 'application/json'
@@ -288,6 +340,13 @@ export const AuthProvider = ({ children }) => {
       const authData = { token: newToken, usuario };
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authData));
 
+      // Guardar usuario para "Recordarme" si está activado
+      if (recordar) {
+        saveRememberedUser(username, usuario.name);
+      } else {
+        clearRememberedUser();
+      }
+
       // Actualizar estado
       setToken(newToken);
       setUser(usuario);
@@ -304,9 +363,9 @@ export const AuthProvider = ({ children }) => {
         const { status, data } = err.response;
         // Mensajes normalizados, no exponer data.error directamente
         if (status === 400) {
-          errorMessage = 'DNI es requerido';
+          errorMessage = 'Usuario y contraseña son requeridos';
         } else if (status === 401) {
-          errorMessage = 'DNI no registrado';
+          errorMessage = 'Credenciales incorrectas';
         } else if (status === 403) {
           errorMessage = 'No tiene permisos para acceder a la App Cocina';
         } else if (status >= 500) {
@@ -366,6 +425,7 @@ export const AuthProvider = ({ children }) => {
     setError,
     showInactivityWarning,
     extendSession,
+    getRememberedUser,
     // Información del usuario expuesta convenientemente
     userId: user?._id || user?.id,
     userName: user?.name,

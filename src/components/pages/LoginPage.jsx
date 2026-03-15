@@ -1,22 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaUtensils, FaSignInAlt, FaExclamationTriangle, FaSpinner, FaUser } from 'react-icons/fa';
+import { FaUtensils, FaSignInAlt, FaExclamationTriangle, FaSpinner, FaUser, FaLock, FaCheckSquare, FaSquare, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * LoginPage - Pantalla de login para el App de Cocina
  * 
  * Características:
- * - Autenticación con DNI contra el endpoint /api/admin/cocina/auth
- * - El nombre de usuario viene del backend, no del input
+ * - Autenticación con Usuario + Contraseña (DNI) contra el endpoint /api/admin/cocina/auth
+ * - Función "Recordarme" para guardar usuario para futuros logins
  * - Muestra quién está logueado después del login exitoso
  */
 const LoginPage = () => {
-  const [dni, setDni] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [recordar, setRecordar] = useState(false);
+  const [rememberedName, setRememberedName] = useState('');
   
-  const { login, error: authError, loading, isAuthenticated, user } = useAuth();
+  const { login, error: authError, loading, isAuthenticated, user, getRememberedUser } = useAuth();
+
+  // Cargar usuario recordado al iniciar
+  useEffect(() => {
+    const remembered = getRememberedUser();
+    if (remembered) {
+      setUsername(remembered.username || '');
+      setRememberedName(remembered.name || '');
+      setRecordar(true);
+    }
+  }, [getRememberedUser]);
 
   // Redirigir si ya está autenticado
   useEffect(() => {
@@ -31,21 +45,28 @@ const LoginPage = () => {
     setLocalError('');
 
     // Validación básica
-    const dniLimpio = dni.trim();
-    if (!dniLimpio) {
-      setLocalError('Por favor ingrese su DNI');
+    const usernameLimpio = username.trim();
+    const passwordLimpio = password.trim();
+
+    if (!usernameLimpio) {
+      setLocalError('Por favor ingrese su usuario');
       return;
     }
 
-    if (!/^\d{8}$/.test(dniLimpio)) {
-      setLocalError('El DNI debe tener 8 digitos');
+    if (!passwordLimpio) {
+      setLocalError('Por favor ingrese su contraseña');
+      return;
+    }
+
+    if (!/^\d{8}$/.test(passwordLimpio)) {
+      setLocalError('La contraseña debe tener 8 digitos');
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      const result = await login(dniLimpio);
+      const result = await login(usernameLimpio, passwordLimpio, recordar);
       if (!result.success) {
         setLocalError(result.error || 'Error al iniciar sesion');
       }
@@ -58,10 +79,10 @@ const LoginPage = () => {
     }
   };
 
-  const handleDniChange = (e) => {
+  const handlePasswordChange = (e) => {
     const value = e.target.value.replace(/\D/g, ''); // Solo números
     if (value.length <= 8) {
-      setDni(value);
+      setPassword(value);
       setLocalError('');
     }
   };
@@ -110,18 +131,34 @@ const LoginPage = () => {
         >
           <div className="text-center mb-6">
             <p className="text-gray-300 text-sm">
-              Ingrese su DNI para acceder al sistema
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              Su nombre sera cargado automaticamente
+              Ingrese sus credenciales para acceder al sistema
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Input DNI */}
+          {/* Mostrar usuario recordado si existe */}
+          {rememberedName && username && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 bg-gradient-to-r from-orange-900/30 to-red-900/30 border border-orange-700/50 rounded-xl p-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                  <FaUser className="text-xl text-white" />
+                </div>
+                <div>
+                  <p className="text-orange-300 text-xs uppercase tracking-wide">Bienvenido de nuevo</p>
+                  <p className="text-white text-lg font-semibold">{rememberedName}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Input Usuario */}
             <div>
-              <label htmlFor="dni" className="block text-sm font-medium text-gray-300 mb-2">
-                DNI del cocinero
+              <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
+                Usuario
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -129,22 +166,76 @@ const LoginPage = () => {
                 </div>
                 <input
                   type="text"
-                  id="dni"
-                  value={dni}
-                  onChange={handleDniChange}
-                  placeholder="12345678"
+                  id="username"
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setLocalError(''); }}
+                  placeholder="Ingrese su usuario"
                   disabled={isSubmitting || loading}
-                  className="w-full bg-gray-900 border-2 border-gray-600 rounded-xl pl-12 pr-4 py-4 text-white text-xl text-center tracking-widest font-mono focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  autoComplete="off"
-                  inputMode="numeric"
+                  className="w-full bg-gray-900 border-2 border-gray-600 rounded-xl pl-12 pr-4 py-3 text-white text-lg focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  autoComplete="username"
                 />
-                {dni.length > 0 && (
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
-                    {dni.length}/8
-                  </span>
-                )}
               </div>
             </div>
+
+            {/* Input Contraseña (DNI) */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                Contrasena (DNI)
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaLock className="text-gray-500" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  value={password}
+                  onChange={handlePasswordChange}
+                  placeholder="12345678"
+                  disabled={isSubmitting || loading}
+                  className="w-full bg-gray-900 border-2 border-gray-600 rounded-xl pl-12 pr-12 py-3 text-white text-lg tracking-widest font-mono focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  autoComplete="current-password"
+                  inputMode="numeric"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+              {password.length > 0 && password.length < 8 && (
+                <p className="text-gray-500 text-xs mt-1">
+                  {password.length}/8 digitos
+                </p>
+              )}
+            </div>
+
+            {/* Checkbox Recordarme */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex items-center gap-3"
+            >
+              <button
+                type="button"
+                onClick={() => setRecordar(!recordar)}
+                className="flex items-center gap-3 text-gray-300 hover:text-white transition-colors cursor-pointer select-none"
+              >
+                <span className="text-xl">
+                  {recordar ? (
+                    <FaCheckSquare className="text-orange-500" />
+                  ) : (
+                    <FaSquare className="text-gray-500" />
+                  )}
+                </span>
+                <span className="text-sm">
+                  Recordarme en este dispositivo
+                </span>
+              </button>
+            </motion.div>
 
             {/* Error message */}
             {errorToShow && (
@@ -161,7 +252,7 @@ const LoginPage = () => {
             {/* Boton de login */}
             <button
               type="submit"
-              disabled={isSubmitting || loading || dni.length !== 8}
+              disabled={isSubmitting || loading || !username.trim() || password.length !== 8}
               className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-orange-500/30"
             >
               {isSubmitting || loading ? (
