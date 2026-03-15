@@ -3186,12 +3186,14 @@ const SicarComandaCard = ({
                   {platosListos.map((plato, index) => {
                     const platoObj = plato.plato || plato;
                     const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
-                    const platoId = platoObj?._id || plato._id || index;
+                    // FIX: revertir multi-plato similar - Priorizar plato._id (subdocumento único)
+                    const platoIdUnico = plato._id?.toString() || platoObj?._id || index;
+                    const platoIndex = comanda.platos.indexOf(plato);
                     const estadoRealPlato = plato.estado || 'recoger';
                     
                     return (
                       <motion.div
-                        key={`listo-${platoId}`}
+                        key={`listo-${platoIdUnico}-${platoIndex}`}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
