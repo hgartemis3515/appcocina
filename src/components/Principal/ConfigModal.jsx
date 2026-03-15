@@ -1,37 +1,100 @@
 import React, { useState, useEffect } from "react";
-import { FaTimes } from "react-icons/fa";
+import { FaTimes, FaShieldAlt, FaExclamationTriangle, FaCheckCircle } from "react-icons/fa";
 import moment from "moment-timezone";
-import { getRawApiUrl, setApiUrl as saveApiUrl, getApiUrl, isValidUrl, formatUrl } from "../../config/apiConfig";
+import { 
+  getRawApiUrl, 
+  setApiUrl, 
+  getApiUrl, 
+  validateApiUrl,
+  getAllowedHosts 
+} from "../../config/apiConfig";
 
+/**
+ * ConfigModal - Modal de configuración del sistema KDS
+ * 
+ * Seguridad:
+ * - Valida URLs contra lista blanca de hosts permitidos
+ * - No permite IPs arbitrarias
+ */
 const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
   const [localConfig, setLocalConfig] = useState({
     ...config,
     design: config.design || { fontSize: 15, cols: 5, rows: 1 },
     nightMode: config.nightMode !== undefined ? config.nightMode : true
   });
-  const [apiUrl, setApiUrlLocal] = useState(getRawApiUrl() || 'http://192.168.18.127:3000');
+  
+  // Estado para URL del servidor
+  const [apiUrl, setApiUrlLocal] = useState('');
   const [apiUrlError, setApiUrlError] = useState('');
+  const [apiUrlWarning, setApiUrlWarning] = useState('');
+  const [apiUrlValid, setApiUrlValid] = useState(false);
 
-  const handleSave = () => {
-    // Guardar configuración de URL del backend si cambió
-    if (apiUrl && apiUrl.trim() !== '') {
-      const formattedUrl = formatUrl(apiUrl.trim());
-      if (isValidUrl(formattedUrl)) {
-        try {
-          saveApiUrl(formattedUrl);
-          setApiUrlError('');
-        } catch (error) {
-          setApiUrlError('Error al guardar la URL del servidor');
-          return;
-        }
+  // Cargar URL inicial
+  useEffect(() => {
+    const rawUrl = getRawApiUrl();
+    setApiUrlLocal(rawUrl || '');
+    validateUrl(rawUrl || '');
+  }, []);
+
+  /**
+   * Valida la URL y actualiza el estado
+   */
+  const validateUrl = (url) => {
+    if (!url || url.trim() === '') {
+      setApiUrlError('');
+      setApiUrlWarning('');
+      setApiUrlValid(false);
+      return;
+    }
+
+    const validation = validateApiUrl(url);
+    
+    if (!validation.valid) {
+      setApiUrlError(validation.error);
+      setApiUrlWarning('');
+      setApiUrlValid(false);
+    } else {
+      setApiUrlError('');
+      setApiUrlValid(true);
+      
+      // Mostrar información sobre hosts permitidos
+      const allowedHosts = getAllowedHosts();
+      if (allowedHosts.length > 0) {
+        setApiUrlWarning(`Host permitido: ${validation.host}`);
       } else {
-        setApiUrlError('URL inválida. Debe ser una URL válida (ej: http://192.168.18.127:3000)');
+        setApiUrlWarning('');
+      }
+    }
+  };
+
+  /**
+   * Maneja cambios en el input de URL
+   */
+  const handleApiUrlChange = (e) => {
+    const newUrl = e.target.value;
+    setApiUrlLocal(newUrl);
+    setApiUrlError('');
+    validateUrl(newUrl);
+  };
+
+  /**
+   * Guarda la configuración
+   */
+  const handleSave = () => {
+    // Validar y guardar URL del backend si se proporcionó
+    if (apiUrl && apiUrl.trim() !== '') {
+      const result = setApiUrl(apiUrl.trim());
+      
+      if (!result.success) {
+        setApiUrlError(result.error);
         return;
       }
     }
+    
     onSave(localConfig);
   };
 
+  // Estilos condicionales
   const bgModal = nightMode ? "bg-gray-800" : "bg-white";
   const textModal = nightMode ? "text-white" : "text-gray-900";
   const textSecondary = nightMode ? "text-gray-400" : "text-gray-600";
@@ -39,11 +102,15 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
   const inputBg = nightMode ? "bg-gray-700" : "bg-gray-100";
   const inputText = nightMode ? "text-white" : "text-gray-900";
 
+  // Hosts permitidos para mostrar al usuario
+  const allowedHosts = getAllowedHosts();
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
       <div className={`${bgModal} rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h2 className={`text-2xl font-bold ${textModal}`}>⚙️ Configuración del Sistema</h2>
+          <h2 className={`text-2xl font-bold ${textModal}`}>Configuración del Sistema</h2>
           <button
             onClick={onClose}
             className={`${textSecondary} hover:${textModal} text-2xl`}
@@ -55,30 +122,58 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
         <div className="space-y-6">
           {/* Configuración del Servidor */}
           <div>
-            <h3 className={`text-xl font-bold ${textModal} mb-4`}>🔌 CONFIGURACIÓN DEL SERVIDOR</h3>
+            <h3 className={`text-xl font-bold ${textModal} mb-4 flex items-center gap-2`}>
+              <FaShieldAlt className="text-green-500" />
+              Configuración del Servidor
+            </h3>
+            
             <div>
               <label className={`block ${textModal} font-semibold mb-2`}>
                 URL del Servidor Backend
               </label>
+              
               <input
                 type="text"
                 value={apiUrl}
-                onChange={(e) => {
-                  setApiUrlLocal(e.target.value);
-                  setApiUrlError('');
-                }}
-                placeholder="http://192.168.18.127:3000"
-                className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal} ${apiUrlError ? 'border-red-500' : ''}`}
+                onChange={handleApiUrlChange}
+                placeholder="http://localhost:3000"
+                className={`w-full ${inputBg} ${inputText} p-3 rounded border ${
+                  apiUrlError ? 'border-red-500' : apiUrlValid ? 'border-green-500' : borderModal
+                }`}
               />
+              
+              {/* Indicador de estado */}
               {apiUrlError && (
-                <p className="text-red-500 text-sm mt-1">{apiUrlError}</p>
+                <div className="flex items-center gap-2 mt-2 text-red-500 text-sm">
+                  <FaExclamationTriangle />
+                  <span>{apiUrlError}</span>
+                </div>
               )}
-              <p className={`${textSecondary} text-sm mt-1`}>
-                URL base del servidor backend (sin /api/comanda). Ejemplo: http://192.168.18.127:3000
+              
+              {apiUrlValid && (
+                <div className="flex items-center gap-2 mt-2 text-green-500 text-sm">
+                  <FaCheckCircle />
+                  <span>URL válida</span>
+                </div>
+              )}
+              
+              {/* Hosts permitidos */}
+              {allowedHosts.length > 0 && (
+                <div className={`mt-2 ${textSecondary} text-xs`}>
+                  <span className="font-semibold">Hosts permitidos:</span>{' '}
+                  {allowedHosts.join(', ')}
+                </div>
+              )}
+              
+              <p className={`${textSecondary} text-sm mt-2`}>
+                Solo se permiten hosts autorizados por el administrador del sistema.
               </p>
-              <p className={`${textSecondary} text-xs mt-1`}>
-                URL actual: {getApiUrl()}
-              </p>
+              
+              {/* URL actual */}
+              <div className={`mt-3 p-2 rounded ${inputBg} ${textSecondary} text-xs`}>
+                <span className="font-semibold">URL actual en uso:</span>{' '}
+                {getApiUrl() || 'No configurada'}
+              </div>
             </div>
           </div>
 
@@ -88,13 +183,13 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
           {/* Información WebSocket */}
           <div>
             <label className={`block ${textModal} font-semibold mb-2`}>
-              🔌 Sistema de Actualización
+              Sistema de Actualización
             </label>
             <div className={`${inputBg} ${inputText} p-3 rounded border ${borderModal}`}>
-              <p className={`${textModal} font-semibold mb-2`}>✅ WebSocket en Tiempo Real</p>
+              <p className={`${textModal} font-semibold mb-2`}>WebSocket en Tiempo Real</p>
               <p className={`${textSecondary} text-sm`}>
-                El sistema ahora usa WebSocket con Redis Adapter para actualizaciones instantáneas.
-                No se requiere polling, reduciendo el tráfico de red en un 80%.
+                El sistema usa WebSocket con Redis Adapter para actualizaciones instantáneas.
+                Conexión autenticada con token JWT.
               </p>
             </div>
           </div>
@@ -118,7 +213,7 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
               className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
             />
             <p className={`${textSecondary} text-sm mt-1`}>
-              Los pedidos que superen este tiempo mostrarán fondo amarillo
+              Los pedidos que superen este tiempo mostraran fondo amarillo
             </p>
           </div>
 
@@ -141,7 +236,7 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
               className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
             />
             <p className={`${textSecondary} text-sm mt-1`}>
-              Los pedidos que superen este tiempo mostrarán fondo rojo urgente
+              Los pedidos que superen este tiempo mostraran fondo rojo urgente
             </p>
           </div>
 
@@ -168,35 +263,12 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
             </p>
           </div>
 
-          {/* Auto-impresión */}
-          <div>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={localConfig.autoPrint}
-                onChange={(e) =>
-                  setLocalConfig({
-                    ...localConfig,
-                    autoPrint: e.target.checked,
-                  })
-                }
-                className="w-5 h-5 rounded"
-              />
-              <span className={`${textModal} font-semibold`}>
-                Auto-imprimir tickets (próximamente)
-              </span>
-            </label>
-            <p className={`${textSecondary} text-sm mt-1 ml-8`}>
-              Imprime automáticamente los tickets cuando las comandas estén listas
-            </p>
-          </div>
-
           {/* Separador */}
           <div className={`border-t ${borderModal} my-6`}></div>
 
           {/* Modo Nocturno */}
           <div>
-            <h3 className={`text-xl font-bold ${textModal} mb-4`}>🌙 MODO NOCTURNO</h3>
+            <h3 className={`text-xl font-bold ${textModal} mb-4`}>Modo Nocturno</h3>
             <div>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -215,9 +287,9 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
                 </span>
               </label>
               <p className={`${textSecondary} text-sm mt-1 ml-8`}>
-                  {localConfig.nightMode 
-                    ? "Interfaz con fondo oscuro (recomendado para cocinas)" 
-                    : "Interfaz con fondo claro (modo día)"}
+                {localConfig.nightMode 
+                  ? "Interfaz con fondo oscuro (recomendado para cocinas)" 
+                  : "Interfaz con fondo claro (modo día)"}
               </p>
             </div>
           </div>
@@ -227,7 +299,7 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
 
           {/* Sección DISEÑAR COMANDAS */}
           <div>
-            <h3 className={`text-xl font-bold ${textModal} mb-4`}>🎨 DISEÑAR COMANDAS</h3>
+            <h3 className={`text-xl font-bold ${textModal} mb-4`}>Diseñar Comandas</h3>
             
             {/* Fuente */}
             <div className="mb-4">
@@ -251,9 +323,6 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
                   <option key={size} value={size}>{size}px</option>
                 ))}
               </select>
-              <p className={`${textSecondary} text-sm mt-1`}>
-                Tamaño de fuente para los nombres de platos en las tarjetas
-              </p>
             </div>
 
             {/* Columnas */}
@@ -277,9 +346,6 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
                 }
                 className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
               />
-              <p className={`${textSecondary} text-sm mt-1`}>
-                Número de columnas en el grid (1-8)
-              </p>
             </div>
 
             {/* Filas */}
@@ -303,12 +369,9 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
                 }
                 className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
               />
-              <p className={`${textSecondary} text-sm mt-1`}>
-                Número de filas visibles en el grid (1-4)
-              </p>
             </div>
 
-            {/* Preview en vivo */}
+            {/* Preview */}
             <div className="mt-6">
               <label className={`block ${textModal} font-semibold mb-3`}>
                 Preview en Vivo
@@ -325,41 +388,29 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
               >
                 {/* Tarjeta de ejemplo */}
                 <div className="bg-gray-800 border-4 border-gray-700 rounded-lg p-4 flex flex-col relative">
-                  <div className="bg-red-600 text-white font-black text-lg py-1 text-center mb-2" style={{ fontFamily: 'Arial Black, sans-serif' }}>
+                  <div className="bg-red-600 text-white font-black text-lg py-1 text-center mb-2">
                     ESPERA
                   </div>
                   <div className="absolute top-2 right-2 z-10">
                     <input type="checkbox" className="w-4 h-4" />
                   </div>
-                  <div className="text-red-500 font-black text-2xl mb-1" style={{ fontFamily: 'Arial Black, sans-serif' }}>
+                  <div className="text-red-500 font-black text-2xl mb-1">
                     ORDEN #1
                   </div>
-                  <div className="text-white font-bold text-lg mb-2" style={{ fontFamily: 'Arial Black, sans-serif' }}>
+                  <div className="text-white font-bold text-lg mb-2">
                     MESA #2
                   </div>
                   <div className="absolute top-4 right-4 bg-black bg-opacity-70 px-2 py-1 rounded">
-                    <div className="text-white font-black text-sm" style={{ fontFamily: 'Arial Black, sans-serif' }}>
+                    <div className="text-white font-black text-sm">
                       00:15
                     </div>
                   </div>
                   <div className="flex-1 mt-2 pt-8">
                     <div 
                       className="text-white font-black"
-                      style={{ 
-                        fontFamily: 'Arial Black, sans-serif',
-                        fontSize: `${localConfig.design.fontSize}px`
-                      }}
+                      style={{ fontSize: `${localConfig.design.fontSize}px` }}
                     >
-                      3 Paella Huancaína
-                    </div>
-                    <div 
-                      className="text-white font-black"
-                      style={{ 
-                        fontFamily: 'Arial Black, sans-serif',
-                        fontSize: `${localConfig.design.fontSize}px`
-                      }}
-                    >
-                      1 Tamal a la criolla
+                      3 Paella Huancaina
                     </div>
                   </div>
                   <div className="mt-2">
@@ -369,24 +420,30 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
                   </div>
                 </div>
                 
-                {/* Slots vacíos de ejemplo */}
+                {/* Slots vacíos */}
                 {Array.from({ length: (localConfig.design.cols * localConfig.design.rows) - 1 }).map((_, idx) => (
                   <div key={idx} className="bg-gray-900 border-2 border-gray-800 rounded-lg" />
                 ))}
               </div>
               <p className={`${textSecondary} text-sm mt-2`}>
-                Vista previa del diseño: {localConfig.design.cols} columnas × {localConfig.design.rows} filas = {localConfig.design.cols * localConfig.design.rows} slots
+                {localConfig.design.cols} columnas x {localConfig.design.rows} filas = {localConfig.design.cols * localConfig.design.rows} slots
               </p>
             </div>
           </div>
         </div>
 
+        {/* Botones */}
         <div className="flex gap-4 mt-8">
           <button
             onClick={handleSave}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            disabled={apiUrl && !apiUrlValid}
+            className={`flex-1 font-bold py-3 px-6 rounded-lg transition-colors ${
+              apiUrl && !apiUrlValid
+                ? 'bg-gray-500 cursor-not-allowed text-gray-300'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
           >
-            Guardar Configuración
+            Guardar Configuracion
           </button>
           <button
             onClick={onClose}
@@ -401,4 +458,3 @@ const ConfigModal = ({ config, onClose, onSave, nightMode = true }) => {
 };
 
 export default ConfigModal;
-

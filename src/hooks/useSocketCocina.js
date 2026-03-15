@@ -1,19 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import moment from 'moment-timezone';
-import axios from 'axios';
 import { getServerBaseUrl } from '../config/apiConfig';
 
 /**
  * Hook personalizado para manejar conexión Socket.io con namespace /cocina
- * @param {Function} onNuevaComanda - Callback cuando llega nueva comanda
- * @param {Function} onComandaActualizada - Callback cuando se actualiza una comanda
- * @param {Function} onPlatoActualizado - Callback cuando se actualiza un plato
- * @param {Function} onPlatoCanceladoUrgente - Callback cuando mozos eliminan plato ya listo (recoger): { comandaNumber, platos: [{ nombre, motivo }], motivo }
- * @param {Function} onPlatoAnulado - Callback cuando cocina anula un plato
- * @param {Function} onComandaAnulada - Callback cuando cocina anula toda la comanda
- * @param {Function} obtenerComandas - Función para obtener comandas iniciales
- * @returns {Object} { socket, connected, connectionStatus }
+ * 
+ * Características de seguridad:
+ * - Handshake autenticado con token JWT
+ * - No reconecta en bucle si auth falla
+ * - Valida conexión autenticada antes de operar
+ * 
+ * @param {Object} params - Parámetros del hook
+ * @param {Function} params.onNuevaComanda - Callback cuando llega nueva comanda
+ * @param {Function} params.onComandaActualizada - Callback cuando se actualiza una comanda
+ * @param {Function} params.onPlatoActualizado - Callback cuando se actualiza un plato
+ * @param {Function} params.onPlatoCanceladoUrgente - Callback cuando mozos eliminan plato ya listo
+ * @param {Function} params.onPlatoAnulado - Callback cuando cocina anula un plato
+ * @param {Function} params.onComandaAnulada - Callback cuando cocina anula toda la comanda
+ * @param {Function} params.obtenerComandas - Función para obtener comandas iniciales
+ * @param {string} params.token - Token JWT para autenticación (obligatorio)
+ * @returns {Object} { socket, connected, connectionStatus, authError }
  */
 const useSocketCocina = ({
   onNuevaComanda,
@@ -22,46 +29,82 @@ const useSocketCocina = ({
   onPlatoCanceladoUrgente,
   onPlatoAnulado,
   onComandaAnulada,
-  obtenerComandas
+  obtenerComandas,
+  token // Token obligatorio para autenticación
 }) => {
   const [connected, setConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('desconectado'); // 'conectado', 'desconectado'
+  const [connectionStatus, setConnectionStatus] = useState('desconectado'); // 'conectado', 'desconectado', 'auth_error'
+  const [authError, setAuthError] = useState(null);
+  
   const socketRef = useRef(null);
   const ultimoPingRef = useRef(Date.now());
   const reconnectTimeoutRef = useRef(null);
+  const heartbeatIntervalRef = useRef(null);
+  const pollingFallbackIntervalRef = useRef(null);
+  const authFailedRef = useRef(false); // Flag para no reintentar tras error de auth
 
-  // URL del servidor: process.env.REACT_APP_IP → localStorage → localhost
-  const getServerUrl = () => getServerBaseUrl();
+  /**
+   * Maneja errores de autenticación
+   */
+  const handleAuthError = useCallback((errorMessage) => {
+    console.error('[useSocketCocina] Error de autenticación:', errorMessage);
+    setAuthError(errorMessage);
+    setConnectionStatus('auth_error');
+    setConnected(false);
+    authFailedRef.current = true;
+    
+    // Desconectar socket y no reintentar
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+  }, []);
 
   useEffect(() => {
-    const serverUrl = getServerUrl();
+    // VALIDACIÓN: Token es obligatorio
+    if (!token) {
+      console.warn('[useSocketCocina] No hay token, no se puede conectar');
+      setConnectionStatus('desconectado');
+      return;
+    }
+
+    // Si ya falló la auth, no reintentar
+    if (authFailedRef.current) {
+      console.warn('[useSocketCocina] Auth previamente fallida, no reintentando');
+      return;
+    }
+
+    const serverUrl = getServerBaseUrl();
     const fechaActual = moment().tz("America/Lima").format('YYYY-MM-DD');
 
-    console.log('[apiConfig] getServerUrl:', serverUrl);
-    console.log('🔌 Conectando a Socket.io:', `${serverUrl}/cocina`);
+    console.log('[useSocketCocina] Conectando a Socket.io:', `${serverUrl}/cocina`);
 
-    // Crear conexión Socket.io al namespace /cocina
+    // Crear conexión Socket.io al namespace /cocina CON AUTENTICACIÓN
     const socket = io(`${serverUrl}/cocina`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
-      timeout: 20000
+      timeout: 20000,
+      // AUTENTICACIÓN EN HANDSHAKE
+      auth: {
+        token: token
+      }
     });
 
     socketRef.current = socket;
 
     // Evento: Conexión establecida
     socket.on('connect', () => {
-      console.log('✅ Socket cocina conectado:', socket.id);
+      console.log('[useSocketCocina] Socket conectado:', socket.id);
       setConnected(true);
       setConnectionStatus('conectado');
+      setAuthError(null);
       ultimoPingRef.current = Date.now();
 
       // Unirse a room por fecha
       socket.emit('join-fecha', fechaActual);
-      console.log(`📅 Unido a room: fecha-${fechaActual}`);
+      console.log(`[useSocketCocina] Unido a room: fecha-${fechaActual}`);
 
       // Obtener comandas iniciales una vez conectado
       if (obtenerComandas) {
@@ -69,23 +112,38 @@ const useSocketCocina = ({
       }
     });
 
+    // Evento: Error de conexión (incluye errores de auth)
+    socket.on('connect_error', (error) => {
+      console.error('[useSocketCocina] Error de conexión:', error.message);
+      
+      // Detectar error de autenticación
+      if (error.message?.toLowerCase().includes('auth') || 
+          error.message?.toLowerCase().includes('token') ||
+          error.message?.toLowerCase().includes('unauthorized') ||
+          error.message?.toLowerCase().includes('forbidden')) {
+        handleAuthError('Error de autenticación. Por favor, inicie sesión nuevamente.');
+      } else {
+        setConnectionStatus('desconectado');
+      }
+    });
+
     // Evento: Desconexión
     socket.on('disconnect', (reason) => {
-      console.warn('❌ Socket cocina desconectado:', reason);
+      console.warn('[useSocketCocina] Socket desconectado:', reason);
       setConnected(false);
       setConnectionStatus('desconectado');
       
       // Si desconexión > 30 segundos, mostrar warning
       reconnectTimeoutRef.current = setTimeout(() => {
         if (!socket.connected && Date.now() - ultimoPingRef.current > 30000) {
-          console.warn('⚠️ Conexión perdida > 30s. Redis Adapter garantiza estabilidad. Reconectando...');
+          console.warn('[useSocketCocina] Conexión perdida > 30s. Reconectando...');
         }
       }, 30000);
     });
 
     // Evento: Reconexión
     socket.on('reconnect', (attemptNumber) => {
-      console.log(`🔄 Socket reconectado después de ${attemptNumber} intentos`);
+      console.log(`[useSocketCocina] Socket reconectado después de ${attemptNumber} intentos`);
       setConnected(true);
       setConnectionStatus('conectado');
       ultimoPingRef.current = Date.now();
@@ -105,15 +163,19 @@ const useSocketCocina = ({
       }
     });
 
-    // Evento: Error de conexión
-    socket.on('connect_error', (error) => {
-      console.error('❌ Error de conexión Socket.io:', error.message);
+    // Evento: Error de reconexión (agotó intentos)
+    socket.on('reconnect_failed', () => {
+      console.error('[useSocketCocina] Reconexión fallida después de todos los intentos');
       setConnectionStatus('desconectado');
     });
 
+    // =====================
+    // EVENTOS DE NEGOCIO
+    // =====================
+
     // Evento: Nueva comanda
     socket.on('nueva-comanda', (data) => {
-      console.log('📥 Nueva comanda recibida:', data.comanda?.comandaNumber);
+      console.log('[useSocketCocina] Nueva comanda recibida:', data.comanda?.comandaNumber);
       ultimoPingRef.current = Date.now();
       
       if (onNuevaComanda && data.comanda) {
@@ -123,27 +185,24 @@ const useSocketCocina = ({
 
     // Evento: Comanda actualizada
     socket.on('comanda-actualizada', async (data) => {
-      console.log('📥 Comanda actualizada recibida:', data.comandaId || data.comanda?._id);
+      console.log('[useSocketCocina] Comanda actualizada:', data.comandaId || data.comanda?._id);
       ultimoPingRef.current = Date.now();
       
       if (onComandaActualizada) {
-        // Si viene la comanda completa, pasar el objeto completo con platosEliminados
         if (data.comanda) {
-          onComandaActualizada(data); // Pasar el objeto completo, no solo la comanda
+          onComandaActualizada(data);
         } else if (data.comandaId && obtenerComandas) {
-          // Refrescar todas las comandas si no viene la comanda completa
           obtenerComandas();
         }
       }
     });
     
-    // 🔥 AUDITORÍA: Evento específico para plato eliminado
+    // Evento: Plato eliminado
     socket.on('comanda:plato-eliminado', async (data) => {
-      console.log('🗑️ Plato eliminado recibido:', data.platoEliminado?.nombre, 'Comanda:', data.comandaId);
+      console.log('[useSocketCocina] Plato eliminado:', data.platoEliminado?.nombre);
       ultimoPingRef.current = Date.now();
       
       if (onComandaActualizada && data.comanda) {
-        // Pasar la comanda actualizada con el plato marcado como eliminado
         onComandaActualizada({
           comanda: data.comanda,
           platosEliminados: data.comanda.historialPlatos?.filter(h => h.estado === 'eliminado') || [],
@@ -154,7 +213,7 @@ const useSocketCocina = ({
 
     // Evento: Plato actualizado
     socket.on('plato-actualizado', (data) => {
-      console.log('📥 Plato actualizado recibido:', data.platoId, data.nuevoEstado);
+      console.log('[useSocketCocina] Plato actualizado:', data.platoId, data.nuevoEstado);
       ultimoPingRef.current = Date.now();
       
       if (onPlatoActualizado) {
@@ -164,10 +223,11 @@ const useSocketCocina = ({
       }
     });
 
-    // Evento: Plato marcado como entregado por mozo (sincronizar vista cocina)
+    // Evento: Plato entregado por mozo
     socket.on('plato-entregado', (data) => {
-      console.log('📥 Plato entregado recibido (mozo):', data.platoId, data.comandaId);
+      console.log('[useSocketCocina] Plato entregado (mozo):', data.platoId);
       ultimoPingRef.current = Date.now();
+      
       if (onPlatoActualizado) {
         onPlatoActualizado({
           comandaId: data.comandaId,
@@ -181,10 +241,11 @@ const useSocketCocina = ({
       }
     });
 
-    // Evento: Plato cancelado por mozo (estaba en recoger) - notificación urgente a cocina
+    // Evento: Plato cancelado por mozo (urgente)
     socket.on('plato-cancelado-urgente', (data) => {
-      console.log('🚨 Plato cancelado (urgente):', data.comandaNumber, data.platos?.map(p => p.nombre), data.motivo);
+      console.log('[useSocketCocina] Plato cancelado (urgente):', data.comandaNumber);
       ultimoPingRef.current = Date.now();
+      
       if (onPlatoCanceladoUrgente) {
         onPlatoCanceladoUrgente(data);
       }
@@ -193,36 +254,31 @@ const useSocketCocina = ({
       }
     });
 
-    // ✅ Evento: Comanda eliminada - Remover tarjeta en tiempo real
+    // Evento: Comanda eliminada
     socket.on('comanda-eliminada', (data) => {
-      console.log('🗑️ Comanda eliminada recibida:', data.comandaId || data.comanda?._id, 'Comanda #:', data.comanda?.comandaNumber);
+      console.log('[useSocketCocina] Comanda eliminada:', data.comandaId || data.comanda?._id);
       ultimoPingRef.current = Date.now();
       
-      // Llamar callback si existe, o refrescar comandas
       if (onComandaActualizada) {
-        // Pasar información de eliminación para que el handler pueda remover la comanda
         onComandaActualizada({
           comandaId: data.comandaId || data.comanda?._id,
           comanda: data.comanda,
-          eliminada: true, // Marcar como eliminada
+          eliminada: true,
           timestamp: data.timestamp
         });
       } else if (obtenerComandas) {
-        // Si no hay callback específico, refrescar todas las comandas
         obtenerComandas();
       }
     });
 
-    // 🔥 NUEVO: Evento de plato anulado por cocina
+    // Evento: Plato anulado por cocina
     socket.on('plato-anulado', (data) => {
-      console.log('❌ Plato anulado recibido:', data.platoAnulado?.nombre, 'Comanda:', data.comandaId);
-      console.log('   Motivo:', data.platoAnulado?.motivo, 'Estado al anular:', data.platoAnulado?.estadoAlAnular);
+      console.log('[useSocketCocina] Plato anulado:', data.platoAnulado?.nombre);
       ultimoPingRef.current = Date.now();
       
       if (onPlatoAnulado && data.comanda) {
         onPlatoAnulado(data);
       } else if (onComandaActualizada && data.comanda) {
-        // Fallback: usar el callback de comanda actualizada
         onComandaActualizada({
           comanda: data.comanda,
           platoAnulado: data.platoAnulado,
@@ -234,17 +290,14 @@ const useSocketCocina = ({
       }
     });
 
-    // 🔥 NUEVO: Evento de comanda completamente anulada por cocina
+    // Evento: Comanda anulada completamente
     socket.on('comanda-anulada', (data) => {
-      console.log('❌ Comanda anulada completamente:', data.comandaNumber);
-      console.log('   Total anulado:', data.totalAnulado, 'Platos:', data.platosAnulados?.length);
-      console.log('   Motivo:', data.motivoGeneral);
+      console.log('[useSocketCocina] Comanda anulada:', data.comandaNumber);
       ultimoPingRef.current = Date.now();
       
       if (onComandaAnulada && data.comanda) {
         onComandaAnulada(data);
       } else if (onComandaActualizada && data.comanda) {
-        // Fallback: usar el callback de comanda actualizada
         onComandaActualizada({
           comanda: data.comanda,
           anulada: true,
@@ -259,42 +312,50 @@ const useSocketCocina = ({
     });
 
     // Heartbeat para mantener conexión activa
-    const heartbeatInterval = setInterval(() => {
+    heartbeatIntervalRef.current = setInterval(() => {
       if (socket.connected) {
         socket.emit('heartbeat');
-        socket.once('heartbeat-ack', () => {
+        // Usar .on en lugar de .once para evitar acumulación
+        socket.off('heartbeat-ack').once('heartbeat-ack', () => {
           ultimoPingRef.current = Date.now();
         });
       }
-    }, 30000); // Cada 30 segundos
+    }, 30000);
 
     // Polling fallback: si está desconectado, refrescar comandas cada 30s vía HTTP
-    const pollingFallbackInterval = setInterval(() => {
-      if (!socket.connected && obtenerComandas) {
-        console.log('🔄 [Socket cocina] Desconectado — polling fallback: obteniendo comandas');
+    pollingFallbackIntervalRef.current = setInterval(() => {
+      if (!socket.connected && obtenerComandas && !authFailedRef.current) {
+        console.log('[useSocketCocina] Desconectado — polling fallback');
         obtenerComandas();
       }
     }, 30000);
 
     // Cleanup
     return () => {
-      console.log('🧹 Limpiando conexión Socket.io');
-      clearInterval(heartbeatInterval);
-      clearInterval(pollingFallbackInterval);
+      console.log('[useSocketCocina] Limpiando conexión');
+      
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+      if (pollingFallbackIntervalRef.current) {
+        clearInterval(pollingFallbackIntervalRef.current);
+      }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      
+      socket.off('*'); // Remover todos los listeners
       socket.disconnect();
       socketRef.current = null;
     };
-  }, []); // Solo ejecutar una vez al montar
+  }, [token]); // Reconectar solo si cambia el token
 
   return {
     socket: socketRef.current,
     connected,
-    connectionStatus
+    connectionStatus,
+    authError
   };
 };
 
 export default useSocketCocina;
-

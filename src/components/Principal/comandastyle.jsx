@@ -27,6 +27,7 @@ import RevertirModal from "./RevertirModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import { getApiUrl } from "../../config/apiConfig";
+import { useAuth } from "../../contexts/AuthContext";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -52,6 +53,9 @@ const playNotificationSound = () => {
 };
 
 const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
+  // Hook de autenticación - el rol viene del contexto, no de localStorage
+  const { userRole, canPerformSensitiveActions, getToken } = useAuth();
+  
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -795,11 +799,13 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   }, [config.soundEnabled, obtenerComandas]);
 
   // Hook Socket.io - REEMPLAZA EL POLLING
-  const { connected, connectionStatus } = useSocketCocina({
+  // Se pasa el token para autenticación del handshake
+  const { connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
     onNuevaComanda: handleNuevaComanda,
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
-    obtenerComandas: obtenerComandas
+    obtenerComandas: obtenerComandas,
+    token: getToken() // Token JWT para autenticación
   });
 
   // Actualizar estado de conexión
@@ -1710,7 +1716,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
   // PARRAFO 3 - HANDLER: Prioridad Alta v5.5 - Toggle: asigna o quita prioridadOrden
   const handlePrioridadAlta = useCallback(async () => {
-    const userRole = localStorage.getItem('userRole') || 'cocina';
+    // El rol viene del contexto de autenticación, no de localStorage
     // Buscar comanda: seleccionada o primera en espera
     let comanda = null;
     if (selectedOrders.size === 1) {
@@ -2028,6 +2034,11 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                 <span>●</span> Desconectado
               </div>
             )}
+            {socketConnectionStatus === 'auth_error' && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-orange-600 rounded text-white text-xs font-semibold" title={socketAuthError}>
+                <span>●</span> Error Auth
+              </div>
+            )}
           </div>
           
           {/* Botones pequeños arriba derecha - Orden: Regresar → Buscar → Reportes → Config → Revertir */}
@@ -2314,9 +2325,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                   );
                 })()}
 
-                {/* PARRAFO 2 - BOTÓN TOOLBAR v5.5: 🚀 Prioridad Alta - Toggle según estado actual */}
+                {/* PARRAFO 2 - BOTÓN TOOLBAR v5.5: Prioridad Alta - Toggle según estado actual */}
                 {(() => {
-                  const userRole = localStorage.getItem('userRole') || 'cocina';
+                  // El rol viene del contexto de autenticación, no de localStorage
                   const hayEnEspera = enEspera.length > 0;
                   const isEnabled = hayEnEspera && userRole === 'cocina';
                   // Determinar si la comanda seleccionada ya tiene prioridad

@@ -1,25 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaUtensils, FaSignInAlt, FaExclamationTriangle, FaSpinner } from 'react-icons/fa';
+import { FaUtensils, FaSignInAlt, FaExclamationTriangle, FaSpinner, FaUser } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * LoginPage - Pantalla de login para el App de Cocina
- * Autenticación con DNI contra el endpoint /api/admin/cocina/auth
+ * 
+ * Características:
+ * - Autenticación con DNI contra el endpoint /api/admin/cocina/auth
+ * - El nombre de usuario viene del backend, no del input
+ * - Muestra quién está logueado después del login exitoso
  */
 const LoginPage = () => {
   const [dni, setDni] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
   
-  const { login, error: authError, loading, isAuthenticated } = useAuth();
+  const { login, error: authError, loading, isAuthenticated, user } = useAuth();
 
-  // Si ya está autenticado, no mostrar el login
+  // Redirigir si ya está autenticado
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
       // El App.jsx se encargará de redirigir
+      console.log('[LoginPage] Usuario autenticado:', user.name);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +38,7 @@ const LoginPage = () => {
     }
 
     if (!/^\d{8}$/.test(dniLimpio)) {
-      setLocalError('El DNI debe tener 8 dígitos');
+      setLocalError('El DNI debe tener 8 digitos');
       return;
     }
 
@@ -42,12 +47,12 @@ const LoginPage = () => {
     try {
       const result = await login(dniLimpio);
       if (!result.success) {
-        setLocalError(result.error || 'Error al iniciar sesión');
+        setLocalError(result.error || 'Error al iniciar sesion');
       }
-      // Si es exitoso, el AuthContext actualizará isAuthenticated
-      // y App.jsx redirigirá automáticamente al Menú
+      // Si es exitoso, el AuthContext actualiza isAuthenticated
+      // y App.jsx redirige automáticamente al Menú
     } catch (err) {
-      setLocalError('Error de conexión. Intente nuevamente.');
+      setLocalError('Error de conexion. Intente nuevamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -65,7 +70,7 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center p-4">
-      {/* Fondo con patrón */}
+      {/* Fondo con patron */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
@@ -78,7 +83,7 @@ const LoginPage = () => {
         transition={{ duration: 0.5 }}
         className="relative w-full max-w-md"
       >
-        {/* Logo y título */}
+        {/* Logo y titulo */}
         <motion.div
           initial={{ scale: 0.8 }}
           animate={{ scale: 1 }}
@@ -91,7 +96,7 @@ const LoginPage = () => {
           <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Arial Black, sans-serif' }}>
             COCINA
           </h1>
-          <h2 className="text-xl text-orange-400 font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <h2 className="text-xl text-orange-400 font-semibold">
             LAS GAMBUSINAS
           </h2>
         </motion.div>
@@ -107,6 +112,9 @@ const LoginPage = () => {
             <p className="text-gray-300 text-sm">
               Ingrese su DNI para acceder al sistema
             </p>
+            <p className="text-gray-500 text-xs mt-1">
+              Su nombre sera cargado automaticamente
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -116,6 +124,9 @@ const LoginPage = () => {
                 DNI del cocinero
               </label>
               <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaUser className="text-gray-500" />
+                </div>
                 <input
                   type="text"
                   id="dni"
@@ -123,7 +134,7 @@ const LoginPage = () => {
                   onChange={handleDniChange}
                   placeholder="12345678"
                   disabled={isSubmitting || loading}
-                  className="w-full bg-gray-900 border-2 border-gray-600 rounded-xl px-4 py-4 text-white text-xl text-center tracking-widest font-mono focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-gray-900 border-2 border-gray-600 rounded-xl pl-12 pr-4 py-4 text-white text-xl text-center tracking-widest font-mono focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   autoComplete="off"
                   inputMode="numeric"
                 />
@@ -147,7 +158,7 @@ const LoginPage = () => {
               </motion.div>
             )}
 
-            {/* Botón de login */}
+            {/* Boton de login */}
             <button
               type="submit"
               disabled={isSubmitting || loading || dni.length !== 8}
@@ -171,6 +182,9 @@ const LoginPage = () => {
           <div className="mt-6 pt-6 border-t border-gray-700 text-center">
             <p className="text-gray-500 text-xs">
               Solo personal autorizado con rol de cocinero
+            </p>
+            <p className="text-gray-600 text-xs mt-1">
+              La sesion expira por inactividad despues de 30 minutos
             </p>
           </div>
         </motion.div>
