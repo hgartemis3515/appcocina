@@ -766,8 +766,18 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         playNotificationSound();
       }
       
+      // FIX: revertir multi-plato similar - Encontrar el índice del plato usando el subdocumento _id
+      // El Socket envía platoId = subdocumento._id, pero platoStates usa platoIndex como key
+      const platoIndexEncontrado = comanda.platos?.findIndex(p => 
+        p._id?.toString() === data.platoId?.toString()
+      );
+      
+      // Si encontramos el índice, usarlo; si no, intentar buscar por otros IDs como fallback
+      const platoIndexParaKey = platoIndexEncontrado >= 0 ? platoIndexEncontrado : platoIndex;
+      
       // Resetear estado visual local cuando Socket actualiza plato (backend cambió estado)
-      const platoKey = `${data.comandaId}-${data.platoId}`;
+      // FIX: Usar el índice del plato para el key, no el platoId
+      const platoKey = `${data.comandaId}-${platoIndexParaKey}`;
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
         // Reset a 'normal' cuando backend actualiza (plato ya procesado)
@@ -777,7 +787,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         // PARRAFO 5: Si vuelve a 'en_espera' (revertido), también resetear
         if (data.nuevoEstado === "en_espera") {
           nuevo.set(platoKey, 'normal');
-          console.log(`↩️ Plato revertido a preparación: ${data.platoId}`);
+          console.log(`↩️ Plato revertido a preparación: ${data.platoId} (índice: ${platoIndexParaKey})`);
         }
         return nuevo;
       });

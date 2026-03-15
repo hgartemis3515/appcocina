@@ -78,7 +78,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   }, []);
 
   const togglePlatoSeleccion = (comandaId, platoId) => {
-    const key = `${comandaId}-${platoId}`;
+    // FIX: revertir multi-plato similar - Usar delimitador único "::" para evitar colisiones
+    const key = `${comandaId}::${platoId}`;
     setPlatosSeleccionados(prev => {
       const nuevo = new Set(prev);
       if (nuevo.has(key)) {
@@ -146,7 +147,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     setToastMsg(`✅ "${platoNombre}" revertido a preparación`);
     setTimeout(() => setToastMsg(null), 3000);
     
-    const key = `${comandaId}-${platoId}`;
+    // FIX: revertir multi-plato similar - Usar delimitador único "::"
+    const key = `${comandaId}::${platoId}`;
     setPlatosSeleccionados(prev => {
       const nuevo = new Set(prev);
       nuevo.delete(key);
@@ -164,7 +166,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     // Revertir cada plato con motivo (backend registra auditoría por cada uno)
     const promesas = [];
     platosSeleccionados.forEach(key => {
-      const [comandaId, platoId] = key.split("-");
+      // FIX: revertir multi-plato similar - Usar delimitador único "::"
+      const [comandaId, platoId] = key.split("::");
       const comanda = comandasFinalizadas.find(c => c._id === comandaId);
       const currentStatus = comanda?.status || 'en_espera';
       
@@ -226,9 +229,11 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     );
     
     for (const plato of platosARevertir) {
-      // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
+      // FIX: revertir multi-plato similar - Priorizar plato._id (subdocumento único) sobre plato.plato._id (compartido entre duplicados)
+      // Esto es CRÍTICO cuando hay 2+ platos del mismo tipo con complementos diferentes
+      const platoIdUnico = plato._id?.toString() || plato.plato?._id;
       await axios.put(
-        `${getApiUrl()}/${comandaId}/plato/${plato._id || plato.plato?._id}/estado`,
+        `${getApiUrl()}/${comandaId}/plato/${platoIdUnico}/estado`,
         { nuevoEstado: "en_espera", motivo: motivo.trim() }
       );
     }
@@ -428,10 +433,13 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                         <ul className="list-none mt-2 space-y-1">
                           {platosActivos.map((p, idx) => {
                             const plato = p.plato || p;
-                            const platoId = plato._id || p._id || p.platoId;
+                            // FIX: revertir multi-plato similar - Priorizar p._id (subdocumento único) sobre plato._id (compartido entre duplicados)
+                            // Esto es CRÍTICO cuando hay 2+ platos del mismo tipo con complementos diferentes
+                            const platoId = p._id?.toString() || plato._id || p.platoId;
                             const cantidad = comanda.cantidades?.[idx] || 1;
                             const reversible = esPlatoReversible(p);
-                            const key = `${comanda._id}-${platoId}`;
+                            // FIX: Usar delimitador único "::" para evitar colisiones con IDs que contengan "-"
+                            const key = `${comanda._id}::${platoId}`;
                             const seleccionado = platosSeleccionados.has(key);
                             
                             return (
