@@ -29,6 +29,7 @@ const useSocketCocina = ({
   onPlatoCanceladoUrgente,
   onPlatoAnulado,
   onComandaAnulada,
+  onConfigCocineroActualizada,
   obtenerComandas,
   token // Token obligatorio para autenticación
 }) => {
@@ -311,6 +312,16 @@ const useSocketCocina = ({
       }
     });
 
+    // Evento: Configuración de cocinero actualizada
+    socket.on('config-cocinero-actualizada', (data) => {
+      console.log('[useSocketCocina] Configuración de cocinero actualizada:', data.cocineroId);
+      ultimoPingRef.current = Date.now();
+      
+      if (onConfigCocineroActualizada) {
+        onConfigCocineroActualizada(data);
+      }
+    });
+
     // Heartbeat para mantener conexión activa
     heartbeatIntervalRef.current = setInterval(() => {
       if (socket.connected) {
@@ -348,7 +359,7 @@ const useSocketCocina = ({
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token]); // Reconectar solo si cambia el token
+  }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, obtenerComandas]);
 
   return {
     socket: socketRef.current,

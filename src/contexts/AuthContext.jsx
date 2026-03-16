@@ -113,6 +113,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const [cocineroConfig, setCocineroConfig] = useState(null);
+  const [configLoading, setConfigLoading] = useState(false);
   
   // Refs para timers
   const expiryCheckIntervalRef = useRef(null);
@@ -411,6 +413,76 @@ export const AuthProvider = ({ children }) => {
    */
   const getToken = useCallback(() => token, [token]);
 
+  /**
+   * Carga la configuración KDS del cocinero desde el backend
+   * @returns {Promise<Object|null>}
+   */
+  const loadCocineroConfig = useCallback(async () => {
+    if (!user?.id || !token) {
+      console.warn('[AuthContext] No hay usuario o token para cargar configuración');
+      return null;
+    }
+
+    setConfigLoading(true);
+    try {
+      const serverUrl = getServerBaseUrl();
+      const response = await axios.get(`${serverUrl}/api/cocineros/${user.id}/config`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      if (response.data?.success && response.data?.data) {
+        const config = response.data.data;
+        setCocineroConfig(config);
+        console.log('[AuthContext] Configuración KDS cargada:', config.aliasCocinero || user.name);
+        
+        // Guardar en localStorage para acceso rápido
+        localStorage.setItem('cocinaKdsConfig', JSON.stringify(config));
+        
+        return config;
+      }
+    } catch (err) {
+      console.warn('[AuthContext] Error cargando configuración KDS:', err.message);
+      // Si hay error, usar configuración por defecto
+      const defaultConfig = {
+        aliasCocinero: user.name,
+        filtrosPlatos: { modoInclusion: true, platosPermitidos: [], categoriasPermitidas: [], tiposPermitidos: [] },
+        filtrosComandas: { areasPermitidas: [], mesasEspecificas: [], rangoHorario: { inicio: null, fin: null }, soloPrioritarias: false },
+        configTableroKDS: { tiempoAmarillo: 15, tiempoRojo: 20, maxTarjetasVisibles: 20, modoAltoVolumen: false, sonidoNotificacion: true, modoNocturno: true, columnasGrid: 5, filasGrid: 1, tamanioFuente: 15 }
+      };
+      setCocineroConfig(defaultConfig);
+      return defaultConfig;
+    } finally {
+      setConfigLoading(false);
+    }
+    return null;
+  }, [user, token]);
+
+  /**
+   * Actualiza la configuración KDS (para usar cuando se recibe evento de actualización)
+   */
+  const updateCocineroConfig = useCallback((newConfig) => {
+    setCocineroConfig(prev => {
+      const updated = { ...prev, ...newConfig };
+      localStorage.setItem('cocinaKdsConfig', JSON.stringify(updated));
+      return updated;
+    });
+    console.log('[AuthContext] Configuración KDS actualizada');
+  }, []);
+
+  // Cargar configuración KDS cuando hay usuario autenticado
+  useEffect(() => {
+    if (user?.id && token) {
+      loadCocineroConfig();
+    } else {
+      setCocineroConfig(null);
+      localStorage.removeItem('cocinaKdsConfig');
+    }
+  }, [user?.id, token, loadCocineroConfig]);
+
   const value = {
     user,
     token,
@@ -426,6 +498,11 @@ export const AuthProvider = ({ children }) => {
     showInactivityWarning,
     extendSession,
     getRememberedUser,
+    // Configuración del cocinero
+    cocineroConfig,
+    configLoading,
+    loadCocineroConfig,
+    updateCocineroConfig,
     // Información del usuario expuesta convenientemente
     userId: user?._id || user?.id,
     userName: user?.name,
