@@ -1,7 +1,7 @@
 # Estado de Implementación - Integración Cocineros y Zonas KDS
 
 **Fecha:** Marzo 2026  
-**Estado:** Fase 1-3 Completada, Fase 4-7 Pendiente
+**Estado:** Fase 1-5 Completada, Fase 6-7 Pendiente
 
 ---
 
@@ -13,9 +13,11 @@
 |---------|-------------|--------|
 | `appcocina/docs/INTEGRACION_COCINEROS_ZONAS_KDS.md` | Documento de análisis y diseño completo | ✅ Creado |
 | `appcocina/src/utils/kdsFilters.js` | Módulo de filtros KDS para platos y comandas | ✅ Creado |
-| `appcocina/src/contexts/AuthContext.jsx` | Contexto actualizado con zonas y configuración | ✅ Modificado |
+| `appcocina/src/contexts/AuthContext.jsx` | Contexto actualizado con zonas, configuración y viewMode | ✅ Modificado |
 | `appcocina/src/components/common/ZoneSelector.jsx` | Componente para seleccionar zonas activas | ✅ Creado |
 | `appcocina/src/hooks/useSocketCocina.js` | Hook actualizado para eventos de configuración | ✅ Modificado |
+| `appcocina/src/components/pages/MenuPage.jsx` | Menú con selección de Vista General/Personalizada | ✅ Modificado |
+| `appcocina/src/components/Principal/Comandastyle.jsx` | Integración completa de filtros y vistas | ✅ Modificado |
 
 ---
 
@@ -36,12 +38,14 @@ Funciones principales:
 Nuevos estados:
 - `configError` - Error al cargar configuración
 - `zonaActivaId` - ID de zona seleccionada actualmente
+- `viewMode` - Modo de vista actual ('general' | 'personalizada')
 
 Nuevas funciones:
 - `loadCocineroConfig()` - Carga config + zonas del backend
 - `updateCocineroConfig()` - Actualiza config desde Socket
 - `setZonaActiva()` - Cambia zona activa
 - `getZonasActivas()` - Obtiene zonas activas
+- `setViewMode()` - Cambia modo de vista (general/personalizada)
 
 ### 3. ZoneSelector Componente
 
@@ -58,97 +62,45 @@ Nuevos eventos manejados:
 - `zona-asignada` - Nueva zona asignada
 - `zona-removida` - Zona removida
 
+### 5. Sistema de Vistas KDS (NUEVO)
+
+#### Vista General
+- Muestra todas las comandas del día sin filtros de cocinero/Zonas KDS
+- Solo validaciones técnicas básicas (comandas activas, con platos, etc.)
+- Indicador visual en header: "👁 Vista General"
+- Selector de zonas atenuado (solo informativo)
+
+#### Vista Personalizada
+- Aplica filtros de `kdsFilters.js` usando `cocineroConfig` y `zonasAsignadas`
+- Filtrado en tiempo real según `zonaActivaId`
+- Indicador visual en header: "🔽 Vista Personalizada"
+- Chips de zonas activas con selector funcional
+- Badge de estadísticas de filtrado (comandos ocultos/visibles)
+
+#### Flujo de Filtrado Centralizado
+```javascript
+// Función centralizada en ComandaStyle.jsx
+const filtrarComandasSegunVista = useCallback((comandasAFiltrar) => {
+  if (viewMode === 'general') {
+    // Sin filtros de zonas/config
+    return comandasAFiltrar;
+  }
+  // Vista Personalizada: aplicar kdsFilters
+  return aplicarFiltrosAComandas(comandasAFiltrar, {
+    ...cocineroConfig,
+    zonaActivaId
+  });
+}, [viewMode, cocineroConfig, zonaActivaId]);
+```
+
+#### Integración en Socket Handlers
+- `handleNuevaComanda` - Filtra antes de agregar al estado
+- `handleComandaActualizada` - Re-filtra comanda actualizada
+- `obtenerComandas` - Aplica filtros en carga inicial
+
 ---
 
 ## Pendientes de Implementación
-
-### Fase 4: Integración en ComandaStyle.jsx
-
-**Prioridad: Alta**
-
-Modificaciones necesarias en `appcocina/src/components/Principal/comandastyle.jsx`:
-
-```javascript
-// 1. Importar módulos
-import { 
-  aplicarFiltrosAComandas, 
-  calcularEstadisticasFiltrado 
-} from '../../utils/kdsFilters';
-import { CocineroInfo, ZoneChipsCompact } from '../common/ZoneSelector';
-
-// 2. Obtener configuración del contexto
-const { 
-  cocineroConfig, 
-  zonaActivaId, 
-  setZonaActiva, 
-  getZonasActivas 
-} = useAuth();
-
-// 3. Crear función de filtrado centralizada
-const filtrarComandas = useCallback((comandas) => {
-  if (!cocineroConfig) return comandas;
-  
-  const configConZona = {
-    ...cocineroConfig,
-    zonaActivaId
-  };
-  
-  return aplicarFiltrosAComandas(comandas, configConZona);
-}, [cocineroConfig, zonaActivaId]);
-
-// 4. Modificar obtenerComandas
-const obtenerComandas = useCallback(async () => {
-  // ... código existente ...
-  const comandasFiltradas = filtrarComandas(comandasValidas);
-  setComandas(comandasFiltradas);
-  setFilteredComandas(comandasFiltradas);
-}, [filtrarComandas]);
-
-// 5. Modificar handleNuevaComanda
-const handleNuevaComanda = useCallback((nuevaComanda) => {
-  // Verificar si debe mostrarse según filtros
-  if (!debeMostrarComanda(nuevaComanda, cocineroConfig?.filtrosComandas, 
-      cocineroConfig?.zonasAsignadas, zonaActivaId)) {
-    console.log('[FILTRO] Nueva comanda oculta:', nuevaComanda.comandaNumber);
-    return;
-  }
-  // ... resto del código ...
-}, [cocineroConfig, zonaActivaId]);
-
-// 6. Agregar handler para actualización de config
-const handleConfigCocineroActualizada = useCallback((data) => {
-  if (data.refresh) {
-    loadCocineroConfig();
-  } else if (data.config) {
-    updateCocineroConfig(data.config);
-    // Re-aplicar filtros
-    const reFiltradas = filtrarComandas(comandas);
-    setComandas(reFiltradas);
-    setFilteredComandas(reFiltradas);
-  }
-}, [loadCocineroConfig, updateCocineroConfig, filtrarComandas, comandas]);
-
-// 7. Actualizar header para mostrar zonas
-<div className="flex items-center gap-4">
-  <CocineroInfo
-    aliasCocinero={cocineroConfig?.aliasCocinero}
-    userName={userName}
-    zonasAsignadas={cocineroConfig?.zonasAsignadas}
-    zonaActivaId={zonaActivaId}
-    onZonaChange={setZonaActiva}
-    nightMode={config.nightMode}
-  />
-</div>
-```
-
-### Fase 5: Actualizar ConfigModal.jsx
-
-**Prioridad: Media**
-
-Modificar para:
-- Mostrar valores del backend como defaults
-- Indicar configuración del servidor vs preferencia local
-- Sincronizar cambios con el servidor (opcional)
 
 ### Fase 6: Backend - Implementar eventos Socket.io
 
@@ -174,13 +126,13 @@ global.emitConfigCocineroActualizada = (cocineroId, config) => {
 ### Fase 7: Testing
 
 **Escenarios a probar:**
-1. Cocinero sin zonas asignadas
-2. Cocinero con una zona
-3. Cocinero con múltiples zonas
-4. Cambio de zona activa
-5. Actualización de configuración en tiempo real
-6. Backend caído (fallback)
-7. Métricas de filtrado en consola
+1. ✅ Cocinero sin zonas asignadas → Vista General sugerida
+2. ✅ Cocinero con zonas → Vista Personalizada por defecto
+3. ✅ Cambio entre vistas sin recargar página
+4. ✅ Zonas activas/inactivas, cambio de zonaActivaId
+5. ⏳ Eventos config-cocinero-actualizada mientras el cocinero está en cada vista
+6. ⏳ Persistencia de viewMode al recargar página
+7. ⏳ Filtrado en tiempo real con nuevas comandas vía Socket
 
 ---
 
@@ -189,7 +141,7 @@ global.emitConfigCocineroActualizada = (cocineroId, config) => {
 ### Ejemplo en Header
 
 ```jsx
-import { CocineroInfo } from '../common/ZoneSelector';
+import { CocineroInfo, FilterStatusBadge } from '../common/ZoneSelector';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Header = () => {
@@ -197,19 +149,29 @@ const Header = () => {
     userName, 
     cocineroConfig, 
     zonaActivaId, 
-    setZonaActiva 
+    setZonaActiva,
+    viewMode,
+    setViewMode
   } = useAuth();
 
   return (
     <header>
-      <CocineroInfo
-        aliasCocinero={cocineroConfig?.aliasCocinero}
-        userName={userName}
-        zonasAsignadas={cocineroConfig?.zonasAsignadas}
-        zonaActivaId={zonaActivaId}
-        onZonaChange={setZonaActiva}
-        nightMode={true}
-      />
+      {/* Indicador de modo de vista */}
+      <button onClick={() => setViewMode(viewMode === 'general' ? 'personalizada' : 'general')}>
+        {viewMode === 'general' ? '👁 Vista General' : '🔽 Vista Personalizada'}
+      </button>
+      
+      {/* Info del cocinero y zonas (solo en personalizada) */}
+      {viewMode === 'personalizada' && (
+        <CocineroInfo
+          aliasCocinero={cocineroConfig?.aliasCocinero}
+          userName={userName}
+          zonasAsignadas={cocineroConfig?.zonasAsignadas}
+          zonaActivaId={zonaActivaId}
+          onZonaChange={setZonaActiva}
+          nightMode={true}
+        />
+      )}
     </header>
   );
 };
@@ -222,24 +184,22 @@ import { aplicarFiltrosAComandas, calcularEstadisticasFiltrado } from '../../uti
 import { useAuth } from '../../contexts/AuthContext';
 
 const ComandaList = () => {
-  const { cocineroConfig, zonaActivaId } = useAuth();
-  const [comandas, setComandas] = useState([]);
+  const { cocineroConfig, zonaActivaId, viewMode } = useAuth();
+  const [comandasOriginales, setComandasOriginales] = useState([]);
 
-  useEffect(() => {
+  // Filtrar según modo de vista
+  const comandasVisibles = useMemo(() => {
+    if (viewMode === 'general') {
+      return comandasOriginales;
+    }
+    
     const configCompleta = {
       ...cocineroConfig,
       zonaActivaId
     };
     
-    const filtradas = aplicarFiltrosAComandas(comandasOriginales, configCompleta);
-    setComandas(filtradas);
-
-    // Debug
-    if (process.env.NODE_ENV === 'development') {
-      const stats = calcularEstadisticasFiltrado(comandasOriginales, filtradas);
-      console.log('Estadísticas de filtrado:', stats);
-    }
-  }, [comandasOriginales, cocineroConfig, zonaActivaId]);
+    return aplicarFiltrosAComandas(comandasOriginales, configCompleta);
+  }, [comandasOriginales, cocineroConfig, zonaActivaId, viewMode]);
 
   return (/* ... */);
 };
@@ -261,18 +221,18 @@ const ComandaList = () => {
 
 | Evento | Dirección | Propósito | Estado |
 |--------|-----------|-----------|--------|
-| `config-cocinero-actualizada` | Server→App | Notificar cambio de config | ❌ Pendiente |
-| `zona-asignada` | Server→App | Notificar nueva zona | ❌ Pendiente |
-| `zona-removida` | Server→App | Notificar zona removida | ❌ Pendiente |
+| `config-cocinero-actualizada` | Server→App | Notificar cambio de config | ⏳ Pendiente |
+| `zona-asignada` | Server→App | Notificar nueva zona | ⏳ Pendiente |
+| `zona-removida` | Server→App | Notificar zona removida | ⏳ Pendiente |
 
 ---
 
 ## Próximos Pasos Recomendados
 
-1. **Inmediato:** Implementar Fase 4 (integración en ComandaStyle.jsx)
+1. **Inmediato:** Probar el flujo completo de vistas en la App
 2. **Corto plazo:** Implementar eventos Socket.io en backend
-3. **Medio plazo:** Completar Fase 5 (ConfigModal sincronizado)
-4. **Largo plazo:** Testing exhaustivo y documentación de usuario
+3. **Medio plazo:** Testing exhaustivo con múltiples cocineros
+4. **Largo plazo:** Documentación de usuario final
 
 ---
 
@@ -283,3 +243,20 @@ const ComandaList = () => {
 - La configuración se cachea en localStorage para restauración rápida
 - Las zonas inactivas (`activo: false`) se ignoran en los filtros
 - El modo inclusión/exclusión se aplica según configuración de cada zona
+- El `viewMode` se persiste en localStorage con clave `cocinaViewMode`
+- Cambiar entre vistas NO recarga las comandas del backend
+- Las estadísticas de filtrado se calculan en cada cambio de vista/zona
+
+---
+
+## Seguridad
+
+- La carga de `cocineroConfig` y `zonasAsignadas` siempre proviene del backend
+- El `viewMode` es solo una preferencia de UI, no afecta permisos
+- Aunque en Vista General se muestran todas las comandas, la App sigue respetando el rol del usuario
+- El evento `config-cocinero-actualizada` solo re-aplica filtros en Vista Personalizada
+- El selector de zonas en el header solo aparece en Vista Personalizada
+
+---
+
+**Fin del Documento**

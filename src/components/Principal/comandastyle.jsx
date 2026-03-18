@@ -1,5 +1,6 @@
 // PLAN v5.5: 1. Refina botón toolbar (texto dinámico). 2. Handler auto-selección. 3. API+toast+sonido. 4. Sort prioritario en useEffect/socket. 5. Icono 🚀 rojo header. 6. Reset 'recoger'.
 // PLAN REVERTIR v5.5: 1. Refina botón/menú. 2. Lista platos reversibles. 3. Handler plato granular. 4. Modal checkboxes. 5. Socket/UI update. 6. Toast confirm.
+// VISTAS KDS: Vista General vs Vista Personalizada por Zonas - Filtrado centralizado
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
@@ -19,7 +20,9 @@ import {
   FaExpand,
   FaCompress,
   FaSearch,
-  FaArrowLeft
+  FaArrowLeft,
+  FaEye,
+  FaFilter
 } from "react-icons/fa";
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
@@ -28,6 +31,13 @@ import PlatoPreparacion from "./PlatoPreparacion";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
+import { 
+  aplicarFiltrosAComandas, 
+  debeMostrarComanda, 
+  debeMostrarPlato,
+  calcularEstadisticasFiltrado 
+} from "../../utils/kdsFilters";
+import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -54,7 +64,21 @@ const playNotificationSound = () => {
 
 const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
-  const { userRole, canPerformSensitiveActions, getToken } = useAuth();
+  // Incluye configuración de cocinero, zonas y modo de vista
+  const { 
+    userRole, 
+    canPerformSensitiveActions, 
+    getToken,
+    cocineroConfig,
+    configLoading,
+    configError,
+    zonaActivaId,
+    setZonaActiva,
+    getZonasActivas,
+    viewMode,
+    setViewMode,
+    userName
+  } = useAuth();
   
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
@@ -100,6 +124,13 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   const [comandasAutoCompletadas, setComandasAutoCompletadas] = useState(new Set());
   // Estado para toast notifications simples
   const [toastMessage, setToastMessage] = useState(null);
+  
+  // ==================== ESTADOS PARA FILTRADO POR VISTAS ====================
+  // Comandas originales sin filtrar (para poder cambiar entre vistas sin recargar)
+  const [comandasOriginales, setComandasOriginales] = useState([]);
+  // Estadísticas de filtrado para debugging/UI
+  const [estadisticasFiltrado, setEstadisticasFiltrado] = useState(null);
+  
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
   const lastSuccessTimeRef = useRef(Date.now());
@@ -182,6 +213,108 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       onGoToMenu();
     }
   }, [onGoToMenu]);
+
+  // ==================== FUNCIÓN CENTRAL DE FILTRADO POR VISTA ====================
+  /**
+   * Filtra comandas según el modo de vista actual (general/personalizada)
+   * - Vista General: Sin filtros de cocinero/zonas
+   * - Vista Personalizada: Aplica kdsFilters con cocineroConfig y zonasAsignadas
+   */
+  const filtrarComandasSegunVista = useCallback((comandasAFiltrar) => {
+    if (!comandasAFiltrar || comandasAFiltrar.length === 0) {
+      return comandasAFiltrar || [];
+    }
+
+    // Vista General: No aplicar filtros de zonas/config
+    if (viewMode === 'general') {
+      console.log('[VISTAS] Mostrando Vista General - sin filtros de cocinero/zonas');
+      setEstadisticasFiltrado({
+        comandasOriginales: comandasAFiltrar.length,
+        comandasVisibles: comandasAFiltrar.length,
+        comandasOcultas: 0,
+        porcentajeVisible: 100,
+        modoVista: 'general'
+      });
+      return comandasAFiltrar;
+    }
+
+    // Vista Personalizada: Aplicar filtros
+    console.log('[VISTAS] Aplicando Vista Personalizada con filtros');
+    
+    // Si la configuración está cargando, esperar (no mostrar error aún)
+    if (configLoading) {
+      console.log('[VISTAS] Configuración cargando, esperando...');
+      setEstadisticasFiltrado({
+        comandasOriginales: comandasAFiltrar.length,
+        comandasVisibles: comandasAFiltrar.length,
+        comandasOcultas: 0,
+        porcentajeVisible: 100,
+        modoVista: 'personalizada',
+        cargando: true
+      });
+      return comandasAFiltrar;
+    }
+    
+    // Si no hay configuración cargada después de terminar la carga
+    if (!cocineroConfig) {
+      console.warn('[VISTAS] No hay cocineroConfig disponible después de carga');
+      setEstadisticasFiltrado({
+        comandasOriginales: comandasAFiltrar.length,
+        comandasVisibles: comandasAFiltrar.length,
+        comandasOcultas: 0,
+        porcentajeVisible: 100,
+        modoVista: 'personalizada',
+        sinConfiguracion: true
+      });
+      return comandasAFiltrar;
+    }
+
+    // Construir configuración extendida para filtros
+    const configExtendida = {
+      ...cocineroConfig,
+      zonaActivaId
+    };
+
+    // DEBUG: Mostrar configuración usada para filtrar
+    console.log('[VISTAS] Config extendida para filtros:', {
+      tieneFiltrosPlatos: !!cocineroConfig.filtrosPlatos,
+      tieneFiltrosComandas: !!cocineroConfig.filtrosComandas,
+      zonasAsignadasCount: cocineroConfig.zonasAsignadas?.length || 0,
+      zonasAsignadas: cocineroConfig.zonasAsignadas?.map(z => ({
+        id: z._id,
+        nombre: z.nombre,
+        activo: z.activo,
+        tieneFiltrosPlatos: !!z.filtrosPlatos,
+        categoriasPermitidas: z.filtrosPlatos?.categoriasPermitidas?.length || 0
+      })),
+      zonaActivaId
+    });
+
+    // Aplicar filtros usando kdsFilters
+    const comandasFiltradas = aplicarFiltrosAComandas(comandasAFiltrar, configExtendida);
+
+    // Calcular estadísticas
+    const stats = calcularEstadisticasFiltrado(comandasAFiltrar, comandasFiltradas);
+    setEstadisticasFiltrado({
+      ...stats,
+      modoVista: 'personalizada',
+      zonaActivaId,
+      zonasAsignadas: cocineroConfig.zonasAsignadas?.length || 0
+    });
+
+    console.log(`[VISTAS] Filtrado completado: ${stats.comandasVisibles}/${stats.comandasOriginales} comandas visibles (${stats.porcentajeVisible}%)`);
+
+    return comandasFiltradas;
+  }, [viewMode, cocineroConfig, zonaActivaId, configLoading]);
+
+  // Efecto para re-filtrar cuando cambian las dependencias
+  // IMPORTANTE: Se re-ejecuta cuando cocineroConfig cambia (se cargó)
+  useEffect(() => {
+    if (comandasOriginales.length > 0) {
+      const filtradas = filtrarComandasSegunVista(comandasOriginales);
+      setComandas(filtradas);
+    }
+  }, [viewMode, cocineroConfig, zonaActivaId, comandasOriginales, filtrarComandasSegunVista]);
 
   const obtenerComandas = useCallback(async () => {
     try {
@@ -284,7 +417,15 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       }
       
       previousComandasRef.current = comandasValidas;
-      setComandas(comandasValidas);
+      
+      // ==================== INTEGRACIÓN VISTAS KDS ====================
+      // Guardar comandas originales (sin filtrar por vista) para poder cambiar entre vistas
+      setComandasOriginales(comandasValidas);
+      
+      // Aplicar filtrado según vista actual (general/personalizada)
+      const comandasFiltradasPorVista = filtrarComandasSegunVista(comandasValidas);
+      
+      setComandas(comandasFiltradasPorVista);
       lastSuccessTimeRef.current = Date.now();
       
       if (reconnectTimeoutRef.current) {
@@ -344,6 +485,49 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       }
     }
     
+    // ==================== FILTRADO POR VISTA ====================
+    // En Vista Personalizada, verificar si la comanda debe mostrarse
+    if (viewMode === 'personalizada' && cocineroConfig) {
+      const debeMostrar = debeMostrarComanda(
+        nuevaComanda,
+        cocineroConfig.filtrosComandas,
+        cocineroConfig.zonasAsignadas,
+        zonaActivaId
+      );
+      
+      if (!debeMostrar) {
+        console.log(`[VISTAS] Nueva comanda #${nuevaComanda.comandaNumber} oculta por filtros de vista personalizada`);
+        // Actualizar referencia pero no mostrar en UI
+        setComandasOriginales(prev => [...prev, nuevaComanda]);
+        previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
+        return;
+      }
+      
+      // También filtrar los platos de la comanda si aplica
+      const platosFiltrados = nuevaComanda.platos?.filter(plato =>
+        debeMostrarPlato(
+          plato,
+          cocineroConfig.filtrosPlatos,
+          cocineroConfig.zonasAsignadas,
+          zonaActivaId
+        )
+      ) || [];
+      
+      if (platosFiltrados.length === 0) {
+        console.log(`[VISTAS] Nueva comanda #${nuevaComanda.comandaNumber} sin platos visibles después de filtrar`);
+        setComandasOriginales(prev => [...prev, nuevaComanda]);
+        previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
+        return;
+      }
+      
+      // Crear comanda con platos filtrados
+      nuevaComanda = {
+        ...nuevaComanda,
+        platos: platosFiltrados,
+        _platosOcultos: (nuevaComanda.platos?.length || 0) - platosFiltrados.length
+      };
+    }
+    
     // Reproducir sonido si está habilitado
     if (config.soundEnabled) {
       playNotificationSound();
@@ -367,9 +551,18 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       }
     });
     
+    // Actualizar también comandasOriginales
+    setComandasOriginales(prev => {
+      const existe = prev.find(c => c._id === nuevaComanda._id);
+      if (existe) {
+        return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
+      }
+      return [nuevaComanda, ...prev];
+    });
+    
     // Actualizar referencia
     previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
-  }, [config.soundEnabled]);
+  }, [config.soundEnabled, viewMode, cocineroConfig, zonaActivaId]);
 
   const handleComandaActualizada = useCallback((data) => {
     // Validar que data existe
@@ -2006,7 +2199,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
   return (
     <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col ${bgMain} ${textMain} overflow-hidden`}>
-      {/* Header fijo estilo SICAR - Mejorado */}
+      {/* Header fijo estilo SICAR - Mejorado con indicadores de Vista */}
       <header className={`h-16 ${bgHeader} border-b-2 ${borderMain} flex items-center justify-between px-6 flex-shrink-0 z-50 relative shadow-lg`}>
         {/* Título centrado */}
         <div className="absolute left-1/2 transform -translate-x-1/2">
@@ -2025,6 +2218,39 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
         {/* Contador y botones a la derecha */}
         <div className="flex items-center gap-4">
+          {/* ==================== INDICADOR DE MODO DE VISTA ==================== */}
+          <div className="flex items-center gap-2">
+            {viewMode === 'general' ? (
+              <button
+                onClick={() => {
+                  if (cocineroConfig?.zonasAsignadas?.length > 0 || cocineroConfig?.filtrosPlatos) {
+                    setViewMode('personalizada');
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold transition-all ${
+                  cocineroConfig?.zonasAsignadas?.length > 0 || cocineroConfig?.filtrosPlatos
+                    ? 'bg-blue-600 text-white cursor-pointer hover:bg-blue-700'
+                    : 'bg-gray-600 text-gray-300 cursor-default'
+                }`}
+                title={cocineroConfig?.zonasAsignadas?.length > 0 || cocineroConfig?.filtrosPlatos
+                  ? 'Click para cambiar a Vista Personalizada'
+                  : 'Sin configuración personalizada'}
+              >
+                <FaEye className="text-xs" />
+                <span>Vista General</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setViewMode('general')}
+                className="flex items-center gap-1.5 px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-white text-xs font-semibold transition-all cursor-pointer"
+                title="Click para cambiar a Vista General"
+              >
+                <FaFilter className="text-xs" />
+                <span>Vista Personalizada</span>
+              </button>
+            )}
+          </div>
+          
           <div className="text-right">
             <div className={`text-xs ${textSecondary}`}>Comandas Pendientes:</div>
             <div className="text-2xl font-bold text-yellow-400" style={{ fontFamily: 'Arial, sans-serif' }}>
@@ -2107,6 +2333,46 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         </div>
       )}
 
+      {/* ==================== BARRA DE INFO DE VISTA Y ZONAS ==================== */}
+      {/* Solo visible en Vista Personalizada */}
+      {viewMode === 'personalizada' && (
+        <div className={`${bgMain} border-b ${borderMain} px-6 py-2 flex-shrink-0`}>
+          <div className="flex items-center justify-between">
+            {/* Estado de carga de configuración */}
+            {configLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full" />
+                <span className={`text-sm ${textSecondary}`}>Cargando tu configuración personalizada...</span>
+              </div>
+            ) : (
+              <>
+                {/* Info del cocinero y zonas */}
+                <CocineroInfo
+                  aliasCocinero={cocineroConfig?.aliasCocinero}
+                  userName={userName}
+                  zonasAsignadas={cocineroConfig?.zonasAsignadas}
+                  zonaActivaId={zonaActivaId}
+                  onZonaChange={setZonaActiva}
+                  nightMode={nightMode}
+                />
+                
+                {/* Badge de filtros activos */}
+                {estadisticasFiltrado && estadisticasFiltrado.comandasOcultas > 0 && (
+                  <FilterStatusBadge
+                    comandasOriginales={estadisticasFiltrado.comandasOriginales}
+                    comandasVisibles={estadisticasFiltrado.comandasVisibles}
+                    platosOcultos={estadisticasFiltrado.platosOcultos}
+                    filtrosActivos={viewMode === 'personalizada'}
+                    zonaActivaId={zonaActivaId}
+                    nightMode={nightMode}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Grid principal estilo SICAR - Configurable, mejor espaciado */}
       {/* Padding inferior para la barra sticky */}
       <div className={`flex-1 overflow-hidden ${bgGrid} p-3 flex flex-col pb-24`}>
@@ -2114,9 +2380,30 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
           <div className="flex items-center justify-center h-full">
             <div className={`text-center ${textSecondary}`}>
               <p className={`text-2xl font-bold mb-2 ${textMain}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                No hay comandas activas
+                {viewMode === 'personalizada' && estadisticasFiltrado?.comandasOcultas > 0
+                  ? 'No hay comandas que cumplan tus filtros'
+                  : 'No hay comandas activas'}
               </p>
-              <p className={`text-sm ${textSecondary}`}>Las comandas aparecerán aquí cuando los mozos las envíen</p>
+              {viewMode === 'personalizada' && estadisticasFiltrado?.comandasOcultas > 0 && (
+                <>
+                  <p className={`text-sm ${textSecondary} mb-4`}>
+                    Zonas activas: {cocineroConfig?.zonasAsignadas?.filter(z => z.activo !== false).map(z => z.nombre).join(', ') || 'Ninguna'}
+                  </p>
+                  <button
+                    onClick={() => setViewMode('general')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      nightMode
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    🔄 Cambiar a Vista General
+                  </button>
+                </>
+              )}
+              {viewMode !== 'personalizada' && (
+                <p className={`text-sm ${textSecondary}`}>Las comandas aparecerán aquí cuando los mozos las envíen</p>
+              )}
             </div>
           </div>
         ) : (

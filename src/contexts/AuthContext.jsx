@@ -22,6 +22,7 @@ const AuthContext = createContext(null);
 const AUTH_STORAGE_KEY = 'cocinaAuth';
 const REMEMBERED_USER_KEY = 'cocinaRememberedUser';
 const KDS_CONFIG_KEY = 'cocinaKdsConfig';
+const VIEW_MODE_KEY = 'cocinaViewMode';
 
 // Configuración de seguridad
 const TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 minutos antes de expirar
@@ -123,6 +124,11 @@ export const AuthProvider = ({ children }) => {
   const [configLoading, setConfigLoading] = useState(false);
   const [configError, setConfigError] = useState(null);
   const [zonaActivaId, setZonaActivaId] = useState(null);
+  const [viewMode, setViewModeState] = useState(() => {
+    // Restaurar desde localStorage o usar 'personalizada' por defecto
+    const saved = localStorage.getItem(VIEW_MODE_KEY);
+    return saved === 'general' || saved === 'personalizada' ? saved : 'personalizada';
+  });
   
   // Refs para timers
   const expiryCheckIntervalRef = useRef(null);
@@ -431,6 +437,12 @@ export const AuthProvider = ({ children }) => {
    * @returns {Promise<Object|null>}
    */
   const loadCocineroConfig = useCallback(async () => {
+    console.log('[AuthContext] loadCocineroConfig llamado', { 
+      userId: user?.id, 
+      userName: user?.name,
+      hasToken: !!token 
+    });
+    
     if (!user?.id || !token) {
       console.warn('[AuthContext] No hay usuario o token para cargar configuración');
       return null;
@@ -441,14 +453,23 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const serverUrl = getServerBaseUrl();
+      const configUrl = `${serverUrl}/api/cocineros/${user.id}/config`;
+      
+      console.log('[AuthContext] Llamando a:', configUrl);
 
       // Cargar configuración del cocinero
-      const configResponse = await axios.get(`${serverUrl}/api/cocineros/${user.id}/config`, {
+      const configResponse = await axios.get(configUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         timeout: 10000
+      });
+
+      console.log('[AuthContext] Respuesta recibida:', {
+        status: configResponse.status,
+        success: configResponse.data?.success,
+        hasData: !!configResponse.data?.data
       });
 
       let config = {};
@@ -457,6 +478,16 @@ export const AuthProvider = ({ children }) => {
       if (configResponse.data?.success && configResponse.data?.data) {
         config = configResponse.data.data;
         zonasAsignadas = config.zonasAsignadas || [];
+        
+        console.log('[AuthContext] Config parseada:', {
+          alias: config.aliasCocinero,
+          tieneFiltrosPlatos: !!config.filtrosPlatos,
+          tieneFiltrosComandas: !!config.filtrosComandas,
+          zonasCount: zonasAsignadas.length,
+          zonas: zonasAsignadas.map(z => z.nombre)
+        });
+      } else {
+        console.warn('[AuthContext] Respuesta sin datos esperados:', configResponse.data);
       }
 
       // Intentar cargar zonas adicionales si hay endpoint dedicado
@@ -473,11 +504,12 @@ export const AuthProvider = ({ children }) => {
           // Combinar zonas del endpoint dedicado si no vienen en config
           if (zonasResponse.data.data.length > 0 && zonasAsignadas.length === 0) {
             zonasAsignadas = zonasResponse.data.data;
+            console.log('[AuthContext] Zonas cargadas de endpoint dedicado:', zonasAsignadas.length);
           }
         }
       } catch (zonasErr) {
         // No es crítico si falla la carga de zonas por separado
-        console.log('[AuthContext] Zonas ya incluidas en config o endpoint no disponible');
+        console.log('[AuthContext] Zonas ya incluidas en config o endpoint no disponible:', zonasErr.message);
       }
 
       // Construir configuración completa
@@ -496,7 +528,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       setCocineroConfig(fullConfig);
-      console.log('[AuthContext] Configuración KDS cargada:', {
+      console.log('[AuthContext] Configuración KDS cargada exitosamente:', {
         alias: fullConfig.aliasCocinero,
         zonas: zonasAsignadas.length,
         filtrosPlatos: !!config.filtrosPlatos,
@@ -576,6 +608,21 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
+   * Cambia el modo de vista (general/personalizada)
+   * @param {'general'|'personalizada'} mode - Modo de vista
+   */
+  const setViewMode = useCallback((mode) => {
+    if (mode !== 'general' && mode !== 'personalizada') {
+      console.warn('[AuthContext] viewMode inválido:', mode);
+      return;
+    }
+    
+    setViewModeState(mode);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+    console.log('[AuthContext] Modo de vista cambiado a:', mode);
+  }, []);
+
+  /**
    * Obtiene las zonas asignadas activas
    * @returns {Array} - Lista de zonas activas
    */
@@ -622,6 +669,9 @@ export const AuthProvider = ({ children }) => {
     zonaActivaId,
     setZonaActiva,
     getZonasActivas,
+    // Modo de vista (general/personalizada)
+    viewMode,
+    setViewMode,
     // Información del usuario expuesta convenientemente
     userId: user?._id || user?.id,
     userName: user?.name,

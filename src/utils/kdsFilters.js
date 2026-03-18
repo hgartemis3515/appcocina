@@ -215,10 +215,25 @@ function pasaFiltrosZonaPlato(plato, filtros) {
   const categoria = plato.plato?.categoria || plato.categoria || '';
   const tipo = plato.plato?.tipo || plato.tipo || '';
 
+  // DEBUG: Mostrar datos del plato y filtros
+  if (platosPermitidos.length > 0 || categoriasPermitidas.length > 0 || tiposPermitidos.length > 0) {
+    console.log('[kdsFilters] Evaluando plato:', {
+      nombre: plato.plato?.nombre || plato.nombre,
+      platoId,
+      categoria,
+      tipo,
+      modoInclusion,
+      platosPermitidos,
+      categoriasPermitidas,
+      tiposPermitidos
+    });
+  }
+
   // Modo inclusión: solo mostrar los que coinciden con los filtros
   if (modoInclusion) {
     // Si no hay filtros definidos, mostrar todo
     if (platosPermitidos.length === 0 && categoriasPermitidas.length === 0 && tiposPermitidos.length === 0) {
+      console.log('[kdsFilters] Modo inclusión sin filtros definidos - mostrando todo');
       return true;
     }
 
@@ -232,8 +247,16 @@ function pasaFiltrosZonaPlato(plato, filtros) {
     const coincideTipo = tiposPermitidos.length === 0 ||
       tiposPermitidos.includes(tipo);
 
+    const resultado = coincidePlato || coincideCategoria || coincideTipo;
+    
+    console.log('[kdsFilters] Modo inclusión - resultado:', resultado, {
+      coincidePlato,
+      coincideCategoria,
+      coincideTipo
+    });
+
     // En modo inclusión, debe coincidir con al menos un criterio si los hay definidos
-    return coincidePlato || coincideCategoria || coincideTipo;
+    return resultado;
   }
 
   // Modo exclusión: ocultar los que coinciden con los filtros
@@ -250,6 +273,7 @@ function pasaFiltrosZonaPlato(plato, filtros) {
 
   // Si coincide con cualquier exclusión, no mostrar
   if (estaEnPlatosExcluidos || estaEnCategoriasExcluidas || estaEnTiposExcluidos) {
+    console.log('[kdsFilters] Modo exclusión - plato excluido');
     return false;
   }
 
