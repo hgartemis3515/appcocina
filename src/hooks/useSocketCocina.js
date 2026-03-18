@@ -314,11 +314,33 @@ const useSocketCocina = ({
 
     // Evento: Configuración de cocinero actualizada
     socket.on('config-cocinero-actualizada', (data) => {
-      console.log('[useSocketCocina] Configuración de cocinero actualizada:', data.cocineroId);
+      console.log('[useSocketCocina] Configuración de cocinero actualizada:', data.cocineroId || data.config?.cocineroId);
       ultimoPingRef.current = Date.now();
-      
+
       if (onConfigCocineroActualizada) {
         onConfigCocineroActualizada(data);
+      }
+    });
+
+    // Evento: Nueva zona asignada
+    socket.on('zona-asignada', (data) => {
+      console.log('[useSocketCocina] Nueva zona asignada:', data.zona?.nombre);
+      ultimoPingRef.current = Date.now();
+
+      // Recargar configuración completa
+      if (obtenerComandas && onConfigCocineroActualizada) {
+        onConfigCocineroActualizada({ refresh: true });
+      }
+    });
+
+    // Evento: Zona removida
+    socket.on('zona-removida', (data) => {
+      console.log('[useSocketCocina] Zona removida:', data.zonaId);
+      ultimoPingRef.current = Date.now();
+
+      // Recargar configuración completa
+      if (onConfigCocineroActualizada) {
+        onConfigCocineroActualizada({ refresh: true });
       }
     });
 

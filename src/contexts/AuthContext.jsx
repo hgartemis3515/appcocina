@@ -11,11 +11,17 @@ import axios from 'axios';
  * - Logout automático por inactividad
  * - Token obtenido solo desde contexto, nunca directamente de localStorage
  * - Integración con apiClient para logout automático en 401
+ * 
+ * Configuración KDS:
+ * - Carga automática de configuración del cocinero al autenticarse
+ * - Zonas asignadas con filtros de platos/comandas
+ * - Sincronización en tiempo real via Socket.io
  */
 
 const AuthContext = createContext(null);
 const AUTH_STORAGE_KEY = 'cocinaAuth';
 const REMEMBERED_USER_KEY = 'cocinaRememberedUser';
+const KDS_CONFIG_KEY = 'cocinaKdsConfig';
 
 // Configuración de seguridad
 const TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 minutos antes de expirar
@@ -115,6 +121,8 @@ export const AuthProvider = ({ children }) => {
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [cocineroConfig, setCocineroConfig] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState(null);
+  const [zonaActivaId, setZonaActivaId] = useState(null);
   
   // Refs para timers
   const expiryCheckIntervalRef = useRef(null);
@@ -147,6 +155,7 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback((keepRemembered = true) => {
     clearSecurityTimers();
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(KDS_CONFIG_KEY);
     
     // Si no se quiere mantener el recordado, limpiarlo
     if (!keepRemembered) {
@@ -157,6 +166,9 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setError(null);
     setShowInactivityWarning(false);
+    setCocineroConfig(null);
+    setConfigError(null);
+    setZonaActivaId(null);
     console.log('[AuthContext] Sesión cerrada');
   }, [clearSecurityTimers]);
 
@@ -415,6 +427,7 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Carga la configuración KDS del cocinero desde el backend
+   * Incluye zonas asignadas con sus filtros
    * @returns {Promise<Object|null>}
    */
   const loadCocineroConfig = useCallback(async () => {
@@ -424,9 +437,13 @@ export const AuthProvider = ({ children }) => {
     }
 
     setConfigLoading(true);
+    setConfigError(null);
+
     try {
       const serverUrl = getServerBaseUrl();
-      const response = await axios.get(`${serverUrl}/api/cocineros/${user.id}/config`, {
+
+      // Cargar configuración del cocinero
+      const configResponse = await axios.get(`${serverUrl}/api/cocineros/${user.id}/config`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -434,31 +451,93 @@ export const AuthProvider = ({ children }) => {
         timeout: 10000
       });
 
-      if (response.data?.success && response.data?.data) {
-        const config = response.data.data;
-        setCocineroConfig(config);
-        console.log('[AuthContext] Configuración KDS cargada:', config.aliasCocinero || user.name);
-        
-        // Guardar en localStorage para acceso rápido
-        localStorage.setItem('cocinaKdsConfig', JSON.stringify(config));
-        
-        return config;
+      let config = {};
+      let zonasAsignadas = [];
+
+      if (configResponse.data?.success && configResponse.data?.data) {
+        config = configResponse.data.data;
+        zonasAsignadas = config.zonasAsignadas || [];
       }
+
+      // Intentar cargar zonas adicionales si hay endpoint dedicado
+      try {
+        const zonasResponse = await axios.get(`${serverUrl}/api/cocineros/${user.id}/zonas`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 5000
+        });
+
+        if (zonasResponse.data?.success && zonasResponse.data?.data) {
+          // Combinar zonas del endpoint dedicado si no vienen en config
+          if (zonasResponse.data.data.length > 0 && zonasAsignadas.length === 0) {
+            zonasAsignadas = zonasResponse.data.data;
+          }
+        }
+      } catch (zonasErr) {
+        // No es crítico si falla la carga de zonas por separado
+        console.log('[AuthContext] Zonas ya incluidas en config o endpoint no disponible');
+      }
+
+      // Construir configuración completa
+      const fullConfig = {
+        ...config,
+        zonasAsignadas,
+        cocineroId: user.id,
+        aliasCocinero: config.aliasCocinero || user.name
+      };
+
+      // Restaurar zona activa desde localStorage
+      const savedZonaActiva = localStorage.getItem('cocinaZonaActiva');
+      if (savedZonaActiva && zonasAsignadas.some(z => z._id === savedZonaActiva)) {
+        setZonaActivaId(savedZonaActiva);
+        fullConfig.zonaActivaId = savedZonaActiva;
+      }
+
+      setCocineroConfig(fullConfig);
+      console.log('[AuthContext] Configuración KDS cargada:', {
+        alias: fullConfig.aliasCocinero,
+        zonas: zonasAsignadas.length,
+        filtrosPlatos: !!config.filtrosPlatos,
+        filtrosComandas: !!config.filtrosComandas
+      });
+
+      // Guardar en localStorage para acceso rápido
+      localStorage.setItem(KDS_CONFIG_KEY, JSON.stringify(fullConfig));
+
+      return fullConfig;
     } catch (err) {
       console.warn('[AuthContext] Error cargando configuración KDS:', err.message);
-      // Si hay error, usar configuración por defecto
+      setConfigError('No se pudo cargar la configuración del servidor');
+
+      // Si hay error, intentar cargar configuración guardada
+      const savedConfig = localStorage.getItem(KDS_CONFIG_KEY);
+      if (savedConfig) {
+        try {
+          const parsed = JSON.parse(savedConfig);
+          setCocineroConfig(parsed);
+          console.log('[AuthContext] Usando configuración guardada en cache');
+          return parsed;
+        } catch {
+          // Si falla el parseo, usar defaults
+        }
+      }
+
+      // Configuración por defecto
       const defaultConfig = {
+        cocineroId: user.id,
         aliasCocinero: user.name,
-        filtrosPlatos: { modoInclusion: true, platosPermitidos: [], categoriasPermitidas: [], tiposPermitidos: [] },
+        filtrosPlatos: { modoInclusion: false, platosPermitidos: [], categoriasPermitidas: [], tiposPermitidos: [] },
         filtrosComandas: { areasPermitidas: [], mesasEspecificas: [], rangoHorario: { inicio: null, fin: null }, soloPrioritarias: false },
-        configTableroKDS: { tiempoAmarillo: 15, tiempoRojo: 20, maxTarjetasVisibles: 20, modoAltoVolumen: false, sonidoNotificacion: true, modoNocturno: true, columnasGrid: 5, filasGrid: 1, tamanioFuente: 15 }
+        configTableroKDS: { tiempoAmarillo: 15, tiempoRojo: 20, maxTarjetasVisibles: 20, modoAltoVolumen: false, sonidoNotificacion: true, modoNocturno: true, columnasGrid: 5, filasGrid: 1, tamanioFuente: 15 },
+        zonasAsignadas: []
       };
       setCocineroConfig(defaultConfig);
       return defaultConfig;
     } finally {
       setConfigLoading(false);
     }
-    return null;
   }, [user, token]);
 
   /**
@@ -467,11 +546,43 @@ export const AuthProvider = ({ children }) => {
   const updateCocineroConfig = useCallback((newConfig) => {
     setCocineroConfig(prev => {
       const updated = { ...prev, ...newConfig };
-      localStorage.setItem('cocinaKdsConfig', JSON.stringify(updated));
+      localStorage.setItem(KDS_CONFIG_KEY, JSON.stringify(updated));
       return updated;
     });
     console.log('[AuthContext] Configuración KDS actualizada');
   }, []);
+
+  /**
+   * Cambia la zona activa del cocinero
+   * @param {string|null} zonaId - ID de la zona o null para ver todas
+   */
+  const setZonaActiva = useCallback((zonaId) => {
+    setZonaActivaId(zonaId);
+    setCocineroConfig(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, zonaActivaId: zonaId };
+      localStorage.setItem(KDS_CONFIG_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    // Guardar preferencia en localStorage
+    if (zonaId) {
+      localStorage.setItem('cocinaZonaActiva', zonaId);
+    } else {
+      localStorage.removeItem('cocinaZonaActiva');
+    }
+
+    console.log('[AuthContext] Zona activa cambiada a:', zonaId || 'Todas');
+  }, []);
+
+  /**
+   * Obtiene las zonas asignadas activas
+   * @returns {Array} - Lista de zonas activas
+   */
+  const getZonasActivas = useCallback(() => {
+    if (!cocineroConfig?.zonasAsignadas) return [];
+    return cocineroConfig.zonasAsignadas.filter(z => z.activo !== false);
+  }, [cocineroConfig]);
 
   // Cargar configuración KDS cuando hay usuario autenticado
   useEffect(() => {
@@ -479,7 +590,10 @@ export const AuthProvider = ({ children }) => {
       loadCocineroConfig();
     } else {
       setCocineroConfig(null);
-      localStorage.removeItem('cocinaKdsConfig');
+      setConfigError(null);
+      setZonaActivaId(null);
+      localStorage.removeItem(KDS_CONFIG_KEY);
+      localStorage.removeItem('cocinaZonaActiva');
     }
   }, [user?.id, token, loadCocineroConfig]);
 
@@ -501,8 +615,13 @@ export const AuthProvider = ({ children }) => {
     // Configuración del cocinero
     cocineroConfig,
     configLoading,
+    configError,
     loadCocineroConfig,
     updateCocineroConfig,
+    // Gestión de zonas
+    zonaActivaId,
+    setZonaActiva,
+    getZonasActivas,
     // Información del usuario expuesta convenientemente
     userId: user?._id || user?.id,
     userName: user?.name,
