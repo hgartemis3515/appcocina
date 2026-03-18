@@ -3,12 +3,16 @@ import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import ComandaStyle from './Principal/comandastyle';
+import ComandaStylePerso from './Principal/ComandastylePerso';
 import ProtectedRoute from './common/ProtectedRoute';
 import { FaSpinner } from 'react-icons/fa';
 
 /**
  * Router interno de la App de Cocina
- * Maneja navegación entre vistas: LOGIN | MENU | COCINA
+ * Maneja navegación entre vistas: LOGIN | MENU | COCINA | COCINA_PERSONALIZADA
+ * 
+ * COCINA = Vista General (sin filtros de zonas) - usa Comandastyle.jsx
+ * COCINA_PERSONALIZADA = Vista Personalizada (filtrada por zonas) - usa ComandastylePerso.jsx
  */
 const AppRouter = () => {
   const [currentView, setCurrentView] = useState('LOADING');
@@ -23,8 +27,8 @@ const AppRouter = () => {
       // Si está autenticado, ir al menú por defecto
       // Si venía de un refresh en cocina, podría restaurarse desde localStorage
       const lastView = localStorage.getItem('cocinaLastView');
-      if (lastView === 'COCINA') {
-        setCurrentView('COCINA');
+      if (lastView === 'COCINA' || lastView === 'COCINA_PERSONALIZADA') {
+        setCurrentView(lastView);
         localStorage.removeItem('cocinaLastView');
       } else {
         setCurrentView('MENU');
@@ -39,8 +43,8 @@ const AppRouter = () => {
     console.log('🔄 Navegando a:', view, options ? 'con opciones' : '');
     
     // Guardar última vista para restaurar en refresh
-    if (view === 'COCINA') {
-      localStorage.setItem('cocinaLastView', 'COCINA');
+    if (view === 'COCINA' || view === 'COCINA_PERSONALIZADA') {
+      localStorage.setItem('cocinaLastView', view);
     } else {
       localStorage.removeItem('cocinaLastView');
     }
@@ -92,6 +96,19 @@ const AppRouter = () => {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <ComandaStyle 
+          onGoToMenu={goToMenu} 
+          initialOptions={cocinaOptions}
+        />
+      </ProtectedRoute>
+    );
+  }
+
+  // Vista de Cocina Personalizada (requiere autenticación)
+  // Usa ComandastylePerso.jsx con filtros de zonas
+  if (currentView === 'COCINA_PERSONALIZADA') {
+    return (
+      <ProtectedRoute onRedirect={handleNotAuthenticated}>
+        <ComandaStylePerso 
           onGoToMenu={goToMenu} 
           initialOptions={cocinaOptions}
         />

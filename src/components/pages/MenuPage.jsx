@@ -20,12 +20,12 @@ import { useAuth } from '../../contexts/AuthContext';
  * MenuPage - Menú principal del App de Cocina
  * Navegación a las diferentes funcionalidades del sistema
  * 
- * Incluye selección de modo de vista:
- * - Vista General: Todas las comandas sin filtros
- * - Vista Personalizada: Filtrada por Zonas KDS del cocinero
+ * Selección de vista:
+ * - Vista General (COCINA): Todas las comandas sin filtros - usa Comandastyle.jsx
+ * - Vista Personalizada (COCINA_PERSONALIZADA): Filtrada por Zonas KDS - usa ComandastylePerso.jsx
  */
 const MenuPage = ({ onNavigate }) => {
-  const { user, logout, cocineroConfig, configLoading, viewMode, setViewMode, getZonasActivas } = useAuth();
+  const { user, logout, cocineroConfig, configLoading, getZonasActivas } = useAuth();
   const [showViewSelector, setShowViewSelector] = useState(false);
 
   // Obtener zonas activas del cocinero
@@ -40,10 +40,14 @@ const MenuPage = ({ onNavigate }) => {
   };
 
   // Función para navegar a cocina con el modo de vista seleccionado
+  // Ahora navega a componentes específicos en lugar de usar viewMode
   const handleNavigateToCocina = (selectedViewMode) => {
-    setViewMode(selectedViewMode);
     setShowViewSelector(false);
-    onNavigate('COCINA');
+    if (selectedViewMode === 'personalizada') {
+      onNavigate('COCINA_PERSONALIZADA');
+    } else {
+      onNavigate('COCINA');
+    }
   };
 
   // Obtener icono de zona
@@ -355,7 +359,6 @@ const MenuPage = ({ onNavigate }) => {
               <div className="space-y-3">
                 {viewOptions.map((option) => {
                   const Icon = option.icon;
-                  const isCurrentView = viewMode === option.id;
                   const isDisabled = option.disabled;
                   
                   return (
@@ -369,9 +372,7 @@ const MenuPage = ({ onNavigate }) => {
                         w-full p-4 rounded-xl text-left transition-all
                         ${isDisabled 
                           ? 'bg-gray-800/50 opacity-60 cursor-not-allowed' 
-                          : isCurrentView
-                            ? `bg-gradient-to-r ${option.color} cursor-pointer ring-2 ring-white/30`
-                            : `bg-gray-800 hover:bg-gray-700 cursor-pointer`}
+                          : `bg-gray-800 hover:bg-gray-700 cursor-pointer`}
                       `}
                     >
                       <div className="flex items-center gap-4">
@@ -379,9 +380,7 @@ const MenuPage = ({ onNavigate }) => {
                           w-12 h-12 rounded-xl flex items-center justify-center
                           ${isDisabled 
                             ? 'bg-gray-700' 
-                            : isCurrentView 
-                              ? 'bg-white/20' 
-                              : `bg-gradient-to-r ${option.color}`}
+                            : `bg-gradient-to-r ${option.color}`}
                         `}>
                           <Icon className={`text-xl ${isDisabled ? 'text-gray-500' : 'text-white'}`} />
                         </div>
@@ -393,11 +392,6 @@ const MenuPage = ({ onNavigate }) => {
                             {option.badge && (
                               <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full text-white">
                                 {option.badge}
-                              </span>
-                            )}
-                            {isCurrentView && !isDisabled && (
-                              <span className="text-xs bg-white/30 px-2 py-0.5 rounded-full text-white">
-                                Actual
                               </span>
                             )}
                           </div>
