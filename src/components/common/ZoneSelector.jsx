@@ -19,20 +19,24 @@ const ZoneSelector = ({
   onZonaChange,
   nightMode = true
 }) => {
-  // Si no hay zonas, no mostrar nada
-  if (!zonasAsignadas || zonasAsignadas.length === 0) {
+  // Validación defensiva: si no hay zonas, no mostrar nada
+  if (!Array.isArray(zonasAsignadas) || zonasAsignadas.length === 0) {
     return null;
   }
 
-  // Filtrar zonas activas
-  const zonasActivas = zonasAsignadas.filter(z => z.activo !== false);
+  // Filtrar zonas válidas y activas
+  const zonasActivas = zonasAsignadas.filter(z => 
+    z && typeof z === 'object' && z.activo !== false
+  );
 
   if (zonasActivas.length === 0) {
     return null;
   }
 
-  // Obtener zona activa
-  const zonaActiva = zonasActivas.find(z => z._id === zonaActivaId);
+  // Obtener zona activa de forma segura
+  const zonaActiva = zonasActivas.find(z => 
+    z && (z._id === zonaActivaId || z.id === zonaActivaId)
+  );
 
   // Estilos condicionales
   const bgMain = nightMode ? 'bg-gray-800' : 'bg-white';
@@ -153,17 +157,24 @@ export const ZoneChipsCompact = ({
   onZonaChange,
   nightMode = true
 }) => {
-  if (!zonasAsignadas || zonasAsignadas.length === 0) {
+  // Validación defensiva
+  if (!Array.isArray(zonasAsignadas) || zonasAsignadas.length === 0) {
     return null;
   }
 
-  const zonasActivas = zonasAsignadas.filter(z => z.activo !== false);
+  // Filtrar zonas válidas y activas
+  const zonasActivas = zonasAsignadas.filter(z => 
+    z && typeof z === 'object' && z.activo !== false
+  );
 
   if (zonasActivas.length === 0) {
     return null;
   }
 
-  const zonaActiva = zonasActivas.find(z => z._id === zonaActivaId);
+  // Obtener zona activa de forma segura
+  const zonaActiva = zonasActivas.find(z => 
+    z && (z._id === zonaActivaId || z.id === zonaActivaId)
+  );
 
   const getZonaIcon = (icono) => {
     const iconos = {

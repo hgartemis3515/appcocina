@@ -218,8 +218,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
    * Este componente es exclusivamente Vista Personalizada
    */
   const filtrarComandasPersonalizadas = useCallback((comandasAFiltrar) => {
-    if (!comandasAFiltrar || comandasAFiltrar.length === 0) {
-      return comandasAFiltrar || [];
+    // Validación defensiva: si no hay comandas, retornar vacío
+    if (!comandasAFiltrar || !Array.isArray(comandasAFiltrar) || comandasAFiltrar.length === 0) {
+      return [];
     }
 
     // Vista Personalizada: Aplicar filtros
@@ -251,41 +252,53 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       return comandasAFiltrar;
     }
 
+    // Normalizar zonasAsignadas a array
+    const zonasAsignadas = Array.isArray(cocineroConfig.zonasAsignadas) 
+      ? cocineroConfig.zonasAsignadas 
+      : [];
+
     // Construir configuración extendida para filtros
     const configExtendida = {
       ...cocineroConfig,
-      zonaActivaId
+      zonasAsignadas,
+      zonaActivaId: zonaActivaId || null
     };
 
     // DEBUG: Mostrar configuración usada para filtrar
     console.log('[VISTA PERSONALIZADA] Config para filtros:', {
-      tieneFiltrosPlatos: !!cocineroConfig.filtrosPlatos,
-      tieneFiltrosComandas: !!cocineroConfig.filtrosComandas,
-      zonasAsignadasCount: cocineroConfig.zonasAsignadas?.length || 0,
-      zonasAsignadas: cocineroConfig.zonasAsignadas?.map(z => ({
-        id: z._id,
+      tieneFiltrosPlatos: !!(cocineroConfig.filtrosPlatos && Object.keys(cocineroConfig.filtrosPlatos).length > 0),
+      tieneFiltrosComandas: !!(cocineroConfig.filtrosComandas && Object.keys(cocineroConfig.filtrosComandas).length > 0),
+      zonasAsignadasCount: zonasAsignadas.length,
+      zonasAsignadas: zonasAsignadas.map(z => ({
+        id: z._id || z.id,
         nombre: z.nombre,
         activo: z.activo,
-        tieneFiltrosPlatos: !!z.filtrosPlatos,
+        tieneFiltrosPlatos: !!(z.filtrosPlatos && Object.keys(z.filtrosPlatos).length > 0),
         categoriasPermitidas: z.filtrosPlatos?.categoriasPermitidas?.length || 0
       })),
       zonaActivaId
     });
 
     // Aplicar filtros usando kdsFilters
-    const comandasFiltradas = aplicarFiltrosAComandas(comandasAFiltrar, configExtendida);
+    try {
+      const comandasFiltradas = aplicarFiltrosAComandas(comandasAFiltrar, configExtendida);
 
-    // Calcular estadísticas
-    const stats = calcularEstadisticasFiltrado(comandasAFiltrar, comandasFiltradas);
-    setEstadisticasFiltrado({
-      ...stats,
-      zonaActivaId,
-      zonasAsignadas: cocineroConfig.zonasAsignadas?.length || 0
-    });
+      // Calcular estadísticas
+      const stats = calcularEstadisticasFiltrado(comandasAFiltrar, comandasFiltradas);
+      setEstadisticasFiltrado({
+        ...stats,
+        zonaActivaId,
+        zonasAsignadas: zonasAsignadas.length
+      });
 
-    console.log(`[VISTA PERSONALIZADA] Filtrado completado: ${stats.comandasVisibles}/${stats.comandasOriginales} comandas visibles (${stats.porcentajeVisible}%)`);
+      console.log(`[VISTA PERSONALIZADA] Filtrado completado: ${stats.comandasVisibles}/${stats.comandasOriginales} comandas visibles (${stats.porcentajeVisible}%)`);
 
-    return comandasFiltradas;
+      return comandasFiltradas;
+    } catch (error) {
+      console.error('[VISTA PERSONALIZADA] Error al filtrar comandas:', error);
+      // En caso de error, retornar las comandas sin filtrar
+      return comandasAFiltrar;
+    }
   }, [cocineroConfig, zonaActivaId, configLoading]);
 
   // Efecto para re-filtrar cuando cambian las dependencias
@@ -448,14 +461,20 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // Callbacks para eventos Socket.io
   const handleNuevaComanda = useCallback((nuevaComanda) => {
-    console.log('📥 Nueva comanda recibida vía Socket.io:', nuevaComanda.comandaNumber);
+    console.log('📥 Nueva comanda recibida vía Socket.io:', nuevaComanda?.comandaNumber);
+    
+    // Validación defensiva: verificar que la comanda es válida
+    if (!nuevaComanda || typeof nuevaComanda !== 'object' || !nuevaComanda._id) {
+      console.warn('⚠️ handleNuevaComanda recibió comanda inválida:', nuevaComanda);
+      return;
+    }
     
     // VALIDACIÓN: Verificar que todos los platos tengan nombre antes de agregar
-    if (nuevaComanda.platos && nuevaComanda.platos.length > 0) {
+    if (nuevaComanda.platos && Array.isArray(nuevaComanda.platos) && nuevaComanda.platos.length > 0) {
       const todosPlatosConNombre = nuevaComanda.platos.every(plato => {
         const platoObj = plato.plato || plato;
         const nombre = platoObj?.nombre || plato?.nombre;
-        return nombre && nombre.trim().length > 0;
+        return nombre && typeof nombre === 'string' && nombre.trim().length > 0;
       });
       
       if (!todosPlatosConNombre) {
@@ -468,10 +487,15 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // ==================== FILTRADO VISTA PERSONALIZADA ====================
     // Verificar si la comanda debe mostrarse según filtros de zonas
     if (cocineroConfig) {
+      // Normalizar zonasAsignadas
+      const zonasAsignadas = Array.isArray(cocineroConfig.zonasAsignadas) 
+        ? cocineroConfig.zonasAsignadas 
+        : [];
+      
       const debeMostrar = debeMostrarComanda(
         nuevaComanda,
         cocineroConfig.filtrosComandas,
-        cocineroConfig.zonasAsignadas,
+        zonasAsignadas,
         zonaActivaId
       );
       
@@ -484,28 +508,31 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       }
       
       // También filtrar los platos de la comanda si aplica
-      const platosFiltrados = nuevaComanda.platos?.filter(plato =>
-        debeMostrarPlato(
-          plato,
-          cocineroConfig.filtrosPlatos,
-          cocineroConfig.zonasAsignadas,
-          zonaActivaId
-        )
-      ) || [];
-      
-      if (platosFiltrados.length === 0) {
-        console.log(`[VISTA PERSONALIZADA] Nueva comanda #${nuevaComanda.comandaNumber} sin platos visibles después de filtrar`);
-        setComandasOriginales(prev => [...prev, nuevaComanda]);
-        previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
-        return;
+      if (Array.isArray(nuevaComanda.platos)) {
+        const platosFiltrados = nuevaComanda.platos.filter(plato => {
+          if (!plato || typeof plato !== 'object') return false;
+          return debeMostrarPlato(
+            plato,
+            cocineroConfig.filtrosPlatos,
+            zonasAsignadas,
+            zonaActivaId
+          );
+        });
+        
+        if (platosFiltrados.length === 0) {
+          console.log(`[VISTA PERSONALIZADA] Nueva comanda #${nuevaComanda.comandaNumber} sin platos visibles después de filtrar`);
+          setComandasOriginales(prev => [...prev, nuevaComanda]);
+          previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
+          return;
+        }
+        
+        // Crear comanda con platos filtrados
+        nuevaComanda = {
+          ...nuevaComanda,
+          platos: platosFiltrados,
+          _platosOcultos: (nuevaComanda.platos?.length || 0) - platosFiltrados.length
+        };
       }
-      
-      // Crear comanda con platos filtrados
-      nuevaComanda = {
-        ...nuevaComanda,
-        platos: platosFiltrados,
-        _platosOcultos: (nuevaComanda.platos?.length || 0) - platosFiltrados.length
-      };
     }
     
     // Reproducir sonido si está habilitado
@@ -521,7 +548,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     
     // Actualizar lista de comandas (agregar nueva o reemplazar si ya existe)
     setComandas(prev => {
-      const existe = prev.find(c => c._id === nuevaComanda._id);
+      const existe = prev.find(c => c && c._id === nuevaComanda._id);
       if (existe) {
         // Actualizar comanda existente
         return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
@@ -533,7 +560,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     
     // Actualizar también comandasOriginales
     setComandasOriginales(prev => {
-      const existe = prev.find(c => c._id === nuevaComanda._id);
+      const existe = prev.find(c => c && c._id === nuevaComanda._id);
       if (existe) {
         return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
       }
