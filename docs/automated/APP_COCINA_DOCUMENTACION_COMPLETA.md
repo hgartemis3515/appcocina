@@ -2011,3 +2011,679 @@ Aunque la aplicación está en producción y es estable, existen algunas decisio
 - Alertas visuales por tiempo
 - Flujos de trabajo documentados
 
+---
+
+## 🚀 Sección de Sugerencias y Recomendaciones (v7.0)
+
+Esta sección contiene propuestas de mejora y funcionalidades recomendadas para escalar el App de Cocina a un entorno de alta demanda con múltiples cocineros procesando más de 50 comandas simultáneamente.
+
+---
+
+### 💡 Sugerencias para el Modal de Configuración (ConfigModal.jsx)
+
+El modal de configuración actual es funcional pero puede mejorarse significativamente para adaptarse a diferentes perfiles de cocina y flujos de trabajo.
+
+#### 1. Propuestas de Nuevas Opciones de Configuración
+
+##### 1.1 Configuración de Vista
+
+| Opción | Tipo | Default | Descripción |
+|--------|------|---------|-------------|
+| **Modo de Vista** | Select | `tarjetas` | Cambiar entre vista de tarjetas (Kanban) y vista de tabla compacta |
+| **Tamaño de Tarjeta** | Select | `mediano` | Tamaño de tarjetas: `compacto`, `mediano`, `expandido` |
+| **Mostrar Imágenes** | Boolean | `false` | Mostrar imágenes de platos en las tarjetas (si disponibles) |
+| **Agrupar por Mesa** | Boolean | `false` | Agrupar comandas de la misma mesa en una sola tarjeta |
+| **Ordenamiento Default** | Select | `tiempo` | Criterio de orden: `tiempo`, `mesa`, `prioridad`, `creación` |
+
+##### 1.2 Configuración de Tiempos y Alertas
+
+| Opción | Tipo | Default | Descripción |
+|--------|------|---------|-------------|
+| **Alerta Sonora Crítica** | Number | 25 min | Minutos para alerta sonora adicional (más urgente) |
+| **Vibración en Móvil** | Boolean | `true` | Vibración en dispositivos móviles para alertas |
+| **Sonido Personalizado** | File | default | Permitir subir sonido personalizado para nuevas comandas |
+| **Repetir Sonido** | Boolean | `true` | Repetir sonido cada X segundos si no se atiende |
+
+##### 1.3 Configuración de Multi-Cocinero
+
+| Opción | Tipo | Default | Descripción |
+|--------|------|---------|-------------|
+| **Mostrar Cocinero Asignado** | Boolean | `true` | Mostrar qué cocinero está procesando cada plato/comanda |
+| **Notificar Asignaciones** | Boolean | `true` | Notificar cuando otro cocinero tome una comanda |
+| **Modo Colaborativo** | Boolean | `true` | Permitir que múltiples cocineros trabajen en la misma comanda |
+| **Bloqueo Automático** | Boolean | `false` | Bloquear comandas mientras un cocinero las procesa |
+
+##### 1.4 Configuración de Rendimiento
+
+| Opción | Tipo | Default | Descripción |
+|--------|------|---------|-------------|
+| **Animaciones** | Boolean | `true` | Habilitar/deshabilitar animaciones para mejor rendimiento |
+| **Caché de Datos** | Boolean | `true` | Mantener caché local de comandas para carga rápida |
+| **Actualización en Segundo Plano** | Boolean | `true` | Actualizar datos cuando la app está en segundo plano |
+| **Limite de Comandas en Memoria** | Number | 100 | Máximo de comandas a mantener en memoria |
+
+#### 2. Mejoras de UI/UX Sugeridas para ConfigModal
+
+```jsx
+// Estructura sugerida para el modal con tabs
+<Tabs defaultActiveKey="general">
+  <TabPane tab="General" key="general">
+    {/* Configuración general: tema, sonido, etc. */}
+  </TabPane>
+  <TabPane tab="Vista" key="vista">
+    {/* Configuración de vista: tarjetas, tabla, columnas */}
+  </TabPane>
+  <TabPane tab="Alertas" key="alertas">
+    {/* Configuración de tiempos y alertas */}
+  </TabPane>
+  <TabPane tab="Colaboración" key="colaboracion">
+    {/* Configuración de multi-cocinero */}
+  </TabPane>
+  <TabPane tab="Avanzado" key="avanzado">
+    {/* Configuración de rendimiento y debug */}
+  </TabPane>
+</Tabs>
+```
+
+#### 3. Perfiles de Configuración Predefinidos
+
+Se recomienda implementar perfiles que los usuarios puedan seleccionar rápidamente:
+
+| Perfil | Descripción | Configuraciones Clave |
+|--------|-------------|----------------------|
+| **Restaurante Pequeño** | Pocas comandas, una pantalla | Animaciones ON, Sonidos ON, Vista tarjetas expandida |
+| **Comida Rápida** | Alto volumen, muchas pantallas | Animaciones OFF, Vista tabla, Alertas cada 10 min |
+| **Fine Dining** | Pocas comandas, máximo detalle | Animaciones ON, Imágenes ON, Tiempos extendidos |
+| **Multi-Cocinero** | Varios cocineros trabajando | Modo colaborativo ON, Bloqueo ON, Notificaciones ON |
+
+---
+
+### 🔄 Sistema de Dos Estilos de Vista: Tarjetas vs Tabla
+
+#### Propuesta de Implementación
+
+El sistema actual utiliza exclusivamente una vista de tarjetas estilo Kanban. Para manejar eficientemente más de 50 comandas simultáneas, se propone implementar un segundo modo de vista: **Vista de Tabla Compacta**.
+
+#### 1. Vista de Tarjetas (Actual - Kanban)
+
+**Ideal para:** Menos de 30 comandas activas
+
+**Ventajas:**
+- Visualización clara del estado de cada comanda
+- Fácil identificación de tiempos y prioridades
+- Animaciones suaves para mejor UX
+- Información completa visible de un vistazo
+
+**Desventajas con +50 comandas:**
+- Requiere mucho scroll horizontal/vertical
+- Difícil ver el panorama general
+- Paginación excesiva
+- Consumo de memoria elevado
+
+#### 2. Vista de Tabla Compacta (Propuesta)
+
+**Ideal para:** Más de 30 comandas activas, ambientes de alta demanda
+
+**Ventajas:**
+- Muestra 20-30 comandas por pantalla sin scroll
+- Fácil comparación entre comandas
+- Ordenamiento y filtrado rápido por columnas
+- Menor consumo de recursos
+
+**Desventajas:**
+- Menos información visual por comanda
+- Requiere clicks adicionales para ver detalles
+- Menos intuitivo para nuevos usuarios
+
+#### 3. Especificación Técnica de Vista Tabla
+
+```jsx
+// Estructura de columnas sugerida
+const COLUMNAS_TABLA = [
+  { key: 'prioridad', label: '🚀', width: 40, sortable: true },
+  { key: 'orden', label: 'Orden', width: 70, sortable: true },
+  { key: 'mesa', label: 'Mesa', width: 60, sortable: true },
+  { key: 'tiempo', label: 'Tiempo', width: 80, sortable: true, 
+    render: (tiempo) => <TimerBadge tiempo={tiempo} /> },
+  { key: 'platosPendientes', label: 'Pend.', width: 50, sortable: true },
+  { key: 'platosListos', label: 'Listos', width: 50, sortable: true },
+  { key: 'mozo', label: 'Mozo', width: 80 },
+  { key: 'cocineroAsignado', label: 'Asignado', width: 100 },
+  { key: 'acciones', label: 'Acciones', width: 150, fixed: true }
+];
+
+// Ejemplo de renderizado de fila
+<Table.Row 
+  className={getRowClass(comanda)}
+  onClick={() => toggleSelect(comanda._id)}
+>
+  <Table.Cell>{comanda.prioridadOrden > 0 && '🚀'}</Table.Cell>
+  <Table.Cell>#{comanda.comandaNumber}</Table.Cell>
+  <Table.Cell>M{comanda.mesas?.nummesa}</Table.Cell>
+  <Table.Cell>
+    <span className={getTimerColor(comanda)}>
+      {formatTime(comanda.createdAt)}
+    </span>
+  </Table.Cell>
+  <Table.Cell>{countPendientes(comanda)}</Table.Cell>
+  <Table.Cell>{countListos(comanda)}</Table.Cell>
+  <Table.Cell>{comanda.mozos?.name}</Table.Cell>
+  <Table.Cell>
+    <CocineroBadge cocinero={comanda.cocineroAsignado} />
+  </Table.Cell>
+  <Table.Cell>
+    <ButtonGroup>
+      <Button onClick={(e) => { e.stopPropagation(); verDetalle(comanda); }}>
+        Ver
+      </Button>
+      <Button onClick={(e) => { e.stopPropagation(); finalizar(comanda); }}>
+        ✓
+      </Button>
+    </ButtonGroup>
+  </Table.Cell>
+</Table.Row>
+```
+
+#### 4. Toggle Entre Vistas
+
+```jsx
+// Componente de toggle en toolbar
+<ViewToggle>
+  <ToggleButton 
+    active={viewMode === 'tarjetas'} 
+    onClick={() => setViewMode('tarjetas')}
+  >
+    📋 Tarjetas
+  </ToggleButton>
+  <ToggleButton 
+    active={viewMode === 'tabla'} 
+    onClick={() => setViewMode('tabla')}
+  >
+    📊 Tabla
+  </ToggleButton>
+</ViewToggle>
+
+// Persistencia de preferencia
+useEffect(() => {
+  localStorage.setItem('cocinaViewMode', viewMode);
+}, [viewMode]);
+```
+
+#### 5. Detalle Expandido en Vista Tabla
+
+Al hacer click en una fila de la tabla, se expande un panel con el detalle de la comanda:
+
+```jsx
+// Panel de detalle expandible
+<ExpandableRow open={expandedComanda === comanda._id}>
+  <div className="expanded-content">
+    <div className="platos-grid">
+      {comanda.platos.map(plato => (
+        <PlatoCard 
+          key={plato._id}
+          plato={plato}
+          onToggle={() => togglePlato(comanda._id, plato._id)}
+          procesadoPor={plato.procesadoPor}
+        />
+      ))}
+    </div>
+    <div className="actions">
+      <Button onClick={() => finalizarPlatos(comanda._id)}>
+        Finalizar Marcados
+      </Button>
+    </div>
+  </div>
+</ExpandableRow>
+```
+
+#### 6. Consideraciones de Rendimiento
+
+```javascript
+// Virtualización para tablas con muchas filas
+import { FixedSizeList } from 'react-window';
+
+const VirtualizedTable = ({ comandas }) => (
+  <FixedSizeList
+    height={600}
+    itemCount={comandas.length}
+    itemSize={60}
+    width="100%"
+  >
+    {({ index, style }) => (
+      <div style={style}>
+        <ComandaRow comanda={comandas[index]} />
+      </div>
+    )}
+  </FixedSizeList>
+);
+```
+
+---
+
+### 👨‍🍳 Sistema de Procesamiento con Identificación de Cocinero
+
+#### Funcionalidad Propuesta
+
+Permitir que cada plato y comanda muestre qué cocinero está procesándolo, mejorando la coordinación en equipos de cocina grandes.
+
+#### 1. Modelo de Datos Extendido
+
+```javascript
+// Extensión del modelo de plato en comanda
+{
+  platoId: "507f1f77bcf86cd799439012",
+  plato: { nombre: "Papa a la huancaína", _id: "..." },
+  estado: "en_espera",
+  cantidad: 1,
+  
+  // NUEVOS CAMPOS
+  procesandoPor: {
+    cocineroId: "usr_123",
+    nombre: "Juan Pérez",
+    alias: "JuanCocina",
+    timestamp: "2026-03-19T14:30:00Z"
+  },
+  procesadoPor: { // Cuando el plato está listo
+    cocineroId: "usr_123",
+    nombre: "Juan Pérez",
+    timestamp: "2026-03-19T14:45:00Z"
+  }
+}
+
+// Extensión del modelo de comanda
+{
+  _id: "...",
+  comandaNumber: 331,
+  status: "enespera",
+  
+  // NUEVOS CAMPOS
+  procesandoPor: {
+    cocineroId: "usr_123",
+    nombre: "Juan Pérez",
+    desde: "2026-03-19T14:30:00Z"
+  },
+  completadoPor: {
+    cocineroId: "usr_123",
+    nombre: "Juan Pérez",
+    timestamp: "2026-03-19T14:50:00Z"
+  }
+}
+```
+
+#### 2. Endpoints Necesarios
+
+```javascript
+// Marcar plato como "en proceso" por un cocinero
+PUT /api/comanda/:comandaId/plato/:platoId/procesando
+Body: {
+  cocineroId: "usr_123",
+  nombre: "Juan Pérez"
+}
+
+// Marcar comanda completa como "en proceso"
+PUT /api/comanda/:comandaId/procesando
+Body: {
+  cocineroId: "usr_123",
+  nombre: "Juan Pérez"
+}
+
+// Liberar plato/comanda (cuando otro cocinero lo toma)
+DELETE /api/comanda/:comandaId/plato/:platoId/procesando
+```
+
+#### 3. Eventos Socket.io
+
+```javascript
+// Nuevos eventos a implementar
+socket.on('plato-procesando', (data) => {
+  // data: { comandaId, platoId, cocinero }
+  // Actualizar UI para mostrar "Juan está preparando este plato"
+});
+
+socket.on('plato-liberado', (data) => {
+  // data: { comandaId, platoId }
+  // Otro cocinero liberó el plato, actualizar UI
+});
+
+socket.on('comanda-procesando', (data) => {
+  // data: { comandaId, cocinero }
+  // La comanda completa está siendo procesada por un cocinero
+});
+```
+
+#### 4. UI para Indicar Procesamiento
+
+##### En Vista de Tarjetas
+
+```jsx
+// Badge de cocinero en plato
+<PlatoItem>
+  <Checkbox />
+  <span>{plato.nombre}</span>
+  {plato.procesandoPor && (
+    <CocineroBadge variant="procesando">
+      👨‍🍳 {plato.procesandoPor.nombre.split(' ')[0]}
+      <Tooltip>
+        {plato.procesandoPor.nombre} está preparando este plato
+        desde las {formatTime(plato.procesandoPor.timestamp)}
+      </Tooltip>
+    </CocineroBadge>
+  )}
+</PlatoItem>
+
+// Badge de cocinero en header de comanda
+<ComandaHeader>
+  {/* ... contenido actual ... */}
+  {comanda.procesandoPor && (
+    <div className="cocinero-asignado">
+      <span className="pulse-dot"></span>
+      {comanda.procesandoPor.nombre}
+    </div>
+  )}
+</ComandaHeader>
+```
+
+##### En Vista de Tabla
+
+```jsx
+// Columna de cocinero asignado
+<Table.Cell>
+  {comanda.procesandoPor ? (
+    <Badge color="orange">
+      👨‍🍳 {comanda.procesandoPor.alias || comanda.procesandoPor.nombre}
+    </Badge>
+  ) : (
+    <Badge color="gray">Sin asignar</Badge>
+  )}
+</Table.Cell>
+```
+
+#### 5. Flujo de Trabajo con Procesamiento
+
+```
+1. Cocinero ve comanda disponible
+   ↓
+2. Click en "Tomar Comanda" o "Tomar Plato"
+   ↓
+3. API: PUT /procesando
+   ↓
+4. Socket: emite "plato-procesando" o "comanda-procesando"
+   ↓
+5. Todos los clientes ven: "Juan está preparando..."
+   ↓
+6. Otros cocineros NO pueden tomar esa comanda/plato (bloqueo opcional)
+   ↓
+7. Juan termina el plato → Click "Finalizar"
+   ↓
+8. Se registra procesadoPor con timestamp
+   ↓
+9. Socket: emite "plato-actualizado"
+```
+
+#### 6. Configuración de Bloqueo
+
+```jsx
+// Opciones de bloqueo en ConfigModal
+<FormGroup>
+  <Checkbox 
+    checked={config.bloqueoAutomatico}
+    onChange={(e) => setConfig('bloqueoAutomatico', e.target.checked)}
+  >
+    Bloquear comandas mientras alguien las procesa
+  </Checkbox>
+  
+  <NumberInput 
+    value={config.tiempoBloqueo}
+    label="Minutos máx. de bloqueo (0 = sin límite)"
+    onChange={(val) => setConfig('tiempoBloqueo', val)}
+  />
+</FormGroup>
+```
+
+---
+
+### 📊 Recomendaciones para Alta Demanda (+50 Comandas)
+
+#### 1. Arquitectura de Escalabilidad
+
+##### Backend
+
+```javascript
+// Implementar paginación en el endpoint de cocina
+GET /api/comanda/cocina/:fecha?page=1&limit=20&status=en_espera
+
+// Implementar filtros en backend
+GET /api/comanda/cocina/:fecha?zona=parrilla&prioridad=alta
+
+// Usar Redis para caché de comandas activas
+const cachedComandas = await redis.get(`comandas:${fecha}:activas`);
+if (cachedComandas) {
+  return JSON.parse(cachedComandas);
+}
+// Si no está en caché, obtener de DB y cachear
+```
+
+##### Frontend
+
+```javascript
+// Implementar infinite scroll en lugar de paginación tradicional
+import { useInfiniteQuery } from '@tanstack/react-query';
+
+const { 
+  data, 
+  fetchNextPage, 
+  hasNextPage 
+} = useInfiniteQuery({
+  queryKey: ['comandas', fecha],
+  queryFn: ({ pageParam = 1 }) => fetchComandas(fecha, pageParam),
+  getNextPageParam: (lastPage, pages) => lastPage.nextPage,
+});
+
+// Virtualización de lista para mejor rendimiento
+import { Virtuoso } from 'react-virtuoso';
+
+<Virtuoso
+  data={comandas}
+  itemContent={(index, comanda) => <ComandaCard comanda={comanda} />}
+/>
+```
+
+#### 2. Optimización de Socket.io
+
+```javascript
+// Configuración optimizada para muchos clientes
+const socket = io('/cocina', {
+  transports: ['websocket'],
+  upgrade: false,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  
+  // Nuevas opciones
+  forceNew: false,
+  multiplex: true,
+  
+  // Throttling de eventos
+  perMessageDeflate: {
+    threshold: 1024 // Solo comprimir mensajes > 1KB
+  }
+});
+
+// Throttling de updates en el cliente
+const throttledUpdate = useMemo(
+  () => throttle((comanda) => {
+    updateComanda(comanda);
+  }, 100),
+  []
+);
+
+socket.on('comanda-actualizada', throttledUpdate);
+```
+
+#### 3. Gestión de Estado para Alto Volumen
+
+```javascript
+// Usar Zustand o Redux con normalización para estado grande
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
+
+const useComandaStore = create(
+  devtools((set, get) => ({
+    // Estado normalizado
+    comandas: {}, // { [id]: comanda }
+    platos: {},   // { [id]: plato }
+    orden: [],    // [comandaId1, comandaId2, ...]
+    
+    // Acciones optimizadas
+    updatePlato: (comandaId, platoId, updates) => {
+      set(produce(state => {
+        state.platos[platoId] = { ...state.platos[platoId], ...updates };
+      }));
+    },
+    
+    // Selectores memoizados
+    getComandasOrdenadas: () => {
+      const { comandas, orden } = get();
+      return orden.map(id => comandas[id]);
+    }
+  }))
+);
+```
+
+#### 4. Estrategias de Particionamiento por Zona
+
+```javascript
+// Cada cocinero solo recibe comandas de su zona
+socket.emit('unirse-zona', { zonaId: 'parrilla' });
+
+// El backend solo envía eventos relevantes
+io.to('zona-parrilla').emit('nueva-comanda', comanda);
+
+// Selector de zona en UI
+<ZoneSelector>
+  {zonas.map(zona => (
+    <ZoneButton 
+      key={zona.id}
+      active={zonaActiva === zona.id}
+      onClick={() => setZonaActiva(zona.id)}
+    >
+      {zona.nombre}
+      <Badge>{getComandasPorZona(zona.id).length}</Badge>
+    </ZoneButton>
+  ))}
+  <ZoneButton active={zonaActiva === 'todas'}>
+    Ver Todas
+  </ZoneButton>
+</ZoneSelector>
+```
+
+#### 5. Monitoreo y Métricas
+
+```javascript
+// Dashboard de métricas en tiempo real
+<MetricsPanel>
+  <MetricCard title="Comandas Activas" value={comandas.length} />
+  <MetricCard title="En Preparación" value={enPreparacion.length} />
+  <MetricCard title="Promedio Tiempo" value={avgTiempoPreparacion} />
+  <MetricCard title="Cola" value={cola} trend="up" />
+  <MetricCard title="Cocineros Activos" value={cocinerosActivos.length} />
+  
+  {/* Alertas de capacidad */}
+  {comandas.length > 40 && (
+    <Alert variant="warning">
+      ⚠️ Alta demanda: {comandas.length} comandas activas
+    </Alert>
+  )}
+  
+  {comandas.length > 60 && (
+    <Alert variant="critical">
+      🚨 Capacidad crítica: Considerar ayuda adicional
+    </Alert>
+  )}
+</MetricsPanel>
+```
+
+#### 6. Recomendaciones de Hardware
+
+| Comandas Simultáneas | Pantallas Recomendadas | Servidor |
+|----------------------|------------------------|----------|
+| 10-30 | 1 pantalla 27"+ | 1 vCPU, 2GB RAM |
+| 30-50 | 2 pantallas o 1 ultra-wide | 2 vCPU, 4GB RAM |
+| 50-100 | 3-4 pantallas o video wall | 4 vCPU, 8GB RAM |
+| 100+ | Sistema distribuido por zona | 8+ vCPU, 16GB+ RAM |
+
+#### 7. Plan de Contingencia
+
+```javascript
+// Modo offline/fallback
+const useOfflineMode = () => {
+  const [isOffline, setIsOffline] = useState(false);
+  
+  useEffect(() => {
+    const handleOffline = () => {
+      setIsOffline(true);
+      // Cambiar a modo de sincronización local
+      enableLocalSync();
+    };
+    
+    const handleOnline = () => {
+      setIsOffline(false);
+      // Sincronizar cambios locales con servidor
+      syncLocalChanges();
+    };
+    
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
+  
+  return { isOffline };
+};
+
+// Indicador de modo offline en UI
+{isOffline && (
+  <OfflineBanner>
+    📴 Modo sin conexión - Los cambios se sincronizarán cuando vuelva la conexión
+  </OfflineBanner>
+)}
+```
+
+---
+
+### 📋 Checklist de Implementación Sugerida
+
+#### Fase 1: Fundamentos (2-3 semanas)
+- [ ] Implementar toggle de vista Tarjetas/Tabla
+- [ ] Agregar nuevas opciones al ConfigModal
+- [ ] Optimizar rendimiento para +30 comandas
+- [ ] Implementar virtualización de listas
+
+#### Fase 2: Colaboración (2-3 semanas)
+- [ ] Sistema de identificación de cocinero en platos
+- [ ] Sistema de identificación de cocinero en comandas
+- [ ] Endpoints de procesamiento
+- [ ] Eventos Socket.io de procesamiento
+
+#### Fase 3: Escalabilidad (3-4 semanas)
+- [ ] Particionamiento por zonas
+- [ ] Paginación server-side
+- [ ] Caché Redis para comandas
+- [ ] Dashboard de métricas
+
+#### Fase 4: Resiliencia (1-2 semanas)
+- [ ] Modo offline con sincronización
+- [ ] Reconexión robusta
+- [ ] Alertas de capacidad
+- [ ] Monitoreo de rendimiento
+
+---
+
+**Versión del Documento:** 1.4  
+**Última Actualización:** Marzo 2026  
+**Sección agregada:** Sugerencias y Recomendaciones v7.0
+
