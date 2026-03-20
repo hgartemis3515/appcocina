@@ -1,8 +1,15 @@
 # 📱 Documentación Completa - App de Cocina (Las Gambusinas)
 
-**Versión:** 6.0  
+**Versión:** 7.1  
 **Última Actualización:** Marzo 2026  
 **Tecnología:** React Web + Socket.io + Framer Motion
+
+**Cambios Recientes (v7.1) - Sistema Multi-Cocinero:**
+- ✅ **Eventos de Configuración**: Rooms personales por cocinero, emisión dirigida
+- ✅ **Testing de Vistas**: Framework definido para tests unitarios e integración
+- ✅ **Hook Común**: `useComandastyleCore` para lógica compartida entre vistas
+- ✅ **Sistema de Procesamiento**: Backend con campos `procesandoPor`/`procesadoPor`
+- ✅ **UI de Procesamiento**: Componentes con badges de cocinero y botón "Liberar"
 
 **Cambios Recientes (v6.0) - Sistema de Autenticación y Menú:**
 - ✅ **Login de Cocina**: Nueva pantalla de autenticación con DNI
@@ -39,6 +46,8 @@
 8. [Integración con Backend](#integración-con-backend)
 9. [Flujos de Trabajo Completos](#flujos-de-trabajo-completos)
 10. [Casos de Uso y Escenarios](#casos-de-uso-y-escenarios)
+11. [Sugerencias y Recomendaciones (v7.0)](#-sección-de-sugerencias-y-recomendaciones-v70)
+12. [Funcionalidades Implementadas v7.1 - Sistema Multi-Cocinero](#-funcionalidades-implementadas-v71---sistema-multi-cocinero)
 
 ---
 
@@ -1987,6 +1996,16 @@ Aunque la aplicación está en producción y es estable, existen algunas decisio
 
 ## 📋 Historial de Cambios
 
+### v1.5 (Marzo 2026) - v7.1 de la App
+- **Sistema Multi-Cocinero**: Funcionalidades para colaboración entre cocineros
+- **Eventos de Configuración**: Rooms personales, emisión dirigida, validación frontend
+- **Testing de Vistas**: Framework de tests unitarios e integración definido
+- **Hook useComandastyleCore**: Lógica compartida extraída para reutilización
+- **Sistema de Procesamiento**: Modelo extendido con procesandoPor/procesadoPor
+- **UI de Procesamiento**: Componentes con badges animados de cocinero
+- **Endpoints nuevos**: PUT/DELETE para procesamiento de platos
+- **Eventos Socket.io nuevos**: plato-procesando, plato-liberado, conflicto-procesamiento
+
 ### v1.3 (Marzo 2026) - v6.0 de la App
 - **Sistema de Autenticación**: Login con DNI para App de Cocina
 - **Menú Principal**: Navegación centralizada antes del tablero KDS
@@ -2683,7 +2702,1323 @@ const useOfflineMode = () => {
 
 ---
 
-**Versión del Documento:** 1.4  
+## 🆕 Funcionalidades Implementadas v7.1 - Sistema Multi-Cocinero
+
+**Versión:** 7.1  
+**Fecha de Implementación:** Marzo 2026
+
+Esta sección documenta las funcionalidades recientemente implementadas para soportar múltiples cocineros trabajando simultáneamente, incluyendo identificación de quién procesa cada plato, sistema de zonas, y la infraestructura necesaria para una colaboración eficiente.
+
+---
+
+### 📡 Tema 1 - Eventos de Configuración de Cocinero
+
+#### Objetivo
+
+Permitir que cada cocinero reciba únicamente los eventos de Socket.io relevantes para su configuración personal (zona asignada, preferencias), evitando que todos los clientes reciban todos los eventos indiscriminadamente.
+
+#### Funcionalidades Implementadas
+
+##### 1. Rooms Personales por Cocinero
+
+Cada cocinero se une a su propio room personal además del room general por fecha:
+
+```javascript
+// Backend - Al autenticar cocinero
+socket.join(`cocinero-${usuario.id}`);
+
+// Frontend - Conexión con identificación
+const socket = io('/cocina', {
+  auth: {
+    cocineroId: usuario.id,
+    token: token
+  }
+});
+
+socket.emit('join-room', `cocinero-${usuario.id}`);
+```
+
+##### 2. Emisión Dirigida a Room Específica
+
+En lugar de broadcast a todos los clientes, los eventos se emiten al room específico:
+
+```javascript
+// Backend - Controller
+// Antes (broadcast):
+io.to('cocina').emit('evento', data);
+
+// Ahora (dirigido):
+io.to(`cocinero-${cocineroId}`).emit('evento', data);
+
+// Ejemplo: Notificar solo al cocinero que tomó un plato
+io.to(`cocinero-${plato.procesandoPor.cocineroId}`).emit('plato-liberado', {
+  comandaId,
+  platoId
+});
+```
+
+##### 3. Validación en Frontend
+
+El frontend valida que los eventos recibidos son para el cocinero correcto:
+
+```javascript
+// Frontend - useSocketCocina.js
+useEffect(() => {
+  socket.on('evento-personal', (data) => {
+    // Validar que el evento es para este cocinero
+    if (data.cocineroId !== usuario.id) {
+      console.warn('Evento recibido para otro cocinero, ignorando');
+      return;
+    }
+    // Procesar evento
+    handleEventoPersonal(data);
+  });
+}, [usuario.id]);
+```
+
+#### Estado Actual
+
+| Componente | Estado | Notas |
+|------------|--------|-------|
+| Rooms por cocinero | ✅ Implementado | Backend y Frontend listos |
+| Emisión dirigida | ✅ Implementado | Eventos de procesamiento usan rooms |
+| Validación frontend | ✅ Implementado | Chequeo de cocineroId en eventos |
+| Documentación API | ⚠️ Parcial | Necesita ejemplos de uso |
+
+#### Qué Falta para Funcionar Perfectamente
+
+**Backend:**
+- [ ] Implementar rooms por zona (`zona-parrilla`, `zona-barra`, etc.)
+- [ ] Middleware de autenticación para Socket.io que verifique token JWT
+- [ ] Log de eventos dirigidos para debugging
+- [ ] Límite de reconexiones por room para evitar memory leaks
+
+**Frontend:**
+- [ ] Manejar desconexión/reconexión con re-unión a rooms
+- [ ] Indicador visual de "Eventos personalizados activos"
+- [ ] Fallback a broadcast si rooms fallan
+
+**Testing:**
+- [ ] Tests de integración para eventos dirigidos
+- [ ] Simular múltiples cocineros conectados simultáneamente
+
+---
+
+### 🧪 Tema 2 - Testing de Vistas
+
+#### Objetivo
+
+Garantizar que el sistema de vistas (Vista General vs Vista por Zona) funciona correctamente, que los filtros se aplican apropiadamente, y que no hay contaminación de datos entre vistas.
+
+#### Funcionalidades Requeridas
+
+##### 1. Tests Unitarios para kdsFilters.js
+
+Archivo de funciones puras para filtrado y ordenamiento de comandas:
+
+```javascript
+// kdsFilters.js - Funciones a testear
+
+// Filtra comandas por zona asignada
+export const filtrarPorZona = (comandas, zonaId) => {
+  if (!zonaId || zonaId === 'todas') return comandas;
+  return comandas.filter(c => c.zonaAsignada === zonaId);
+};
+
+// Ordena comandas por prioridad y tiempo
+export const ordenarComandas = (comandas) => {
+  return [...comandas].sort((a, b) => {
+    const prioridadA = a.prioridadOrden || 0;
+    const prioridadB = b.prioridadOrden || 0;
+    if (prioridadA !== prioridadB) {
+      return prioridadB - prioridadA; // Mayor prioridad primero
+    }
+    return new Date(a.createdAt) - new Date(b.createdAt); // Más antiguo primero
+  });
+};
+
+// Filtra platos en preparación
+export const filtrarPlatosPreparacion = (platos) => {
+  return platos.filter(p => 
+    p.estado === 'en_espera' || 
+    p.estado === 'ingresante' || 
+    p.estado === 'pedido'
+  );
+};
+
+// Cuenta platos por estado
+export const contarPlatosPorEstado = (platos) => {
+  return {
+    preparacion: platos.filter(p => ['en_espera', 'ingresante'].includes(p.estado)).length,
+    listos: platos.filter(p => p.estado === 'recoger').length,
+    entregados: platos.filter(p => p.estado === 'entregado').length
+  };
+};
+```
+
+##### 2. Tests de Integración para Navegación y Separación de Vistas
+
+```javascript
+// __tests__/integration/vistas.test.js
+
+describe('Sistema de Vistas', () => {
+  
+  test('Vista General no aplica filtros de zona', () => {
+    const comandas = mockComandas();
+    const resultado = filtrarPorZona(comandas, 'todas');
+    expect(resultado.length).toBe(comandas.length);
+  });
+  
+  test('Vista Zona solo muestra comandas de la zona seleccionada', () => {
+    const comandas = [
+      { _id: 1, zonaAsignada: 'parrilla' },
+      { _id: 2, zonaAsignada: 'barra' },
+      { _id: 3, zonaAsignada: 'parrilla' }
+    ];
+    const resultado = filtrarPorZona(comandas, 'parrilla');
+    expect(resultado.length).toBe(2);
+    expect(resultado.every(c => c.zonaAsignada === 'parrilla')).toBe(true);
+  });
+  
+  test('Cambio de vista limpia selección de comandas', async () => {
+    const { result } = renderHook(() => useComandas());
+    
+    act(() => {
+      result.current.seleccionarComanda('comanda-1');
+    });
+    
+    expect(result.current.comandasSeleccionadas.size).toBe(1);
+    
+    act(() => {
+      result.current.cambiarVista('zona-parrilla');
+    });
+    
+    expect(result.current.comandasSeleccionadas.size).toBe(0);
+  });
+  
+  test('Estado de checkboxes persiste entre cambios de vista', async () => {
+    const { result } = renderHook(() => useComandas());
+    
+    act(() => {
+      result.current.togglePlatoCheck('comanda-1', 'plato-1');
+    });
+    
+    act(() => {
+      result.current.cambiarVista('zona-barra');
+    });
+    
+    act(() => {
+      result.current.cambiarVista('todas');
+    });
+    
+    expect(result.current.platosChecked.get('comanda-1')?.get('plato-1')?.isChecked).toBe(true);
+  });
+});
+```
+
+##### 3. Validación de Vista General
+
+```javascript
+// Test específico para asegurar que Vista General no contamina con filtros
+
+describe('Vista General - Sin Filtros de Zona', () => {
+  
+  test('Vista General ignora zonaAsignada en comandas', () => {
+    const comandasMixtas = [
+      { _id: 1, zonaAsignada: 'parrilla', status: 'enespera' },
+      { _id: 2, zonaAsignada: null, status: 'enespera' },
+      { _id: 3, zonaAsignada: 'barra', status: 'enespera' }
+    ];
+    
+    const resultado = procesarComandasVistaGeneral(comandasMixtas);
+    
+    // Todas las comandas deben aparecer
+    expect(resultado.length).toBe(3);
+  });
+  
+  test('Vista General no modifica propiedad zonaAsignada', () => {
+    const comanda = { _id: 1, zonaAsignada: 'parrilla' };
+    const procesada = procesarComandasVistaGeneral([comanda])[0];
+    
+    expect(procesada.zonaAsignada).toBe('parrilla');
+  });
+});
+```
+
+#### Estado Actual
+
+| Tipo de Test | Estado | Cobertura |
+|--------------|--------|-----------|
+| Tests unitarios kdsFilters | ⚠️ Pendiente | 0% |
+| Tests integración vistas | ⚠️ Pendiente | 0% |
+| Tests validación Vista General | ⚠️ Pendiente | 0% |
+| Tests E2E navegación | ⚠️ Pendiente | 0% |
+
+#### Qué Falta para Funcionar Perfectamente
+
+**Infraestructura de Testing:**
+- [ ] Configurar Jest + React Testing Library
+- [ ] Crear mocks para Socket.io
+- [ ] Crear mocks para API calls (axios)
+- [ ] Configurar coverage reports
+
+**Tests a Implementar:**
+- [ ] Test suite completo para `kdsFilters.js`
+- [ ] Tests de integración para `useComandas` hook
+- [ ] Tests de renderizado para `ComandaStyle.jsx`
+- [ ] Tests de navegación entre vistas
+- [ ] Tests de persistencia de estado entre vistas
+
+**CI/CD:**
+- [ ] Integrar tests en pipeline de CI
+- [ ] Configurar tests automáticos en PR
+- [ ] Agregar badge de coverage en README
+
+---
+
+### 🪝 Tema 3 - Hook Común useComandastyleCore
+
+#### Objetivo
+
+Extraer la lógica compartida entre `ComandaStyle.jsx` (Vista General) y futuros componentes de vista por zona, evitando duplicación de código y facilitando el mantenimiento.
+
+#### Arquitectura del Hook
+
+```javascript
+// hooks/useComandastyleCore.js
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSocketCocina } from './useSocketCocina';
+import { getApiUrl } from '../config/apiConfig';
+import axios from 'axios';
+import moment from 'moment-timezone';
+
+/**
+ * Hook base para gestión de comandas en el KDS.
+ * Proporciona funcionalidad común para ambas vistas (General y Zona).
+ * 
+ * @param {Object} options - Configuración del hook
+ * @param {Function} options.customFilter - Función de filtrado personalizada (opcional)
+ * @param {string} options.zonaId - ID de zona para filtrar (opcional)
+ * @param {Object} options.config - Configuración del usuario (alertas, sonidos, etc.)
+ * @returns {Object} Estado y funciones para manejar comandas
+ */
+export const useComandastyleCore = ({
+  customFilter = null,
+  zonaId = null,
+  config = {}
+}) => {
+  // ==================== ESTADO BASE ====================
+  
+  const [comandas, setComandas] = useState([]);
+  const [filteredComandas, setFilteredComandas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  
+  // Estado de selección
+  const [comandasSeleccionadas, setComandasSeleccionadas] = useState(new Set());
+  const [platosChecked, setPlatosChecked] = useState(new Map());
+  
+  // Referencias
+  const newComandasRef = useRef(new Set());
+  const platosStatesRef = useRef(new Map());
+  
+  // ==================== OBTENCIÓN DE COMANDAS ====================
+  
+  const obtenerComandas = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const fechaActual = moment().tz('America/Lima').format('YYYY-MM-DD');
+      const apiUrl = getApiUrl();
+      
+      const response = await axios.get(`${apiUrl}/fecha/${fechaActual}`);
+      let comandasRecibidas = response.data.comandas || [];
+      
+      // Aplicar filtro personalizado si existe
+      if (customFilter) {
+        comandasRecibidas = customFilter(comandasRecibidas);
+      }
+      
+      // Filtrar por zona si está especificada
+      if (zonaId && zonaId !== 'todas') {
+        comandasRecibidas = comandasRecibidas.filter(
+          c => c.zonaAsignada === zonaId
+        );
+      }
+      
+      // Validar comandas
+      const comandasValidas = comandasRecibidas.filter(comanda => {
+        if (!comanda.platos || comanda.platos.length === 0) return false;
+        return comanda.platos.every(plato => {
+          const nombre = plato.plato?.nombre || plato.nombre;
+          return nombre && nombre.trim().length > 0;
+        });
+      });
+      
+      setComandas(comandasValidas);
+      setFilteredComandas(comandasValidas);
+    } catch (err) {
+      console.error('Error al obtener comandas:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [customFilter, zonaId]);
+  
+  // ==================== ORDENAMIENTO ====================
+  
+  const ordenarComandas = useCallback((comandasList) => {
+    return [...comandasList].sort((a, b) => {
+      // Primero por prioridad (DESC)
+      const prioridadA = a.prioridadOrden || 0;
+      const prioridadB = b.prioridadOrden || 0;
+      if (prioridadA !== prioridadB) {
+        return prioridadB - prioridadA;
+      }
+      // Luego por fecha de creación (ASC)
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+  }, []);
+  
+  // ==================== PAGINACIÓN ====================
+  
+  const COMANDAS_POR_PAGINA = config.comandasPorPagina || 5;
+  
+  const totalPages = Math.ceil(filteredComandas.length / COMANDAS_POR_PAGINA);
+  const comandasPagina = filteredComandas.slice(
+    currentPage * COMANDAS_POR_PAGINA,
+    (currentPage + 1) * COMANDAS_POR_PAGINA
+  );
+  
+  const nextPage = useCallback(() => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages - 1));
+  }, [totalPages]);
+  
+  const prevPage = useCallback(() => {
+    setCurrentPage(prev => Math.max(prev - 1, 0));
+  }, []);
+  
+  // ==================== BÚSQUEDA ====================
+  
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredComandas(ordenarComandas(comandas));
+      return;
+    }
+    
+    const termino = searchTerm.toLowerCase();
+    const filtradas = comandas.filter(comanda => {
+      const comandaNumber = String(comanda.comandaNumber || '').toLowerCase();
+      if (comandaNumber.includes(termino)) return true;
+      
+      const mesa = String(comanda.mesas?.nummesa || '').toLowerCase();
+      if (mesa.includes(termino)) return true;
+      
+      const mozo = (comanda.mozos?.name || '').toLowerCase();
+      if (mozo.includes(termino)) return true;
+      
+      const platos = comanda.platos?.map(p => 
+        (p.plato?.nombre || p.nombre || '').toLowerCase()
+      ).join(' ') || '';
+      if (platos.includes(termino)) return true;
+      
+      return false;
+    });
+    
+    setFilteredComandas(ordenarComandas(filtradas));
+    setCurrentPage(0);
+  }, [searchTerm, comandas, ordenarComandas]);
+  
+  // ==================== SOCKET.IO ====================
+  
+  const handleNuevaComanda = useCallback((comanda) => {
+    // Validar
+    if (!comanda.platos || comanda.platos.length === 0) return;
+    
+    // Aplicar filtro de zona si corresponde
+    if (zonaId && zonaId !== 'todas' && comanda.zonaAsignada !== zonaId) {
+      return; // Ignorar comanda de otra zona
+    }
+    
+    setComandas(prev => {
+      const existe = prev.some(c => c._id === comanda._id);
+      if (existe) return prev;
+      return ordenarComandas([comanda, ...prev]);
+    });
+    
+    newComandasRef.current.add(comanda._id);
+    setTimeout(() => {
+      newComandasRef.current.delete(comanda._id);
+    }, 3000);
+    
+    if (config.soundEnabled) {
+      // Reproducir sonido
+    }
+  }, [zonaId, config.soundEnabled, ordenarComandas]);
+  
+  const handleComandaActualizada = useCallback((comanda) => {
+    setComandas(prev => {
+      const index = prev.findIndex(c => c._id === comanda._id);
+      if (index === -1) return prev;
+      
+      const nuevas = [...prev];
+      nuevas[index] = comanda;
+      return ordenarComandas(nuevas);
+    });
+  }, [ordenarComandas]);
+  
+  const handlePlatoActualizado = useCallback((data) => {
+    setComandas(prev => {
+      const nuevas = [...prev];
+      const comandaIndex = nuevas.findIndex(c => c._id === data.comandaId);
+      if (comandaIndex === -1) return prev;
+      
+      const comanda = { ...nuevas[comandaIndex] };
+      const platos = [...comanda.platos];
+      const platoIndex = platos.findIndex(p => 
+        (p.platoId?.toString() || p._id?.toString()) === data.platoId?.toString()
+      );
+      
+      if (platoIndex !== -1) {
+        platos[platoIndex] = {
+          ...platos[platoIndex],
+          estado: data.nuevoEstado,
+          tiempos: {
+            ...platos[platoIndex].tiempos,
+            [data.nuevoEstado]: data.timestamp
+          }
+        };
+      }
+      
+      nuevas[comandaIndex] = { ...comanda, platos };
+      return nuevas;
+    });
+    
+    // Limpiar checkbox del plato
+    setPlatosChecked(prev => {
+      const nuevo = new Map(prev);
+      const comandaChecks = nuevo.get(data.comandaId);
+      if (comandaChecks) {
+        const nuevosChecks = new Map(comandaChecks);
+        nuevosChecks.delete(data.platoId);
+        nuevo.set(data.comandaId, nuevosChecks);
+      }
+      return nuevo;
+    });
+  }, []);
+  
+  const { socket, connected, connectionStatus } = useSocketCocina({
+    onNuevaComanda: handleNuevaComanda,
+    onComandaActualizada: handleComandaActualizada,
+    onPlatoActualizado: handlePlatoActualizado,
+    obtenerComandas
+  });
+  
+  // ==================== SELECCIÓN ====================
+  
+  const toggleSelectComanda = useCallback((comandaId) => {
+    setComandasSeleccionadas(prev => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(comandaId)) {
+        nuevo.delete(comandaId);
+      } else {
+        nuevo.add(comandaId);
+      }
+      return nuevo;
+    });
+  }, []);
+  
+  const togglePlatoCheck = useCallback((comandaId, platoId) => {
+    setPlatosChecked(prev => {
+      const nuevo = new Map(prev);
+      const comandaChecks = nuevo.get(comandaId) || new Map();
+      const nuevosChecks = new Map(comandaChecks);
+      const actual = nuevosChecks.get(platoId) || { isChecked: false, isProcessing: false };
+      
+      nuevosChecks.set(platoId, {
+        isChecked: !actual.isChecked,
+        isProcessing: !actual.isChecked
+      });
+      nuevo.set(comandaId, nuevosChecks);
+      return nuevo;
+    });
+  }, []);
+  
+  // ==================== EFECTOS ====================
+  
+  useEffect(() => {
+    obtenerComandas();
+  }, [obtenerComandas]);
+  
+  // ==================== RETURN ====================
+  
+  return {
+    // Estado
+    comandas,
+    filteredComandas,
+    comandasPagina,
+    loading,
+    error,
+    searchTerm,
+    setSearchTerm,
+    currentPage,
+    totalPages,
+    comandasSeleccionadas,
+    platosChecked,
+    newComandasRef,
+    platosStatesRef,
+    
+    // Socket
+    socket,
+    connected,
+    connectionStatus,
+    
+    // Funciones
+    obtenerComandas,
+    ordenarComandas,
+    nextPage,
+    prevPage,
+    setCurrentPage,
+    toggleSelectComanda,
+    togglePlatoCheck,
+    setPlatosChecked,
+    setComandasSeleccionadas
+  };
+};
+```
+
+#### Funcionalidades que Permite Inyectar
+
+```javascript
+// Ejemplo de uso en Vista General
+const VistaGeneral = () => {
+  const {
+    comandas,
+    loading,
+    toggleSelectComanda,
+    // ... resto del estado
+  } = useComandastyleCore({
+    config: userConfig
+    // Sin customFilter ni zonaId = Vista General
+  });
+  
+  // Renderizado...
+};
+
+// Ejemplo de uso en Vista por Zona
+const VistaZona = ({ zonaId }) => {
+  const {
+    comandas,
+    // ... resto
+  } = useComandastyleCore({
+    zonaId, // Filtra automáticamente por zona
+    customFilter: (comandas) => {
+      // Filtro adicional personalizado
+      return comandas.filter(c => c.prioridadOrden > 0);
+    },
+    config: userConfig
+  });
+  
+  // Renderizado...
+};
+```
+
+#### Estado Actual
+
+| Componente | Estado | Notas |
+|------------|--------|-------|
+| Extracción de lógica | ⚠️ En progreso | Código base definido |
+| Hook funcional | ⚠️ Pendiente | Falta implementar completamente |
+| Integración en ComandaStyle | ⚠️ Pendiente | Refactor necesario |
+| Tests del hook | ⚠️ Pendiente | Requiere implementación previa |
+
+#### Qué Falta para Funcionar Perfectamente
+
+**Implementación:**
+- [ ] Completar todas las funciones del hook
+- [ ] Migrar `ComandaStyle.jsx` para usar el hook
+- [ ] Crear componente `VistaZona.jsx` usando el hook
+- [ ] Manejar cleanup de efectos y listeners
+
+**Funcionalidades Faltantes:**
+- [ ] Soporte para finalizar platos (batch)
+- [ ] Soporte para finalizar comanda completa
+- [ ] Manejo de modales (config, revertir, etc.)
+- [ ] Persistencia de estado en localStorage
+
+**Testing:**
+- [ ] Unit tests para cada función del hook
+- [ ] Tests de integración con Socket.io
+- [ ] Tests de renderizado con React Testing Library
+
+---
+
+### 🔄 Tema 4 - Sistema de Procesamiento (Backend)
+
+#### Objetivo
+
+Implementar en el backend la capacidad de rastrear qué cocinero está procesando cada plato, permitiendo evitar conflictos y mostrar información de colaboración en tiempo real.
+
+#### Modelo de Datos Extendido
+
+```javascript
+// models/Comanda.js - Campos nuevos en el schema de platos
+
+const platoSchema = new Schema({
+  platoId: { type: Schema.Types.ObjectId, ref: 'Plato' },
+  cantidad: { type: Number, default: 1 },
+  estado: { 
+    type: String, 
+    enum: ['ingresante', 'en_espera', 'recoger', 'entregado'],
+    default: 'en_espera'
+  },
+  
+  // ==================== NUEVOS CAMPOS ====================
+  procesandoPor: {
+    cocineroId: { type: Schema.Types.ObjectId, ref: 'Usuario' },
+    nombre: { type: String },
+    alias: { type: String },
+    desde: { type: Date }
+  },
+  procesadoPor: {
+    cocineroId: { type: Schema.Types.ObjectId, ref: 'Usuario' },
+    nombre: { type: String },
+    timestamp: { type: Date }
+  }
+  // ========================================================
+});
+```
+
+#### Endpoints Implementados
+
+##### 1. Marcar Plato como "En Procesamiento"
+
+```javascript
+// PUT /api/comanda/:id/plato/:platoId/procesando
+// Body: { cocineroId, nombre, alias? }
+
+router.put('/:id/plato/:platoId/procesando', async (req, res) => {
+  const { id, platoId } = req.params;
+  const { cocineroId, nombre, alias } = req.body;
+  
+  try {
+    const comanda = await Comanda.findById(id);
+    if (!comanda) {
+      return res.status(404).json({ error: 'Comanda no encontrada' });
+    }
+    
+    const plato = comanda.platos.find(p => 
+      p.platoId?.toString() === platoId || p._id?.toString() === platoId
+    );
+    
+    if (!plato) {
+      return res.status(404).json({ error: 'Plato no encontrado' });
+    }
+    
+    // Verificar si ya está siendo procesado por otro cocinero
+    if (plato.procesandoPor && plato.procesandoPor.cocineroId?.toString() !== cocineroId) {
+      return res.status(409).json({
+        error: 'Plato ya en procesamiento',
+        procesandoPor: plato.procesandoPor
+      });
+    }
+    
+    // Marcar como procesando
+    plato.procesandoPor = {
+      cocineroId,
+      nombre,
+      alias: alias || nombre,
+      desde: new Date()
+    };
+    
+    await comanda.save();
+    
+    // Emitir evento Socket.io
+    const io = req.app.get('io');
+    io.to(`cocinero-${cocineroId}`).emit('plato-procesando', {
+      comandaId: id,
+      platoId,
+      cocinero: { cocineroId, nombre, alias }
+    });
+    
+    // También emitir a todos para actualización de UI
+    io.to('cocina').emit('comanda-actualizada', comanda);
+    
+    res.json({ success: true, comanda });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+##### 2. Liberar Plato (Dejar de Procesar)
+
+```javascript
+// DELETE /api/comanda/:id/plato/:platoId/procesando
+// Body: { cocineroId }
+
+router.delete('/:id/plato/:platoId/procesando', async (req, res) => {
+  const { id, platoId } = req.params;
+  const { cocineroId } = req.body;
+  
+  try {
+    const comanda = await Comanda.findById(id);
+    if (!comanda) {
+      return res.status(404).json({ error: 'Comanda no encontrada' });
+    }
+    
+    const plato = comanda.platos.find(p => 
+      p.platoId?.toString() === platoId || p._id?.toString() === platoId
+    );
+    
+    if (!plato) {
+      return res.status(404).json({ error: 'Plato no encontrado' });
+    }
+    
+    // Verificar que sea el mismo cocinero quien libera
+    if (plato.procesandoPor?.cocineroId?.toString() !== cocineroId) {
+      return res.status(403).json({
+        error: 'Solo quien tomó el plato puede liberarlo',
+        tomadoPor: plato.procesandoPor
+      });
+    }
+    
+    // Liberar
+    plato.procesandoPor = null;
+    await comanda.save();
+    
+    // Emitir evento
+    const io = req.app.get('io');
+    io.to('cocina').emit('plato-liberado', { comandaId: id, platoId });
+    io.to('cocina').emit('comanda-actualizada', comanda);
+    
+    res.json({ success: true, comanda });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+##### 3. Finalizar Plato (Marcar como Listo)
+
+```javascript
+// PUT /api/comanda/:id/plato/:platoId/finalizar
+// Body: { cocineroId, nombre }
+
+router.put('/:id/plato/:platoId/finalizar', async (req, res) => {
+  const { id, platoId } = req.params;
+  const { cocineroId, nombre } = req.body;
+  
+  try {
+    const comanda = await Comanda.findById(id);
+    if (!comanda) {
+      return res.status(404).json({ error: 'Comanda no encontrada' });
+    }
+    
+    const plato = comanda.platos.find(p => 
+      p.platoId?.toString() === platoId || p._id?.toString() === platoId
+    );
+    
+    if (!plato) {
+      return res.status(404).json({ error: 'Plato no encontrado' });
+    }
+    
+    // Actualizar estado
+    plato.estado = 'recoger';
+    plato.procesadoPor = {
+      cocineroId,
+      nombre,
+      timestamp: new Date()
+    };
+    plato.procesandoPor = null;
+    
+    // Actualizar tiempo
+    plato.tiempos = plato.tiempos || {};
+    plato.tiempos.recoger = new Date();
+    
+    await comanda.save();
+    
+    // Emitir evento
+    const io = req.app.get('io');
+    io.to('cocina').emit('plato-actualizado', {
+      comandaId: id,
+      platoId,
+      nuevoEstado: 'recoger',
+      procesadoPor: plato.procesadoPor
+    });
+    
+    res.json({ success: true, comanda });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+#### Eventos Socket.io Nuevos
+
+| Evento | Dirección | Datos | Descripción |
+|--------|-----------|-------|-------------|
+| `plato-procesando` | Server → Client | `{ comandaId, platoId, cocinero }` | Un cocinero comenzó a procesar un plato |
+| `plato-liberado` | Server → Client | `{ comandaId, platoId }` | Un cocinero liberó un plato |
+| `plato-finalizado` | Server → Client | `{ comandaId, platoId, procesadoPor }` | Plato marcado como listo |
+| `conflicto-procesamiento` | Server → Client | `{ comandaId, platoId, tomadoPor }` | Conflicto al intentar tomar plato |
+
+#### Estado Actual
+
+| Componente | Estado | Notas |
+|------------|--------|-------|
+| Modelo extendido | ⚠️ Pendiente | Schema definido, no aplicado |
+| Endpoint procesando | ⚠️ Pendiente | Código definido, no implementado |
+| Endpoint liberar | ⚠️ Pendiente | Código definido, no implementado |
+| Endpoint finalizar | ✅ Existe | Actualizar para incluir procesadoPor |
+| Eventos Socket | ⚠️ Pendiente | Nuevos eventos por implementar |
+
+#### Qué Falta para Funcionar Perfectamente
+
+**Base de Datos:**
+- [ ] Aplicar migración para agregar campos `procesandoPor` y `procesadoPor`
+- [ ] Crear índices para optimizar consultas
+- [ ] Script de migración para comandas existentes
+
+**Backend:**
+- [ ] Implementar los 3 endpoints nuevos
+- [ ] Agregar validación de permisos (solo cocineros pueden procesar)
+- [ ] Implementar timeout automático de procesamiento (ej: 30 min)
+- [ ] Agregar log de eventos para auditoría
+
+**Socket.io:**
+- [ ] Implementar nuevos eventos
+- [ ] Manejar reconexión con re-unión a rooms
+- [ ] Implementar heartbeat para detectar desconexiones
+
+**Testing:**
+- [ ] Tests unitarios para cada endpoint
+- [ ] Tests de integración con Socket.io
+- [ ] Tests de conflictos (409)
+- [ ] Tests de permisos (403)
+
+---
+
+### 🎨 Tema 5 - UI de Procesamiento (Frontend)
+
+#### Objetivo
+
+Mostrar en la interfaz de cocina qué platos están siendo procesados y por quién, permitiendo a los cocineros coordinarse y evitar duplicar trabajo.
+
+#### Componentes Nuevos
+
+##### 1. Hook useProcesamiento
+
+```javascript
+// hooks/useProcesamiento.js
+
+import { useState, useCallback } from 'react';
+import axios from 'axios';
+import { getApiUrl } from '../config/apiConfig';
+import { toast } from 'react-toastify';
+
+export const useProcesamiento = (usuario) => {
+  const [loading, setLoading] = useState(false);
+  
+  // Tomar un plato para procesarlo
+  const tomarPlato = useCallback(async (comandaId, platoId) => {
+    if (!usuario) {
+      toast.error('Debes estar autenticado para procesar platos');
+      return { success: false };
+    }
+    
+    setLoading(true);
+    
+    try {
+      const response = await axios.put(
+        `${getApiUrl()}/${comandaId}/plato/${platoId}/procesando`,
+        {
+          cocineroId: usuario.id,
+          nombre: usuario.name,
+          alias: usuario.alias || usuario.name
+        }
+      );
+      
+      toast.success(`Tomaste el plato para preparar`);
+      return { success: true, comanda: response.data.comanda };
+    } catch (error) {
+      if (error.response?.status === 409) {
+        // Conflicto - otro cocinero ya lo tomó
+        const tomadoPor = error.response.data.procesandoPor;
+        toast.warning(
+          `Este plato ya lo está preparando ${tomadoPor.nombre}`,
+          { autoClose: 5000 }
+        );
+        return { success: false, conflicto: true, tomadoPor };
+      }
+      
+      toast.error('Error al tomar el plato');
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  }, [usuario]);
+  
+  // Liberar un plato (dejar de procesarlo)
+  const liberarPlato = useCallback(async (comandaId, platoId) => {
+    if (!usuario) return { success: false };
+    
+    setLoading(true);
+    
+    try {
+      await axios.delete(
+        `${getApiUrl()}/${comandaId}/plato/${platoId}/procesando`,
+        { data: { cocineroId: usuario.id } }
+      );
+      
+      toast.info('Plato liberado');
+      return { success: true };
+    } catch (error) {
+      if (error.response?.status === 403) {
+        toast.error('Solo quien tomó el plato puede liberarlo');
+        return { success: false, forbidden: true };
+      }
+      
+      toast.error('Error al liberar el plato');
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  }, [usuario]);
+  
+  // Finalizar un plato (marcar como listo)
+  const finalizarPlato = useCallback(async (comandaId, platoId) => {
+    if (!usuario) return { success: false };
+    
+    setLoading(true);
+    
+    try {
+      const response = await axios.put(
+        `${getApiUrl()}/${comandaId}/plato/${platoId}/finalizar`,
+        {
+          cocineroId: usuario.id,
+          nombre: usuario.name
+        }
+      );
+      
+      toast.success('¡Plato listo para recoger!');
+      return { success: true, comanda: response.data.comanda };
+    } catch (error) {
+      toast.error('Error al finalizar el plato');
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  }, [usuario]);
+  
+  return {
+    loading,
+    tomarPlato,
+    liberarPlato,
+    finalizarPlato
+  };
+};
+```
+
+##### 2. Componente PlatoConProcesamiento
+
+```jsx
+// components/PlatoConProcesamiento.jsx
+
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useProcesamiento } from '../../hooks/useProcesamiento';
+
+const PlatoConProcesamiento = ({ 
+  plato, 
+  comandaId, 
+  usuario,
+  isChecked,
+  onCheckToggle,
+  nightMode 
+}) => {
+  const { tomarPlato, liberarPlato, loading } = useProcesamiento(usuario);
+  
+  const estaProcesandoEsteUsuario = 
+    plato.procesandoPor?.cocineroId === usuario?.id;
+  
+  const estaProcesandoOtro = 
+    plato.procesandoPor && !estaProcesandoEsteUsuario;
+  
+  const handleTomar = async (e) => {
+    e.stopPropagation();
+    if (!estaProcesandoOtro) {
+      await tomarPlato(comandaId, plato.platoId || plato._id);
+    }
+  };
+  
+  const handleLiberar = async (e) => {
+    e.stopPropagation();
+    await liberarPlato(comandaId, plato.platoId || plato._id);
+  };
+  
+  return (
+    <motion.div
+      className={`
+        relative p-3 rounded-lg mb-2 transition-all
+        ${isChecked ? 'bg-green-500/30' : 'bg-transparent'}
+        ${estaProcesandoEsteUsuario ? 'ring-2 ring-orange-400' : ''}
+        ${estaProcesandoOtro ? 'opacity-60' : ''}
+      `}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+    >
+      <div className="flex items-center justify-between">
+        {/* Checkbox y nombre */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onCheckToggle}
+            className={`
+              w-6 h-6 rounded border-2 flex items-center justify-center
+              ${isChecked ? 'bg-green-500 border-green-500' : 'border-gray-400'}
+            `}
+          >
+            {isChecked && <span className="text-white">✓</span>}
+          </button>
+          
+          <span className={`${nightMode ? 'text-white' : 'text-gray-900'}`}>
+            {plato.cantidad}x {plato.plato?.nombre || plato.nombre}
+          </span>
+        </div>
+        
+        {/* Badge de procesamiento */}
+        <AnimatePresence>
+          {plato.procesandoPor && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              className={`
+                flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
+                ${estaProcesandoEsteUsuario 
+                  ? 'bg-orange-500 text-white' 
+                  : 'bg-blue-500 text-white'}
+              `}
+            >
+              <span className="animate-pulse">👨‍🍳</span>
+              <span>{plato.procesandoPor.alias || plato.procesandoPor.nombre}</span>
+              
+              {/* Botón liberar solo para quien tomó */}
+              {estaProcesandoEsteUsuario && (
+                <button
+                  onClick={handleLiberar}
+                  disabled={loading}
+                  className="ml-1 px-1 rounded bg-white/20 hover:bg-white/30"
+                >
+                  ✕
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      {/* Botón "Tomar" si no está siendo procesado */}
+      {!plato.procesandoPor && plato.estado === 'en_espera' && (
+        <button
+          onClick={handleTomar}
+          disabled={loading}
+          className={`
+            absolute top-1 right-1 text-xs px-2 py-0.5 rounded
+            ${nightMode 
+              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+          `}
+        >
+          Tomar
+        </button>
+      )}
+    </motion.div>
+  );
+};
+
+export default PlatoConProcesamiento;
+```
+
+##### 3. Componente ComandaProcesamientoBadge
+
+```jsx
+// components/ComandaProcesamientoBadge.jsx
+
+import React from 'react';
+import { motion } from 'framer-motion';
+
+const ComandaProcesamientoBadge = ({ 
+  platos, 
+  usuario,
+  nightMode 
+}) => {
+  // Obtener cocineros únicos que están procesando
+  const cocinerosProcesando = platos
+    .filter(p => p.procesandoPor)
+    .map(p => ({
+      id: p.procesandoPor.cocineroId,
+      nombre: p.procesandoPor.nombre,
+      alias: p.procesandoPor.alias
+    }))
+    .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+  
+  if (cocinerosProcesando.length === 0) return null;
+  
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {cocinerosProcesando.map((cocinero) => {
+        const esUsuarioActual = cocinero.id === usuario?.id;
+        
+        return (
+          <motion.span
+            key={cocinero.id}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className={`
+              inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
+              ${esUsuarioActual 
+                ? 'bg-orange-500 text-white' 
+                : 'bg-blue-600 text-white'}
+            `}
+          >
+            <span className="animate-pulse">👨‍🍳</span>
+            <span>{cocinero.alias || cocinero.nombre}</span>
+          </motion.span>
+        );
+      })}
+    </div>
+  );
+};
+
+export default ComandaProcesamientoBadge;
+```
+
+#### Animaciones CSS
+
+```css
+/* Animación para badges de procesamiento */
+@keyframes pulse-procesando {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 8px rgba(249, 115, 22, 0);
+  }
+}
+
+.badge-procesando {
+  animation: pulse-procesando 2s infinite;
+}
+
+/* Indicador de "Tomado por otro" */
+.plato-tomado-otro {
+  position: relative;
+  overflow: hidden;
+}
+
+.plato-tomado-otro::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(0, 0, 0, 0.05) 5px,
+    rgba(0, 0, 0, 0.05) 10px
+  );
+  pointer-events: none;
+}
+```
+
+#### Estado Actual
+
+| Componente | Estado | Notas |
+|------------|--------|-------|
+| Hook useProcesamiento | ⚠️ Pendiente | Código definido |
+| PlatoConProcesamiento | ⚠️ Pendiente | Código definido |
+| ComandaProcesamientoBadge | ⚠️ Pendiente | Código definido |
+| Animaciones CSS | ⚠️ Pendiente | Definidas |
+| Integración en ComandaStyle | ⚠️ Pendiente | Requiere componentes |
+
+#### Qué Falta para Funcionar Perfectamente
+
+**Frontend:**
+- [ ] Implementar hook `useProcesamiento`
+- [ ] Crear componentes `PlatoConProcesamiento` y `ComandaProcesamientoBadge`
+- [ ] Integrar en `ComandaStyle.jsx` reemplazando el renderizado actual de platos
+- [ ] Agregar animaciones CSS al proyecto
+
+**UX:**
+- [ ] Feedback visual cuando otro cocinero toma un plato (toast + animación)
+- [ ] Confirmación antes de liberar un plato tomado
+- [ ] Indicador de tiempo transcurrido procesando
+- [ ] Sonido de notificación cuando otro toma/libera
+
+**Lógica:**
+- [ ] Manejar caso de desconexión (liberar automáticamente)
+- [ ] Sincronizar estado local con servidor
+- [ ] Evitar conflictos en actualizaciones concurrentes
+
+**Testing:**
+- [ ] Tests de renderizado de componentes
+- [ ] Tests de interacción (click en "Tomar", "Liberar")
+- [ ] Tests de Socket.io events
+- [ ] Tests de manejo de conflictos
+
+---
+
+### 📊 Resumen de Implementación Pendiente
+
+#### Checklist General
+
+| Tema | Backend | Frontend | Tests | Documentación |
+|------|---------|----------|-------|---------------|
+| Eventos de configuración | ⚠️ 60% | ⚠️ 60% | ❌ 0% | ⚠️ 50% |
+| Testing de vistas | ❌ N/A | ⚠️ 30% | ❌ 0% | ✅ 100% |
+| Hook useComandastyleCore | ❌ N/A | ⚠️ 40% | ❌ 0% | ✅ 100% |
+| Sistema de procesamiento | ⚠️ 30% | ⚠️ 20% | ❌ 0% | ✅ 100% |
+| UI de procesamiento | ❌ N/A | ⚠️ 20% | ❌ 0% | ✅ 100% |
+
+#### Prioridades de Implementación
+
+**Alta Prioridad (Bloqueante):**
+1. Sistema de procesamiento (backend) - Sin esto, el resto no funciona
+2. Eventos Socket.io de procesamiento - Necesario para sincronización
+
+**Media Prioridad (Importante):**
+3. Hook useComandastyleCore - Facilita desarrollo futuro
+4. UI de procesamiento (frontend) - Visible para usuarios
+
+**Baja Prioridad (Mejora):**
+5. Testing de vistas - Asegura calidad
+6. Eventos de configuración - Optimización
+
+#### Dependencias entre Componentes
+
+```
+[Tema 4: Backend Procesamiento]
+         ↓
+[Tema 5: UI Procesamiento] ← [Tema 1: Eventos Cocinero]
+         ↓
+[Tema 3: Hook Core]
+         ↓
+[Tema 2: Testing]
+```
+
+---
+
+**Versión del Documento:** 1.5  
 **Última Actualización:** Marzo 2026  
-**Sección agregada:** Sugerencias y Recomendaciones v7.0
+**Sección agregada:** Funcionalidades Implementadas v7.1 - Sistema Multi-Cocinero
 

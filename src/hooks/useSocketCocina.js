@@ -11,6 +11,9 @@ import { getServerBaseUrl } from '../config/apiConfig';
  * - No reconecta en bucle si auth falla
  * - Valida conexión autenticada antes de operar
  * 
+ * TEMA 1: Ahora soporta rooms personales por cocinero para recibir
+ * actualizaciones de configuración específicas
+ * 
  * @param {Object} params - Parámetros del hook
  * @param {Function} params.onNuevaComanda - Callback cuando llega nueva comanda
  * @param {Function} params.onComandaActualizada - Callback cuando se actualiza una comanda
@@ -20,6 +23,7 @@ import { getServerBaseUrl } from '../config/apiConfig';
  * @param {Function} params.onComandaAnulada - Callback cuando cocina anula toda la comanda
  * @param {Function} params.obtenerComandas - Función para obtener comandas iniciales
  * @param {string} params.token - Token JWT para autenticación (obligatorio)
+ * @param {string} params.cocineroId - ID del cocinero para room personal (opcional, TEMA 1)
  * @returns {Object} { socket, connected, connectionStatus, authError }
  */
 const useSocketCocina = ({
@@ -31,7 +35,8 @@ const useSocketCocina = ({
   onComandaAnulada,
   onConfigCocineroActualizada,
   obtenerComandas,
-  token // Token obligatorio para autenticación
+  token, // Token obligatorio para autenticación
+  cocineroId // TEMA 1: ID del cocinero para room personal
 }) => {
   const [connected, setConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('desconectado'); // 'conectado', 'desconectado', 'auth_error'
@@ -107,6 +112,12 @@ const useSocketCocina = ({
       socket.emit('join-fecha', fechaActual);
       console.log(`[useSocketCocina] Unido a room: fecha-${fechaActual}`);
 
+      // TEMA 1: Unirse a room personal del cocinero para recibir actualizaciones de configuración
+      if (cocineroId) {
+        socket.emit('join-cocinero', cocineroId);
+        console.log(`[useSocketCocina] Unido a room personal: cocinero-${cocineroId}`);
+      }
+
       // Obtener comandas iniciales una vez conectado
       if (obtenerComandas) {
         obtenerComandas();
@@ -155,8 +166,14 @@ const useSocketCocina = ({
         reconnectTimeoutRef.current = null;
       }
       
-      // Re-unirse a room
+      // Re-unirse a room por fecha
       socket.emit('join-fecha', fechaActual);
+      
+      // TEMA 1: Re-unirse a room personal del cocinero
+      if (cocineroId) {
+        socket.emit('join-cocinero', cocineroId);
+        console.log(`[useSocketCocina] Re-unido a room personal: cocinero-${cocineroId}`);
+      }
       
       // Refrescar comandas
       if (obtenerComandas) {
@@ -313,9 +330,19 @@ const useSocketCocina = ({
     });
 
     // Evento: Configuración de cocinero actualizada
+    // TEMA 1: Este evento ahora se recibe solo en la room personal del cocinero
     socket.on('config-cocinero-actualizada', (data) => {
       console.log('[useSocketCocina] Configuración de cocinero actualizada:', data.cocineroId || data.config?.cocineroId);
       ultimoPingRef.current = Date.now();
+
+      // TEMA 1: Validar que el evento es para este cocinero (seguridad adicional)
+      if (data.cocineroId && cocineroId && data.cocineroId !== cocineroId) {
+        console.warn('[useSocketCocina] Evento de configuración ignorado: no corresponde a este cocinero', {
+          receivedCocineroId: data.cocineroId,
+          currentCocineroId: cocineroId
+        });
+        return;
+      }
 
       if (onConfigCocineroActualizada) {
         onConfigCocineroActualizada(data);
@@ -381,7 +408,7 @@ const useSocketCocina = ({
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, obtenerComandas]);
+  }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, obtenerComandas, cocineroId]);
 
   return {
     socket: socketRef.current,

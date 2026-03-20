@@ -75,7 +75,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     zonaActivaId,
     setZonaActiva,
     getZonasActivas,
-    userName
+    userName,
+    // TEMA 1: Funciones para actualizar configuración cuando llega evento Socket
+    updateCocineroConfig,
+    loadCocineroConfig
   } = useAuth();
   
   const [comandas, setComandas] = useState([]);
@@ -1008,14 +1011,50 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     });
   }, [config.soundEnabled, obtenerComandas]);
 
+  // TEMA 1: Handler para cuando se actualiza la configuración del cocinero vía Socket
+  // Se ejecuta cuando el admin cambia zonas, filtros o preferencias KDS
+  const handleConfigCocineroActualizada = useCallback(async (data) => {
+    console.log('[ComandaStylePerso] Configuración de cocinero actualizada vía Socket:', data);
+    
+    // Si viene con refresh=true, recargar configuración completa del servidor
+    if (data.refresh) {
+      console.log('[ComandaStylePerso] Recargando configuración completa desde servidor...');
+      if (loadCocineroConfig) {
+        await loadCocineroConfig();
+      }
+      return;
+    }
+    
+    // Si vienen cambios específicos, actualizar el estado
+    if (data.cambios && updateCocineroConfig) {
+      console.log('[ComandaStylePerso] Aplicando cambios de configuración:', data.cambios);
+      updateCocineroConfig(data.cambios);
+    }
+    
+    // Mostrar notificación al usuario
+    setToastMessage({
+      type: 'info',
+      message: '⚙️ Tu configuración KDS ha sido actualizada',
+      duration: 4000
+    });
+    
+    // Reproducir sonido si está habilitado
+    if (config.soundEnabled) {
+      playNotificationSound();
+    }
+  }, [updateCocineroConfig, loadCocineroConfig, config.soundEnabled]);
+
   // Hook Socket.io - REEMPLAZA EL POLLING
   // Se pasa el token para autenticación del handshake
+  // TEMA 1: Se pasa el cocineroId para unirse a la room personal y recibir actualizaciones de config
   const { connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
     onNuevaComanda: handleNuevaComanda,
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
+    onConfigCocineroActualizada: handleConfigCocineroActualizada, // TEMA 1: Handler para actualizaciones de config
     obtenerComandas: obtenerComandas,
-    token: getToken() // Token JWT para autenticación
+    token: getToken(), // Token JWT para autenticación
+    cocineroId: cocineroConfig?.cocineroId || null // TEMA 1: Room personal para actualizaciones de config
   });
 
   // Actualizar estado de conexión
