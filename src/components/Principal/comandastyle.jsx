@@ -1,6 +1,7 @@
 // PLAN v5.5: 1. Refina botón toolbar (texto dinámico). 2. Handler auto-selección. 3. API+toast+sonido. 4. Sort prioritario en useEffect/socket. 5. Icono 🚀 rojo header. 6. Reset 'recoger'.
 // PLAN REVERTIR v5.5: 1. Refina botón/menú. 2. Lista platos reversibles. 3. Handler plato granular. 4. Modal checkboxes. 5. Socket/UI update. 6. Toast confirm.
 // VISTA GENERAL KDS: Muestra todas las comandas del día sin filtros de zonas/cocinero
+// v7.1: Integración con ConfigContext para configuración centralizada y multi-cocinero
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
@@ -28,8 +29,11 @@ import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import useSocketCocina from "../../hooks/useSocketCocina";
+import useKdsBehavior from "../../hooks/useKdsBehavior";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
+import { useConfig } from "../../contexts/ConfigContext";
+import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -60,24 +64,27 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     userRole, 
     canPerformSensitiveActions, 
     getToken,
-    userName
+    userName,
+    userId
   } = useAuth();
+  
+  // Hook de configuración centralizada (v7.1)
+  const { config, updateConfig } = useConfig();
+  
+  // Hook de comportamiento KDS basado en configuración
+  const kdsBehavior = useKdsBehavior({
+    onNotifyAssignment: (data) => {
+      // Mostrar toast de notificación
+      const mensaje = data.type === 'took' 
+        ? `${data.cocineroNombre} tomó ${data.platoNombre}` 
+        : `${data.cocineroNombre} liberó ${data.platoNombre}`;
+      setToastMessage({ text: mensaje, type: 'info' });
+    }
+  });
   
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [config, setConfig] = useState({
-    alertYellowMinutes: 15,
-    alertRedMinutes: 20,
-    soundEnabled: true,
-    autoPrint: false,
-    nightMode: true,
-    design: {
-      fontSize: 15,
-      cols: 5,
-      rows: 1
-    }
-  });
   const [showConfig, setShowConfig] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showRevertir, setShowRevertir] = useState(false);
@@ -126,28 +133,25 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Cargar configuración desde localStorage
-  useEffect(() => {
-    const savedConfig = localStorage.getItem('kdsConfig');
-    if (savedConfig) {
-      const parsed = JSON.parse(savedConfig);
-      // Asegurar que design existe con valores por defecto
-      if (!parsed.design) {
-        parsed.design = { fontSize: 15, cols: 5, rows: 1 };
-      }
-      setConfig(parsed);
-    }
-  }, []);
-
-  // Guardar configuración en localStorage
-  useEffect(() => {
-    localStorage.setItem('kdsConfig', JSON.stringify(config));
-  }, [config]);
-
   // Cargar estados de platos desde localStorage al montar
+  // NOTA: La configuración ahora viene de ConfigContext, no de localStorage local
   useEffect(() => {
+    // Verificar si se necesita limpieza automática de estados
+    const verificacion = verificarNecesidadLimpieza();
+    if (verificacion.necesitaLimpieza) {
+      console.log(`[ComandaStyle] Limpieza automática ejecutada: ${verificacion.razon}`);
+      // La limpieza ya se ejecuta en ConfigContext, aquí solo limpiamos estados de platos
+      try {
+        localStorage.removeItem(STORAGE_KEYS.PLATO_STATES);
+        localStorage.removeItem(STORAGE_KEYS.PLATOS_CHECKED);
+      } catch (e) {
+        console.warn('Error en limpieza automática:', e);
+      }
+    }
+    
+    // Cargar estados de platos desde localStorage
     try {
-      const savedStates = localStorage.getItem('platoStates');
+      const savedStates = localStorage.getItem(STORAGE_KEYS.PLATO_STATES);
       if (savedStates) {
         const parsed = JSON.parse(savedStates);
         const statesMap = new Map(parsed);
@@ -2427,13 +2431,8 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       {/* Modales */}
       {showConfig && (
         <ConfigModal
-          config={config}
           nightMode={nightMode}
           onClose={() => setShowConfig(false)}
-          onSave={(newConfig) => {
-            setConfig(newConfig);
-            setShowConfig(false);
-          }}
         />
       )}
 

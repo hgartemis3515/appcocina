@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { ConfigProvider } from '../contexts/ConfigContext';
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import ComandaStyle from './Principal/comandastyle';
@@ -121,12 +122,19 @@ const AppRouter = () => {
 };
 
 /**
- * App principal con AuthProvider
+ * App principal con AuthProvider y ConfigProvider
+ * 
+ * ConfigProvider gestiona la configuración del KDS incluyendo:
+ * - Perfiles predefinidos
+ * - Opciones de multi-cocinero
+ * - Limpieza automática de estados locales
  */
 const App = () => {
   return (
     <AuthProvider>
-      <AppRouter />
+      <ConfigProvider>
+        <AppRouter />
+      </ConfigProvider>
     </AuthProvider>
   );
 };
