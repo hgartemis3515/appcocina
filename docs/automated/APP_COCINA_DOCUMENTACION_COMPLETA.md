@@ -1,8 +1,14 @@
 # 📱 Documentación Completa - App de Cocina (Las Gambusinas)
 
-**Versión:** 7.2  
+**Versión:** 7.2.1  
 **Última Actualización:** Marzo 2026  
 **Tecnología:** React Web + Socket.io + Framer Motion
+
+**Cambios Recientes (v7.2.1):**
+- ✅ **Ciclo de estados diferenciado**: Flujo diferente según si el plato está tomado por el cocinero actual
+- ✅ **Estado visual "dejar" (rojo)**: Permite al cocinero indicar que quiere liberar un plato tomado
+- ✅ **Corrección del botón contextual**: Ahora responde correctamente a platos en amarillo/rojo
+- ✅ **Estado visual automático**: Platos con `procesandoPor` se muestran en amarillo automáticamente
 
 **Cambios Recientes (v7.2):**
 - ✅ **Sistema Multi-Cocinero**: Botón contextual en barra inferior para Tomar/Dejar/Finalizar platos
@@ -3997,7 +4003,7 @@ export default ComandaProcesamientoBadge;
 }
 ```
 
-#### Estado Actual (v7.2 - Marzo 2026)
+#### Estado Actual (v7.2.1 - Marzo 2026)
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
@@ -4007,6 +4013,225 @@ export default ComandaProcesamientoBadge;
 | Eventos Socket.io | ✅ Implementado | Listeners para plato-procesando, plato-liberado, conflicto-procesamiento |
 | Validación backend | ✅ Implementado | Error 403 si otro cocinero intenta finalizar plato ajeno |
 | Función determinarAccionBoton | ✅ Implementado | Lógica de decisión del botón contextual |
+| Estado visual "dejar" | ✅ Implementado | Plato en rojo para indicar intención de liberar |
+| Ciclo de estados diferenciado | ✅ Implementado | Flujo diferente según si el plato está tomado por mí |
+
+---
+
+### 🆕 Cambios Recientes v7.2.1 - Sistema de Estados Visuales Mejorado
+
+#### Descripción General
+
+Se implementó un sistema de **3 estados visuales diferenciados** según el contexto del plato, permitiendo al cocinero que tomó un plato tener opciones claras para **dejarlo** (liberar) o **finalizarlo**.
+
+#### 1. Ciclos de Estados Diferenciados
+
+**Para platos SIN TOMAR (ningún cocinero asignado):**
+```
+Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
+```
+- **Amarillo**: Indica intención de tomar el plato
+- **Verde**: Indica listo para finalizar
+
+**Para platos TOMADOS POR EL COCINERO ACTUAL:**
+```
+Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+```
+- **Normal (con badge "Tú")**: Plato tomado, en preparación
+- **Rojo**: Indica intención de liberar/dejar el plato
+- **Verde**: Indica listo para finalizar
+
+#### 2. Estado Visual "dejar" (Rojo)
+
+**Implementación en `PlatoPreparacion.jsx`:**
+
+```javascript
+// Nuevo estado en containerVariants
+dejar: {
+  scale: [1, 1.02, 1],
+  opacity: [1, 0.9, 1],
+  boxShadow: [
+    '0 0 8px rgba(239, 68, 68, 0.3)',
+    '0 0 16px rgba(239, 68, 68, 0.5)',
+    '0 0 8px rgba(239, 68, 68, 0.3)',
+  ],
+  transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+}
+
+// Nuevo estilo de fondo
+case 'dejar':
+  return nightMode ? 'bg-red-500/30 text-red-300 border-red-500/50' : 'bg-red-500/20 text-red-700 border-red-500/50';
+
+// Icono animado ↩️
+{visualState === 'dejar' && (
+  <motion.span animate="dejar">↩️</motion.span>
+)}
+```
+
+**Propósito:** El estado rojo indica visualmente que el cocinero quiere liberar el plato que previamente tomó.
+
+#### 3. Función `togglePlatoCheck` Mejorada
+
+**Ubicación:** `ComandaStyle.jsx` líneas ~1296-1353
+
+```javascript
+const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
+  const key = `${comandaId}-${platoIndex}`;
+  const miUsuarioId = userId?.toString();
+  
+  // Verificar si el plato está tomado por mí
+  const comanda = comandas.find(c => c._id === comandaId);
+  const plato = comanda?.platos?.[platoIndex];
+  const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
+  
+  setPlatoStates(prev => {
+    const nuevo = new Map(prev);
+    const estadoActual = nuevo.get(key) || 'normal';
+    
+    let nuevoEstado;
+    if (tomadoPorMi) {
+      // Ciclo para mis platos: Normal → Dejar → Seleccionado → Normal
+      if (estadoActual === 'normal') nuevoEstado = 'dejar';
+      else if (estadoActual === 'dejar') nuevoEstado = 'seleccionado';
+      else nuevoEstado = 'normal';
+    } else {
+      // Ciclo normal: Normal → Procesando → Seleccionado → Normal
+      if (estadoActual === 'normal') nuevoEstado = 'procesando';
+      else if (estadoActual === 'procesando') nuevoEstado = 'seleccionado';
+      else nuevoEstado = 'normal';
+    }
+    
+    nuevo.set(key, nuevoEstado);
+    return nuevo;
+  });
+}, [comandas, userId]);
+```
+
+**Propósito:** Diferenciar el ciclo de clicks según si el plato ya fue tomado por el cocinero actual.
+
+#### 4. Lógica del Botón Contextual Actualizada
+
+**Función `determinarAccionBoton`:**
+
+| Estado Visual | Condición | Modo Botón | Color | Acción |
+|--------------|-----------|------------|-------|--------|
+| `dejar` + tomado por mí | - | DEJAR_PLATO | 🔴 Rojo | Liberar plato |
+| `seleccionado` + tomado por mí | - | FINALIZAR_PLATO | 🟢 Verde | Finalizar → `recoger` |
+| `procesando` sin tomar | - | TOMAR_PLATO | 🔵 Azul | Asignarse el plato |
+| Tomado por otro | - | SIN_ACCION | ⚫ Gris | Bloqueado con mensaje |
+
+#### 5. Corrección en Cálculo de Platos Seleccionados
+
+**Problema anterior:** `getTotalPlatosMarcados()` solo contaba checkboxes boolean, ignorando estados visuales.
+
+**Solución implementada:**
+
+```javascript
+// Antes (incorrecto)
+const hayPlatosSeleccionados = getTotalPlatosMarcados() > 0;
+
+// Después (correcto)
+const platosConInteraccion = obtenerPlatosSeleccionadosInfo();
+const hayPlatosSeleccionados = platosConInteraccion.length > 0;
+```
+
+**Propósito:** El botón ahora responde correctamente a platos en amarillo (`procesando`) o rojo (`dejar`).
+
+#### 6. Estado Visual Automático para Platos Tomados
+
+**Problema:** Un plato con `procesandoPor` asignado no se mostraba visualmente en amarillo.
+
+**Solución en renderizado de platos:**
+
+```javascript
+let estadoVisual = estadoVisualLocal;
+if (plato.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
+  estadoVisual = 'procesando'; // Forzar amarillo visual
+}
+```
+
+**Propósito:** Garantizar que cualquier plato tomado por un cocinero se muestre visualmente destacado (amarillo) aunque el usuario no haya interactuado con él.
+
+#### 7. Handlers para Eventos Socket.io de Procesamiento
+
+**Actualización en `handlePlatoActualizado`:**
+
+```javascript
+// Evento: Plato tomado por un cocinero
+if (data.tipo === 'PLATO_TOMADO') {
+  setComandas(prev => prev.map(comanda => ({
+    ...comanda,
+    platos: comanda.platos.map(p => 
+      p._id?.toString() === data.platoId?.toString()
+        ? { ...p, procesandoPor: data.procesandoPor }
+        : p
+    )
+  })));
+  return; // No continuar con lógica de cambio de estado
+}
+
+// Evento: Plato liberado
+if (data.tipo === 'PLATO_LIBERADO') {
+  setComandas(prev => prev.map(comanda => ({
+    ...comanda,
+    platos: comanda.platos.map(p => 
+      p._id?.toString() === data.platoId?.toString()
+        ? { ...p, procesandoPor: null }
+        : p
+    )
+  })));
+  return;
+}
+```
+
+**Propósito:** Actualizar el campo `procesandoPor` de forma granular sin recargar toda la lista de comandas.
+
+#### 8. Exclusión de Platos Ajenos en Finalización
+
+**Actualización en `handleFinalizarPlatosGlobal`:**
+
+```javascript
+// v7.2: EXCLUIR platos tomados por otro cocinero
+const miUsuarioId = userId?.toString();
+const tomadoPorOtro = plato.procesandoPor?.cocineroId && 
+                      plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+if (tomadoPorOtro) {
+  console.warn(`⚠️ Plato "${nombre}" excluido: tomado por ${procesandoPor?.alias}`);
+  return;
+}
+```
+
+**Propósito:** Prevenir que un cocinero finalice platos que otro cocinero está preparando.
+
+---
+
+#### Flujo Completo del Sistema Multi-Cocinero v7.2.1
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FLUJO DE PLATO SIN TOMAR                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  1. Click en plato normal → Amarillo (procesando)                           │
+│  2. Botón muestra "Tomar plato" (azul)                                      │
+│  3. Click en "Tomar" → Backend asigna procesandoPor                         │
+│  4. Badge muestra "Tú" (verde)                                              │
+│  5. Plato permanece en amarillo con badge                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FLUJO DE PLATO TOMADO POR MÍ                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  1. Click en plato con badge "Tú" → Rojo (dejar)                            │
+│  2. Botón muestra "Dejar plato" (rojo)                                      │
+│  3. Opción A: Click en "Dejar" → Backend libera → Badge desaparece          │
+│  4. Opción B: Click de nuevo en plato → Verde (seleccionado)                │
+│  5. Botón muestra "Finalizar plato" (verde)                                 │
+│  6. Click en "Finalizar" → Estado cambia a 'recoger'                        │
+│  7. Plato se mueve a sección "Listos/Preparados"                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 #### Cómo Funciona el Sistema Multi-Cocinero v7.2
 
@@ -4031,12 +4256,16 @@ export default ComandaProcesamientoBadge;
 
 ---
 
-**Versión del Documento:** 1.8  
+**Versión del Documento:** 1.9  
 **Última Actualización:** Marzo 2026  
 **Cambios en esta versión:**
 - Reintegrado sistema multi-cocinero v7.2 de forma compatible
 - Botón contextual en barra inferior reemplaza botón simple "Finalizar Platos"
 - Badges de cocinero en PlatoPreparacion
 - Validación de propiedad en backend
+- **v7.2.1**: Ciclo de 3 estados diferenciado (amarillo/rojo/verde)
+- **v7.2.1**: Estado visual "dejar" para liberar platos tomados
+- **v7.2.1**: Corrección en cálculo de platos seleccionados para botón contextual
+- **v7.2.1**: Estado visual automático para platos con procesandoPor asignado
 
 
