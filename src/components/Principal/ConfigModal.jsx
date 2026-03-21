@@ -4,13 +4,11 @@ import {
   FaShieldAlt, 
   FaExclamationTriangle, 
   FaCheckCircle, 
-  FaUserFriends,
   FaPalette,
   FaClock,
   FaCog,
   FaTrash,
-  FaUndo,
-  FaDownload
+  FaUndo
 } from "react-icons/fa";
 import moment from "moment-timezone";
 import { 
@@ -22,41 +20,32 @@ import {
 } from "../../config/apiConfig";
 import { useConfig } from "../../contexts/ConfigContext";
 import { 
-  PERFILES_PREDEFINIDOS,
   TIEMPOS_ALERTA,
   DISENO_GRID,
   MODO_VISTA,
   TAMANO_TARJETA,
   ORDENAMIENTO,
-  MULTI_COCINERO_OPTIONS,
   ejecutarLimpieza,
   KDS_CONFIG_VERSION
 } from "../../config/kdsConfigConstants";
 
 /**
- * ConfigModal - Modal de configuración del sistema KDS v7.1
+ * ConfigModal - Modal de configuración del sistema KDS v7.2
  * 
  * Características:
  * - Sistema de tabs para organizar opciones
- * - Perfiles predefinidos para diferentes tipos de restaurante
- * - Configuración completa de multi-cocinero
  * - Gestión de limpieza de estados locales
  */
 const ConfigModal = ({ onClose, nightMode = true }) => {
   // Usar ConfigContext
   const {
     config,
-    perfilActivo,
     updateConfig,
-    aplicarPerfilPredefinido,
     resetConfig,
-    getPerfilActivo,
-    getMultiCocineroOptions,
-    updateMultiCocineroOption,
   } = useConfig();
 
   // Estado para tabs
-  const [activeTab, setActiveTab] = useState('perfiles');
+  const [activeTab, setActiveTab] = useState('general');
   
   // Estado para URL del servidor
   const [apiUrl, setApiUrlLocal] = useState('');
@@ -132,13 +121,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
   };
 
   /**
-   * Aplica un perfil predefinido
-   */
-  const handleAplicarPerfil = (perfilId) => {
-    aplicarPerfilPredefinido(perfilId);
-  };
-
-  /**
    * Ejecuta limpieza manual de estados
    */
   const handleCleanup = (tipo = 'manual') => {
@@ -169,9 +151,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
   // Hosts permitidos
   const allowedHosts = getAllowedHosts();
 
-  // Obtener perfil activo
-  const perfilActual = getPerfilActivo();
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
       <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
@@ -192,11 +171,9 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-600 pb-2">
           {[
-            { key: 'perfiles', label: 'Perfiles', icon: '📋' },
             { key: 'general', label: 'General', icon: '⚙️' },
             { key: 'vista', label: 'Vista', icon: '🎨' },
             { key: 'alertas', label: 'Alertas', icon: '⏰' },
-            { key: 'colaboracion', label: 'Colaboración', icon: '👥' },
             { key: 'avanzado', label: 'Avanzado', icon: '🔧' },
           ].map(tab => (
             <button
@@ -212,70 +189,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
         </div>
 
         <div className="space-y-6">
-          {/* ==================== TAB: PERFILES ==================== */}
-          {activeTab === 'perfiles' && (
-            <div>
-              <h3 className={`text-xl font-bold ${textModal} mb-4`}>
-                Perfiles Predefinidos
-              </h3>
-              <p className={`${textSecondary} text-sm mb-4`}>
-                Seleccione un perfil para configurar rápidamente el sistema según su tipo de operación.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.values(PERFILES_PREDEFINIDOS).map(perfil => (
-                  <div
-                    key={perfil.id}
-                    className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                      perfilActivo === perfil.id
-                        ? 'border-blue-500 bg-blue-500 bg-opacity-10'
-                        : `${borderModal} hover:border-blue-400`
-                    }`}
-                    onClick={() => handleAplicarPerfil(perfil.id)}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">{perfil.icono}</span>
-                      <div>
-                        <h4 className={`font-bold ${textModal}`}>{perfil.nombre}</h4>
-                        <p className={`${textSecondary} text-xs`}>{perfil.descripcion}</p>
-                      </div>
-                      {perfilActivo === perfil.id && (
-                        <FaCheckCircle className="ml-auto text-blue-500" />
-                      )}
-                    </div>
-                    <p className={`${textSecondary} text-xs mt-2`}>
-                      {perfil.recomendadoPara}
-                    </p>
-                    <div className={`mt-3 pt-2 border-t ${borderModal} text-xs ${textSecondary}`}>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="bg-gray-600 px-2 py-1 rounded">
-                          Alerta: {perfil.config.alertYellowMinutes}/{perfil.config.alertRedMinutes} min
-                        </span>
-                        <span className="bg-gray-600 px-2 py-1 rounded">
-                          {perfil.config.columnasGrid}x{perfil.config.filasGrid} grid
-                        </span>
-                        <span className="bg-gray-600 px-2 py-1 rounded">
-                          {perfil.config.animaciones ? '✓ Anim' : '✗ Anim'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {perfilActual && (
-                <div className={`mt-4 p-3 rounded-lg ${nightMode ? 'bg-blue-900 bg-opacity-30' : 'bg-blue-100'}`}>
-                  <p className={`${textModal} text-sm`}>
-                    <strong>Perfil activo:</strong> {perfilActual.nombre}
-                  </p>
-                  <p className={`${textSecondary} text-xs mt-1`}>
-                    Puede personalizar opciones adicionales. Los cambios se guardarán como configuración personalizada.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* ==================== TAB: GENERAL ==================== */}
           {activeTab === 'general' && (
             <div className="space-y-6">
@@ -402,24 +315,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                       Impresión automática de tickets
                     </span>
                   </label>
-                </div>
-
-                {/* Animaciones */}
-                <div className="mb-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.animaciones}
-                      onChange={(e) => updateConfig({ animaciones: e.target.checked })}
-                      className="w-5 h-5 rounded"
-                    />
-                    <span className={`${textModal} font-semibold`}>
-                      Activar animaciones
-                    </span>
-                  </label>
-                  <p className={`${textSecondary} text-sm mt-1 ml-8`}>
-                    Desactivar para mejorar rendimiento en equipos lentos
-                  </p>
                 </div>
               </div>
             </div>
@@ -666,176 +561,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
             </div>
           )}
 
-          {/* ==================== TAB: COLABORACIÓN ==================== */}
-          {activeTab === 'colaboracion' && (
-            <div>
-              <h3 className={`text-xl font-bold ${textModal} mb-4 flex items-center gap-2`}>
-                <FaUserFriends className="text-blue-500" />
-                Configuración Multi-Cocinero
-              </h3>
-              
-              <p className={`${textSecondary} text-sm mb-6`}>
-                Configure cómo los cocineros colaboran en el KDS. Estas opciones mejoran la coordinación en equipos grandes.
-              </p>
-
-              <div className="space-y-4">
-                {/* Mostrar Cocinero Asignado */}
-                <div className={`p-4 rounded-lg border ${borderModal}`}>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.mostrarCocineroAsignado}
-                      onChange={(e) => updateMultiCocineroOption('mostrarCocineroAsignado', e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                    <div>
-                      <span className={`${textModal} font-semibold`}>
-                        👨‍🍳 Mostrar Cocinero Asignado
-                      </span>
-                      <p className={`${textSecondary} text-xs mt-1`}>
-                        Muestra badges con el nombre del cocinero que está procesando cada plato
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Notificar Asignaciones */}
-                <div className={`p-4 rounded-lg border ${borderModal}`}>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.notificarAsignaciones}
-                      onChange={(e) => updateMultiCocineroOption('notificarAsignaciones', e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                    <div>
-                      <span className={`${textModal} font-semibold`}>
-                        🔔 Notificar Asignaciones
-                      </span>
-                      <p className={`${textSecondary} text-xs mt-1`}>
-                        Muestra notificaciones cuando otro cocinero toma o libera un plato
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Sonido de Asignación */}
-                {config.notificarAsignaciones && (
-                  <div className={`p-4 rounded-lg border ${borderModal} ml-6`}>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={config.sonidoAsignacion}
-                        onChange={(e) => updateMultiCocineroOption('sonidoAsignacion', e.target.checked)}
-                        className="w-5 h-5 rounded"
-                      />
-                      <div>
-                        <span className={`${textModal} font-semibold`}>
-                          🔊 Sonido de Notificación
-                        </span>
-                        <p className={`${textSecondary} text-xs mt-1`}>
-                          Reproduce un sonido cuando se recibe una notificación de asignación
-                        </p>
-                      </div>
-                    </label>
-                  </div>
-                )}
-
-                {/* Modo Colaborativo */}
-                <div className={`p-4 rounded-lg border ${borderModal}`}>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.modoColaborativo}
-                      onChange={(e) => updateMultiCocineroOption('modoColaborativo', e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                    <div>
-                      <span className={`${textModal} font-semibold`}>
-                        🤝 Modo Colaborativo
-                      </span>
-                      <p className={`${textSecondary} text-xs mt-1`}>
-                        Permite que múltiples cocineros trabajen en la misma comanda simultáneamente
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Bloqueo Automático */}
-                <div className={`p-4 rounded-lg border ${
-                  config.modoColaborativo 
-                    ? 'border-gray-500 opacity-50' 
-                    : borderModal
-                }`}>
-                  <label className={`flex items-center gap-3 ${config.modoColaborativo ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                    <input
-                      type="checkbox"
-                      checked={config.bloqueoAutomatico}
-                      onChange={(e) => updateMultiCocineroOption('bloqueoAutomatico', e.target.checked)}
-                      disabled={config.modoColaborativo}
-                      className="w-5 h-5 rounded"
-                    />
-                    <div>
-                      <span className={`${textModal} font-semibold`}>
-                        🔒 Bloqueo Automático
-                      </span>
-                      <p className={`${textSecondary} text-xs mt-1`}>
-                        Bloquea comandas mientras un cocinero las procesa
-                      </p>
-                      {config.modoColaborativo && (
-                        <p className="text-yellow-400 text-xs mt-1">
-                          ⚠️ Desactiva "Modo Colaborativo" para usar esta opción
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                </div>
-
-                {/* Fallback a Broadcast */}
-                <div className={`p-4 rounded-lg border ${borderModal}`}>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.fallbackBroadcast}
-                      onChange={(e) => updateMultiCocineroOption('fallbackBroadcast', e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                    <div>
-                      <span className={`${textModal} font-semibold`}>
-                        📡 Fallback a Broadcast
-                      </span>
-                      <p className={`${textSecondary} text-xs mt-1`}>
-                        Vuelve a broadcast si los rooms personales fallan (recomendado activado)
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Resumen de configuración */}
-              <div className={`mt-6 p-4 rounded-lg ${nightMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                <h4 className={`${textModal} font-semibold mb-2`}>Resumen de Colaboración</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className={`${textSecondary}`}>Badges de cocinero:</div>
-                  <div className={textModal}>{config.mostrarCocineroAsignado ? '✓ Activado' : '✗ Desactivado'}</div>
-                  
-                  <div className={`${textSecondary}`}>Notificaciones:</div>
-                  <div className={textModal}>{config.notificarAsignaciones ? '✓ Activadas' : '✗ Desactivadas'}</div>
-                  
-                  <div className={`${textSecondary}`}>Modo:</div>
-                  <div className={textModal}>{config.modoColaborativo ? '🤝 Colaborativo' : '🔒 Individual'}</div>
-                  
-                  <div className={`${textSecondary}`}>Bloqueo:</div>
-                  <div className={textModal}>
-                    {config.modoColaborativo 
-                      ? '— (no disponible en colaborativo)' 
-                      : config.bloqueoAutomatico ? '✓ Automático' : '✗ Manual'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* ==================== TAB: AVANZADO ==================== */}
           {activeTab === 'avanzado' && (
             <div>
@@ -858,11 +583,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                         ? moment(config.ultimaModificacion).format('DD/MM/YYYY HH:mm')
                         : 'N/A'}
                     </div>
-                    
-                    <div className={textSecondary}>Perfil activo:</div>
-                    <div className={textModal}>
-                      {perfilActual ? perfilActual.nombre : 'Personalizado'}
-                    </div>
                   </div>
                 </div>
 
@@ -881,14 +601,6 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                     >
                       <FaTrash />
                       Limpiar Estados de Platos
-                    </button>
-                    
-                    <button
-                      onClick={() => handleCleanup('dia')}
-                      className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-orange-600 hover:bg-orange-700' : 'bg-orange-500 hover:bg-orange-600'} text-white font-semibold flex items-center gap-2`}
-                    >
-                      <FaDownload />
-                      Limpiar Datos de Ayer
                     </button>
                   </div>
                   

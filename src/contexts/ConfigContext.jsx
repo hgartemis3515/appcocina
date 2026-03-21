@@ -9,7 +9,6 @@ import {
   aplicarPerfil,
   ejecutarLimpieza,
   verificarNecesidadLimpieza,
-  MULTI_COCINERO_OPTIONS,
 } from '../config/kdsConfigConstants';
 
 /**
@@ -18,7 +17,6 @@ import {
  * Funcionalidades:
  * - Carga automática con migración de versiones
  * - Limpieza automática de estados obsoletos
- * - Aplicación de perfiles predefinidos
  * - Sincronización entre pestañas (storage events)
  * - Validación de configuración
  */
@@ -203,47 +201,6 @@ export const ConfigProvider = ({ children }) => {
     return Object.values(PERFILES_PREDEFINIDOS).find(p => p.id === perfilActivo) || null;
   }, [perfilActivo]);
 
-  /**
-   * Obtiene las opciones de multi-cocinero con sus valores actuales
-   */
-  const getMultiCocineroOptions = useCallback(() => {
-    return Object.keys(MULTI_COCINERO_OPTIONS).map(key => ({
-      key,
-      value: config[key],
-      ...MULTI_COCINERO_OPTIONS[key],
-    }));
-  }, [config]);
-
-  /**
-   * Actualiza una opción específica de multi-cocinero
-   * Incluye validación de dependencias
-   */
-  const updateMultiCocineroOption = useCallback((optionKey, value) => {
-    const option = MULTI_COCINERO_OPTIONS[optionKey];
-    if (!option) {
-      console.warn(`[ConfigContext] Opción multi-cocinero no encontrada: ${optionKey}`);
-      return false;
-    }
-
-    const updates = { [optionKey]: value };
-
-    // Validar dependencias
-    if (optionKey === 'bloqueoAutomatico' && value === true && config.modoColaborativo === true) {
-      // Bloqueo automático requiere modo colaborativo desactivado
-      console.warn('[ConfigContext] Bloqueo automático desactiva modo colaborativo');
-      updates.modoColaborativo = false;
-    }
-
-    if (optionKey === 'modoColaborativo' && value === true && config.bloqueoAutomatico === true) {
-      // Modo colaborativo desactiva bloqueo automático
-      console.warn('[ConfigContext] Modo colaborativo desactiva bloqueo automático');
-      updates.bloqueoAutomatico = false;
-    }
-
-    updateConfig(updates);
-    return true;
-  }, [config, updateConfig]);
-
   // Sincronizar con localStorage en cambios
   useEffect(() => {
     // Escuchar cambios de storage desde otras pestañas
@@ -287,12 +244,9 @@ export const ConfigProvider = ({ children }) => {
     
     // Helpers
     getPerfilActivo,
-    getMultiCocineroOptions,
-    updateMultiCocineroOption,
     
     // Constantes expuestas
     PERFILES: PERFILES_PREDEFINIDOS,
-    MULTI_COCINERO_OPTIONS,
   };
 
   return (
@@ -311,27 +265,6 @@ export const useConfig = () => {
     throw new Error('useConfig debe usarse dentro de un ConfigProvider');
   }
   return context;
-};
-
-/**
- * Hook específico para opciones de multi-cocinero
- */
-export const useMultiCocineroConfig = () => {
-  const { config, getMultiCocineroOptions, updateMultiCocineroOption } = useConfig();
-  
-  return {
-    // Valores actuales
-    mostrarCocineroAsignado: config.mostrarCocineroAsignado,
-    notificarAsignaciones: config.notificarAsignaciones,
-    modoColaborativo: config.modoColaborativo,
-    bloqueoAutomatico: config.bloqueoAutomatico,
-    fallbackBroadcast: config.fallbackBroadcast,
-    sonidoAsignacion: config.sonidoAsignacion,
-    
-    // Acciones
-    updateMultiCocineroOption,
-    getAllOptions: getMultiCocineroOptions,
-  };
 };
 
 export default ConfigContext;

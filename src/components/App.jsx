@@ -125,8 +125,7 @@ const AppRouter = () => {
  * App principal con AuthProvider y ConfigProvider
  * 
  * ConfigProvider gestiona la configuración del KDS incluyendo:
- * - Perfiles predefinidos
- * - Opciones de multi-cocinero
+ * - Opciones de vista y diseño
  * - Limpieza automática de estados locales
  */
 const App = () => {

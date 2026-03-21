@@ -2,10 +2,9 @@
  * Constantes de Configuración KDS - App de Cocina
  * 
  * Este archivo define todas las opciones de configuración disponibles,
- * sus valores por defecto, perfiles predefinidos y la lógica de negocio
- * para el sistema multi-cocinero.
+ * sus valores por defecto y la lógica de negocio.
  * 
- * @version 7.1
+ * @version 7.2
  * @updated Marzo 2026
  */
 
@@ -14,7 +13,7 @@
 // ============================================
 // Incrementar cuando cambie la estructura de datos para
 // forzar limpieza de configuraciones antiguas en localStorage
-export const KDS_CONFIG_VERSION = '7.1.0';
+export const KDS_CONFIG_VERSION = '7.2.0';
 
 // ============================================
 // OPCIONES DE CONFIGURACIÓN BASE
@@ -86,341 +85,14 @@ export const ORDENAMIENTO = {
 };
 
 // ============================================
-// CONFIGURACIÓN MULTI-COCINERO
-// ============================================
-
-/**
- * Opciones de configuración multi-cocinero
- * 
- * Cada opción tiene:
- * - default: valor por defecto
- * - description: qué hace la opción
- * - impact: cómo afecta el sistema
- */
-export const MULTI_COCINERO_OPTIONS = {
-  /**
-   * Mostrar Cocinero Asignado
-   * Cuando está activo, muestra badges con el nombre/alias del cocinero
-   * que está procesando cada plato o comanda.
-   * 
-   * Impacto en UI:
-   * - Badges en tarjetas de comanda con nombre del cocinero
-   * - Indicador visual en platos siendo procesados
-   * - Columna adicional en vista de tabla
-   */
-  mostrarCocineroAsignado: {
-    default: true,
-    description: 'Muestra qué cocinero está procesando cada plato/comanda',
-    impact: {
-      ui: ['badges en tarjetas', 'indicador en platos', 'columna en tabla'],
-      socket: ['recibir eventos de procesamiento'],
-    }
-  },
-
-  /**
-   * Notificar Asignaciones
-   * Cuando está activo, muestra notificaciones toast cuando otro cocinero
-   * toma o libera un plato que podría ser relevante para este cocinero.
-   * 
-   * Comportamiento:
-   * - Notifica cuando otro toma un plato de una comanda que tienes seleccionada
-   * - Notifica cuando otro libera un plato que podrías tomar
-   * - Incluye nombre del cocinero y acción realizada
-   */
-  notificarAsignaciones: {
-    default: true,
-    description: 'Notifica cuando otro cocinero toma/libera un plato',
-    impact: {
-      ui: ['toasts de notificación'],
-      socket: ['escuchar eventos de otros cocineros'],
-      sonido: ['beep suave en asignaciones'],
-    }
-  },
-
-  /**
-   * Modo Colaborativo
-   * Cuando está activo, permite que múltiples cocineros trabajen en la misma
-   * comanda simultáneamente (cada uno en platos diferentes).
-   * 
-   * Cuando está DESACTIVO:
-   * - Solo un cocinero puede tener una comanda "bloqueada" a la vez
-   * - El bloqueo es visual (no funcional en backend todavía)
-   * - Muestra advertencia si intentas tomar una comanda de otro
-   */
-  modoColaborativo: {
-    default: true,
-    description: 'Permite que múltiples cocineros trabajen en la misma comanda',
-    impact: {
-      ui: ['sin bloqueo visual de comandas'],
-      logica: ['múltiples procesandoPor por comanda permitidos'],
-      conflictos: ['resolución automática por timestamp'],
-    }
-  },
-
-  /**
-   * Bloqueo Automático
-   * Cuando está activo, bloquea automáticamente una comanda cuando un
-   * cocinero empieza a procesar un plato de ella.
-   * 
-   * Solo tiene efecto cuando modoColaborativo = false
-   * 
-   * Comportamiento:
-   * - Al tomar un plato, la comanda se "bloquea" visualmente
-   * - Otros cocineros ven indicador de "En proceso por X"
-   * - El bloqueo se libera al finalizar o liberar el último plato
-   */
-  bloqueoAutomatico: {
-    default: false,
-    description: 'Bloquea comandas mientras un cocinero las procesa (requiere modoColaborativo=false)',
-    impact: {
-      ui: ['overlay de bloqueo en comandas tomadas', 'indicador de quién tiene el bloqueo'],
-      logica: ['validación en frontend antes de permitir tomar'],
-      socket: ['eventos de bloqueo/liberación'],
-    }
-  },
-
-  /**
-   * Fallback a Broadcast
-   * Cuando está activo, si los rooms personales fallan, el sistema
-   * vuelve automáticamente a broadcast (todos reciben todos los eventos).
-   * 
-   * Esto asegura que no se pierdan actualizaciones importantes,
-   * aunque puede generar más tráfico de red.
-   */
-  fallbackBroadcast: {
-    default: true,
-    description: 'Vuelve a broadcast si los rooms personales fallan',
-    impact: {
-      socket: ['modo degradado de comunicación'],
-      logica: ['detección de fallo de rooms'],
-    }
-  },
-
-  /**
-   * Sonido de Asignación
-   * Reproduce un sonido cuando se recibe una notificación de asignación
-   * de otro cocinero.
-   */
-  sonidoAsignacion: {
-    default: true,
-    description: 'Sonido de notificación cuando otro cocinero toma/libera',
-    impact: {
-      ui: ['beep diferenciado del sonido de nueva comanda'],
-      sonido: ['AudioContext con frecuencia diferente'],
-    }
-  },
-};
-
-// ============================================
 // PERFILES PREDEFINIDOS
 // ============================================
 
 /**
- * Perfiles de configuración predefinidos para diferentes tipos de operación
- * 
- * Cada perfil define valores específicos para todas las opciones de configuración.
- * El usuario puede seleccionar un perfil y luego personalizarlo.
+ * Perfiles de configuración predefinidos.
+ * Espacio disponible para agregar perfiles personalizados.
  */
-export const PERFILES_PREDEFINIDOS = {
-  /**
-   * Restaurante Pequeño
-   * - Pocas comandas (menos de 20 simultáneas)
-   * - Generalmente 1-2 cocineros
-   * - Una sola pantalla de cocina
-   * - Enfoque en claridad visual
-   */
-  RESTAURANTE_PEQUENO: {
-    id: 'restaurante-pequeno',
-    nombre: 'Restaurante Pequeño',
-    descripcion: 'Pocas comandas, una pantalla, máximo detalle visual',
-    icono: '🏠',
-    recomendadoPara: 'Restaurantes con menos de 20 comandas simultáneas y 1-2 cocineros',
-    config: {
-      // Tiempos
-      alertYellowMinutes: 15,
-      alertRedMinutes: 20,
-      alertCriticalMinutes: 25,
-      
-      // Vista
-      modoVista: MODO_VISTA.TARJETAS,
-      tamanoTarjeta: TAMANO_TARJETA.EXPANDIDO,
-      tamanoFuente: 16,
-      columnasGrid: 4,
-      filasGrid: 1,
-      mostrarImagenes: false,
-      agruparPorMesa: false,
-      ordenamientoDefault: ORDENAMIENTO.TIEMPO,
-      
-      // Animaciones y rendimiento
-      animaciones: true,
-      cacheDatos: true,
-      
-      // Multi-cocinero
-      mostrarCocineroAsignado: true,
-      notificarAsignaciones: true,
-      modoColaborativo: true,
-      bloqueoAutomatico: false,
-      sonidoAsignacion: true,
-      
-      // Sonidos y notificaciones
-      soundEnabled: true,
-      repetirSonido: false,
-      
-      // Misc
-      nightMode: true,
-      autoPrint: false,
-    }
-  },
-
-  /**
-   * Comida Rápida
-   * - Alto volumen (más de 50 comandas simultáneas)
-   * - Múltiples cocineros y pantallas
-   * - Prioridad en velocidad y eficiencia
-   * - Animaciones reducidas para mejor rendimiento
-   */
-  COMIDA_RAPIDA: {
-    id: 'comida-rapida',
-    nombre: 'Comida Rápida',
-    descripcion: 'Alto volumen, múltiples pantallas, máxima eficiencia',
-    icono: '⚡',
-    recomendadoPara: 'Restaurantes tipo fast-food con más de 50 comandas y múltiples cocineros',
-    config: {
-      // Tiempos más ajustados
-      alertYellowMinutes: 10,
-      alertRedMinutes: 15,
-      alertCriticalMinutes: 20,
-      
-      // Vista optimizada para volumen
-      modoVista: MODO_VISTA.TABLA,
-      tamanoTarjeta: TAMANO_TARJETA.COMPACTO,
-      tamanoFuente: 13,
-      columnasGrid: 6,
-      filasGrid: 2,
-      mostrarImagenes: false,
-      agruparPorMesa: false,
-      ordenamientoDefault: ORDENAMIENTO.PRIORIDAD,
-      
-      // Rendimiento prioritario
-      animaciones: false,
-      cacheDatos: true,
-      
-      // Multi-cocinero optimizado
-      mostrarCocineroAsignado: true,
-      notificarAsignaciones: false, // Reducir ruido
-      modoColaborativo: true,
-      bloqueoAutomatico: false,
-      sonidoAsignacion: false,
-      
-      // Sonidos críticos solamente
-      soundEnabled: true,
-      repetirSonido: true,
-      
-      // Misc
-      nightMode: true,
-      autoPrint: true,
-    }
-  },
-
-  /**
-   * Fine Dining
-   * - Pocas comandas pero muy detalladas
-   * - Máximo cuidado y presentación
-   * - Tiempos extendidos (complejidad de platos)
-   */
-  FINE_DINING: {
-    id: 'fine-dining',
-    nombre: 'Fine Dining',
-    descripcion: 'Máximo detalle, tiempos extendidos, experiencia premium',
-    icono: '🍽️',
-    recomendadoPara: 'Restaurantes gourmet con pocas comandas elaboradas',
-    config: {
-      // Tiempos extendidos por complejidad
-      alertYellowMinutes: 25,
-      alertRedMinutes: 35,
-      alertCriticalMinutes: 45,
-      
-      // Vista con máximo detalle
-      modoVista: MODO_VISTA.TARJETAS,
-      tamanoTarjeta: TAMANO_TARJETA.EXPANDIDO,
-      tamanoFuente: 18,
-      columnasGrid: 3,
-      filasGrid: 1,
-      mostrarImagenes: true,
-      agruparPorMesa: true,
-      ordenamientoDefault: ORDENAMIENTO.MESA,
-      
-      // Animaciones elegantes
-      animaciones: true,
-      cacheDatos: true,
-      
-      // Multi-cocinero coordinado
-      mostrarCocineroAsignado: true,
-      notificarAsignaciones: true,
-      modoColaborativo: true,
-      bloqueoAutomatico: false,
-      sonidoAsignacion: true,
-      
-      // Sonidos discretos
-      soundEnabled: true,
-      repetirSonido: false,
-      
-      // Misc
-      nightMode: true,
-      autoPrint: false,
-    }
-  },
-
-  /**
-   * Multi-Cocinero
-   * - Configuración optimizada para equipos grandes
-   * - Máxima coordinación y comunicación
-   * - Bloqueo y notificaciones activos
-   */
-  MULTI_COCINERO: {
-    id: 'multi-cocinero',
-    nombre: 'Multi-Cocinero',
-    descripcion: 'Equipos grandes, máxima coordinación y sincronización',
-    icono: '👨‍🍳',
-    recomendadoPara: 'Cocinas con 4+ cocineros trabajando simultáneamente',
-    config: {
-      // Tiempos estándar
-      alertYellowMinutes: 15,
-      alertRedMinutes: 20,
-      alertCriticalMinutes: 25,
-      
-      // Vista balanceada
-      modoVista: MODO_VISTA.TARJETAS,
-      tamanoTarjeta: TAMANO_TARJETA.MEDIANO,
-      tamanoFuente: 15,
-      columnasGrid: 5,
-      filasGrid: 1,
-      mostrarImagenes: false,
-      agruparPorMesa: false,
-      ordenamientoDefault: ORDENAMIENTO.TIEMPO,
-      
-      // Animaciones para feedback visual
-      animaciones: true,
-      cacheDatos: true,
-      
-      // Multi-cocinero completamente activo
-      mostrarCocineroAsignado: true,
-      notificarAsignaciones: true,
-      modoColaborativo: true,
-      bloqueoAutomatico: false, // Por defecto off, activar si hay conflictos
-      sonidoAsignacion: true,
-      fallbackBroadcast: true,
-      
-      // Sonidos para coordinación
-      soundEnabled: true,
-      repetirSonido: true,
-      
-      // Misc
-      nightMode: true,
-      autoPrint: false,
-    }
-  },
-};
+export const PERFILES_PREDEFINIDOS = {};
 
 // ============================================
 // CONFIGURACIÓN POR DEFECTO
@@ -433,7 +105,7 @@ export const PERFILES_PREDEFINIDOS = {
 export const DEFAULT_KDS_CONFIG = {
   // Metadatos
   version: KDS_CONFIG_VERSION,
-  perfilActivo: null, // ID del perfil seleccionado, null = personalizado
+  perfilActivo: null,
   ultimaModificacion: null,
   
   // Tiempos y alertas
@@ -452,17 +124,8 @@ export const DEFAULT_KDS_CONFIG = {
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
   
   // Rendimiento
-  animaciones: true,
   cacheDatos: true,
   limiteComandasMemoria: 100,
-  
-  // Multi-cocinero
-  mostrarCocineroAsignado: MULTI_COCINERO_OPTIONS.mostrarCocineroAsignado.default,
-  notificarAsignaciones: MULTI_COCINERO_OPTIONS.notificarAsignaciones.default,
-  modoColaborativo: MULTI_COCINERO_OPTIONS.modoColaborativo.default,
-  bloqueoAutomatico: MULTI_COCINERO_OPTIONS.bloqueoAutomatico.default,
-  fallbackBroadcast: MULTI_COCINERO_OPTIONS.fallbackBroadcast.default,
-  sonidoAsignacion: MULTI_COCINERO_OPTIONS.sonidoAsignacion.default,
   
   // Sonidos y notificaciones
   soundEnabled: true,
@@ -509,14 +172,9 @@ export const validarConfiguracion = (config) => {
   }
   
   // Validar diseño
-  if (config.columnasGrid < DISENO_GRID.COLUMNAS_MIN || 
+  if (config.columnasGrid < DISENO_GRID.COLUMNAS_MIN ||
       config.columnasGrid > DISENO_GRID.COLUMNAS_MAX) {
     errors.push(`Columnas debe estar entre ${DISENO_GRID.COLUMNAS_MIN} y ${DISENO_GRID.COLUMNAS_MAX}`);
-  }
-  
-  // Validar lógica multi-cocinero
-  if (config.bloqueoAutomatico && config.modoColaborativo) {
-    errors.push('Bloqueo automático requiere modo colaborativo desactivado');
   }
   
   return {
@@ -606,7 +264,6 @@ ${perfil ? `Perfil: ${perfil.nombre}` : 'Perfil: Personalizado'}
 ---
 Tiempos: Amarillo ${config.alertYellowMinutes}min | Rojo ${config.alertRedMinutes}min
 Vista: ${config.modoVista} | ${config.columnasGrid}x${config.filasGrid} | Fuente ${config.tamanoFuente}px
-Multi-cocinero: ${config.mostrarCocineroAsignado ? '✓ Badges' : '✗ Badges'} | ${config.modoColaborativo ? '✓ Colaborativo' : '✗ Colaborativo'}
   `.trim();
 };
 
@@ -780,7 +437,6 @@ export default {
   MODO_VISTA,
   TAMANO_TARJETA,
   ORDENAMIENTO,
-  MULTI_COCINERO_OPTIONS,
   PERFILES_PREDEFINIDOS,
   DEFAULT_KDS_CONFIG,
   STORAGE_KEYS,
