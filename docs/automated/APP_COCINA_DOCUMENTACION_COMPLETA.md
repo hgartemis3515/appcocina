@@ -1,17 +1,23 @@
 # 📱 Documentación Completa - App de Cocina (Las Gambusinas)
 
-**Versión:** 7.1  
+**Versión:** 7.2  
 **Última Actualización:** Marzo 2026  
 **Tecnología:** React Web + Socket.io + Framer Motion
+
+**Cambios Recientes (v7.2):**
+- ✅ **Sistema Multi-Cocinero**: Botón contextual en barra inferior para Tomar/Dejar/Finalizar platos
+- ✅ **Badge de cocinero**: Muestra quién está procesando cada plato (badge verde "Tú" para propio, amarillo para otros)
+- ✅ **Validación de propiedad**: Solo el cocinero que tomó un plato puede finalizarlo
+- ✅ **Eventos Socket.io**: `plato-procesando`, `plato-liberado`, `conflicto-procesamiento` sincronizados
+- ✅ **Prevención de conflictos**: Error 403 si otro cocinero intenta finalizar plato ajeno
 
 **Cambios Recientes (v7.1):**
 - ✅ **Sistema de autenticación**: Login con DNI funcionando correctamente
 - ✅ **Socket.io con JWT**: Conexión segura al namespace `/cocina`
 - ✅ **Rooms por fecha**: Sincronización de comandas del día
 - ✅ **Configuración centralizada**: ConfigContext para preferencias
-- ⚠️ **Funcionalidades multi-cocinero removidas**: Se eliminaron voluntariamente porque afectaban el funcionamiento de la app
 
-**Nota sobre v7.1:** Las funcionalidades de procesamiento multi-cocinero (tomar/liberar platos, badges de cocinero, hook useProcesamiento) fueron eliminadas porque causaban problemas en el flujo normal de cocina. El sistema actual funciona de manera simplificada con checkboxes para marcar platos listos.
+**Nota sobre v7.2:** El sistema multi-cocinero ha sido reintegrado de forma compatible con el flujo existente. El botón de la barra inferior ahora muestra dinámicamente "Tomar plato", "Dejar plato" o "Finalizar plato" según el estado de los platos seleccionados.
 
 **Cambios Recientes (v6.0) - Sistema de Autenticación y Menú:**
 - ✅ **Login de Cocina**: Nueva pantalla de autenticación con DNI
@@ -3991,39 +3997,46 @@ export default ComandaProcesamientoBadge;
 }
 ```
 
-#### Estado Actual (CORREGIDO - Marzo 2026)
+#### Estado Actual (v7.2 - Marzo 2026)
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
-| Hook useProcesamiento | ✅ Implementado | Completo con tomar/liberar/finalizar |
-| PlatoConProcesamiento | ✅ Implementado | Badge animado + botones Tomar/Liberar |
-| ComandaProcesamientoBadge | ✅ Implementado | Badge a nivel comanda completa |
-| ProcesamientoBadgeCompact | ✅ Implementado | Badge compacto para tarjetas pequeñas |
-| Animaciones CSS | ✅ Implementado | Animaciones con Framer Motion |
-| Integración en ComandaStyle | ❌ Pendiente | Falta importar y usar los componentes |
+| Hook useProcesamiento | ✅ Integrado | Conectado en ComandaStyle.jsx |
+| PlatoPreparacion con badge | ✅ Implementado | Badge de cocinero con props procesandoPor/usuarioActualId |
+| Botón contextual | ✅ Implementado | En barra inferior con Tomar/Dejar/Finalizar dinámico |
+| Eventos Socket.io | ✅ Implementado | Listeners para plato-procesando, plato-liberado, conflicto-procesamiento |
+| Validación backend | ✅ Implementado | Error 403 si otro cocinero intenta finalizar plato ajeno |
+| Función determinarAccionBoton | ✅ Implementado | Lógica de decisión del botón contextual |
 
-#### Qué Falta para Funcionar Perfectamente
+#### Cómo Funciona el Sistema Multi-Cocinero v7.2
 
-**Integración (PRIORIDAD ALTA):**
-- [ ] Importar `useProcesamiento` en `ComandaStyle.jsx`
-- [ ] Importar `PlatoConProcesamiento` en el componente principal
-- [ ] Reemplazar renderizado actual de platos con nuevo componente
-- [ ] Conectar callbacks del hook con los handlers del componente
+**Flujo del Botón Contextual:**
 
-**Testing:**
-- [ ] Tests de renderizado de componentes
-- [ ] Tests de interacción (click en "Tomar", "Liberar")
-- [ ] Tests de Socket.io events
-- [ ] Tests de manejo de conflictos
+1. **Usuario selecciona platos** con el sistema de checkboxes existente (click -> procesando -> seleccionado)
+
+2. **El sistema analiza los platos seleccionados:**
+   - Si algún plato está tomado por otro cocinero → Botón deshabilitado con mensaje "Ocupado por [nombre]"
+   - Si todos los platos están tomados por el usuario actual → Botón verde "Finalizar X Platos"
+   - Si hay platos sin tomar → Botón azul "Tomar X Platos"
+
+3. **Acciones:**
+   - **Tomar plato**: Llama a `PUT /api/comanda/:id/plato/:platoId/procesando` con `cocineroId`
+   - **Finalizar plato**: Llama a `PUT /api/comanda/:id/plato/:platoId/estado` con `nuevoEstado: "recoger"` y `cocineroId`
+   - Backend valida que solo el cocinero que tomó el plato pueda finalizarlo
+
+4. **Sincronización:**
+   - Socket.io emite `plato-procesando` cuando alguien toma un plato
+   - Todas las apps reciben el evento y actualizan la UI
+   - Badge muestra "Tú" (verde) o nombre del cocinero (amarillo)
 
 ---
 
-**Versión del Documento:** 1.7  
+**Versión del Documento:** 1.8  
 **Última Actualización:** Marzo 2026  
 **Cambios en esta versión:**
-- Actualizado estado real tras eliminación voluntaria de funciones problemáticas
-- Removidas referencias a sistema de procesamiento multi-cocinero activo
-- Documentado que el sistema funciona sin esas características
-- Estado actual: KDS operativo con flujo simplificado de checkboxes
+- Reintegrado sistema multi-cocinero v7.2 de forma compatible
+- Botón contextual en barra inferior reemplaza botón simple "Finalizar Platos"
+- Badges de cocinero en PlatoPreparacion
+- Validación de propiedad en backend
 
 

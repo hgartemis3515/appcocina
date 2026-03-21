@@ -9,7 +9,7 @@
 
 import { useState, useCallback } from 'react';
 import axios from 'axios';
-import { getApiUrl } from '../config/apiConfig';
+import { getApiUrl, getServerBaseUrl } from '../config/apiConfig';
 
 /**
  * Hook para manejar el flujo de procesamiento de platos y comandas
@@ -38,7 +38,7 @@ const useProcesamiento = ({
     try {
       const token = getToken();
       const response = await axios.put(
-        `${getApiUrl()}/comanda/${comandaId}/plato/${platoId}/procesando`,
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/procesando`,
         { cocineroId },
         {
           headers: {
@@ -104,7 +104,7 @@ const useProcesamiento = ({
     try {
       const token = getToken();
       const response = await axios.delete(
-        `${getApiUrl()}/comanda/${comandaId}/plato/${platoId}/procesando`,
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/procesando`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -151,7 +151,7 @@ const useProcesamiento = ({
     try {
       const token = getToken();
       const response = await axios.put(
-        `${getApiUrl()}/comanda/${comandaId}/plato/${platoId}/finalizar`,
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/finalizar`,
         { cocineroId },
         {
           headers: {
@@ -200,7 +200,7 @@ const useProcesamiento = ({
     try {
       const token = getToken();
       const response = await axios.put(
-        `${getApiUrl()}/comanda/${comandaId}/procesando`,
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/procesando`,
         { cocineroId },
         {
           headers: {
@@ -257,7 +257,7 @@ const useProcesamiento = ({
     try {
       const token = getToken();
       await axios.delete(
-        `${getApiUrl()}/comanda/${comandaId}/procesando`,
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/procesando`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

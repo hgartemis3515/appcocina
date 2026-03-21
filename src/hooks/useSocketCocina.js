@@ -453,6 +453,71 @@ const useSocketCocina = ({
       }
     });
 
+    // ============================================================
+    // EVENTOS DE PROCESAMIENTO MULTI-COCINERO v7.2
+    // ============================================================
+
+    // Evento: Plato tomado por un cocinero
+    socket.on('plato-procesando', (data) => {
+      console.log('[useSocketCocina] Plato tomado por:', data.cocinero?.alias || data.cocinero?.nombre);
+      ultimoPingRef.current = Date.now();
+      
+      // Actualizar el estado de las comandas para reflejar quien esta procesando
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          comandaId: data.comandaId,
+          platoId: data.platoId,
+          tipo: 'PLATO_TOMADO',
+          procesandoPor: data.cocinero,
+          timestamp: data.timestamp
+        });
+      }
+    });
+
+    // Evento: Plato liberado por un cocinero
+    socket.on('plato-liberado', (data) => {
+      console.log('[useSocketCocina] Plato liberado:', data.platoId, 'por', data.cocineroId);
+      ultimoPingRef.current = Date.now();
+      
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          comandaId: data.comandaId,
+          platoId: data.platoId,
+          tipo: 'PLATO_LIBERADO',
+          cocineroId: data.cocineroId,
+          timestamp: data.timestamp
+        });
+      }
+    });
+
+    // Evento: Conflicto al intentar tomar un plato
+    socket.on('conflicto-procesamiento', (data) => {
+      console.warn('[useSocketCocina] Conflicto de procesamiento:', data.mensaje);
+      ultimoPingRef.current = Date.now();
+      
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          comandaId: data.comandaId,
+          platoId: data.platoId,
+          tipo: 'CONFLICTO',
+          procesandoPor: data.procesadoPor,
+          mensaje: data.mensaje,
+          timestamp: data.timestamp
+        });
+      }
+    });
+
+    // Evento: Liberacion automatica por desconexion de cocinero
+    socket.on('liberacion-automatica', (data) => {
+      console.log('[useSocketCocina] Liberacion automatica por desconexion:', data.cocineroId);
+      ultimoPingRef.current = Date.now();
+      
+      // Refrescar comandas para obtener estado actualizado
+      if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
     // Evento: Configuración de cocinero actualizada
     // TEMA 1: Este evento ahora se recibe solo en la room personal del cocinero
     socket.on('config-cocinero-actualizada', (data) => {

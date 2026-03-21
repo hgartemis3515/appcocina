@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
  * Componente aislado para un plato en "EN PREPARACIÓN".
  * Un solo contenedor clickeable con stopPropagation; animaciones Framer Motion por estado.
  * 🔥 CORREGIDO: Ahora usa platoIndex en lugar de platoId para el endpoint de anulación
+ * 
+ * v7.2: Agregado soporte para mostrar badge de cocinero que esta procesando el plato
  */
 const PlatoPreparacion = ({
   plato,
@@ -18,6 +20,9 @@ const PlatoPreparacion = ({
   isEliminado = false,
   onToggle,
   complementosSeleccionados = [],
+  // v7.2: Props para multi-cocinero
+  procesandoPor = null,  // { cocineroId, nombre, alias, timestamp }
+  usuarioActualId = null, // Para mostrar "Tú" vs nombre del cocinero
 }) => {
   const handleClick = (e) => {
     e.stopPropagation();
@@ -183,7 +188,36 @@ const PlatoPreparacion = ({
         )}
       </div>
       <div className="flex-1 pointer-events-none">
-        <span>{cantidad} {nombre}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span>{cantidad} {nombre}</span>
+          
+          {/* v7.2: Badge de cocinero que esta procesando el plato */}
+          {procesandoPor?.cocineroId && (
+            <motion.span
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
+                  ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+              }`}
+              title={`Tomado por: ${procesandoPor.nombre || procesandoPor.alias || 'Cocinero'}`}
+            >
+              <motion.span
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                👨‍🍳
+              </motion.span>
+              <span className="max-w-[60px] truncate">
+                {procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
+                  ? 'Tú'
+                  : (procesandoPor.alias || procesandoPor.nombre || 'Cocinero')}
+              </span>
+            </motion.span>
+          )}
+        </div>
+        
         {complementosSeleccionados && complementosSeleccionados.length > 0 && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
             {complementosSeleccionados.map((comp, i) => (

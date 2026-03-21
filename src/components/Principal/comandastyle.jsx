@@ -30,6 +30,7 @@ import RevertirModal from "./RevertirModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
+import useProcesamiento from "../../hooks/useProcesamiento";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
@@ -642,9 +643,74 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       platoId: data.platoId,
       nuevoEstado: data.nuevoEstado,
       estadoAnterior: data.estadoAnterior,
+      tipo: data.tipo, // v7.2: PLATO_TOMADO, PLATO_LIBERADO, etc.
+      procesandoPor: data.procesandoPor,
       plato: data.plato,
       comanda: data.comanda
     });
+    
+    // v7.2: Manejar eventos de procesamiento multi-cocinero
+    if (data.tipo === 'PLATO_TOMADO') {
+      // Un cocinero tomó el plato - actualizar procesandoPor
+      console.log('👨‍🍳 [Multi-Cocinero] Plato tomado por:', data.procesandoPor?.alias || data.procesandoPor?.nombre);
+      setComandas(prev => prev.map(comanda => {
+        if (comanda._id?.toString() !== data.comandaId?.toString()) return comanda;
+        return {
+          ...comanda,
+          platos: comanda.platos.map(p => {
+            const pId = p._id?.toString() || p.platoId?.toString();
+            if (pId === data.platoId?.toString()) {
+              return { ...p, procesandoPor: data.procesandoPor };
+            }
+            return p;
+          })
+        };
+      }));
+      return; // No continuar con lógica de cambio de estado
+    }
+    
+    if (data.tipo === 'PLATO_LIBERADO') {
+      // Un cocinero liberó el plato - limpiar procesandoPor
+      console.log('↩️ [Multi-Cocinero] Plato liberado:', data.platoId);
+      setComandas(prev => prev.map(comanda => {
+        if (comanda._id?.toString() !== data.comandaId?.toString()) return comanda;
+        return {
+          ...comanda,
+          platos: comanda.platos.map(p => {
+            const pId = p._id?.toString() || p.platoId?.toString();
+            if (pId === data.platoId?.toString()) {
+              return { ...p, procesandoPor: null };
+            }
+            return p;
+          })
+        };
+      }));
+      return; // No continuar con lógica de cambio de estado
+    }
+    
+    if (data.tipo === 'CONFLICTO') {
+      // Conflicto al tomar plato - mostrar toast
+      setToastMessage({
+        type: 'warning',
+        message: `⚠️ ${data.mensaje || 'Este plato ya fue tomado por otro cocinero'}`,
+        duration: 4000
+      });
+      // Actualizar estado con el cocinero real
+      setComandas(prev => prev.map(comanda => {
+        if (comanda._id?.toString() !== data.comandaId?.toString()) return comanda;
+        return {
+          ...comanda,
+          platos: comanda.platos.map(p => {
+            const pId = p._id?.toString() || p.platoId?.toString();
+            if (pId === data.platoId?.toString()) {
+              return { ...p, procesandoPor: data.procesandoPor };
+            }
+            return p;
+          })
+        };
+      }));
+      return;
+    }
     
     // 🔥 AUDITORÍA: Detectar si el plato fue eliminado
     const platoEliminado = data.plato?.eliminado === true || data.eliminado === true;
@@ -832,6 +898,104 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     token: getToken() // Token JWT para autenticación
   });
 
+  // ============================================================
+  // SISTEMA MULTI-COCINERO v7.2: Hook de procesamiento
+  // Permite tomar/liberar/finalizar platos con identificación de cocinero
+  // ============================================================
+  
+  // Handler para cambios de procesamiento (cuando otro cocinero toma/libera plato)
+  const handleProcesamientoChange = useCallback((data) => {
+    console.log('[Procesamiento] Cambio recibido:', data.type);
+    
+    switch (data.type) {
+      case 'PLATO_TOMADO':
+        // Actualizar estado local del plato
+        setComandas(prev => prev.map(comanda => {
+          if (comanda._id !== data.comandaId) return comanda;
+          return {
+            ...comanda,
+            platos: comanda.platos.map(p => {
+              const pId = p._id?.toString() || p.platoId?.toString();
+              if (pId === data.platoId?.toString()) {
+                return { ...p, procesandoPor: data.procesandoPor };
+              }
+              return p;
+            })
+          };
+        }));
+        break;
+        
+      case 'PLATO_LIBERADO':
+        // Limpiar procesandoPor del plato
+        setComandas(prev => prev.map(comanda => {
+          if (comanda._id !== data.comandaId) return comanda;
+          return {
+            ...comanda,
+            platos: comanda.platos.map(p => {
+              const pId = p._id?.toString() || p.platoId?.toString();
+              if (pId === data.platoId?.toString()) {
+                return { ...p, procesandoPor: null };
+              }
+              return p;
+            })
+          };
+        }));
+        break;
+        
+      case 'PLATO_FINALIZADO':
+        // El socket ya actualiza el estado del plato via plato-actualizado
+        // Aqui solo necesitamos limpiar estados visuales locales
+        const platoKey = `${data.comandaId}-${data.platoId}`;
+        setPlatoStates(prev => {
+          const nuevo = new Map(prev);
+          nuevo.set(platoKey, 'normal');
+          return nuevo;
+        });
+        setPlatosChecked(prev => {
+          const nuevo = new Map(prev);
+          nuevo.delete(platoKey);
+          return nuevo;
+        });
+        break;
+        
+      case 'PLATO_OCUPADO':
+        // Otro cocinero tomo el plato antes que nosotros
+        setToastMessage({
+          type: 'warning',
+          message: `⚠️ Este plato ya fue tomado por ${data.procesandoPor?.alias || 'otro cocinero'}`,
+          duration: 4000
+        });
+        // Actualizar estado con el cocinero real
+        setComandas(prev => prev.map(comanda => {
+          if (comanda._id !== data.comandaId) return comanda;
+          return {
+            ...comanda,
+            platos: comanda.platos.map(p => {
+              const pId = p._id?.toString() || p.platoId?.toString();
+              if (pId === data.platoId?.toString()) {
+                return { ...p, procesandoPor: data.procesandoPor };
+              }
+              return p;
+            })
+          };
+        }));
+        break;
+    }
+  }, []);
+
+  // Hook de procesamiento multi-cocinero
+  const {
+    loading: procesamientoLoading,
+    error: procesamientoError,
+    tomarPlato,
+    liberarPlato,
+    finalizarPlato: finalizarPlatoConCocinero
+  } = useProcesamiento({
+    getToken,
+    showToast: (msg) => setToastMessage(msg),
+    onProcesamientoChange: handleProcesamientoChange
+  });
+
   // Actualizar estado de conexión
   useEffect(() => {
     setSocketConnectionStatus(connectionStatus);
@@ -1010,9 +1174,10 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
             if (plato.estado === "en_espera" || plato.estado === "ingresante") {
               try {
                 // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
+                // v7.2: Pasar cocineroId para validacion multi-cocinero
                 await axios.put(
                   `${getApiUrl()}/${comandaId}/plato/${plato._id || plato.plato?._id}/estado`,
-                  { nuevoEstado: "recoger" }
+                  { nuevoEstado: "recoger", cocineroId: userId }
                 );
               } catch (error) {
                 console.error(`Error actualizando plato ${plato._id || plato.plato?._id}:`, error);
@@ -1375,9 +1540,10 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
           console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
           
           // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
+          // v7.2: Pasar cocineroId para validacion multi-cocinero
           const response = await axios.put(
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
-            { nuevoEstado: "recoger" }
+            { nuevoEstado: "recoger", cocineroId: userId }
           );
           
           console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
@@ -1429,6 +1595,239 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
     return { exitosos, fallidos, resultados };
   }, [comandas]);
+
+  // ============================================================
+  // SISTEMA MULTI-COCINERO v7.2: Funciones de decision y handlers
+  // ============================================================
+
+  /**
+   * Obtiene informacion detallada de los platos con interaccion (estado visual 'procesando' o 'seleccionado')
+   * v7.2: Incluye AMBOS estados para decision correcta del boton contextual
+   * @returns {Array} Array de objetos con info de cada plato interactuado
+   */
+  const obtenerPlatosSeleccionadosInfo = useCallback(() => {
+    const platosInfo = [];
+    
+    platoStates.forEach((estado, key) => {
+      // v7.2: Incluir tanto 'procesando' como 'seleccionado'
+      if (estado !== 'procesando' && estado !== 'seleccionado') return;
+      
+      // Parsear key: formato es ${comandaId}-${platoIndex}
+      const lastDashIndex = key.lastIndexOf('-');
+      if (lastDashIndex === -1) return;
+      
+      const comandaId = key.substring(0, lastDashIndex);
+      const platoIndexStr = key.substring(lastDashIndex + 1);
+      const platoIndex = parseInt(platoIndexStr, 10);
+      
+      if (isNaN(platoIndex)) return;
+      
+      const comanda = comandas.find(c => c._id === comandaId);
+      if (!comanda) return;
+      
+      const plato = comanda.platos?.[platoIndex];
+      if (!plato) return;
+      
+      // 🔥 Usar subdocumento _id como ID único
+      const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
+      if (!platoId) return;
+      
+      // Solo incluir platos que esten pendientes de preparacion
+      if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
+        platosInfo.push({
+          comandaId,
+          platoId,
+          platoIndex,
+          plato,
+          nombre: plato.plato?.nombre || plato.nombre || 'Plato',
+          procesandoPor: plato.procesandoPor,
+          estadoVisual: estado // Agregar estado visual para decision
+        });
+      }
+    });
+    
+    return platosInfo;
+  }, [comandas, platoStates]);
+
+  /**
+   * Determina que accion debe mostrar el boton principal de la barra inferior
+   * REGLAS v7.2:
+   * - Si algun plato esta tomado por otro cocinero -> SIN_ACCION con mensaje
+   * - Si tengo platos en amarillo sin tomar -> TOMAR_PLATO
+   * - Si tengo platos tomados por mi (amarillo o verde) -> FINALIZAR_PLATO
+   * - Mixto (algunos tomados por mi, algunos sin tomar) -> TOMAR_PLATO para los restantes
+   * 
+   * @returns {{modo: string, platos: Array, mensaje: string, subMensaje: string}}
+   */
+  const determinarAccionBoton = useCallback(() => {
+    const platosSeleccionados = obtenerPlatosSeleccionadosInfo();
+    
+    if (platosSeleccionados.length === 0) {
+      return { 
+        modo: 'SIN_ACCION', 
+        platos: [], 
+        mensaje: 'Selecciona platos',
+        subMensaje: ''
+      };
+    }
+    
+    const miUsuarioId = userId?.toString();
+    if (!miUsuarioId) {
+      return { 
+        modo: 'SIN_ACCION', 
+        platos: [], 
+        mensaje: 'Sin usuario',
+        subMensaje: 'Recarga la pagina'
+      };
+    }
+    
+    // Analizar estados de procesamiento
+    const analisis = platosSeleccionados.map(p => {
+      const procesandoPor = p.procesandoPor;
+      const tomadoPorMi = procesandoPor?.cocineroId?.toString() === miUsuarioId;
+      const tomadoPorOtro = procesandoPor?.cocineroId && !tomadoPorMi;
+      const sinTomar = !procesandoPor?.cocineroId;
+      
+      return { 
+        ...p, 
+        tomadoPorMi, 
+        tomadoPorOtro, 
+        sinTomar,
+        nombreCocinero: procesandoPor?.alias || procesandoPor?.nombre || 'otro'
+      };
+    });
+    
+    // CASO 1: Algun plato tomado por otro cocinero -> BLOQUEAR
+    const platosAjenos = analisis.filter(p => p.tomadoPorOtro);
+    if (platosAjenos.length > 0) {
+      const nombres = [...new Set(platosAjenos.map(p => p.nombreCocinero))].join(', ');
+      return {
+        modo: 'SIN_ACCION',
+        platos: [],
+        mensaje: 'Plato ocupado',
+        subMensaje: `Tomado por: ${nombres}`
+      };
+    }
+    
+    // CASO 2: Platos tomados por mi (amarillo o verde) -> FINALIZAR
+    const platosMios = analisis.filter(p => p.tomadoPorMi);
+    if (platosMios.length > 0) {
+      return {
+        modo: 'FINALIZAR_PLATO',
+        platos: platosMios,
+        mensaje: `Finalizar ${platosMios.length} Plato${platosMios.length > 1 ? 's' : ''}`,
+        subMensaje: 'Marcar como listos para recoger'
+      };
+    }
+    
+    // CASO 3: Platos sin tomar -> TOMAR
+    const platosSinTomar = analisis.filter(p => p.sinTomar);
+    if (platosSinTomar.length > 0) {
+      return {
+        modo: 'TOMAR_PLATO',
+        platos: platosSinTomar,
+        mensaje: `Tomar ${platosSinTomar.length} Plato${platosSinTomar.length > 1 ? 's' : ''}`,
+        subMensaje: 'Asignarte la preparacion'
+      };
+    }
+    
+    return { 
+      modo: 'SIN_ACCION', 
+      platos: [], 
+      mensaje: 'Sin accion disponible',
+      subMensaje: ''
+    };
+  }, [userId, obtenerPlatosSeleccionadosInfo]);
+
+  /**
+   * Handler para TOMAR platos seleccionados
+   * Marca los platos como "en preparacion" por el cocinero actual
+   */
+  const handleTomarPlatos = useCallback(async (platos) => {
+    if (!platos || platos.length === 0) return;
+    
+    setIsFinalizandoPlatos(true);
+    console.log(`[TomarPlatos] Tomando ${platos.length} plato(s)...`);
+    
+    try {
+      const resultados = await Promise.allSettled(
+        platos.map(({ comandaId, platoId }) => 
+          tomarPlato(comandaId, platoId, userId)
+        )
+      );
+      
+      const exitosos = resultados.filter(r => 
+        r.status === 'fulfilled' && r.value?.success
+      ).length;
+      const fallidos = resultados.length - exitosos;
+      
+      if (exitosos > 0) {
+        setToastMessage({
+          type: 'success',
+          message: `👨‍🍳 Tomaste ${exitosos} plato${exitosos > 1 ? 's' : ''} para preparar`,
+          duration: 3000
+        });
+        
+        if (config.soundEnabled) {
+          playNotificationSound();
+        }
+      }
+      
+      if (fallidos > 0) {
+        console.warn(`[TomarPlatos] ${fallidos} plato(s) fallaron`);
+      }
+      
+    } catch (error) {
+      console.error('[TomarPlatos] Error:', error);
+      setToastMessage({
+        type: 'error',
+        message: '❌ Error al tomar platos',
+        duration: 4000
+      });
+    } finally {
+      setIsFinalizandoPlatos(false);
+    }
+  }, [userId, tomarPlato, config.soundEnabled]);
+
+  /**
+   * Handler para DEJAR (liberar) platos que el cocinero actual habia tomado
+   */
+  const handleDejarPlatos = useCallback(async (platos) => {
+    if (!platos || platos.length === 0) return;
+    
+    setIsFinalizandoPlatos(true);
+    console.log(`[DejarPlatos] Liberando ${platos.length} plato(s)...`);
+    
+    try {
+      const resultados = await Promise.allSettled(
+        platos.map(({ comandaId, platoId }) => 
+          liberarPlato(comandaId, platoId, userId)
+        )
+      );
+      
+      const exitosos = resultados.filter(r => 
+        r.status === 'fulfilled' && r.value?.success
+      ).length;
+      
+      if (exitosos > 0) {
+        setToastMessage({
+          type: 'info',
+          message: `Plato${exitosos > 1 ? 's liberados' : ' liberado'} - disponible para otros`,
+          duration: 3000
+        });
+      }
+      
+    } catch (error) {
+      console.error('[DejarPlatos] Error:', error);
+      setToastMessage({
+        type: 'error',
+        message: '❌ Error al liberar platos',
+        duration: 4000
+      });
+    } finally {
+      setIsFinalizandoPlatos(false);
+    }
+  }, [userId, liberarPlato]);
 
   // Handler para finalizar platos marcados con checkboxes
   const handleFinalizarPlatosGlobal = useCallback(async () => {
@@ -1490,9 +1889,18 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
         if (!platoId) return;
         
+        // v7.2: EXCLUIR platos tomados por otro cocinero
+        const miUsuarioId = userId?.toString();
+        const tomadoPorOtro = plato.procesandoPor?.cocineroId && 
+                              plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+        if (tomadoPorOtro) {
+          console.warn(`⚠️ Plato "${plato.plato?.nombre || plato.nombre}" excluido: tomado por ${plato.procesandoPor?.alias || 'otro cocinero'}`);
+          return;
+        }
+        
         // Solo procesar platos que no estén ya en 'recoger'
         if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
-          platosProcesados.push({ comandaId, platoId, platoIndex });
+          platosProcesados.push({ comandaId, platoId, platoIndex, plato });
         }
       });
       
@@ -1525,9 +1933,18 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
         if (!platoId) return;
         
+        // v7.2: EXCLUIR platos tomados por otro cocinero
+        const miUsuarioId = userId?.toString();
+        const tomadoPorOtro = plato.procesandoPor?.cocineroId && 
+                              plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+        if (tomadoPorOtro) {
+          console.warn(`⚠️ Plato "${plato.plato?.nombre || plato.nombre}" excluido: tomado por ${plato.procesandoPor?.alias || 'otro cocinero'}`);
+          return;
+        }
+        
         // Solo procesar platos que no estén ya en 'recoger'
         if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
-          platosProcesados.push({ comandaId, platoId, platoIndex });
+          platosProcesados.push({ comandaId, platoId, platoIndex, plato });
         }
       });
 
@@ -1611,7 +2028,32 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos]);
+  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId]);
+
+  /**
+   * Handler unificado para el boton contextual de la barra inferior
+   * Decide la accion basandose en el modo calculado
+   * IMPORTANTE: Este handler debe definirse DESPUES de handleFinalizarPlatosGlobal
+   */
+  const handleBotonContextual = useCallback(async () => {
+    const { modo, platos } = determinarAccionBoton();
+    
+    switch (modo) {
+      case 'TOMAR_PLATO':
+        await handleTomarPlatos(platos);
+        break;
+      case 'DEJAR_PLATO':
+        await handleDejarPlatos(platos);
+        break;
+      case 'FINALIZAR_PLATO':
+        await handleFinalizarPlatosGlobal();
+        break;
+      case 'SIN_ACCION':
+      default:
+        console.log('[BotonContextual] Sin accion disponible');
+        break;
+    }
+  }, [determinarAccionBoton, handleTomarPlatos, handleDejarPlatos, handleFinalizarPlatosGlobal]);
 
   // Handler para finalizar comanda completa - REGLA: Solo batch platos a 'recoger', nunca 'entregado'
   const handleFinalizarComandaCompletaGlobal = useCallback(async () => {
@@ -1787,9 +2229,10 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
           if (plato.estado !== "recoger" && plato.estado !== "entregado") {
             try {
               // 🔥 CORREGIDO: Usar plato._id (subdocumento único) para distinguir platos duplicados
+              // v7.2: Pasar cocineroId para validacion multi-cocinero
               await axios.put(
                 `${getApiUrl()}/${comandaId}/plato/${plato._id || plato.plato?._id}/estado`,
-                { nuevoEstado: "recoger" }
+                { nuevoEstado: "recoger", cocineroId: userId }
               );
             } catch (error) {
               console.error(`Error actualizando plato ${plato._id || plato.plato?._id}:`, error);
@@ -2195,6 +2638,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     platosEliminados={platosEliminados.get(comanda._id) || []}
                     platosChecked={platosChecked}
                     togglePlatoCheck={togglePlatoCheck}
+                    usuarioActualId={userId}
                   />
                   );
                 })}
@@ -2202,36 +2646,107 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
               </div>
             </motion.div>
 
-            {/* Barra inferior sticky: Finalizar Platos → Finalizar Comanda → Revertir → Paginado */}
+            {/* Barra inferior sticky: Boton Contextual (Tomar/Dejar/Finalizar) → Finalizar Comanda → Revertir → Paginado */}
             <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar} z-50`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
-              {/* Orden: Finalizar Platos → Finalizar Comanda → Revertir → Paginado */}
+              {/* Orden: Botón Contextual → Finalizar Comanda → Revertir → Paginado */}
               <div className="flex items-center gap-3">
-                {/* 1. Botón FINALIZAR PLATOS (Verde) - Finaliza platos marcados con checkboxes */}
-                <motion.button
-                  onClick={handleFinalizarPlatosGlobal}
-                  disabled={getTotalPlatosMarcados() === 0 || isFinalizandoPlatos}
-                  className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
-                    getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos
-                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
-                      : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
-                  }`}
-                  whileHover={getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos ? { 
-                    scale: 1.05, 
-                    boxShadow: "0 0 30px rgba(34, 197, 94, 0.7)" 
-                  } : {}}
-                  whileTap={getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos ? { scale: 0.95 } : {}}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                >
-                  {getTotalPlatosMarcados() > 0 && !isFinalizandoPlatos && (
-                    <motion.span
-                      animate={{ rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
-                    >
-                      ✓
-                    </motion.span>
-                  )}
-                  {isFinalizandoPlatos ? 'Procesando...' : `Finalizar ${getTotalPlatosMarcados() > 0 ? `${getTotalPlatosMarcados()} ` : ''}Platos`}
-                </motion.button>
+                {/* 1. BOTÓN CONTEXTUAL MULTI-COCINERO v7.2
+                    - TOMAR PLATO (Azul): Cuando hay platos sin tomar
+                    - DEJAR PLATO (Amarillo): Cuando tengo platos tomados
+                    - FINALIZAR PLATO (Verde): Cuando todos los seleccionados estan tomados por mi
+                    - SIN_ACCION (Gris): Cuando no hay seleccion o conflicto
+                */}
+                {(() => {
+                  const { modo, platos, mensaje, subMensaje } = determinarAccionBoton();
+                  const hayPlatosSeleccionados = getTotalPlatosMarcados() > 0;
+                  const isLoading = isFinalizandoPlatos || procesamientoLoading;
+                  
+                  // Determinar estilos segun el modo
+                  const getButtonStyles = () => {
+                    if (!hayPlatosSeleccionados || modo === 'SIN_ACCION') {
+                      return nightMode 
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                        : 'bg-gray-300 text-gray-400 cursor-not-allowed';
+                    }
+                    switch (modo) {
+                      case 'TOMAR_PLATO':
+                        return 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer';
+                      case 'DEJAR_PLATO':
+                        return 'bg-yellow-500 text-gray-900 hover:bg-yellow-600 cursor-pointer';
+                      case 'FINALIZAR_PLATO':
+                        return 'bg-green-600 text-white hover:bg-green-700 cursor-pointer';
+                      default:
+                        return nightMode 
+                          ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                          : 'bg-gray-300 text-gray-400 cursor-not-allowed';
+                    }
+                  };
+                  
+                  // Determinar efecto hover segun el modo
+                  const getHoverEffect = () => {
+                    if (!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading) return {};
+                    const colors = {
+                      'TOMAR_PLATO': 'rgba(59, 130, 246, 0.7)',
+                      'DEJAR_PLATO': 'rgba(234, 179, 8, 0.7)',
+                      'FINALIZAR_PLATO': 'rgba(34, 197, 94, 0.7)'
+                    };
+                    return { 
+                      scale: 1.05, 
+                      boxShadow: `0 0 30px ${colors[modo] || 'rgba(107, 114, 128, 0.7)'}` 
+                    };
+                  };
+                  
+                  // Icono segun el modo
+                  const getIcon = () => {
+                    if (isLoading) {
+                      return (
+                        <motion.span
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                        >
+                          ⏳
+                        </motion.span>
+                      );
+                    }
+                    switch (modo) {
+                      case 'TOMAR_PLATO':
+                        return <span>👆</span>;
+                      case 'DEJAR_PLATO':
+                        return <span>↩️</span>;
+                      case 'FINALIZAR_PLATO':
+                        return (
+                          <motion.span
+                            animate={{ rotate: [0, 10, -10, 0] }}
+                            transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                          >
+                            ✓
+                          </motion.span>
+                        );
+                      default:
+                        return null;
+                    }
+                  };
+                  
+                  return (
+                    <div className="flex flex-col gap-0">
+                      <motion.button
+                        onClick={handleBotonContextual}
+                        disabled={!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading}
+                        className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${getButtonStyles()}`}
+                        whileHover={getHoverEffect()}
+                        whileTap={hayPlatosSeleccionados && modo !== 'SIN_ACCION' && !isLoading ? { scale: 0.95 } : {}}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                        title={subMensaje || ''}
+                      >
+                        {getIcon()}
+                        <span>{isLoading ? 'Procesando...' : mensaje}</span>
+                      </motion.button>
+                      {subMensaje && hayPlatosSeleccionados && !isLoading && (
+                        <span className="text-xs text-gray-400 mt-0.5 pl-1">{subMensaje}</span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* 2. Botón FINALIZAR COMANDA (Azul) - Oculto cuando todos están listos (auto-trigger activo) */}
                 {(() => {
@@ -2692,7 +3207,8 @@ const SicarComandaCard = ({
   nightMode = true,
   platosEliminados = [], // Mantener para compatibilidad, pero usar historialPlatos
   platosChecked = new Map(),
-  togglePlatoCheck = () => {}
+  togglePlatoCheck = () => {},
+  usuarioActualId // v7.2: ID del usuario actual para multi-cocinero
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -3119,6 +3635,9 @@ const SicarComandaCard = ({
                       isEliminado={plato.eliminado === true}
                       onToggle={togglePlatoCheck}
                       complementosSeleccionados={plato.complementosSeleccionados || []}
+                      // v7.2: Props para multi-cocinero
+                      procesandoPor={plato.procesandoPor}
+                      usuarioActualId={usuarioActualId}
                     />
                   );
                 })}
