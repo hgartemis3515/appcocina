@@ -25,10 +25,16 @@ const PlatoPreparacion = ({
   procesandoPor = null,  // { cocineroId, nombre, alias, timestamp }
   usuarioActualId = null, // Para mostrar "Tú" vs nombre del cocinero
 }) => {
+  // v7.2: Determinar si el plato está tomado por otro cocinero (no se puede interactuar)
+  const tomadoPorOtro = procesandoPor?.cocineroId && 
+                         procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
+  
   const handleClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!isEliminado && onToggle && platoIndex !== undefined) {
+    // 🔥 FIX: No permitir interacción si está tomado por otro cocinero
+    if (tomadoPorOtro || isEliminado) return;
+    if (onToggle && platoIndex !== undefined) {
       onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
     }
   };

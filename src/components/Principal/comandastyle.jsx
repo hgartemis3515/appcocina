@@ -1296,13 +1296,23 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   // v7.2: Ciclo diferente según si el plato está tomado por el cocinero actual
   // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
   // - Plato tomado por mí: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+  // - Plato tomado por otro: NO se puede interactuar (ignorar click)
   const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
     const key = `${comandaId}-${platoIndex}`;
     const miUsuarioId = userId?.toString();
     
-    // Buscar el plato para verificar si está tomado por mí
+    // Buscar el plato para verificar si está tomado por mí o por otro
     const comanda = comandas.find(c => c._id === comandaId);
     const plato = comanda?.platos?.[platoIndex];
+    
+    // 🔥 FIX: Si el plato está tomado por OTRO cocinero, ignorar el click
+    const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
+                          plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+    if (tomadoPorOtro) {
+      console.log(`[togglePlatoCheck] Plato ${platoIndex} tomado por otro cocinero, ignorando click`);
+      return; // No hacer nada
+    }
+    
     const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
     
     setPlatoStates(prev => {
@@ -1669,12 +1679,18 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       }
     });
     
-    // Método 2: Platos que tienen procesandoPor asignado pero estado visual local 'normal'
-    // (estos están siendo trabajados por un cocinero pero el usuario no ha interactuado con ellos)
+    // Método 2: Platos que tienen procesandoPor asignado PERO SOLO LOS MÍOS
+    // (platos tomados por otros cocineros NO se agregan automáticamente)
+    // Esto permite que el usuario pueda seleccionar otros platos sin ser bloqueado
+    const miUsuarioId = userId?.toString();
     comandas.forEach(comanda => {
       const comandaId = comanda._id;
       (comanda.platos || []).forEach((plato, platoIndex) => {
         if (!plato.procesandoPor?.cocineroId) return;
+        
+        // 🔥 FIX: Solo agregar platos tomados POR MI, no por otros cocineros
+        const esMio = plato.procesandoPor.cocineroId?.toString() === miUsuarioId;
+        if (!esMio) return; // Ignorar platos tomados por otros
         
         const key = `${comandaId}-${platoIndex}`;
         if (platosProcesadosSet.has(key)) return; // Ya incluido
@@ -1698,7 +1714,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     });
     
     return platosInfo;
-  }, [comandas, platoStates]);
+  }, [comandas, platoStates, userId]);
 
   /**
    * Determina que accion debe mostrar el boton principal de la barra inferior
