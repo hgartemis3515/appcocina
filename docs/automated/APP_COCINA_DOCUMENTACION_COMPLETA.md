@@ -4,12 +4,14 @@
 **Última Actualización:** Marzo 2026  
 **Tecnología:** React Web + Socket.io + Framer Motion
 
-**Cambios Recientes (v7.1) - Sistema Multi-Cocinero:**
-- ✅ **Eventos de Configuración**: Rooms personales por cocinero, emisión dirigida
-- ✅ **Testing de Vistas**: Framework definido para tests unitarios e integración
-- ✅ **Hook Común**: `useComandastyleCore` para lógica compartida entre vistas
-- ✅ **Sistema de Procesamiento**: Backend con campos `procesandoPor`/`procesadoPor`
-- ✅ **UI de Procesamiento**: Componentes con badges de cocinero y botón "Liberar"
+**Cambios Recientes (v7.1):**
+- ✅ **Sistema de autenticación**: Login con DNI funcionando correctamente
+- ✅ **Socket.io con JWT**: Conexión segura al namespace `/cocina`
+- ✅ **Rooms por fecha**: Sincronización de comandas del día
+- ✅ **Configuración centralizada**: ConfigContext para preferencias
+- ⚠️ **Funcionalidades multi-cocinero removidas**: Se eliminaron voluntariamente porque afectaban el funcionamiento de la app
+
+**Nota sobre v7.1:** Las funcionalidades de procesamiento multi-cocinero (tomar/liberar platos, badges de cocinero, hook useProcesamiento) fueron eliminadas porque causaban problemas en el flujo normal de cocina. El sistema actual funciona de manera simplificada con checkboxes para marcar platos listos.
 
 **Cambios Recientes (v6.0) - Sistema de Autenticación y Menú:**
 - ✅ **Login de Cocina**: Nueva pantalla de autenticación con DNI
@@ -47,7 +49,7 @@
 9. [Flujos de Trabajo Completos](#flujos-de-trabajo-completos)
 10. [Casos de Uso y Escenarios](#casos-de-uso-y-escenarios)
 11. [Sugerencias y Recomendaciones (v7.0)](#-sección-de-sugerencias-y-recomendaciones-v70)
-12. [Funcionalidades Implementadas v7.1 - Sistema Multi-Cocinero](#-funcionalidades-implementadas-v71---sistema-multi-cocinero)
+12. [Estado Actual del Sistema (v7.1)](#-resumen-de-implementación-v71---estado-actual)
 
 ---
 
@@ -2702,12 +2704,48 @@ const useOfflineMode = () => {
 
 ---
 
-## 🆕 Funcionalidades Implementadas v7.1 - Sistema Multi-Cocinero
+## 📋 Estado Actual del Sistema v7.1
 
-**Versión:** 7.1  
-**Fecha de Implementación:** Marzo 2026
+**⚠️ IMPORTANTE:** Las funcionalidades de procesamiento multi-cocinero documentadas en versiones anteriores fueron **eliminadas voluntariamente** porque causaban problemas en el funcionamiento de la app de cocina.
 
-Esta sección documenta las funcionalidades recientemente implementadas para soportar múltiples cocineros trabajando simultáneamente, incluyendo identificación de quién procesa cada plato, sistema de zonas, y la infraestructura necesaria para una colaboración eficiente.
+### Sistema Actual Funcionando
+
+El sistema opera actualmente con un flujo simplificado:
+
+| Componente | Estado | Descripción |
+|------------|--------|-------------|
+| **ComandaStyle.jsx** | ✅ Funcionando | Componente principal KDS |
+| **useSocketCocina.js** | ✅ Funcionando | Socket con autenticación JWT |
+| **AuthContext** | ✅ Funcionando | Login con DNI |
+| **ConfigContext** | ✅ Funcionando | Configuración centralizada |
+| **PlatoPreparacion.jsx** | ✅ Funcionando | Renderizado de platos |
+| **RevertirModal.jsx** | ✅ Funcionando | Reversión de estados |
+| **ReportsModal.jsx** | ✅ Funcionando | Reportes |
+| **ConfigModal.jsx** | ✅ Funcionando | Configuración |
+
+### Flujo de Trabajo Actual
+
+1. Usuario se autentica con DNI → `AuthContext`
+2. Navega al menú principal → `MenuPage`
+3. Accede al tablero KDS → `ComandaStyle.jsx`
+4. Recibe comandas en tiempo real → `useSocketCocina.js`
+5. Marca platos como listos con checkboxes
+6. Finaliza comandas completas
+
+### Funcionalidades NO Utilizadas
+
+Los siguientes archivos existen en el código pero **no están integrados ni se utilizan**:
+
+| Archivo | Estado |
+|---------|--------|
+| `useProcesamiento.js` | ⚠️ Existe pero no se usa |
+| `useComandastyleCore.js` | ⚠️ Existe pero no se usa |
+| `PlatoConProcesamiento.jsx` | ⚠️ Existe pero no se usa |
+| Backend `procesamientoController.js` | ⚠️ Existe pero el frontend no lo consume |
+
+### Temas Técnicos (Referencia)
+
+A continuación se documenta el código técnico de las funcionalidades multi-cocinero para referencia futura, aunque actualmente no están activas:
 
 ---
 
@@ -2945,7 +2983,7 @@ describe('Vista General - Sin Filtros de Zona', () => {
 });
 ```
 
-#### Estado Actual
+#### Estado Actual (CORREGIDO - Marzo 2026)
 
 | Tipo de Test | Estado | Cobertura |
 |--------------|--------|-----------|
@@ -2953,6 +2991,8 @@ describe('Vista General - Sin Filtros de Zona', () => {
 | Tests integración vistas | ⚠️ Pendiente | 0% |
 | Tests validación Vista General | ⚠️ Pendiente | 0% |
 | Tests E2E navegación | ⚠️ Pendiente | 0% |
+
+**NOTA:** El archivo `kdsFilters.js` existe con las funciones implementadas. Falta crear y ejecutar los tests.
 
 #### Qué Falta para Funcionar Perfectamente
 
@@ -3327,28 +3367,24 @@ const VistaZona = ({ zonaId }) => {
 };
 ```
 
-#### Estado Actual
+#### Estado Actual (CORREGIDO - Marzo 2026)
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
-| Extracción de lógica | ⚠️ En progreso | Código base definido |
-| Hook funcional | ⚠️ Pendiente | Falta implementar completamente |
-| Integración en ComandaStyle | ⚠️ Pendiente | Refactor necesario |
-| Tests del hook | ⚠️ Pendiente | Requiere implementación previa |
+| Extracción de lógica | ✅ Completado | Hook implementado completamente |
+| Hook funcional | ✅ Implementado | `useComandastyleCore.js` funciona |
+| Integración en ComandaStyle | ❌ Pendiente | No se ha migrado al hook |
+| Integración en ComandastylePerso | ❌ Pendiente | No se ha creado la vista personalizada |
+| Tests del hook | ⚠️ Pendiente | Requiere implementación |
+
+**NOTA:** El hook está completamente implementado en `useComandastyleCore.js` con todas las funcionalidades documentadas. El archivo `ComandaStyle.jsx` actual NO usa este hook (tiene su propia lógica inline). Falta refactorizar para usar el hook común.
 
 #### Qué Falta para Funcionar Perfectamente
 
-**Implementación:**
-- [ ] Completar todas las funciones del hook
-- [ ] Migrar `ComandaStyle.jsx` para usar el hook
+**Refactorización (PRIORIDAD MEDIA):**
+- [ ] Refactorizar `ComandaStyle.jsx` para usar `useComandastyleCore`
 - [ ] Crear componente `VistaZona.jsx` usando el hook
-- [ ] Manejar cleanup de efectos y listeners
-
-**Funcionalidades Faltantes:**
-- [ ] Soporte para finalizar platos (batch)
-- [ ] Soporte para finalizar comanda completa
-- [ ] Manejo de modales (config, revertir, etc.)
-- [ ] Persistencia de estado en localStorage
+- [ ] Eliminar lógica duplicada de `ComandaStyle.jsx`
 
 **Testing:**
 - [ ] Unit tests para cada función del hook
@@ -3363,7 +3399,20 @@ const VistaZona = ({ zonaId }) => {
 
 Implementar en el backend la capacidad de rastrear qué cocinero está procesando cada plato, permitiendo evitar conflictos y mostrar información de colaboración en tiempo real.
 
-#### Modelo de Datos Extendido
+#### ✅ Estado: COMPLETAMENTE IMPLEMENTADO
+
+**Archivo:** `Backend-LasGambusinas/src/controllers/procesamientoController.js`
+
+El backend tiene implementados los 5 endpoints completos:
+- `PUT /api/comanda/:id/plato/:platoId/procesando` - Tomar plato
+- `DELETE /api/comanda/:id/plato/:platoId/procesando` - Liberar plato  
+- `PUT /api/comanda/:id/plato/:platoId/finalizar` - Finalizar plato
+- `PUT /api/comanda/:id/procesando` - Tomar comanda completa
+- `DELETE /api/comanda/:id/procesando` - Liberar comanda
+
+#### Modelo de Datos (IMPLEMENTADO)
+
+**Archivo:** `Backend-LasGambusinas/src/database/models/comanda.model.js`
 
 ```javascript
 // models/Comanda.js - Campos nuevos en el schema de platos
@@ -3567,33 +3616,28 @@ router.put('/:id/plato/:platoId/finalizar', async (req, res) => {
 | `plato-finalizado` | Server → Client | `{ comandaId, platoId, procesadoPor }` | Plato marcado como listo |
 | `conflicto-procesamiento` | Server → Client | `{ comandaId, platoId, tomadoPor }` | Conflicto al intentar tomar plato |
 
-#### Estado Actual
+#### Estado Actual (CORREGIDO - Marzo 2026)
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
-| Modelo extendido | ⚠️ Pendiente | Schema definido, no aplicado |
-| Endpoint procesando | ⚠️ Pendiente | Código definido, no implementado |
-| Endpoint liberar | ⚠️ Pendiente | Código definido, no implementado |
-| Endpoint finalizar | ✅ Existe | Actualizar para incluir procesadoPor |
-| Eventos Socket | ⚠️ Pendiente | Nuevos eventos por implementar |
+| Modelo extendido | ✅ Implementado | Schema con procesandoPor/procesadoPor aplicado |
+| Endpoint procesando (plato) | ✅ Implementado | `PUT /api/comanda/:id/plato/:platoId/procesando` |
+| Endpoint liberar (plato) | ✅ Implementado | `DELETE /api/comanda/:id/plato/:platoId/procesando` |
+| Endpoint finalizar (plato) | ✅ Implementado | `PUT /api/comanda/:id/plato/:platoId/finalizar` |
+| Endpoint procesando (comanda) | ✅ Implementado | `PUT /api/comanda/:id/procesando` |
+| Endpoint liberar (comanda) | ✅ Implementado | `DELETE /api/comanda/:id/procesando` |
+| Eventos Socket | ✅ Implementado | Integrados en procesamientoController.js |
+| Hook useProcesamiento | ✅ Implementado | `useProcesamiento.js` completo |
+| Componente PlatoConProcesamiento | ✅ Implementado | Con badges animados y botones |
+| Integración en ComandaStyle | ❌ Pendiente | Falta conectar los componentes |
 
 #### Qué Falta para Funcionar Perfectamente
 
-**Base de Datos:**
-- [ ] Aplicar migración para agregar campos `procesandoPor` y `procesadoPor`
-- [ ] Crear índices para optimizar consultas
-- [ ] Script de migración para comandas existentes
-
-**Backend:**
-- [ ] Implementar los 3 endpoints nuevos
-- [ ] Agregar validación de permisos (solo cocineros pueden procesar)
-- [ ] Implementar timeout automático de procesamiento (ej: 30 min)
-- [ ] Agregar log de eventos para auditoría
-
-**Socket.io:**
-- [ ] Implementar nuevos eventos
-- [ ] Manejar reconexión con re-unión a rooms
-- [ ] Implementar heartbeat para detectar desconexiones
+**Integración Frontend (PRIORIDAD ALTA):**
+- [ ] Importar `useProcesamiento` en `ComandaStyle.jsx`
+- [ ] Reemplazar renderizado de platos con `PlatoConProcesamiento`
+- [ ] Conectar callbacks de tomar/liberar/finalizar
+- [ ] Probar flujo completo end-to-end
 
 **Testing:**
 - [ ] Tests unitarios para cada endpoint
@@ -3609,7 +3653,13 @@ router.put('/:id/plato/:platoId/finalizar', async (req, res) => {
 
 Mostrar en la interfaz de cocina qué platos están siendo procesados y por quién, permitiendo a los cocineros coordinarse y evitar duplicar trabajo.
 
-#### Componentes Nuevos
+#### ✅ Estado: COMPONENTES IMPLEMENTADOS, FALTA INTEGRACIÓN
+
+**Archivos implementados:**
+- `appcocina/src/hooks/useProcesamiento.js` - Hook completo con todas las funciones
+- `appcocina/src/components/Principal/PlatoConProcesamiento.jsx` - Componentes de UI
+
+#### Componentes Implementados
 
 ##### 1. Hook useProcesamiento
 
@@ -3941,34 +3991,24 @@ export default ComandaProcesamientoBadge;
 }
 ```
 
-#### Estado Actual
+#### Estado Actual (CORREGIDO - Marzo 2026)
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
-| Hook useProcesamiento | ⚠️ Pendiente | Código definido |
-| PlatoConProcesamiento | ⚠️ Pendiente | Código definido |
-| ComandaProcesamientoBadge | ⚠️ Pendiente | Código definido |
-| Animaciones CSS | ⚠️ Pendiente | Definidas |
-| Integración en ComandaStyle | ⚠️ Pendiente | Requiere componentes |
+| Hook useProcesamiento | ✅ Implementado | Completo con tomar/liberar/finalizar |
+| PlatoConProcesamiento | ✅ Implementado | Badge animado + botones Tomar/Liberar |
+| ComandaProcesamientoBadge | ✅ Implementado | Badge a nivel comanda completa |
+| ProcesamientoBadgeCompact | ✅ Implementado | Badge compacto para tarjetas pequeñas |
+| Animaciones CSS | ✅ Implementado | Animaciones con Framer Motion |
+| Integración en ComandaStyle | ❌ Pendiente | Falta importar y usar los componentes |
 
 #### Qué Falta para Funcionar Perfectamente
 
-**Frontend:**
-- [ ] Implementar hook `useProcesamiento`
-- [ ] Crear componentes `PlatoConProcesamiento` y `ComandaProcesamientoBadge`
-- [ ] Integrar en `ComandaStyle.jsx` reemplazando el renderizado actual de platos
-- [ ] Agregar animaciones CSS al proyecto
-
-**UX:**
-- [ ] Feedback visual cuando otro cocinero toma un plato (toast + animación)
-- [ ] Confirmación antes de liberar un plato tomado
-- [ ] Indicador de tiempo transcurrido procesando
-- [ ] Sonido de notificación cuando otro toma/libera
-
-**Lógica:**
-- [ ] Manejar caso de desconexión (liberar automáticamente)
-- [ ] Sincronizar estado local con servidor
-- [ ] Evitar conflictos en actualizaciones concurrentes
+**Integración (PRIORIDAD ALTA):**
+- [ ] Importar `useProcesamiento` en `ComandaStyle.jsx`
+- [ ] Importar `PlatoConProcesamiento` en el componente principal
+- [ ] Reemplazar renderizado actual de platos con nuevo componente
+- [ ] Conectar callbacks del hook con los handlers del componente
 
 **Testing:**
 - [ ] Tests de renderizado de componentes
@@ -3978,47 +4018,12 @@ export default ComandaProcesamientoBadge;
 
 ---
 
-### 📊 Resumen de Implementación Pendiente
-
-#### Checklist General
-
-| Tema | Backend | Frontend | Tests | Documentación |
-|------|---------|----------|-------|---------------|
-| Eventos de configuración | ⚠️ 60% | ⚠️ 60% | ❌ 0% | ⚠️ 50% |
-| Testing de vistas | ❌ N/A | ⚠️ 30% | ❌ 0% | ✅ 100% |
-| Hook useComandastyleCore | ❌ N/A | ⚠️ 40% | ❌ 0% | ✅ 100% |
-| Sistema de procesamiento | ⚠️ 30% | ⚠️ 20% | ❌ 0% | ✅ 100% |
-| UI de procesamiento | ❌ N/A | ⚠️ 20% | ❌ 0% | ✅ 100% |
-
-#### Prioridades de Implementación
-
-**Alta Prioridad (Bloqueante):**
-1. Sistema de procesamiento (backend) - Sin esto, el resto no funciona
-2. Eventos Socket.io de procesamiento - Necesario para sincronización
-
-**Media Prioridad (Importante):**
-3. Hook useComandastyleCore - Facilita desarrollo futuro
-4. UI de procesamiento (frontend) - Visible para usuarios
-
-**Baja Prioridad (Mejora):**
-5. Testing de vistas - Asegura calidad
-6. Eventos de configuración - Optimización
-
-#### Dependencias entre Componentes
-
-```
-[Tema 4: Backend Procesamiento]
-         ↓
-[Tema 5: UI Procesamiento] ← [Tema 1: Eventos Cocinero]
-         ↓
-[Tema 3: Hook Core]
-         ↓
-[Tema 2: Testing]
-```
-
----
-
-**Versión del Documento:** 1.5  
+**Versión del Documento:** 1.7  
 **Última Actualización:** Marzo 2026  
-**Sección agregada:** Funcionalidades Implementadas v7.1 - Sistema Multi-Cocinero
+**Cambios en esta versión:**
+- Actualizado estado real tras eliminación voluntaria de funciones problemáticas
+- Removidas referencias a sistema de procesamiento multi-cocinero activo
+- Documentado que el sistema funciona sin esas características
+- Estado actual: KDS operativo con flujo simplificado de checkboxes
+
 
