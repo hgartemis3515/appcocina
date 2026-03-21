@@ -2961,7 +2961,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                 {(() => {
                   // El rol viene del contexto de autenticación, no de localStorage
                   const hayEnEspera = enEspera.length > 0;
-                  const isEnabled = hayEnEspera && userRole === 'cocina';
+                  const isEnabled = hayEnEspera;
                   // Determinar si la comanda seleccionada ya tiene prioridad
                   let comandaSeleccionada = null;
                   if (selectedOrders.size === 1) {
