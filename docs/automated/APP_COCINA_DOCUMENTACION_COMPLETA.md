@@ -4256,7 +4256,7 @@ if (tomadoPorOtro) {
 
 ---
 
-**Versión del Documento:** 1.9  
+**Versión del Documento:** 2.0  
 **Última Actualización:** Marzo 2026  
 **Cambios en esta versión:**
 - Reintegrado sistema multi-cocinero v7.2 de forma compatible
@@ -4267,5 +4267,895 @@ if (tomadoPorOtro) {
 - **v7.2.1**: Estado visual "dejar" para liberar platos tomados
 - **v7.2.1**: Corrección en cálculo de platos seleccionados para botón contextual
 - **v7.2.1**: Estado visual automático para platos con procesandoPor asignado
+- **v2.0**: Documentación detallada del sistema multi-cocinero y flujo de selección de platos
+
+---
+
+## 📖 Documentación Detallada: Sistema Multi-Cocinero v7.2.1
+
+### 1. Descripción General
+
+El **Sistema Multi-Cocinero** permite que múltiples cocineros trabajen simultáneamente en el KDS, con identificación clara de quién está preparando cada plato. Esto mejora la coordinación en cocina y evita conflictos donde dos cocineros intentan preparar el mismo plato.
+
+### 2. Arquitectura del Sistema
+
+#### 2.1 Componentes Principales
+
+| Componente | Ubicación | Función |
+|------------|-----------|---------|
+| `useProcesamiento` | `src/hooks/useProcesamiento.js` | Hook centralizado para Tomar/Liberar/Finalizar platos |
+| `PlatoPreparacion` | `src/components/Principal/PlatoPreparacion.jsx` | Componente visual del plato con badge de cocinero |
+| `ComandaStyle` | `src/components/Principal/Comandastyle.jsx` | Vista General KDS con lógica multi-cocinero |
+| `ComandaStylePerso` | `src/components/Principal/ComandastylePerso.jsx` | Vista Personalizada KDS con filtros por zona/cocinero |
+
+#### 2.2 Flujo de Datos
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ARQUITECTURA MULTI-COCINERO                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
+│  │   Cocinero A    │     │   Cocinero B    │     │   Cocinero C    │       │
+│  │   (App KDS)     │     │   (App KDS)     │     │   (App KDS)     │       │
+│  └────────┬────────┘     └────────┬────────┘     └────────┬────────┘       │
+│           │                       │                       │                 │
+│           └───────────────────────┼───────────────────────┘                 │
+│                                   │                                         │
+│                                   ▼                                         │
+│                    ┌─────────────────────────────┐                          │
+│                    │      Socket.io Server       │                          │
+│                    │   Namespace: /cocina        │                          │
+│                    │   Room: por fecha           │                          │
+│                    └──────────────┬──────────────┘                          │
+│                                   │                                         │
+│                                   ▼                                         │
+│                    ┌─────────────────────────────┐                          │
+│                    │      Backend API REST       │                          │
+│                    │  /api/comanda/:id/plato/... │                          │
+│                    └─────────────────────────────┘                          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3. Hook `useProcesamiento` - API de Procesamiento
+
+#### 3.1 Funciones Disponibles
+
+El hook expone las siguientes funciones para manejar el ciclo de vida de platos:
+
+```javascript
+const {
+  loading,              // Estado de carga
+  error,                // Mensaje de error si existe
+  tomarPlato,           // (comandaId, platoId, cocineroId) => Promise
+  liberarPlato,         // (comandaId, platoId, cocineroId) => Promise
+  finalizarPlato,       // (comandaId, platoId, cocineroId) => Promise
+  tomarComanda,         // (comandaId, cocineroId) => Promise
+  liberarComanda        // (comandaId, cocineroId) => Promise
+} = useProcesamiento({
+  getToken,                           // Función para obtener JWT
+  showToast: (msg) => setToastMessage(msg),  // Callback para notificaciones
+  onProcesamientoChange: handleProcesamientoChange  // Callback de eventos
+});
+```
+
+#### 3.2 Función `tomarPlato`
+
+**Propósito:** Asigna un plato al cocinero actual para preparación.
+
+**Endpoint:** `PUT /api/comanda/:comandaId/plato/:platoId/procesando`
+
+**Parámetros:**
+```javascript
+tomarPlato(comandaId, platoId, cocineroId)
+```
+
+**Respuesta exitosa:**
+```javascript
+{
+  success: true,
+  data: {
+    procesandoPor: {
+      cocineroId: "usr_123",
+      nombre: "Juan Pérez",
+      alias: "Juan",
+      timestamp: "2026-03-21T14:30:00Z"
+    }
+  }
+}
+```
+
+**Manejo de errores:**
+- **409 Conflict:** Plato ya tomado por otro cocinero
+- **401 Unauthorized:** Token inválido
+- **404 Not Found:** Plato o comanda no encontrados
+
+#### 3.3 Función `liberarPlato`
+
+**Propósito:** Libera un plato que el cocinero había tomado, permitiendo que otro lo tome.
+
+**Endpoint:** `DELETE /api/comanda/:comandaId/plato/:platoId/procesando`
+
+**Parámetros:**
+```javascript
+liberarPlato(comandaId, platoId, cocineroId)
+```
+
+**Respuesta exitosa:**
+```javascript
+{
+  success: true
+}
+```
+
+#### 3.4 Función `finalizarPlato`
+
+**Propósito:** Marca un plato como listo para recoger.
+
+**Endpoint:** `PUT /api/comanda/:comandaId/plato/:platoId/finalizar`
+
+**Parámetros:**
+```javascript
+finalizarPlato(comandaId, platoId, cocineroId)
+```
+
+**Respuesta exitosa:**
+```javascript
+{
+  success: true,
+  data: {
+    procesadoPor: {
+      cocineroId: "usr_123",
+      nombre: "Juan Pérez"
+    },
+    comandaLista: false  // true si todos los platos están listos
+  }
+}
+```
+
+### 4. Estados Visuales del Sistema
+
+#### 4.1 Definición de Estados
+
+El sistema maneja **4 estados visuales** para cada plato:
+
+| Estado | Color | Icono | Significado |
+|--------|-------|-------|-------------|
+| `normal` | Gris/Transparente | Vacío | Sin interacción |
+| `procesando` | Amarillo | ⏳ | Intención de tomar / Alguien está preparando |
+| `dejar` | Rojo | ↩️ | Liberar plato (solo si lo tomé yo) |
+| `seleccionado` | Verde | ✓ | Listo para finalizar |
+
+#### 4.2 Ciclos de Estados Diferenciados
+
+**Ciclo A: Platos SIN TOMAR (ningún cocinero asignado)**
+```
+┌─────────┐    click    ┌────────────┐    click    ┌────────────┐    click    ┌─────────┐
+│ NORMAL  │ ─────────▶ │ PROCESANDO │ ─────────▶ │ SELECCIONADO│ ─────────▶ │ NORMAL  │
+│ (gris)  │            │ (amarillo) │            │   (verde)   │            │ (gris)  │
+└─────────┘            └────────────┘            └────────────┘            └─────────┘
+     │                       │                        │
+     │                       │                        │
+     │                       ▼                        ▼
+     │              "Tomar plato"            "Finalizar plato"
+     │              (botón azul)             (botón verde)
+     │                       │                        │
+     └───────────────────────┴────────────────────────┘
+                             │
+                             ▼ Backend asigna cocinero
+                      Badge: "Tú" (verde)
+```
+
+**Ciclo B: Platos TOMADOS POR EL COCINERO ACTUAL**
+```
+┌─────────┐    click    ┌─────────┐    click    ┌────────────┐    click    ┌─────────┐
+│ NORMAL  │ ─────────▶ │  DEJAR  │ ─────────▶ │ SELECCIONADO│ ─────────▶ │ NORMAL  │
+│+Badge   │            │ (rojo)  │            │   (verde)   │            │+Badge   │
+│"Tú"     │            │         │            │             │            │"Tú"     │
+└─────────┘            └─────────┘            └────────────┘            └─────────┘
+     │                       │                        │
+     │                       │                        │
+     │                       ▼                        ▼
+     │               "Dejar plato"           "Finalizar plato"
+     │               (botón rojo)            (botón verde)
+     │                       │                        │
+     │                       ▼                        ▼
+     │              Libera el plato           Estado → 'recoger'
+     │              Badge desaparece          Plato a sección Listos
+     │
+     └── Plato permanece en amarillo visual porque tiene procesandoPor
+```
+
+**Ciclo C: Platos TOMADOS POR OTRO COCINERO**
+```
+┌─────────────────┐
+│     NORMAL      │
+│  +Badge "Juan"  │
+│   (amarillo)    │
+└─────────────────┘
+        │
+        │ click → IGNORADO (no se puede interactuar)
+        │
+        ▼
+   Botón muestra:
+   "Plato ocupado"
+   "Tomado por: Juan"
+   (botón gris deshabilitado)
+```
+
+#### 4.3 Implementación del Toggle de Estados
+
+**Ubicación:** `ComandaStyle.jsx` líneas 1300-1363
+
+```javascript
+const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
+  const key = `${comandaId}-${platoIndex}`;
+  const miUsuarioId = userId?.toString();
+  
+  // Buscar el plato para verificar propiedad
+  const comanda = comandas.find(c => c._id === comandaId);
+  const plato = comanda?.platos?.[platoIndex];
+  
+  // 🔥 Si el plato está tomado por OTRO cocinero, ignorar el click
+  const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
+                        plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+  if (tomadoPorOtro) {
+    console.log(`[togglePlatoCheck] Plato ${platoIndex} tomado por otro cocinero, ignorando click`);
+    return; // No hacer nada
+  }
+  
+  const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
+  
+  setPlatoStates(prev => {
+    const nuevo = new Map(prev);
+    const estadoActual = nuevo.get(key) || 'normal';
+    
+    let nuevoEstado;
+    if (tomadoPorMi) {
+      // Ciclo para mis platos: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+      if (estadoActual === 'normal') nuevoEstado = 'dejar';
+      else if (estadoActual === 'dejar') nuevoEstado = 'seleccionado';
+      else nuevoEstado = 'normal';
+    } else {
+      // Ciclo normal: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
+      if (estadoActual === 'normal') nuevoEstado = 'procesando';
+      else if (estadoActual === 'procesando') nuevoEstado = 'seleccionado';
+      else nuevoEstado = 'normal';
+    }
+    
+    nuevo.set(key, nuevoEstado);
+    
+    // Sincronizar con platosChecked para batch operations
+    if (nuevoEstado === 'seleccionado') {
+      setPlatosChecked(prev => {
+        const nuevoChecks = new Map(prev);
+        nuevoChecks.set(key, true);
+        return nuevoChecks;
+      });
+    } else {
+      setPlatosChecked(prev => {
+        const nuevoChecks = new Map(prev);
+        nuevoChecks.delete(key);
+        return nuevoChecks;
+      });
+    }
+    
+    return nuevo;
+  });
+}, [comandas, userId]);
+```
+
+### 5. Componente `PlatoPreparacion` - Badge de Cocinero
+
+#### 5.1 Props Aceptadas
+
+```javascript
+const PlatoPreparacion = ({
+  plato,                    // Objeto del plato completo
+  comandaId,                // ID de la comanda
+  platoId,                  // ID del plato
+  platoIndex,               // Índice en el array (para toggles)
+  cantidad,                 // Cantidad del plato
+  nombre,                   // Nombre del plato
+  estadoVisual,             // Estado visual actual
+  nightMode,                // Modo oscuro
+  isEliminado,              // Si está eliminado
+  onToggle,                 // Callback de toggle
+  complementosSeleccionados, // Complementos
+  // v7.2: Props para multi-cocinero
+  procesandoPor,            // { cocineroId, nombre, alias, timestamp }
+  usuarioActualId           // ID del usuario actual para comparar
+}) => { ... }
+```
+
+#### 5.2 Badge de Cocinero
+
+**Implementación:** `PlatoPreparacion.jsx` líneas 240-264
+
+```javascript
+{/* v7.2: Badge de cocinero que está procesando el plato */}
+{procesandoPor?.cocineroId && (
+  <motion.span
+    initial={{ opacity: 0, scale: 0.8 }}
+    animate={{ opacity: 1, scale: 1 }}
+    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+      procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
+        ? 'bg-green-500/20 text-green-300 border border-green-500/30'  // MI plato
+        : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'  // Ajeno
+    }`}
+    title={`Tomado por: ${procesandoPor.nombre || procesandoPor.alias || 'Cocinero'}`}
+  >
+    <motion.span
+      animate={{ scale: [1, 1.1, 1] }}
+      transition={{ duration: 1.5, repeat: Infinity }}
+    >
+      👨‍🍳
+    </motion.span>
+    <span className="max-w-[60px] truncate">
+      {procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
+        ? 'Tú'
+        : (procesandoPor.alias || procesandoPor.nombre || 'Cocinero')}
+    </span>
+  </motion.span>
+)}
+```
+
+#### 5.3 Lógica de Bloqueo de Interacción
+
+```javascript
+// Determinar si el plato está tomado por otro cocinero
+const tomadoPorOtro = procesandoPor?.cocineroId && 
+                       procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
+
+const handleClick = (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  // 🔥 FIX: No permitir interacción si está tomado por otro cocinero
+  if (tomadoPorOtro || isEliminado) return;
+  if (onToggle && platoIndex !== undefined) {
+    onToggle(comandaId, platoIndex);
+  }
+};
+```
+
+### 6. Botón Contextual en Barra Inferior
+
+#### 6.1 Función `determinarAccionBoton`
+
+**Propósito:** Determinar qué acción mostrar en el botón contextual según el estado de los platos seleccionados.
+
+**Ubicación:** `ComandaStyle.jsx` líneas ~1720-1823
+
+```javascript
+const determinarAccionBoton = useCallback(() => {
+  const platosSeleccionados = obtenerPlatosSeleccionadosInfo();
+  
+  if (platosSeleccionados.length === 0) {
+    return { 
+      modo: 'SIN_ACCION', 
+      platos: [], 
+      mensaje: 'Selecciona platos',
+      subMensaje: 'Click en los platos para marcar'
+    };
+  }
+  
+  const miUsuarioId = userId?.toString();
+  if (!miUsuarioId) {
+    return { 
+      modo: 'SIN_ACCION', 
+      platos: [], 
+      mensaje: 'Sin usuario',
+      subMensaje: 'Recarga la página'
+    };
+  }
+  
+  // Analizar estados de procesamiento y visual
+  const analisis = platosSeleccionados.map(p => {
+    const procesandoPor = p.procesandoPor;
+    const tomadoPorMi = procesandoPor?.cocineroId?.toString() === miUsuarioId;
+    const tomadoPorOtro = procesandoPor?.cocineroId && !tomadoPorMi;
+    const sinTomar = !procesandoPor?.cocineroId;
+    const quiereDejar = p.estadoVisual === 'dejar';
+    const quiereFinalizar = p.estadoVisual === 'seleccionado';
+    
+    return { 
+      ...p, 
+      tomadoPorMi, 
+      tomadoPorOtro, 
+      sinTomar,
+      quiereDejar,
+      quiereFinalizar,
+      nombreCocinero: procesandoPor?.alias || procesandoPor?.nombre || 'otro'
+    };
+  });
+  
+  // CASO 1: Algún plato tomado por otro cocinero → BLOQUEAR
+  const platosAjenos = analisis.filter(p => p.tomadoPorOtro);
+  if (platosAjenos.length > 0) {
+    const nombres = [...new Set(platosAjenos.map(p => p.nombreCocinero))].join(', ');
+    return {
+      modo: 'SIN_ACCION',
+      platos: [],
+      mensaje: 'Plato ocupado',
+      subMensaje: `Tomado por: ${nombres}`
+    };
+  }
+  
+  // CASO 2: Platos en estado 'dejar' (rojo) → DEJAR_PLATO
+  const platosADejar = analisis.filter(p => p.quiereDejar && p.tomadoPorMi);
+  if (platosADejar.length > 0) {
+    return {
+      modo: 'DEJAR_PLATO',
+      platos: platosADejar,
+      mensaje: `Dejar ${platosADejar.length} Plato${platosADejar.length > 1 ? 's' : ''}`,
+      subMensaje: 'Liberar para otros cocineros'
+    };
+  }
+  
+  // CASO 3: Platos en estado 'seleccionado' (verde) tomados por mí → FINALIZAR
+  const platosAFinalizar = analisis.filter(p => p.quiereFinalizar && p.tomadoPorMi);
+  if (platosAFinalizar.length > 0) {
+    return {
+      modo: 'FINALIZAR_PLATO',
+      platos: platosAFinalizar,
+      mensaje: `Finalizar ${platosAFinalizar.length} Plato${platosAFinalizar.length > 1 ? 's' : ''}`,
+      subMensaje: 'Marcar como listos para recoger'
+    };
+  }
+  
+  // CASO 4: Platos sin tomar → TOMAR
+  const platosSinTomar = analisis.filter(p => p.sinTomar);
+  if (platosSinTomar.length > 0) {
+    return {
+      modo: 'TOMAR_PLATO',
+      platos: platosSinTomar,
+      mensaje: `Tomar ${platosSinTomar.length} Plato${platosSinTomar.length > 1 ? 's' : ''}`,
+      subMensaje: 'Asignarte la preparación'
+    };
+  }
+  
+  return { 
+    modo: 'SIN_ACCION', 
+    platos: [], 
+    mensaje: 'Sin acción disponible',
+    subMensaje: ''
+  };
+}, [userId, obtenerPlatosSeleccionadosInfo]);
+```
+
+#### 6.2 Tabla de Estados del Botón
+
+| Estado Visual | Condición procesandoPor | Modo Botón | Color | Acción Backend |
+|--------------|-------------------------|------------|-------|----------------|
+| `normal` | Sin asignar | SIN_ACCION | Gris | N/A |
+| `procesando` | Sin asignar | TOMAR_PLATO | Azul | `PUT /procesando` |
+| `dejar` | Tomado por mí | DEJAR_PLATO | Rojo | `DELETE /procesando` |
+| `seleccionado` | Tomado por mí | FINALIZAR_PLATO | Verde | `PUT /finalizar` |
+| Cualquiera | Tomado por otro | SIN_ACCION | Gris | Bloqueado |
+
+### 7. Handlers de Eventos Socket.io
+
+#### 7.1 Configuración de Listeners
+
+**Ubicación:** `ComandaStyle.jsx` líneas 652-713
+
+```javascript
+// v7.2: Manejar eventos de procesamiento multi-cocinero
+if (data.tipo === 'PLATO_TOMADO') {
+  // Un cocinero tomó el plato - actualizar procesandoPor
+  console.log('👨‍🍳 [Multi-Cocinero] Plato tomado por:', data.procesandoPor?.alias);
+  setComandas(prev => prev.map(comanda => {
+    if (comanda._id?.toString() !== data.comandaId?.toString()) return comanda;
+    return {
+      ...comanda,
+      platos: comanda.platos.map(p => {
+        const pId = p._id?.toString() || p.platoId?.toString();
+        if (pId === data.platoId?.toString()) {
+          return { ...p, procesandoPor: data.procesandoPor };
+        }
+        return p;
+      })
+    };
+  }));
+  return; // No continuar con lógica de cambio de estado
+}
+
+if (data.tipo === 'PLATO_LIBERADO') {
+  // Un cocinero liberó el plato - limpiar procesandoPor
+  console.log('↩️ [Multi-Cocinero] Plato liberado:', data.platoId);
+  setComandas(prev => prev.map(comanda => {
+    if (comanda._id?.toString() !== data.comandaId?.toString()) return comanda;
+    return {
+      ...comanda,
+      platos: comanda.platos.map(p => {
+        const pId = p._id?.toString() || p.platoId?.toString();
+        if (pId === data.platoId?.toString()) {
+          return { ...p, procesandoPor: null };
+        }
+        return p;
+      })
+    };
+  }));
+  return;
+}
+
+if (data.tipo === 'CONFLICTO') {
+  // Conflicto al tomar plato - mostrar toast
+  setToastMessage({
+    type: 'warning',
+    message: `⚠️ ${data.mensaje || 'Este plato ya fue tomado por otro cocinero'}`,
+    duration: 4000
+  });
+  // Actualizar estado con el cocinero real
+  setComandas(prev => prev.map(comanda => {
+    if (comanda._id?.toString() !== data.comandaId?.toString()) return comanda;
+    return {
+      ...comanda,
+      platos: comanda.platos.map(p => {
+        const pId = p._id?.toString() || p.platoId?.toString();
+        if (pId === data.platoId?.toString()) {
+          return { ...p, procesandoPor: data.procesandoPor };
+        }
+        return p;
+      })
+    };
+  }));
+  return;
+}
+```
+
+#### 7.2 Handler de Procesamiento (`handleProcesamientoChange`)
+
+**Ubicación:** `ComandaStyle.jsx` líneas 907-984
+
+```javascript
+const handleProcesamientoChange = useCallback((data) => {
+  console.log('[Procesamiento] Cambio recibido:', data.type);
+  
+  switch (data.type) {
+    case 'PLATO_TOMADO':
+      // Actualizar estado local del plato
+      setComandas(prev => prev.map(comanda => {
+        if (comanda._id !== data.comandaId) return comanda;
+        return {
+          ...comanda,
+          platos: comanda.platos.map(p => {
+            const pId = p._id?.toString() || p.platoId?.toString();
+            if (pId === data.platoId?.toString()) {
+              return { ...p, procesandoPor: data.procesandoPor };
+            }
+            return p;
+          })
+        };
+      }));
+      break;
+      
+    case 'PLATO_LIBERADO':
+      // Limpiar procesandoPor del plato
+      setComandas(prev => prev.map(comanda => {
+        if (comanda._id !== data.comandaId) return comanda;
+        return {
+          ...comanda,
+          platos: comanda.platos.map(p => {
+            const pId = p._id?.toString() || p.platoId?.toString();
+            if (pId === data.platoId?.toString()) {
+              return { ...p, procesandoPor: null };
+            }
+            return p;
+          })
+        };
+      }));
+      break;
+      
+    case 'PLATO_FINALIZADO':
+      // Limpiar estados visuales locales
+      const platoKey = `${data.comandaId}-${data.platoId}`;
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        nuevo.set(platoKey, 'normal');
+        return nuevo;
+      });
+      setPlatosChecked(prev => {
+        const nuevo = new Map(prev);
+        nuevo.delete(platoKey);
+        return nuevo;
+      });
+      break;
+      
+    case 'PLATO_OCUPADO':
+      // Otro cocinero tomó el plato antes que nosotros
+      setToastMessage({
+        type: 'warning',
+        message: `⚠️ Este plato ya fue tomado por ${data.procesandoPor?.alias || 'otro cocinero'}`,
+        duration: 4000
+      });
+      // Actualizar estado con el cocinero real
+      setComandas(prev => prev.map(comanda => {
+        if (comanda._id !== data.comandaId) return comanda;
+        return {
+          ...comanda,
+          platos: comanda.platos.map(p => {
+            const pId = p._id?.toString() || p.platoId?.toString();
+            if (pId === data.platoId?.toString()) {
+              return { ...p, procesandoPor: data.procesandoPor };
+            }
+            return p;
+          })
+        };
+      }));
+      break;
+  }
+}, []);
+```
+
+### 8. Endpoints del Backend
+
+#### 8.1 Tomar Plato
+
+```
+PUT /api/comanda/:comandaId/plato/:platoId/procesando
+Content-Type: application/json
+Authorization: Bearer <JWT>
+
+Request Body:
+{
+  "cocineroId": "usr_123"
+}
+
+Response (200):
+{
+  "success": true,
+  "data": {
+    "procesandoPor": {
+      "cocineroId": "usr_123",
+      "nombre": "Juan Pérez",
+      "alias": "Juan",
+      "timestamp": "2026-03-21T14:30:00Z"
+    }
+  }
+}
+
+Response (409 - Conflicto):
+{
+  "success": false,
+  "error": "Este plato ya está siendo preparado por otro cocinero",
+  "procesandoPor": {
+    "cocineroId": "usr_456",
+    "alias": "María"
+  }
+}
+```
+
+#### 8.2 Liberar Plato
+
+```
+DELETE /api/comanda/:comandaId/plato/:platoId/procesando
+Content-Type: application/json
+Authorization: Bearer <JWT>
+
+Request Body:
+{
+  "cocineroId": "usr_123"
+}
+
+Response (200):
+{
+  "success": true
+}
+```
+
+#### 8.3 Finalizar Plato
+
+```
+PUT /api/comanda/:comandaId/plato/:platoId/finalizar
+Content-Type: application/json
+Authorization: Bearer <JWT>
+
+Request Body:
+{
+  "cocineroId": "usr_123"
+}
+
+Response (200):
+{
+  "success": true,
+  "data": {
+    "procesadoPor": {
+      "cocineroId": "usr_123",
+      "nombre": "Juan Pérez"
+    },
+    "comandaLista": false
+  }
+}
+
+Response (403 - No autorizado):
+{
+  "success": false,
+  "error": "Solo el cocinero que tomó este plato puede finalizarlo"
+}
+```
+
+### 9. Eventos Socket.io
+
+#### 9.1 Eventos Emitidos por el Servidor
+
+| Evento | Datos | Descripción |
+|--------|-------|-------------|
+| `plato-actualizado` | `{ tipo: 'PLATO_TOMADO', comandaId, platoId, procesandoPor }` | Un cocinero tomó un plato |
+| `plato-actualizado` | `{ tipo: 'PLATO_LIBERADO', comandaId, platoId }` | Un cocinero liberó un plato |
+| `plato-actualizado` | `{ tipo: 'CONFLICTO', comandaId, platoId, procesandoPor, mensaje }` | Conflicto al tomar plato |
+
+#### 9.2 Estructura del Objeto `procesandoPor`
+
+```javascript
+{
+  cocineroId: "usr_123",      // ID único del cocinero
+  nombre: "Juan Pérez",       // Nombre completo
+  alias: "Juan",              // Nombre corto para badge
+  timestamp: "2026-03-21T14:30:00Z"  // Cuándo tomó el plato
+}
+```
+
+### 10. Validaciones de Seguridad
+
+#### 10.1 En el Frontend
+
+1. **Verificación de propiedad antes de toggle:**
+   ```javascript
+   const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
+                         plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+   if (tomadoPorOtro) return; // Ignorar click
+   ```
+
+2. **Bloqueo de interacción en PlatoPreparacion:**
+   ```javascript
+   if (tomadoPorOtro || isEliminado) return; // No permitir click
+   ```
+
+3. **Exclusión en batch operations:**
+   ```javascript
+   const tomadoPorOtro = plato.procesandoPor?.cocineroId && 
+                         plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
+   if (tomadoPorOtro) {
+     console.warn(`⚠️ Plato excluido: tomado por ${plato.procesandoPor?.alias}`);
+     return;
+   }
+   ```
+
+#### 10.2 En el Backend
+
+1. **Validación de conflicto (409):** Si el plato ya tiene `procesandoPor` asignado a otro usuario
+2. **Validación de autorización (403):** Solo el cocinero que tomó el plato puede finalizarlo
+3. **Validación de token JWT:** Token válido y no expirado
+4. **Validación de rol:** Usuario debe tener rol `cocinero` o `admin`
+
+### 11. Casos de Uso Detallados
+
+#### 11.1 Caso: Cocinero toma plato nuevo
+
+```
+1. Cocinero A ve plato en estado "normal" (gris)
+2. Click en plato → Estado visual "procesando" (amarillo)
+3. Botón contextual muestra "Tomar plato" (azul)
+4. Click en "Tomar plato"
+5. Frontend llama: PUT /api/comanda/:id/plato/:id/procesando
+6. Backend asigna procesandoPor = { cocineroId: A, alias: "Juan" }
+7. Socket emite: { tipo: 'PLATO_TOMADO', ... }
+8. Todas las apps actualizan UI
+9. Plato muestra badge verde "Tú" (para A) o amarillo "Juan" (para otros)
+```
+
+#### 11.2 Caso: Cocinero libera plato tomado
+
+```
+1. Cocinero A ve plato con badge "Tú" (verde)
+2. Click en plato → Estado visual "dejar" (rojo)
+3. Botón contextual muestra "Dejar plato" (rojo)
+4. Click en "Dejar plato"
+5. Frontend llama: DELETE /api/comanda/:id/plato/:id/procesando
+6. Backend limpia procesandoPor = null
+7. Socket emite: { tipo: 'PLATO_LIBERADO', ... }
+8. Todas las apps actualizan UI
+9. Plato vuelve a estado "normal" sin badge
+```
+
+#### 11.3 Caso: Cocinero finaliza plato
+
+```
+1. Cocinero A ve plato con badge "Tú" (verde) en estado "dejar" (rojo)
+2. Click en plato → Estado visual "seleccionado" (verde)
+3. Botón contextual muestra "Finalizar plato" (verde)
+4. Click en "Finalizar plato"
+5. Frontend llama: PUT /api/comanda/:id/plato/:id/finalizar
+6. Backend valida que procesandoPor.cocineroId === A
+7. Backend cambia estado del plato a "recoger"
+8. Socket emite: { tipo: 'PLATO_FINALIZADO', ... }
+9. Plato se mueve a sección "Listos/Preparados"
+```
+
+#### 11.4 Caso: Conflicto - Dos cocineros intentan tomar mismo plato
+
+```
+1. Cocinero A y B ven mismo plato disponible
+2. Cocinero A hace click primero
+3. Frontend de A envía PUT /procesando con cocineroId: A
+4. Backend asigna procesandoPor = { cocineroId: A, alias: "Juan" }
+5. Socket emite PLATO_TOMADO
+6. Cocinero B había hecho click casi simultáneamente
+7. Frontend de B envía PUT /procesando con cocineroId: B
+8. Backend detecta conflicto (procesandoPor ya existe)
+9. Backend responde 409 Conflict
+10. Frontend de B recibe error y muestra toast:
+    "⚠️ Este plato ya fue tomado por Juan"
+11. UI de B actualiza plato con badge "Juan" (amarillo)
+```
+
+### 12. Animaciones y Feedback Visual
+
+#### 12.1 Animaciones por Estado
+
+**Estado `procesando` (amarillo):**
+```javascript
+procesando: {
+  scale: [1, 1.015, 1],
+  opacity: [1, 0.95, 1],
+  boxShadow: [
+    '0 0 8px rgba(251, 191, 36, 0.3)',
+    '0 0 16px rgba(251, 191, 36, 0.5)',
+    '0 0 8px rgba(251, 191, 36, 0.3)',
+  ],
+  transition: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+}
+```
+
+**Estado `dejar` (rojo):**
+```javascript
+dejar: {
+  scale: [1, 1.02, 1],
+  opacity: [1, 0.9, 1],
+  boxShadow: [
+    '0 0 8px rgba(239, 68, 68, 0.3)',
+    '0 0 16px rgba(239, 68, 68, 0.5)',
+    '0 0 8px rgba(239, 68, 68, 0.3)',
+  ],
+  transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+}
+```
+
+**Estado `seleccionado` (verde):**
+```javascript
+seleccionado: {
+  scale: 1,
+  opacity: 1,
+  boxShadow: [
+    '0 0 12px rgba(34, 197, 94, 0.4)',
+    '0 0 20px rgba(34, 197, 94, 0.6)',
+    '0 0 12px rgba(34, 197, 94, 0.4)',
+  ],
+  transition: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' },
+}
+```
+
+#### 12.2 Iconos Animados
+
+| Estado | Icono | Animación |
+|--------|-------|-----------|
+| `procesando` | ⏳ | Movimiento vertical suave |
+| `dejar` | ↩️ | Movimiento lateral |
+| `seleccionado` | ✓ | Spring de aparición |
+
+### 13. Resumen de Archivos Modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `src/hooks/useProcesamiento.js` | Hook completo de procesamiento multi-cocinero |
+| `src/components/Principal/PlatoPreparacion.jsx` | Badge de cocinero, estados visuales, bloqueo de interacción |
+| `src/components/Principal/Comandastyle.jsx` | Lógica multi-cocinero, handlers Socket.io, botón contextual |
+| `src/components/Principal/ComandastylePerso.jsx` | Configuración de cocinero para vista personalizada |
+
+---
+
+**Fin de la Documentación Detallada del Sistema Multi-Cocinero v7.2.1**
 
 
