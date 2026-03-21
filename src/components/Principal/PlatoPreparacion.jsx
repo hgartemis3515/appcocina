@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
  * 🔥 CORREGIDO: Ahora usa platoIndex en lugar de platoId para el endpoint de anulación
  * 
  * v7.2: Agregado soporte para mostrar badge de cocinero que esta procesando el plato
+ * v7.2.1: Agregado estado visual 'dejar' (rojo) para liberar platos tomados
  */
 const PlatoPreparacion = ({
   plato,
@@ -55,6 +56,20 @@ const PlatoPreparacion = ({
         ease: 'easeInOut',
       },
     },
+    dejar: {
+      scale: [1, 1.02, 1],
+      opacity: [1, 0.9, 1],
+      boxShadow: [
+        '0 0 8px rgba(239, 68, 68, 0.3)',
+        '0 0 16px rgba(239, 68, 68, 0.5)',
+        '0 0 8px rgba(239, 68, 68, 0.3)',
+      ],
+      transition: {
+        duration: 1.5,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      },
+    },
     seleccionado: {
       scale: 1,
       opacity: 1,
@@ -88,6 +103,15 @@ const PlatoPreparacion = ({
         ease: 'easeInOut',
       },
     },
+    dejar: {
+      x: [-2, 2, -2],
+      rotate: [0, -5, 5, 0],
+      transition: {
+        duration: 1.2,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      },
+    },
     seleccionado: {
       scale: [0, 1.1, 1],
       rotate: [0, -15, 0],
@@ -105,6 +129,8 @@ const PlatoPreparacion = ({
     switch (estadoVisual) {
       case 'seleccionado':
         return nightMode ? 'bg-green-500/30 text-green-400 border-green-500/50' : 'bg-green-500/20 text-green-700 border-green-500/50';
+      case 'dejar':
+        return nightMode ? 'bg-red-500/30 text-red-300 border-red-500/50' : 'bg-red-500/20 text-red-700 border-red-500/50';
       case 'procesando':
         return nightMode ? 'bg-yellow-400/30 text-yellow-200 border-yellow-400/50' : 'bg-yellow-400/20 text-yellow-700 border-yellow-400/50';
       default:
@@ -117,6 +143,9 @@ const PlatoPreparacion = ({
   if (estadoVisual === 'seleccionado') {
     checkBorderColor = '#22c55e';
     checkBgColor = 'rgba(34, 197, 94, 0.2)';
+  } else if (estadoVisual === 'dejar') {
+    checkBorderColor = '#ef4444';
+    checkBgColor = 'rgba(239, 68, 68, 0.2)';
   } else if (estadoVisual === 'procesando') {
     checkBorderColor = '#fbbf24';
     checkBgColor = 'rgba(251, 191, 36, 0.2)';
@@ -138,7 +167,7 @@ const PlatoPreparacion = ({
       }}
       className={`font-semibold leading-tight px-3 py-2 rounded-lg flex items-start gap-3 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
       style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px' }}
-      title={isEliminado ? 'Plato eliminado' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
+      title={isEliminado ? 'Plato eliminado' : estadoVisual === 'dejar' ? '↩️ Dejar plato' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
       variants={containerVariants}
       initial="normal"
       animate={visualState}
@@ -165,6 +194,17 @@ const PlatoPreparacion = ({
           >
             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
           </motion.svg>
+        )}
+        {visualState === 'dejar' && (
+          <motion.span
+            className="text-xl"
+            variants={iconVariants}
+            animate="dejar"
+            style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.5))' }}
+            aria-hidden
+          >
+            ↩️
+          </motion.span>
         )}
         {visualState === 'procesando' && (
           <motion.span

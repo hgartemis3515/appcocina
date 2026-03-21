@@ -1292,23 +1292,42 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     });
   };
 
-  // Toggle checkbox de plato individual - Ciclo 3 estados: Normal → Procesando → Seleccionado → Normal
+  // Toggle checkbox de plato individual - Ciclo de 3 estados según contexto
+  // v7.2: Ciclo diferente según si el plato está tomado por el cocinero actual
+  // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
+  // - Plato tomado por mí: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
   const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
-    // 🔥 CORREGIDO: Usar índice del plato en lugar de ID
     const key = `${comandaId}-${platoIndex}`;
+    const miUsuarioId = userId?.toString();
+    
+    // Buscar el plato para verificar si está tomado por mí
+    const comanda = comandas.find(c => c._id === comandaId);
+    const plato = comanda?.platos?.[platoIndex];
+    const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
     
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
       const estadoActual = nuevo.get(key) || 'normal';
       
-      // Ciclo: Normal → Procesando → Seleccionado → Normal
       let nuevoEstado;
-      if (estadoActual === 'normal') {
-        nuevoEstado = 'procesando'; // → Amarillo ⏳
-      } else if (estadoActual === 'procesando') {
-        nuevoEstado = 'seleccionado'; // → Verde ✓
+      if (tomadoPorMi) {
+        // Ciclo para platos que YO tomé: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+        if (estadoActual === 'normal') {
+          nuevoEstado = 'dejar'; // → Rojo ↩️ (para liberar)
+        } else if (estadoActual === 'dejar') {
+          nuevoEstado = 'seleccionado'; // → Verde ✓ (para finalizar)
+        } else {
+          nuevoEstado = 'normal'; // Reset
+        }
       } else {
-        nuevoEstado = 'normal'; // Reset □
+        // Ciclo normal: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
+        if (estadoActual === 'normal') {
+          nuevoEstado = 'procesando'; // → Amarillo ⏳
+        } else if (estadoActual === 'procesando') {
+          nuevoEstado = 'seleccionado'; // → Verde ✓
+        } else {
+          nuevoEstado = 'normal'; // Reset
+        }
       }
       
       nuevo.set(key, nuevoEstado);
@@ -1317,7 +1336,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       if (nuevoEstado === 'seleccionado') {
         setPlatosChecked(prev => {
           const nuevoChecks = new Map(prev);
-          nuevoChecks.set(key, true); // Check interno ON cuando verde
+          nuevoChecks.set(key, true);
           return nuevoChecks;
         });
       } else {
@@ -1331,7 +1350,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       
       return nuevo;
     });
-  }, []);
+  }, [comandas, userId]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -1601,16 +1620,19 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   // ============================================================
 
   /**
-   * Obtiene informacion detallada de los platos con interaccion (estado visual 'procesando' o 'seleccionado')
-   * v7.2: Incluye AMBOS estados para decision correcta del boton contextual
+   * Obtiene informacion detallada de los platos con interaccion
+   * v7.2: Incluye estados 'procesando', 'seleccionado' y 'dejar'
+   * También incluye platos que tienen procesandoPor asignado (tomados por alguien)
    * @returns {Array} Array de objetos con info de cada plato interactuado
    */
   const obtenerPlatosSeleccionadosInfo = useCallback(() => {
     const platosInfo = [];
+    const platosProcesadosSet = new Set();
     
+    // Método 1: Platos con estado visual local interactuado
     platoStates.forEach((estado, key) => {
-      // v7.2: Incluir tanto 'procesando' como 'seleccionado'
-      if (estado !== 'procesando' && estado !== 'seleccionado') return;
+      // v7.2: Incluir 'procesando', 'seleccionado' y 'dejar'
+      if (estado !== 'procesando' && estado !== 'seleccionado' && estado !== 'dejar') return;
       
       // Parsear key: formato es ${comandaId}-${platoIndex}
       const lastDashIndex = key.lastIndexOf('-');
@@ -1634,6 +1656,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       
       // Solo incluir platos que esten pendientes de preparacion
       if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
+        platosProcesadosSet.add(key);
         platosInfo.push({
           comandaId,
           platoId,
@@ -1641,9 +1664,37 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
           plato,
           nombre: plato.plato?.nombre || plato.nombre || 'Plato',
           procesandoPor: plato.procesandoPor,
-          estadoVisual: estado // Agregar estado visual para decision
+          estadoVisual: estado
         });
       }
+    });
+    
+    // Método 2: Platos que tienen procesandoPor asignado pero estado visual local 'normal'
+    // (estos están siendo trabajados por un cocinero pero el usuario no ha interactuado con ellos)
+    comandas.forEach(comanda => {
+      const comandaId = comanda._id;
+      (comanda.platos || []).forEach((plato, platoIndex) => {
+        if (!plato.procesandoPor?.cocineroId) return;
+        
+        const key = `${comandaId}-${platoIndex}`;
+        if (platosProcesadosSet.has(key)) return; // Ya incluido
+        
+        const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
+        if (!platoId) return;
+        
+        // Solo incluir si está pendiente de preparacion
+        if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
+          platosInfo.push({
+            comandaId,
+            platoId,
+            platoIndex,
+            plato,
+            nombre: plato.plato?.nombre || plato.nombre || 'Plato',
+            procesandoPor: plato.procesandoPor,
+            estadoVisual: 'procesando' // Visualmente se muestra en amarillo
+          });
+        }
+      });
     });
     
     return platosInfo;
@@ -1653,8 +1704,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
    * Determina que accion debe mostrar el boton principal de la barra inferior
    * REGLAS v7.2:
    * - Si algun plato esta tomado por otro cocinero -> SIN_ACCION con mensaje
+   * - Si tengo platos en estado 'dejar' (rojo) -> DEJAR_PLATO (liberar)
+   * - Si tengo platos en estado 'seleccionado' (verde) y tomados por mi -> FINALIZAR_PLATO
    * - Si tengo platos en amarillo sin tomar -> TOMAR_PLATO
-   * - Si tengo platos tomados por mi (amarillo o verde) -> FINALIZAR_PLATO
    * - Mixto (algunos tomados por mi, algunos sin tomar) -> TOMAR_PLATO para los restantes
    * 
    * @returns {{modo: string, platos: Array, mensaje: string, subMensaje: string}}
@@ -1681,18 +1733,22 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       };
     }
     
-    // Analizar estados de procesamiento
+    // Analizar estados de procesamiento y visual
     const analisis = platosSeleccionados.map(p => {
       const procesandoPor = p.procesandoPor;
       const tomadoPorMi = procesandoPor?.cocineroId?.toString() === miUsuarioId;
       const tomadoPorOtro = procesandoPor?.cocineroId && !tomadoPorMi;
       const sinTomar = !procesandoPor?.cocineroId;
+      const quiereDejar = p.estadoVisual === 'dejar';
+      const quiereFinalizar = p.estadoVisual === 'seleccionado';
       
       return { 
         ...p, 
         tomadoPorMi, 
         tomadoPorOtro, 
         sinTomar,
+        quiereDejar,
+        quiereFinalizar,
         nombreCocinero: procesandoPor?.alias || procesandoPor?.nombre || 'otro'
       };
     });
@@ -1709,18 +1765,29 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       };
     }
     
-    // CASO 2: Platos tomados por mi (amarillo o verde) -> FINALIZAR
-    const platosMios = analisis.filter(p => p.tomadoPorMi);
-    if (platosMios.length > 0) {
+    // CASO 2: Platos en estado 'dejar' (rojo) -> DEJAR_PLATO (liberar)
+    const platosADejar = analisis.filter(p => p.quiereDejar && p.tomadoPorMi);
+    if (platosADejar.length > 0) {
+      return {
+        modo: 'DEJAR_PLATO',
+        platos: platosADejar,
+        mensaje: `Dejar ${platosADejar.length} Plato${platosADejar.length > 1 ? 's' : ''}`,
+        subMensaje: 'Liberar para otros cocineros'
+      };
+    }
+    
+    // CASO 3: Platos en estado 'seleccionado' (verde) tomados por mi -> FINALIZAR
+    const platosAFinalizar = analisis.filter(p => p.quiereFinalizar && p.tomadoPorMi);
+    if (platosAFinalizar.length > 0) {
       return {
         modo: 'FINALIZAR_PLATO',
-        platos: platosMios,
-        mensaje: `Finalizar ${platosMios.length} Plato${platosMios.length > 1 ? 's' : ''}`,
+        platos: platosAFinalizar,
+        mensaje: `Finalizar ${platosAFinalizar.length} Plato${platosAFinalizar.length > 1 ? 's' : ''}`,
         subMensaje: 'Marcar como listos para recoger'
       };
     }
     
-    // CASO 3: Platos sin tomar -> TOMAR
+    // CASO 4: Platos sin tomar -> TOMAR
     const platosSinTomar = analisis.filter(p => p.sinTomar);
     if (platosSinTomar.length > 0) {
       return {
@@ -2658,7 +2725,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                 */}
                 {(() => {
                   const { modo, platos, mensaje, subMensaje } = determinarAccionBoton();
-                  const hayPlatosSeleccionados = getTotalPlatosMarcados() > 0;
+                  // v7.2: Contar platos con interaccion (amarillo O verde)
+                  const platosConInteraccion = obtenerPlatosSeleccionadosInfo();
+                  const hayPlatosSeleccionados = platosConInteraccion.length > 0;
                   const isLoading = isFinalizandoPlatos || procesamientoLoading;
                   
                   // Determinar estilos segun el modo
@@ -2672,7 +2741,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                       case 'TOMAR_PLATO':
                         return 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer';
                       case 'DEJAR_PLATO':
-                        return 'bg-yellow-500 text-gray-900 hover:bg-yellow-600 cursor-pointer';
+                        return 'bg-red-500 text-white hover:bg-red-600 cursor-pointer';
                       case 'FINALIZAR_PLATO':
                         return 'bg-green-600 text-white hover:bg-green-700 cursor-pointer';
                       default:
@@ -2687,7 +2756,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     if (!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading) return {};
                     const colors = {
                       'TOMAR_PLATO': 'rgba(59, 130, 246, 0.7)',
-                      'DEJAR_PLATO': 'rgba(234, 179, 8, 0.7)',
+                      'DEJAR_PLATO': 'rgba(239, 68, 68, 0.7)',
                       'FINALIZAR_PLATO': 'rgba(34, 197, 94, 0.7)'
                     };
                     return { 
@@ -3620,7 +3689,16 @@ const SicarComandaCard = ({
                   // 🔥 CORREGIDO: Obtener el índice real del plato en comanda.platos
                   const platoIndex = comanda.platos.indexOf(plato);
                   const platoKey = `${comandaId}-${platoIndex}`;
-                  const estadoVisual = platoStates.get(platoKey) || 'normal';
+                  const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
+                  
+                  // v7.2: Si el plato tiene procesandoPor y está en estado local normal/procesando,
+                  // mostrar 'procesando' visualmente (amarillo) para indicar que alguien lo está trabajando
+                  // Si está en 'seleccionado' (verde), mantener ese estado
+                  let estadoVisual = estadoVisualLocal;
+                  if (plato.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
+                    estadoVisual = 'procesando';
+                  }
+                  
                   return (
                     <PlatoPreparacion
                       key={platoKey}
