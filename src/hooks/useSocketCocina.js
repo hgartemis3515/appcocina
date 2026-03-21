@@ -4,12 +4,55 @@ import moment from 'moment-timezone';
 import { getServerBaseUrl } from '../config/apiConfig';
 
 /**
+ * Decodifica el payload de un JWT sin validar la firma
+ * Solo para lectura de claims (exp, rol, userId, etc.)
+ * @param {string} token - JWT
+ * @returns {Object|null} Payload decodificado o null si es inválido
+ */
+const decodeJwtPayload = (token) => {
+  try {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * Verifica si un token está expirado o próximo a expirar
+ * @param {string} token - JWT
+ * @returns {Object} { isExpired, willExpireSoon, expiresAt, remainingMs }
+ */
+const checkTokenExpiry = (token) => {
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.exp) {
+    return { isExpired: true, willExpireSoon: true, expiresAt: null, remainingMs: 0 };
+  }
+  
+  const expiresAt = payload.exp * 1000; // Convertir a milisegundos
+  const now = Date.now();
+  const remainingMs = expiresAt - now;
+  
+  return {
+    isExpired: remainingMs <= 0,
+    willExpireSoon: remainingMs <= 5 * 60 * 1000, // 5 minutos antes
+    expiresAt,
+    remainingMs
+  };
+};
+
+/**
  * Hook personalizado para manejar conexión Socket.io con namespace /cocina
  * 
  * Características de seguridad:
  * - Handshake autenticado con token JWT
  * - No reconecta en bucle si auth falla
  * - Valida conexión autenticada antes de operar
+ * - Valida expiración del token ANTES de intentar conectar
  * 
  * TEMA 1: Ahora soporta rooms personales por cocinero para recibir
  * actualizaciones de configuración específicas
@@ -48,11 +91,21 @@ const useSocketCocina = ({
   const heartbeatIntervalRef = useRef(null);
   const pollingFallbackIntervalRef = useRef(null);
   const authFailedRef = useRef(false); // Flag para no reintentar tras error de auth
+  const lastTokenRef = useRef(null); // Trackear el token anterior para detectar cambios
+  const isUnmountedRef = useRef(false); // Trackear si el componente se ha desmontado
+  const currentTokenRef = useRef(token); // Token actual para verificar en callbacks
 
   /**
    * Maneja errores de autenticación
+   * Incluye protección contra actualizaciones después del desmontaje
    */
   const handleAuthError = useCallback((errorMessage) => {
+    // No actualizar estado si el componente ya se desmontó
+    if (isUnmountedRef.current) {
+      console.log('[useSocketCocina] Componente desmontado, ignorando error de auth');
+      return;
+    }
+    
     console.error('[useSocketCocina] Error de autenticación:', errorMessage);
     setAuthError(errorMessage);
     setConnectionStatus('auth_error');
@@ -66,18 +119,63 @@ const useSocketCocina = ({
   }, []);
 
   useEffect(() => {
+    // Resetear flag de desmontaje al inicio
+    isUnmountedRef.current = false;
+    
+    // Actualizar referencia al token actual
+    currentTokenRef.current = token;
+    
     // VALIDACIÓN: Token es obligatorio
     if (!token) {
       console.warn('[useSocketCocina] No hay token, no se puede conectar');
+      
+      // IMPORTANTE: Desconectar cualquier socket existente cuando el token desaparece
+      // (ej: al cerrar sesión)
+      if (socketRef.current) {
+        console.log('[useSocketCocina] Desconectando socket existente por falta de token');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
+      // Limpiar referencia al token
+      currentTokenRef.current = null;
+      
       setConnectionStatus('desconectado');
+      setAuthError(null);
+      authFailedRef.current = false; // Resetear para el próximo login
       return;
     }
 
-    // Si ya falló la auth, no reintentar
-    if (authFailedRef.current) {
-      console.warn('[useSocketCocina] Auth previamente fallida, no reintentando');
+    // VALIDACIÓN: Verificar si el token está expirado ANTES de conectar
+    const tokenExpiry = checkTokenExpiry(token);
+    if (tokenExpiry.isExpired) {
+      console.warn('[useSocketCocina] Token expirado, no se intentará conectar');
+      handleAuthError('Su sesión ha expirado. Por favor, inicie sesión nuevamente.');
       return;
     }
+
+    // Si el token expira pronto, loguear advertencia
+    if (tokenExpiry.willExpireSoon) {
+      console.warn(`[useSocketCocina] Token expira pronto: ${Math.round(tokenExpiry.remainingMs / 60000)} minutos restantes`);
+    }
+
+    // Si ya falló la auth pero tenemos un token nuevo (diferente), resetear el flag
+    // Esto permite reconectar cuando el usuario hace login nuevamente
+    if (authFailedRef.current && lastTokenRef.current !== token) {
+      console.log('[useSocketCocina] Nuevo token detectado, reseteando flag de auth fallida');
+      authFailedRef.current = false;
+      setAuthError(null);
+      setConnectionStatus('desconectado');
+    }
+
+    // Si ya falló la auth con este mismo token, no reintentar
+    if (authFailedRef.current) {
+      console.warn('[useSocketCocina] Auth previamente fallida con este token, no reintentando');
+      return;
+    }
+
+    // Guardar el token actual para comparaciones futuras
+    lastTokenRef.current = token;
 
     const serverUrl = getServerBaseUrl();
     const fechaActual = moment().tz("America/Lima").format('YYYY-MM-DD');
@@ -102,10 +200,17 @@ const useSocketCocina = ({
 
     // Evento: Conexión establecida
     socket.on('connect', () => {
+      // Verificar que este socket sigue siendo el actual
+      if (socketRef.current !== socket) {
+        console.log('[useSocketCocina] Ignorando connect de socket obsoleto');
+        return;
+      }
+      
       console.log('[useSocketCocina] Socket conectado:', socket.id);
       setConnected(true);
       setConnectionStatus('conectado');
       setAuthError(null);
+      authFailedRef.current = false; // Resetear flag en conexión exitosa
       ultimoPingRef.current = Date.now();
 
       // Unirse a room por fecha
@@ -126,6 +231,25 @@ const useSocketCocina = ({
 
     // Evento: Error de conexión (incluye errores de auth)
     socket.on('connect_error', (error) => {
+      // Verificar que este socket sigue siendo el actual
+      if (socketRef.current !== socket) {
+        console.log('[useSocketCocina] Ignorando error de socket obsoleto');
+        return;
+      }
+      
+      // Si ya no hay token o el componente se desmontó, ignorar silenciosamente
+      // Usar ref en lugar del valor de closure
+      if (!currentTokenRef.current || isUnmountedRef.current) {
+        console.log('[useSocketCocina] Token removido o componente desmontado, ignorando error');
+        return;
+      }
+      
+      // Si ya falló la auth previamente, no mostrar más errores
+      if (authFailedRef.current) {
+        console.log('[useSocketCocina] Auth ya falló previamente, ignorando error adicional');
+        return;
+      }
+      
       console.error('[useSocketCocina] Error de conexión:', error.message);
       
       // Detectar error de autenticación
@@ -393,6 +517,8 @@ const useSocketCocina = ({
     // Cleanup
     return () => {
       console.log('[useSocketCocina] Limpiando conexión');
+      isUnmountedRef.current = true;
+      currentTokenRef.current = null;
       
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
@@ -404,9 +530,12 @@ const useSocketCocina = ({
         clearTimeout(reconnectTimeoutRef.current);
       }
       
-      socket.off('*'); // Remover todos los listeners
-      socket.disconnect();
-      socketRef.current = null;
+      // Desconectar y limpiar listeners
+      if (socketRef.current) {
+        socketRef.current.off('*');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
   }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, obtenerComandas, cocineroId]);
 

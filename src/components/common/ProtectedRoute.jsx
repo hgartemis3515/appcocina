@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { FaSpinner } from 'react-icons/fa';
 
@@ -10,6 +10,13 @@ import { FaSpinner } from 'react-icons/fa';
  */
 const ProtectedRoute = ({ children, onRedirect }) => {
   const { isAuthenticated, loading } = useAuth();
+
+  // Redirigir al login si no está autenticado (efecto secundario)
+  useEffect(() => {
+    if (!loading && !isAuthenticated && onRedirect) {
+      onRedirect();
+    }
+  }, [loading, isAuthenticated, onRedirect]);
 
   // Mientras se verifica la autenticación
   if (loading) {
@@ -23,12 +30,16 @@ const ProtectedRoute = ({ children, onRedirect }) => {
     );
   }
 
-  // Si no está autenticado, redirigir al login
+  // Si no está autenticado, mostrar pantalla de carga mientras redirige
   if (!isAuthenticated) {
-    if (onRedirect) {
-      onRedirect();
-    }
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-4xl text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-400">Redirigiendo...</p>
+        </div>
+      </div>
+    );
   }
 
   // Si está autenticado, mostrar el contenido
