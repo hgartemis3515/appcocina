@@ -27,6 +27,7 @@ import {
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
+import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
@@ -94,6 +95,11 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   const [anularMotivo, setAnularMotivo] = useState('');
   const [anularObservaciones, setAnularObservaciones] = useState('');
   const [anularLoading, setAnularLoading] = useState(false);
+  // 🔥 NUEVO: Estado para modal de dejar plato (con motivo para auditoría)
+  const [showDejarModal, setShowDejarModal] = useState(false);
+  const [dejarMotivo, setDejarMotivo] = useState('');
+  const [dejarLoading, setDejarLoading] = useState(false);
+  const [platosPendientesDejar, setPlatosPendientesDejar] = useState([]);
   const [expandedComandas, setExpandedComandas] = useState(new Set());
   const [horaActual, setHoraActual] = useState(moment().tz("America/Lima"));
   const [fechaActual, setFechaActual] = useState(moment().tz("America/Lima"));
@@ -189,6 +195,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     setShowRevertir(false);
     setShowSearch(false);
     setShowAnularModal(false);
+    setShowDejarModal(false);
     
     // Navegar al menú
     if (onGoToMenu) {
@@ -1874,17 +1881,37 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
   /**
    * Handler para DEJAR (liberar) platos que el cocinero actual habia tomado
+   * Muestra modal para ingresar motivo antes de liberar (para auditoría)
    */
   const handleDejarPlatos = useCallback(async (platos) => {
     if (!platos || platos.length === 0) return;
     
+    // Guardar platos pendientes y mostrar modal de motivo
+    setPlatosPendientesDejar(platos);
+    setDejarMotivo('');
+    setShowDejarModal(true);
+  }, []);
+
+  /**
+   * Ejecuta la liberación de platos después de confirmar el motivo
+   */
+  const ejecutarDejarPlatos = useCallback(async () => {
+    if (!dejarMotivo.trim()) {
+      alert('Debe ingresar un motivo para dejar el plato');
+      return;
+    }
+    
+    if (platosPendientesDejar.length === 0) return;
+    
+    setShowDejarModal(false);
     setIsFinalizandoPlatos(true);
-    console.log(`[DejarPlatos] Liberando ${platos.length} plato(s)...`);
+    setDejarLoading(true);
+    console.log(`[DejarPlatos] Liberando ${platosPendientesDejar.length} plato(s) con motivo: ${dejarMotivo}`);
     
     try {
       const resultados = await Promise.allSettled(
-        platos.map(({ comandaId, platoId }) => 
-          liberarPlato(comandaId, platoId, userId)
+        platosPendientesDejar.map(({ comandaId, platoId }) => 
+          liberarPlato(comandaId, platoId, userId, dejarMotivo.trim())
         )
       );
       
@@ -1893,12 +1920,26 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       ).length;
       
       if (exitosos > 0) {
+        // Limpiar estado visual de los platos liberados
+        platosPendientesDejar.forEach(({ comandaId, platoIndex }) => {
+          const key = `${comandaId}-${platoIndex}`;
+          setPlatoStates(prev => {
+            const nuevo = new Map(prev);
+            nuevo.set(key, 'normal');
+            return nuevo;
+          });
+        });
+        
         setToastMessage({
           type: 'info',
           message: `Plato${exitosos > 1 ? 's liberados' : ' liberado'} - disponible para otros`,
           duration: 3000
         });
       }
+      
+      // Limpiar estado
+      setPlatosPendientesDejar([]);
+      setDejarMotivo('');
       
     } catch (error) {
       console.error('[DejarPlatos] Error:', error);
@@ -1909,8 +1950,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       });
     } finally {
       setIsFinalizandoPlatos(false);
+      setDejarLoading(false);
     }
-  }, [userId, liberarPlato]);
+  }, [userId, liberarPlato, dejarMotivo, platosPendientesDejar]);
 
   // Handler para finalizar platos marcados con checkboxes
   const handleFinalizarPlatosGlobal = useCallback(async () => {
@@ -3186,6 +3228,102 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
               >
                 Cancelar
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🔥 NUEVO: Modal de Dejar Plato con motivo para auditoría */}
+      <AnimatePresence>
+        {showDejarModal && (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowDejarModal(false)}
+          >
+            <motion.div 
+              className={`${nightMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border-2 border-yellow-500`}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">↩️</span>
+                <h2 className={`text-xl font-bold ${textMain}`}>Dejar Plato</h2>
+              </div>
+              
+              <p className={`${textSecondary} text-sm mb-4`}>
+                Vas a liberar <span className="font-bold text-yellow-400">{platosPendientesDejar.length}</span> plato{platosPendientesDejar.length > 1 ? 's' : ''} para que otro cocinero pueda tomarlo{platosPendientesDejar.length > 1 ? 's' : ''}.
+              </p>
+              
+              <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3 mb-4">
+                <p className="text-xs text-yellow-300">
+                  ⚠️ Esta acción quedará registrada en auditoría con el motivo que indiques.
+                </p>
+              </div>
+              
+              <div className="mb-4">
+                <label className={`block text-sm font-semibold ${textMain} mb-2`}>
+                  Motivo para dejar el plato <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={dejarMotivo}
+                  onChange={(e) => setDejarMotivo(e.target.value)}
+                  className={`w-full p-3 rounded-lg ${nightMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} border ${nightMode ? 'border-gray-600' : 'border-gray-300'} focus:border-yellow-500 focus:outline-none`}
+                >
+                  <option value="">Seleccione un motivo...</option>
+                  <option value="cambio_orden">Cambio de orden/prioridad</option>
+                  <option value="falta_insumos">Falta de insumos</option>
+                  <option value="error_toma">Error al tomar el plato</option>
+                  <option value="solicitud_cliente">Solicitud del cliente</option>
+                  <option value="emergencia">Emergencia</option>
+                  <option value="otro">Otro motivo</option>
+                </select>
+              </div>
+              
+              {dejarMotivo === 'otro' && (
+                <div className="mb-4">
+                  <label className={`block text-sm font-semibold ${textMain} mb-2`}>
+                    Especifique el motivo <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={dejarMotivo === 'otro' ? '' : dejarMotivo}
+                    onChange={(e) => setDejarMotivo(`otro: ${e.target.value}`)}
+                    placeholder="Describa el motivo..."
+                    className={`w-full p-3 rounded-lg ${nightMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} border ${nightMode ? 'border-gray-600' : 'border-gray-300'} focus:border-yellow-500 focus:outline-none`}
+                  />
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDejarModal(false);
+                    setDejarMotivo('');
+                    setPlatosPendientesDejar([]);
+                  }}
+                  className={`flex-1 font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95 ${nightMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={ejecutarDejarPlatos}
+                  disabled={!dejarMotivo || dejarLoading}
+                  className={`flex-1 font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95 ${
+                    dejarMotivo && !dejarLoading
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  {dejarLoading ? 'Procesando...' : 'Dejar Plato'}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

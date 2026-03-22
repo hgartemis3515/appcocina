@@ -96,8 +96,12 @@ const useProcesamiento = ({
 
   /**
    * Liberar un plato que se había tomado
+   * @param {string} comandaId - ID de la comanda
+   * @param {string} platoId - ID del plato
+   * @param {string} cocineroId - ID del cocinero que libera
+   * @param {string} motivo - Motivo de la liberación (para auditoría)
    */
-  const liberarPlato = useCallback(async (comandaId, platoId, cocineroId) => {
+  const liberarPlato = useCallback(async (comandaId, platoId, cocineroId, motivo = '') => {
     setLoading(true);
     setError(null);
     
@@ -110,7 +114,7 @@ const useProcesamiento = ({
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          data: { cocineroId }
+          data: { cocineroId, motivo }
         }
       );
       
