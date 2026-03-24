@@ -253,8 +253,9 @@ const useProcesamiento = ({
 
   /**
    * Liberar una comanda
+   * v7.4.1: Acepta motivo para auditoría
    */
-  const liberarComanda = useCallback(async (comandaId, cocineroId) => {
+  const liberarComanda = useCallback(async (comandaId, cocineroId, motivo = '') => {
     setLoading(true);
     setError(null);
     
@@ -267,7 +268,7 @@ const useProcesamiento = ({
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          data: { cocineroId }
+          data: { cocineroId, motivo }
         }
       );
       

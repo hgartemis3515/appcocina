@@ -100,6 +100,11 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   const [dejarMotivo, setDejarMotivo] = useState('');
   const [dejarLoading, setDejarLoading] = useState(false);
   const [platosPendientesDejar, setPlatosPendientesDejar] = useState([]);
+  // v7.4.1: Estado para modal de dejar comanda (con motivo para auditoría)
+  const [showDejarComandaModal, setShowDejarComandaModal] = useState(false);
+  const [dejarComandaMotivo, setDejarComandaMotivo] = useState('');
+  const [dejarComandaLoading, setDejarComandaLoading] = useState(false);
+  const [comandaPendienteDejar, setComandaPendienteDejar] = useState(null);
   const [expandedComandas, setExpandedComandas] = useState(new Set());
   const [horaActual, setHoraActual] = useState(moment().tz("America/Lima"));
   const [fechaActual, setFechaActual] = useState(moment().tz("America/Lima"));
@@ -2552,14 +2557,36 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
   /**
    * Handler para dejar una comanda (liberar)
+   * v7.4.1: Muestra modal para ingresar motivo antes de liberar (para auditoría)
    */
-  const handleDejarComanda = useCallback(async (comandaId) => {
+  const handleDejarComanda = useCallback((comandaId) => {
     if (!userId) {
       setToastMessage({ type: 'error', message: '⚠️ Usuario no identificado', duration: 3000 });
       return;
     }
     
-    console.log(`[DejarComanda] Liberando comanda ${comandaId}`);
+    // Guardar comanda pendiente y mostrar modal de motivo
+    setComandaPendienteDejar(comandaId);
+    setDejarComandaMotivo('');
+    setShowDejarComandaModal(true);
+  }, [userId]);
+  
+  /**
+   * Ejecuta la liberación de la comanda después de confirmar el motivo
+   */
+  const ejecutarDejarComanda = useCallback(async () => {
+    if (!dejarComandaMotivo.trim()) {
+      alert('Debe ingresar un motivo para dejar la comanda');
+      return;
+    }
+    
+    if (!comandaPendienteDejar || !userId) return;
+    
+    setShowDejarComandaModal(false);
+    setDejarComandaLoading(true);
+    
+    const comandaId = comandaPendienteDejar;
+    console.log(`[DejarComanda] Liberando comanda ${comandaId} con motivo: ${dejarComandaMotivo}`);
     
     // Resetear estado visual de la comanda
     setComandaStates(prev => {
@@ -2568,7 +2595,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       return nuevo;
     });
     
-    const result = await liberarComanda(comandaId, userId);
+    const result = await liberarComanda(comandaId, userId, dejarComandaMotivo.trim());
     
     if (result.success) {
       // Resetear estados visuales de los platos
@@ -2583,8 +2610,19 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         }
         return nuevo;
       });
+      
+      setToastMessage({
+        type: 'info',
+        message: 'Comanda liberada - disponible para otros',
+        duration: 3000
+      });
     }
-  }, [userId, liberarComanda, comandas, setPlatoStates, setComandaStates]);
+    
+    // Limpiar estado
+    setComandaPendienteDejar(null);
+    setDejarComandaMotivo('');
+    setDejarComandaLoading(false);
+  }, [userId, liberarComanda, dejarComandaMotivo, comandaPendienteDejar, comandas, setComandaStates, setPlatoStates]);
 
   /**
    * Handler para finalizar una comanda completa
@@ -3731,6 +3769,147 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* 🔥 v7.4.1: Modal de Dejar Comanda con motivo para auditoría */}
+      <AnimatePresence>
+        {showDejarComandaModal && (() => {
+          // Obtener la comanda y sus platos tomados por el usuario actual
+          const comanda = comandas.find(c => c._id === comandaPendienteDejar);
+          const platosTomados = comanda?.platos?.filter(p => 
+            p.procesandoPor?.cocineroId?.toString() === userId?.toString() && !p.eliminado && !p.anulado
+          ) || [];
+          const totalPlatos = platosTomados.length;
+          
+          return (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowDejarComandaModal(false)}
+          >
+            <motion.div 
+              className={`${nightMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl border-2 border-red-500 max-h-[80vh] overflow-y-auto`}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">↩️</span>
+                <h2 className={`text-xl font-bold ${textMain}`}>Dejar Comanda</h2>
+                {comanda && (
+                  <span className={`ml-auto text-sm font-semibold ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    #{comanda.comandaNumber}
+                  </span>
+                )}
+              </div>
+              
+              <p className={`${textSecondary} text-sm mb-4`}>
+                Vas a liberar <span className="font-bold text-red-400">{totalPlatos}</span> plato{totalPlatos !== 1 ? 's' : ''} para que otro cocinero pueda tomarlo{totalPlatos !== 1 ? 's' : ''}.
+              </p>
+              
+              {/* Lista de platos a liberar */}
+              {platosTomados.length > 0 && (
+                <div className="mb-4">
+                  <label className={`block text-sm font-semibold ${textMain} mb-2`}>
+                    Platos que se liberarán:
+                  </label>
+                  <div className={`rounded-lg border ${nightMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'} max-h-40 overflow-y-auto`}>
+                    {platosTomados.map((plato, idx) => {
+                      const nombre = plato.plato?.nombre || plato.nombre || 'Plato sin nombre';
+                      const cantidad = comanda?.cantidades?.[comanda.platos.indexOf(plato)] || 1;
+                      return (
+                        <div 
+                          key={idx}
+                          className={`flex items-center justify-between px-3 py-2 ${idx < platosTomados.length - 1 ? `border-b ${nightMode ? 'border-gray-700' : 'border-gray-200'}` : ''}`}
+                        >
+                          <span className={`text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {nombre}
+                          </span>
+                          {cantidad > 1 && (
+                            <span className={`text-xs font-semibold ${nightMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              x{cantidad}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4">
+                <p className="text-xs text-red-300">
+                  ⚠️ Esta acción quedará registrada en auditoría con el motivo que indiques.
+                </p>
+              </div>
+              
+              <div className="mb-4">
+                <label className={`block text-sm font-semibold ${textMain} mb-2`}>
+                  Motivo para dejar la comanda <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={dejarComandaMotivo}
+                  onChange={(e) => setDejarComandaMotivo(e.target.value)}
+                  className={`w-full p-3 rounded-lg ${nightMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} border ${nightMode ? 'border-gray-600' : 'border-gray-300'} focus:border-red-500 focus:outline-none`}
+                >
+                  <option value="">Seleccione un motivo...</option>
+                  <option value="cambio_prioridad">Cambio de prioridad</option>
+                  <option value="falta_insumos">Falta de insumos</option>
+                  <option value="error_toma">Error al tomar la comanda</option>
+                  <option value="solicitud_cliente">Solicitud del cliente</option>
+                  <option value="emergencia">Emergencia</option>
+                  <option value="cambio_turno">Cambio de turno</option>
+                  <option value="otro">Otro motivo</option>
+                </select>
+              </div>
+              
+              {dejarComandaMotivo === 'otro' && (
+                <div className="mb-4">
+                  <label className={`block text-sm font-semibold ${textMain} mb-2`}>
+                    Especifique el motivo <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={dejarComandaMotivo === 'otro' ? '' : dejarComandaMotivo}
+                    onChange={(e) => setDejarComandaMotivo(`otro: ${e.target.value}`)}
+                    placeholder="Describa el motivo..."
+                    className={`w-full p-3 rounded-lg ${nightMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} border ${nightMode ? 'border-gray-600' : 'border-gray-300'} focus:border-red-500 focus:outline-none`}
+                  />
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDejarComandaModal(false);
+                    setDejarComandaMotivo('');
+                    setComandaPendienteDejar(null);
+                  }}
+                  className={`flex-1 font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95 ${nightMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={ejecutarDejarComanda}
+                  disabled={!dejarComandaMotivo || dejarComandaLoading}
+                  className={`flex-1 font-semibold py-2.5 px-6 rounded-lg transition-all duration-150 shadow-md hover:shadow-lg active:scale-95 ${
+                    dejarComandaMotivo && !dejarComandaLoading
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  {dejarComandaLoading ? 'Procesando...' : 'Dejar Comanda'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* Modal de confirmación ENTREGADO - Mejorado con Framer Motion */}
