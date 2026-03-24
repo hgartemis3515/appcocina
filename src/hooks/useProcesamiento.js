@@ -297,6 +297,65 @@ const useProcesamiento = ({
     }
   }, [getToken, showToast, onProcesamientoChange]);
 
+  /**
+   * Finalizar una comanda completa
+   * v7.4: Sistema de 3 estados para Finalizar Comanda
+   */
+  const finalizarComanda = useCallback(async (comandaId, cocineroId) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/finalizar`,
+        { cocineroId },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      showToast({
+        type: 'success',
+        message: '✅ Comanda finalizada',
+        duration: 3000
+      });
+      
+      onProcesamientoChange({
+        type: 'COMANDA_FINALIZADA',
+        comandaId,
+        cocinero: response.data?.data?.cocinero || { cocineroId },
+        comanda: response.data?.data?.comanda
+      });
+      
+      return { success: true, data: response.data };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al finalizar la comanda';
+      
+      if (err.response?.status === 403) {
+        showToast({
+          type: 'warning',
+          message: `⚠️ ${errorMsg}`,
+          duration: 4000
+        });
+      } else {
+        showToast({
+          type: 'error',
+          message: `❌ ${errorMsg}`,
+          duration: 4000
+        });
+      }
+      
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, showToast, onProcesamientoChange]);
+
   return {
     loading,
     error,
@@ -304,7 +363,8 @@ const useProcesamiento = ({
     liberarPlato,
     finalizarPlato,
     tomarComanda,
-    liberarComanda
+    liberarComanda,
+    finalizarComanda
   };
 };
 

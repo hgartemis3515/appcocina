@@ -560,6 +560,64 @@ const useSocketCocina = ({
       }
     });
 
+    // ============================================================
+    // EVENTOS DE COMANDAS v7.4: Dejar/Finalizar Comanda (3 estados)
+    // ============================================================
+
+    // Evento: Comanda liberada (Dejar Comanda)
+    socket.on('comanda-liberada', (data) => {
+      console.log('[useSocketCocina] Comanda liberada:', data.comandaNumber || data.comandaId);
+      ultimoPingRef.current = Date.now();
+
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          tipo: 'COMANDA_LIBERADA',
+          comandaId: data.comandaId,
+          comanda: data.comanda,
+          cocineroId: data.cocineroId,
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
+    // Evento: Comanda finalizada (Finalizar Comanda)
+    socket.on('comanda-finalizada', (data) => {
+      console.log('[useSocketCocina] Comanda finalizada:', data.comandaNumber || data.comandaId);
+      ultimoPingRef.current = Date.now();
+
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          tipo: 'COMANDA_FINALIZADA',
+          comandaId: data.comandaId,
+          comanda: data.comanda,
+          cocinero: data.cocinero,
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
+    // Evento: Comanda tomada (Tomar Comanda)
+    socket.on('comanda-procesando', (data) => {
+      console.log('[useSocketCocina] Comanda tomada:', data.comandaNumber || data.comandaId);
+      ultimoPingRef.current = Date.now();
+
+      if (onPlatoActualizado) {
+        onPlatoActualizado({
+          tipo: 'COMANDA_TOMADA',
+          comandaId: data.comandaId,
+          comanda: data.comanda,
+          procesandoPor: data.cocinero,
+          timestamp: data.timestamp
+        });
+      } else if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
     // Heartbeat para mantener conexión activa
     heartbeatIntervalRef.current = setInterval(() => {
       if (socket.connected) {

@@ -122,6 +122,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
   // Estados visuales de platos: 'normal' | 'procesando' | 'seleccionado' (local-only, persistente)
   const [platoStates, setPlatoStates] = useState(new Map()); // Map<`${comandaId}-${platoId}`, 'normal'|'procesando'|'seleccionado'>
+  // v7.4: Estados visuales de comandas para el ciclo de 3 estados (normal | dejar | finalizar)
+  const [comandaStates, setComandaStates] = useState(new Map()); // Map<comandaId, 'normal'|'dejar'|'finalizar'>
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
   // Estado para checkboxes de platos individuales: Map<`${comandaId}-${platoId}`, boolean>
   const [platosChecked, setPlatosChecked] = useState(new Map());
@@ -230,8 +232,139 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           };
         }));
         break;
+        
+      case 'COMANDA_TOMADA':
+        // Actualizar estado local de la comanda
+        setComandas(prev => prev.map(comanda => {
+          if (comanda._id !== data.comandaId) return comanda;
+          
+          // Si viene la comanda completa con platos actualizados, usarla directamente
+          if (data.comanda && data.comanda.platos) {
+            return data.comanda;
+          }
+          
+          // Si no, actualizar solo el procesandoPor del encabezado
+          return {
+            ...comanda,
+            procesandoPor: data.procesandoPor
+          };
+        }));
+        
+        // Siempre actualizar platoStates para cada plato con procesandoPor
+        // Esto es CRÍTICO para que los platos se muestren en amarillo
+        if (data.comanda && data.comanda.platos) {
+          setPlatoStates(prev => {
+            const nuevo = new Map(prev);
+            data.comanda.platos.forEach((plato, index) => {
+              if (plato.procesandoPor?.cocineroId) {
+                // Usar el índice como clave (igual que en el renderizado)
+                const key = `${data.comandaId}-${index}`;
+                nuevo.set(key, 'procesando');
+              }
+            });
+            return nuevo;
+          });
+        }
+        break;
+        
+      case 'COMANDA_LIBERADA':
+        // v7.4: Limpiar procesandoPor de la comanda y sus platos
+        setComandas(prev => prev.map(comanda => {
+          if (comanda._id !== data.comandaId) return comanda;
+          
+          // Si viene la comanda actualizada, usarla directamente
+          if (data.comanda) {
+            return data.comanda;
+          }
+          
+          // Si no, limpiar procesandoPor manualmente
+          return {
+            ...comanda,
+            procesandoPor: null,
+            platos: comanda.platos.map(p => ({
+              ...p,
+              procesandoPor: null
+            }))
+          };
+        }));
+        
+        // Resetear estado visual de la comanda
+        setComandaStates(prev => {
+          const nuevo = new Map(prev);
+          nuevo.delete(data.comandaId);
+          return nuevo;
+        });
+        
+        // Resetear estados visuales de los platos
+        setPlatoStates(prev => {
+          const nuevo = new Map(prev);
+          const comanda = comandas.find(c => c._id === data.comandaId);
+          if (comanda && comanda.platos) {
+            comanda.platos.forEach((plato, index) => {
+              const key = `${data.comandaId}-${index}`;
+              nuevo.delete(key);
+            });
+          }
+          return nuevo;
+        });
+        break;
+        
+      case 'COMANDA_FINALIZADA':
+        // v7.4: Actualizar comanda y todos sus platos a estado 'recoger'
+        setComandas(prev => prev.map(comanda => {
+          if (comanda._id !== data.comandaId) return comanda;
+          
+          // Si viene la comanda actualizada, usarla directamente
+          if (data.comanda) {
+            return data.comanda;
+          }
+          
+          // Si no, actualizar manualmente
+          return {
+            ...comanda,
+            procesandoPor: null,
+            status: 'recoger',
+            platos: comanda.platos.map(p => ({
+              ...p,
+              estado: 'recoger',
+              procesandoPor: null
+            }))
+          };
+        }));
+        
+        // Resetear estado visual de la comanda
+        setComandaStates(prev => {
+          const nuevo = new Map(prev);
+          nuevo.delete(data.comandaId);
+          return nuevo;
+        });
+        
+        // Resetear estados visuales de los platos
+        setPlatoStates(prev => {
+          const nuevo = new Map(prev);
+          const comanda = comandas.find(c => c._id === data.comandaId);
+          if (comanda && comanda.platos) {
+            comanda.platos.forEach((plato, index) => {
+              const key = `${data.comandaId}-${index}`;
+              nuevo.set(key, 'normal');
+            });
+          }
+          return nuevo;
+        });
+        
+        // Limpiar checks
+        setPlatosChecked(prev => {
+          const nuevo = new Map(prev);
+          nuevo.forEach((_, key) => {
+            if (key.startsWith(`${data.comandaId}-`)) {
+              nuevo.delete(key);
+            }
+          });
+          return nuevo;
+        });
+        break;
     }
-  }, []);
+  }, [comandas]);
 
   // Hook de procesamiento multi-cocinero
   const {
@@ -239,7 +372,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     error: procesamientoError,
     tomarPlato,
     liberarPlato,
-    finalizarPlato: finalizarPlatoConCocinero
+    finalizarPlato: finalizarPlatoConCocinero,
+    tomarComanda,
+    liberarComanda,
+    finalizarComanda
   } = useProcesamiento({
     getToken,
     showToast: (msg) => setToastMessage(msg),
@@ -1179,6 +1315,56 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
   }, []); // Solo ejecutar una vez al montar
+
+  // ============================================================
+  // v7.4: Inicializar estados visuales cuando se cargan las comandas
+  // Esto es CRÍTICO para que al recargar la página se restauren los estados
+  // de las comandas que ya están siendo procesadas por un cocinero
+  // ============================================================
+  useEffect(() => {
+    if (comandas.length === 0) return;
+    
+    // Inicializar platoStates para platos que ya tienen procesandoPor
+    setPlatoStates(prev => {
+      const nuevo = new Map(prev);
+      let cambios = false;
+      
+      comandas.forEach(comanda => {
+        if (comanda.platos && comanda.procesandoPor?.cocineroId) {
+          comanda.platos.forEach((plato, index) => {
+            if (plato.procesandoPor?.cocineroId) {
+              const key = `${comanda._id}-${index}`;
+              if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
+                nuevo.set(key, 'procesando');
+                cambios = true;
+              }
+            }
+          });
+        }
+      });
+      
+      return cambios ? nuevo : prev;
+    });
+    
+    // Inicializar comandaStates para comandas tomadas por el usuario actual
+    setComandaStates(prev => {
+      const nuevo = new Map(prev);
+      let cambios = false;
+      
+      comandas.forEach(comanda => {
+        if (comanda.procesandoPor?.cocineroId?.toString() === userId?.toString()) {
+          // Si la comanda está tomada por mí, inicializar estado 'normal'
+          // (el usuario puede clickear para cambiar a 'dejar' o 'finalizar')
+          if (!nuevo.has(comanda._id)) {
+            nuevo.set(comanda._id, 'normal');
+            cambios = true;
+          }
+        }
+      });
+      
+      return cambios ? nuevo : prev;
+    });
+  }, [comandas, userId]);
 
   // Filtrar comandas por término de búsqueda
   useEffect(() => {
@@ -2403,6 +2589,165 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
   }, [comandas, selectedOrders, batchFinalizarPlatos, config.soundEnabled]);
 
+  // ============================================================
+  // v7.4: HANDLERS PARA EL SISTEMA DE 3 ESTADOS DE COMANDA
+  // ============================================================
+
+  /**
+   * Handler para tomar una comanda completa
+   */
+  const handleTomarComanda = useCallback(async (comandaId) => {
+    if (!userId) {
+      setToastMessage({ type: 'error', message: '⚠️ Usuario no identificado', duration: 3000 });
+      return;
+    }
+    
+    console.log(`[TomarComanda] Tomando comanda ${comandaId}`);
+    const result = await tomarComanda(comandaId, userId);
+    
+    if (result.success) {
+      // Actualizar estados visuales de los platos
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (comanda && comanda.platos) {
+          comanda.platos.forEach((plato, index) => {
+            const key = `${comandaId}-${index}`;
+            nuevo.set(key, 'procesando');
+          });
+        }
+        return nuevo;
+      });
+    }
+  }, [userId, tomarComanda, comandas, setPlatoStates]);
+
+  /**
+   * Handler para cambiar el estado visual de una comanda (ciclar entre dejar y finalizar)
+   */
+  const handleComandaCardClick = useCallback((comandaId) => {
+    const comanda = comandas.find(c => c._id === comandaId);
+    if (!comanda) return;
+    
+    const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === userId?.toString();
+    if (!tomadaPorMi) return;
+    
+    // Ciclar entre estados: normal → dejar → finalizar → normal
+    setComandaStates(prev => {
+      const nuevo = new Map(prev);
+      const currentState = nuevo.get(comandaId) || 'normal';
+      
+      if (currentState === 'normal') {
+        nuevo.set(comandaId, 'dejar');
+      } else if (currentState === 'dejar') {
+        nuevo.set(comandaId, 'finalizar');
+      } else {
+        nuevo.set(comandaId, 'normal');
+      }
+      
+      return nuevo;
+    });
+  }, [comandas, userId, setComandaStates]);
+
+  /**
+   * Handler para dejar una comanda (liberar)
+   */
+  const handleDejarComanda = useCallback(async (comandaId) => {
+    if (!userId) {
+      setToastMessage({ type: 'error', message: '⚠️ Usuario no identificado', duration: 3000 });
+      return;
+    }
+    
+    console.log(`[DejarComanda] Liberando comanda ${comandaId}`);
+    
+    // Resetear estado visual de la comanda
+    setComandaStates(prev => {
+      const nuevo = new Map(prev);
+      nuevo.delete(comandaId);
+      return nuevo;
+    });
+    
+    const result = await liberarComanda(comandaId, userId);
+    
+    if (result.success) {
+      // Resetear estados visuales de los platos
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (comanda && comanda.platos) {
+          comanda.platos.forEach((plato, index) => {
+            const key = `${comandaId}-${index}`;
+            nuevo.delete(key);
+          });
+        }
+        return nuevo;
+      });
+    }
+  }, [userId, liberarComanda, comandas, setPlatoStates, setComandaStates]);
+
+  /**
+   * Handler para finalizar una comanda completa
+   */
+  const handleFinalizarComandaCard = useCallback(async (comandaId) => {
+    if (!userId) {
+      setToastMessage({ type: 'error', message: '⚠️ Usuario no identificado', duration: 3000 });
+      return;
+    }
+    
+    const comanda = comandas.find(c => c._id === comandaId);
+    if (!comanda) return;
+    
+    // Confirmar antes de finalizar
+    const confirmMessage = `¿Finalizar Orden #${comanda.comandaNumber}? Todos los platos se marcarán como listos para recoger.`;
+    if (!window.confirm(confirmMessage)) return;
+    
+    console.log(`[FinalizarComanda] Finalizando comanda ${comandaId}`);
+    
+    // Resetear estado visual de la comanda
+    setComandaStates(prev => {
+      const nuevo = new Map(prev);
+      nuevo.delete(comandaId);
+      return nuevo;
+    });
+    
+    const result = await finalizarComanda(comandaId, userId);
+    
+    if (result.success) {
+      // Resetear estados visuales de los platos
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        if (comanda.platos) {
+          comanda.platos.forEach((plato, index) => {
+            const key = `${comandaId}-${index}`;
+            nuevo.set(key, 'normal');
+          });
+        }
+        return nuevo;
+      });
+      
+      // Limpiar checks
+      setPlatosChecked(prev => {
+        const nuevo = new Map(prev);
+        nuevo.forEach((_, key) => {
+          if (key.startsWith(`${comandaId}-`)) {
+            nuevo.delete(key);
+          }
+        });
+        return nuevo;
+      });
+      
+      // Limpiar selección
+      setSelectedOrders(prev => {
+        const nuevo = new Set(prev);
+        nuevo.delete(comandaId);
+        return nuevo;
+      });
+      
+      if (config.soundEnabled) {
+        playNotificationSound();
+      }
+    }
+  }, [userId, finalizarComanda, comandas, setPlatoStates, setPlatosChecked, setSelectedOrders, config.soundEnabled]);
+
   // PARRAFO 3 - HANDLER: Prioridad Alta v5.5 - Toggle: asigna o quita prioridadOrden
   const handlePrioridadAlta = useCallback(async () => {
     // El rol viene del contexto de autenticación, no de localStorage
@@ -2895,7 +3240,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     alertYellowMinutes={config.alertYellowMinutes}
                     alertRedMinutes={config.alertRedMinutes}
                     isSelected={isSelected}
-                    onToggleSelect={() => toggleSelectOrder(comanda._id)}
+                    onToggleSelect={() => {
+                      toggleSelectOrder(comanda._id);
+                      // v7.4: Si la comanda está tomada por mí, ciclar estados
+                      handleComandaCardClick(comanda._id);
+                    }}
                     fontSize={config.design?.fontSize || 15}
                     platoStates={platoStates}
                     setPlatoStates={setPlatoStates}
@@ -2905,6 +3254,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     platosChecked={platosChecked}
                     togglePlatoCheck={togglePlatoCheck}
                     usuarioActualId={userId}
+                    // v7.4: Props para el sistema de 3 estados de comanda
+                    comandaStates={comandaStates}
+                    setComandaStates={setComandaStates}
+                    onTomarComanda={handleTomarComanda}
+                    onDejarComanda={handleDejarComanda}
+                    onFinalizarComanda={handleFinalizarComandaCard}
                   />
                   );
                 })}
@@ -3016,7 +3371,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   );
                 })()}
 
-                {/* 2. Botón FINALIZAR COMANDA (Azul) - Oculto cuando todos están listos (auto-trigger activo) */}
+                {/* 2. Botón ACCIÓN COMANDA (3 estados: Tomar/Dejar/Finalizar) */}
                 {(() => {
                   const todasListas = comandasSeleccionadasTienenTodosPlatosListos();
                   const comandaPrincipal = selectedOrders.size === 1 
@@ -3027,7 +3382,6 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     : { listos: 0, total: 0 };
                   
                   // REGLA: Si todos los platos están listos, el auto-trigger ya cambió el status
-                  // Ocultar botón o mostrar mensaje "¡Listo! Esperando mozos..."
                   if (todasListas && selectedOrders.size > 0) {
                     return (
                       <motion.div
@@ -3046,28 +3400,78 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     );
                   }
                   
+                  // v7.4: Determinar el estado de la comanda seleccionada
+                  const tomadaPorMi = comandaPrincipal?.procesandoPor?.cocineroId?.toString() === userId?.toString();
+                  const tomadaPorOtro = comandaPrincipal?.procesandoPor?.cocineroId && 
+                    comandaPrincipal.procesandoPor.cocineroId.toString() !== userId?.toString();
+                  const comandaState = comandaPrincipal ? (comandaStates.get(comandaPrincipal._id) || 'normal') : 'normal';
+                  
+                  // Determinar la acción y estilo del botón
+                  let buttonConfig = {
+                    label: selectedOrders.size === 0 
+                      ? 'Finalizar Comanda' 
+                      : selectedOrders.size === 1 && progressInfo.total > 0
+                        ? `Finalizar #${comandaPrincipal?.comandaNumber || ''} (${progressInfo.listos}/${progressInfo.total} listos)`
+                        : `Finalizar ${selectedOrders.size} Comandas`,
+                    color: 'bg-blue-600 hover:bg-blue-700',
+                    action: handleFinalizarComandaCompletaGlobal
+                  };
+                  
+                  // Si hay una sola comanda seleccionada, usar la lógica de 3 estados
+                  if (selectedOrders.size === 1 && comandaPrincipal) {
+                    if (tomadaPorOtro) {
+                      // Comanda tomada por otro - no mostrar botón o mostrar mensaje
+                      buttonConfig = {
+                        label: `Tomada por ${comandaPrincipal.procesandoPor?.alias || 'otro'}`,
+                        color: 'bg-gray-600 cursor-not-allowed',
+                        action: () => {}
+                      };
+                    } else if (!comandaPrincipal.procesandoPor?.cocineroId) {
+                      // Estado 1: Comanda no tomada → "Tomar Comanda"
+                      buttonConfig = {
+                        label: `Tomar Comanda #${comandaPrincipal.comandaNumber}`,
+                        color: 'bg-blue-600 hover:bg-blue-700',
+                        action: () => handleTomarComanda(comandaPrincipal._id)
+                      };
+                    } else if (tomadaPorMi) {
+                      // Comanda tomada por mí
+                      if (comandaState === 'dejar') {
+                        // Estado 2: "Dejar Comanda" (rojo)
+                        buttonConfig = {
+                          label: `Dejar Comanda #${comandaPrincipal.comandaNumber}`,
+                          color: 'bg-red-500 hover:bg-red-600',
+                          action: () => handleDejarComanda(comandaPrincipal._id)
+                        };
+                      } else {
+                        // Estado 3: "Finalizar Comanda" (verde)
+                        buttonConfig = {
+                          label: `Finalizar #${comandaPrincipal.comandaNumber}`,
+                          color: 'bg-green-600 hover:bg-green-700',
+                          action: () => handleFinalizarComandaCard(comandaPrincipal._id)
+                        };
+                      }
+                    }
+                  }
+                  
+                  const isDisabled = selectedOrders.size === 0 || tomadaPorOtro;
+                  
                   return (
                     <motion.button
-                      onClick={handleFinalizarComandaCompletaGlobal}
-                      disabled={selectedOrders.size === 0}
+                      onClick={buttonConfig.action}
+                      disabled={isDisabled}
                       className={`px-6 py-3 font-bold rounded-lg text-lg shadow-lg flex items-center gap-2 ${
-                        selectedOrders.size > 0
-                          ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                          : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                        isDisabled
+                          ? (nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed')
+                          : `${buttonConfig.color} text-white cursor-pointer`
                       }`}
-                      whileHover={selectedOrders.size > 0 ? { 
+                      whileHover={!isDisabled ? { 
                         scale: 1.05, 
                         boxShadow: "0 0 30px rgba(59, 130, 246, 0.7)" 
                       } : {}}
-                      whileTap={selectedOrders.size > 0 ? { scale: 0.95 } : {}}
+                      whileTap={!isDisabled ? { scale: 0.95 } : {}}
                       transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
-                      {selectedOrders.size === 0 
-                        ? 'Finalizar Comanda' 
-                        : selectedOrders.size === 1 && progressInfo.total > 0
-                          ? `Finalizar #${comandaPrincipal?.comandaNumber || ''} (${progressInfo.listos}/${progressInfo.total} listos)`
-                          : `Finalizar ${selectedOrders.size} Comandas`
-                      }
+                      <span>{buttonConfig.label}</span>
                     </motion.button>
                   );
                 })()}
@@ -3593,7 +3997,13 @@ const SicarComandaCard = ({
   platosEliminados = [], // Mantener para compatibilidad, pero usar historialPlatos
   platosChecked = new Map(),
   togglePlatoCheck = () => {},
-  usuarioActualId = null // Para el sistema multi-cocinero
+  usuarioActualId = null, // Para el sistema multi-cocinero
+  // v7.4: Props para el sistema de 3 estados de comanda
+  comandaStates,
+  setComandaStates,
+  onTomarComanda,
+  onDejarComanda,
+  onFinalizarComanda
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -3817,6 +4227,34 @@ const SicarComandaCard = ({
   // Los botones PREPARAR y SIN STOCK fueron eliminados
   // Ahora se usa la función FINALIZAR de la barra inferior
 
+  // v7.4: Determinar el estado visual de la comanda para el contorno
+  const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === usuarioActualId?.toString();
+  const comandaState = comandaStates?.get(comandaId) || 'normal';
+  
+  // Determinar el color del contorno según el estado
+  let borderStyle = '2px solid';
+  let shadowStyle = '0 8px 32px rgba(0, 0, 0, 0.3)';
+  let backgroundStyle = undefined;
+  
+  if (tomadaPorMi) {
+    if (comandaState === 'dejar') {
+      // Estado DEJAR: contorno rojo
+      borderStyle = '4px solid #ef4444';
+      shadowStyle = '0 8px 32px rgba(239, 68, 68, 0.5)';
+      backgroundStyle = `linear-gradient(135deg, rgba(239,68,68,0.3), rgba(239,68,68,0.1))`;
+    } else if (comandaState === 'finalizar') {
+      // Estado FINALIZAR: contorno verde
+      borderStyle = '4px solid #22c55e';
+      shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.5)';
+      backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.3), rgba(34,197,94,0.1))`;
+    }
+  } else if (isSelected) {
+    // Comanda seleccionada (no tomada por mí)
+    borderStyle = '4px solid #22c55e';
+    shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.4)';
+    backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
+  }
+
   return (
     <motion.div 
       layoutId={`order-${comandaId}`}
@@ -3826,13 +4264,9 @@ const SicarComandaCard = ({
         width: '300px',
         height: '500px',
         borderRadius: '12px',
-        boxShadow: isSelected 
-          ? '0 8px 32px rgba(34, 197, 94, 0.4)' 
-          : '0 8px 32px rgba(0, 0, 0, 0.3)',
-        border: isSelected ? '4px solid #22c55e' : '2px solid',
-        background: isSelected 
-          ? `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2)), ${bgColor.replace('bg-', '')}`
-          : undefined
+        boxShadow: shadowStyle,
+        border: borderStyle,
+        background: backgroundStyle
       }}
       initial={{ opacity: 0, scale: 0.8, y: 100 }}
       animate={{ 
@@ -3851,8 +4285,9 @@ const SicarComandaCard = ({
       {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) - Zona Click 1 */}
       <div className={`relative p-3 ${bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`} onClick={onToggleSelect}>
         {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
+        {/* Solo mostrar cuando está en estado 'finalizar' (contorno verde) */}
         <AnimatePresence>
-          {isSelected && (
+          {tomadaPorMi && comandaState === 'finalizar' && (
             <motion.div
               className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
               initial={{ scale: 0, opacity: 0 }}
@@ -3910,6 +4345,21 @@ const SicarComandaCard = ({
             👤 {comanda.mozos?.name || comanda.mozos?.nombre || 'admin'}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* v7.4: Badge del cocinero que está procesando la comanda */}
+            {comanda.procesandoPor?.cocineroId && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                  comanda.procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
+                    ? 'bg-yellow-500 text-black' // Mi comanda - amarillo
+                    : 'bg-gray-600 text-white' // Comanda de otro
+                }`}
+                style={{ fontFamily: 'Arial, sans-serif' }}
+              >
+                👨‍🍳 {comanda.procesandoPor.alias || comanda.procesandoPor.nombre || 'Cocinero'}
+              </motion.span>
+            )}
             {/* Badge Espera X/Total (Y elim) */}
             {platosPreparacion.length > 0 && (
               <motion.span
@@ -4175,8 +4625,6 @@ const SicarComandaCard = ({
           {/* Platos eliminados ahora se muestran inline en Preparación con strike-through rojo */}
         </div>
       </div>
-
-      {/* Espacio inferior - Los botones PREPARAR y SIN STOCK fueron eliminados, ahora se usa FINALIZAR */}
 
     </motion.div>
   );
