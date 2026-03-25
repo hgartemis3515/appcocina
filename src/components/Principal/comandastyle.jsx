@@ -1462,16 +1462,16 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     (currentPage + 1) * COMANDAS_POR_PAGINA
   );
 
-  // Toggle selección de comanda
+  // Toggle selección de comanda - Solo permite UNA comanda seleccionada a la vez
+  // v7.4.3: Si seleccionas una comanda distinta, se desmarca la anterior
   const toggleSelectOrder = (comandaId) => {
     setSelectedOrders(prev => {
-      const nuevo = new Set(prev);
-      if (nuevo.has(comandaId)) {
-        nuevo.delete(comandaId);
-      } else {
-        nuevo.add(comandaId);
+      // Si ya está seleccionada, deseleccionar
+      if (prev.has(comandaId)) {
+        return new Set();
       }
-      return nuevo;
+      // Si no está seleccionada, reemplazar cualquier selección anterior con esta
+      return new Set([comandaId]);
     });
   };
 
@@ -2535,6 +2535,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   /**
    * Handler para cambiar el estado visual de una comanda (ciclar entre dejar y finalizar)
    * Solo 2 estados de selección: dejar (rojo) → finalizar (verde) → deseleccionar
+   * v7.4.3: Solo permite UNA comanda seleccionada a la vez
    */
   const handleComandaCardClick = useCallback((comandaId) => {
     const comanda = comandas.find(c => c._id === comandaId);
@@ -2543,25 +2544,27 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === userId?.toString();
     if (!tomadaPorMi) return;
     
+    // v7.4.3: Limpiar selección de comandas NO tomadas (selectedOrders)
+    setSelectedOrders(new Set());
+    
     // Ciclar entre estados: dejar → finalizar → deseleccionar (eliminar del mapa)
     setComandaStates(prev => {
-      const nuevo = new Map(prev);
-      const currentState = nuevo.get(comandaId);
+      const currentState = prev.get(comandaId);
+      const nuevo = new Map();
       
       if (!currentState || currentState === 'normal') {
         // Sin selección → 1er click: dejar (rojo)
+        // Solo esta comanda queda seleccionada
         nuevo.set(comandaId, 'dejar');
       } else if (currentState === 'dejar') {
         // 1er estado → 2do click: finalizar (verde)
         nuevo.set(comandaId, 'finalizar');
-      } else {
-        // 2do estado → 3er click: deseleccionar (eliminar del mapa)
-        nuevo.delete(comandaId);
       }
+      // else: 2do estado → 3er click: deseleccionar (mapa vacío)
       
       return nuevo;
     });
-  }, [comandas, userId, setComandaStates]);
+  }, [comandas, userId, setComandaStates, setSelectedOrders]);
 
   /**
    * Handler para dejar una comanda (liberar)
@@ -3151,7 +3154,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                         // Comanda tomada por mí: solo ciclar estados (dejar → finalizar → normal)
                         handleComandaCardClick(comanda._id);
                       } else {
-                        // Comanda no tomada: usar sistema de selección normal
+                        // Comanda no tomada: limpiar comandaStates primero (para selección única)
+                        setComandaStates(new Map());
+                        // Luego usar sistema de selección normal
                         toggleSelectOrder(comanda._id);
                       }
                     }}
