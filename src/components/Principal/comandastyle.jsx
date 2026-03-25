@@ -1190,24 +1190,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       return cambios ? nuevo : prev;
     });
     
-    // Inicializar comandaStates para comandas tomadas por el usuario actual
-    setComandaStates(prev => {
-      const nuevo = new Map(prev);
-      let cambios = false;
-      
-      comandas.forEach(comanda => {
-        if (comanda.procesandoPor?.cocineroId?.toString() === userId?.toString()) {
-          // Si la comanda está tomada por mí, inicializar estado 'normal'
-          // (el usuario puede clickear para cambiar a 'dejar' o 'finalizar')
-          if (!nuevo.has(comanda._id)) {
-            nuevo.set(comanda._id, 'normal');
-            cambios = true;
-          }
-        }
-      });
-      
-      return cambios ? nuevo : prev;
-    });
+    // NOTA: NO inicializamos comandaStates automáticamente.
+    // Las comandas tomadas por el usuario quedan sin estado visual hasta que
+    // el usuario haga click en la tarjeta para activar el ciclo de 2 estados.
   }, [comandas, userId]);
 
   // Filtrar comandas por término de búsqueda
@@ -2502,6 +2487,8 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
 
   /**
    * Handler para tomar una comanda completa
+   * v7.4.1: Después de tomar, la comanda queda sin selección visual.
+   * El usuario debe hacer click en la tarjeta para activar el ciclo de 2 estados.
    */
   const handleTomarComanda = useCallback(async (comandaId) => {
     if (!userId) {
@@ -2513,6 +2500,17 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     const result = await tomarComanda(comandaId, userId);
     
     if (result.success) {
+      // IMPORTANTE: Deseleccionar la comanda para que el usuario pueda interactuar
+      // con el ciclo de 2 estados sin interferencia de la selección en lote
+      setSelectedOrders(new Set());
+      
+      // Eliminar cualquier estado previo de la comanda (queda sin selección)
+      setComandaStates(prev => {
+        const nuevo = new Map(prev);
+        nuevo.delete(comandaId);
+        return nuevo;
+      });
+      
       // Actualizar estados visuales de los platos
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
@@ -2525,11 +2523,18 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         }
         return nuevo;
       });
+      
+      setToastMessage({
+        type: 'success',
+        message: '👨‍🍳 Comanda tomada - Click en la tarjeta para opciones',
+        duration: 3000
+      });
     }
-  }, [userId, tomarComanda, comandas, setPlatoStates]);
+  }, [userId, tomarComanda, comandas, setPlatoStates, setComandaStates]);
 
   /**
    * Handler para cambiar el estado visual de una comanda (ciclar entre dejar y finalizar)
+   * Solo 2 estados de selección: dejar (rojo) → finalizar (verde) → deseleccionar
    */
   const handleComandaCardClick = useCallback((comandaId) => {
     const comanda = comandas.find(c => c._id === comandaId);
@@ -2538,17 +2543,20 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === userId?.toString();
     if (!tomadaPorMi) return;
     
-    // Ciclar entre estados: normal → dejar → finalizar → normal
+    // Ciclar entre estados: dejar → finalizar → deseleccionar (eliminar del mapa)
     setComandaStates(prev => {
       const nuevo = new Map(prev);
-      const currentState = nuevo.get(comandaId) || 'normal';
+      const currentState = nuevo.get(comandaId);
       
-      if (currentState === 'normal') {
+      if (!currentState || currentState === 'normal') {
+        // Sin selección → 1er click: dejar (rojo)
         nuevo.set(comandaId, 'dejar');
       } else if (currentState === 'dejar') {
+        // 1er estado → 2do click: finalizar (verde)
         nuevo.set(comandaId, 'finalizar');
       } else {
-        nuevo.set(comandaId, 'normal');
+        // 2do estado → 3er click: deseleccionar (eliminar del mapa)
+        nuevo.delete(comandaId);
       }
       
       return nuevo;
@@ -3138,9 +3146,14 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     alertRedMinutes={config.alertRedMinutes}
                     isSelected={isSelected}
                     onToggleSelect={() => {
-                      toggleSelectOrder(comanda._id);
-                      // v7.4: Si la comanda está tomada por mí, ciclar estados
-                      handleComandaCardClick(comanda._id);
+                      const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === userId?.toString();
+                      if (tomadaPorMi) {
+                        // Comanda tomada por mí: solo ciclar estados (dejar → finalizar → normal)
+                        handleComandaCardClick(comanda._id);
+                      } else {
+                        // Comanda no tomada: usar sistema de selección normal
+                        toggleSelectOrder(comanda._id);
+                      }
                     }}
                     fontSize={config.design?.fontSize || 15}
                     platoStates={platoStates}
@@ -3271,9 +3284,24 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                 {/* 2. Botón ACCIÓN COMANDA (3 estados: Tomar/Dejar/Finalizar) */}
                 {(() => {
                   const todasListas = comandasSeleccionadasTienenTodosPlatosListos();
-                  const comandaPrincipal = selectedOrders.size === 1 
-                    ? comandas.find(c => c._id === Array.from(selectedOrders)[0])
-                    : null;
+                  
+                  // v7.4.1: Obtener la comanda relevante para el botón
+                  // Solo obtener comanda si hay selección
+                  // Si no hay selección, NO mostrar botón (el usuario debe interactuar con la tarjeta)
+                  let comandaPrincipal = null;
+
+                  // 1. Prioridad: comanda con estado activo en comandaStates (tomada por mí)
+                  const comandaConEstado = Array.from(comandaStates.entries())
+                    .find(([id, state]) => state === 'dejar' || state === 'finalizar');
+                  if (comandaConEstado) {
+                    comandaPrincipal = comandas.find(c => c._id === comandaConEstado[0]);
+                  }
+
+                  // 2. Si no hay estado activo, buscar en selectedOrders (comandas no tomadas)
+                  if (!comandaPrincipal && selectedOrders.size === 1) {
+                    comandaPrincipal = comandas.find(c => c._id === Array.from(selectedOrders)[0]);
+                  }
+                  
                   const progressInfo = comandaPrincipal 
                     ? getPlatosListosCount(comandaPrincipal._id)
                     : { listos: 0, total: 0 };
@@ -3297,7 +3325,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     );
                   }
                   
-                  // v7.4: Determinar el estado de la comanda seleccionada
+                  // v7.4: Determinar el estado de la comanda
                   const tomadaPorMi = comandaPrincipal?.procesandoPor?.cocineroId?.toString() === userId?.toString();
                   const tomadaPorOtro = comandaPrincipal?.procesandoPor?.cocineroId && 
                     comandaPrincipal.procesandoPor.cocineroId.toString() !== userId?.toString();
@@ -3305,52 +3333,67 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                   
                   // Determinar la acción y estilo del botón
                   let buttonConfig = {
-                    label: selectedOrders.size === 0 
-                      ? 'Finalizar Comanda' 
-                      : selectedOrders.size === 1 && progressInfo.total > 0
-                        ? `Finalizar #${comandaPrincipal?.comandaNumber || ''} (${progressInfo.listos}/${progressInfo.total} listos)`
-                        : `Finalizar ${selectedOrders.size} Comandas`,
+                    label: 'Finalizar Comanda',
                     color: 'bg-blue-600 hover:bg-blue-700',
-                    action: handleFinalizarComandaCompletaGlobal
+                    action: handleFinalizarComandaCompletaGlobal,
+                    visible: selectedOrders.size > 0 // Solo visible si hay selección para el modo batch
                   };
                   
-                  // Si hay una sola comanda seleccionada, usar la lógica de 3 estados
-                  if (selectedOrders.size === 1 && comandaPrincipal) {
+                  // v7.4.1: Nueva lógica para el botón
+                  if (comandaPrincipal) {
                     if (tomadaPorOtro) {
-                      // Comanda tomada por otro - no mostrar botón o mostrar mensaje
+                      // Comanda tomada por otro - no mostrar botón
                       buttonConfig = {
                         label: `Tomada por ${comandaPrincipal.procesandoPor?.alias || 'otro'}`,
                         color: 'bg-gray-600 cursor-not-allowed',
-                        action: () => {}
+                        action: () => {},
+                        visible: true
                       };
                     } else if (!comandaPrincipal.procesandoPor?.cocineroId) {
-                      // Estado 1: Comanda no tomada → "Tomar Comanda"
+                      // Comanda no tomada → "Tomar Comanda"
                       buttonConfig = {
                         label: `Tomar Comanda #${comandaPrincipal.comandaNumber}`,
                         color: 'bg-blue-600 hover:bg-blue-700',
-                        action: () => handleTomarComanda(comandaPrincipal._id)
+                        action: () => handleTomarComanda(comandaPrincipal._id),
+                        visible: true
                       };
                     } else if (tomadaPorMi) {
-                      // Comanda tomada por mí
+                      // Comanda tomada por mí - usar los 3 estados
                       if (comandaState === 'dejar') {
-                        // Estado 2: "Dejar Comanda" (rojo)
+                        // Estado "dejar" (1er click): contorno rojo → botón "Dejar Comanda"
                         buttonConfig = {
                           label: `Dejar Comanda #${comandaPrincipal.comandaNumber}`,
                           color: 'bg-red-500 hover:bg-red-600',
-                          action: () => handleDejarComanda(comandaPrincipal._id)
+                          action: () => handleDejarComanda(comandaPrincipal._id),
+                          visible: true
                         };
-                      } else {
-                        // Estado 3: "Finalizar Comanda" (verde)
+                      } else if (comandaState === 'finalizar') {
+                        // Estado "finalizar" (2do click): contorno verde → botón "Finalizar"
                         buttonConfig = {
                           label: `Finalizar #${comandaPrincipal.comandaNumber}`,
                           color: 'bg-green-600 hover:bg-green-700',
-                          action: () => handleFinalizarComandaCard(comandaPrincipal._id)
+                          action: () => handleFinalizarComandaCard(comandaPrincipal._id),
+                          visible: true
+                        };
+                      } else {
+                        // Estado "normal" (inicial/3er click): sin contorno especial → SIN botón
+                        // El usuario debe hacer click en la tarjeta para ciclar estados
+                        buttonConfig = {
+                          label: '',
+                          color: '',
+                          action: () => {},
+                          visible: false
                         };
                       }
                     }
                   }
                   
-                  const isDisabled = selectedOrders.size === 0 || tomadaPorOtro;
+                  // Si no hay comanda relevante y no hay selección, no mostrar el botón
+                  if (!buttonConfig.visible) {
+                    return null;
+                  }
+                  
+                  const isDisabled = tomadaPorOtro;
                   
                   return (
                     <motion.button
