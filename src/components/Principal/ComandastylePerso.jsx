@@ -1436,6 +1436,19 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
   }, [comandas, filteredComandas, enEspera.length, recoger.length]);
 
+  // ========== FUNCIÓN HELPER: Obtener nombre de mesa con soporte para mesas juntadas ==========
+  // Si la mesa tiene nombreCombinado (ej: "M5,6,7"), lo usa.
+  // Si no, usa el formato tradicional "M{nummesa}".
+  const obtenerNombreMesa = (mesa) => {
+    if (!mesa) return 'N/A';
+    // Si tiene nombreCombinado, usarlo (mesas juntadas)
+    if (mesa.nombreCombinado) {
+      return mesa.nombreCombinado;
+    }
+    // Fallback al número de mesa tradicional
+    return mesa.nummesa ? `M${mesa.nummesa}` : 'N/A';
+  };
+
   // Calcular tiempo transcurrido (mantener para compatibilidad)
   const calcularTiempoTranscurrido = (comanda) => {
     if (!comanda.createdAt) return { minutos: 0, texto: "0min", horas: 0, minutosRestantes: 0, segundos: 0 };
@@ -3316,6 +3329,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     onTomarComanda={handleTomarComanda}
                     onDejarComanda={handleDejarComanda}
                     onFinalizarComanda={handleFinalizarComandaCard}
+                    obtenerNombreMesa={obtenerNombreMesa}
                   />
                   );
                 })}
@@ -3585,7 +3599,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                         nombre: p.plato?.nombre || p.nombre || 'Sin nombre',
                         estado: p.estado,
                         mozo: c.mozos?.name || 'Sin mozo',
-                        mesa: c.mesas?.nummesa || 'N/A'
+                        mesa: obtenerNombreMesa(c.mesas)
                       }))
                   );
                   const totalReversibles = platosReversibles.length;
@@ -4231,7 +4245,8 @@ const SicarComandaCard = ({
   setComandaStates,
   onTomarComanda,
   onDejarComanda,
-  onFinalizarComanda
+  onFinalizarComanda,
+  obtenerNombreMesa // Función helper para obtener nombre de mesa
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -4557,7 +4572,7 @@ const SicarComandaCard = ({
           {/* Derecha: Mesa # y Cronómetro */}
           <div className="flex flex-col items-end">
             <div className="text-white font-semibold text-lg mb-1" style={{ fontFamily: 'Arial, sans-serif' }}>
-              M{comanda.mesas?.nummesa || "N/A"}
+              {obtenerNombreMesa ? obtenerNombreMesa(comanda.mesas) : (comanda.mesas?.nombreCombinado || `M${comanda.mesas?.nummesa || 'N/A'}`)}
             </div>
             <div className="flex items-center gap-1">
               <FaClock className="text-white text-sm" />
