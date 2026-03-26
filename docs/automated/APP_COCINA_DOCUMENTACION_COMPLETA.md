@@ -1,12 +1,21 @@
 # 📱 Documentación Completa - App de Cocina (Las Gambusinas)
 
-**Versión:** 7.4.1  
+**Versión:** 7.4.2  
 **Última Actualización:** Marzo 2026  
 **Tecnología:** React Web + Socket.io + Framer Motion
 
 ---
 
 ## 📋 Historial de Cambios
+
+### v7.4.2 (Marzo 2026) - Corrección del Ciclo de 3 Estados
+
+- ✅ **Bug corregido**: Se requerían 5 clicks en la tarjeta de comanda para habilitar el botón "Finalizar Comanda" en lugar de los 3 clicks esperados
+- ✅ **Causa identificada**: Conflicto entre `toggleSelectOrder()` y `handleComandaCardClick()` que se ejecutaban simultáneamente
+- ✅ **Solución implementada**: Separación de funciones según contexto con verificación `tomadaPorMi`
+- ✅ **Selección única**: Solo se puede seleccionar UNA comanda a la vez, al seleccionar otra se desmarca la anterior
+- ✅ **Estados visuales corregidos**: Ciclo completo funciona: normal → dejar (rojo) → finalizar (verde) → normal
+- ✅ **Check ✓ en tarjeta**: Solo aparece en estado 'finalizar', no en 'dejar'
 
 ### v7.4.1 (Marzo 2026) - Corrección de Finalización de Comanda
 
