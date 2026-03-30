@@ -267,10 +267,9 @@ const PlatoPreparacion = ({
         {complementosSeleccionados && complementosSeleccionados.length > 0 && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
             {complementosSeleccionados.map((comp, i) => {
-              // v2.0: Mostrar cantidad si es mayor a 1
+              // v2.0: Mostrar siempre la cantidad del complemento
               const opcionTexto = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion;
               const cantidadComp = comp.cantidad || 1;
-              const mostrarCantidad = cantidadComp > 1;
               
               return (
                 <span
@@ -280,7 +279,7 @@ const PlatoPreparacion = ({
                   }`}
                   style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
                 >
-                  · {opcionTexto}{mostrarCantidad ? ` x${cantidadComp}` : ''}
+                  · {opcionTexto} x{cantidadComp}
                 </span>
               );
             })}
