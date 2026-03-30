@@ -266,17 +266,24 @@ const PlatoPreparacion = ({
         
         {complementosSeleccionados && complementosSeleccionados.length > 0 && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
-            {complementosSeleccionados.map((comp, i) => (
-              <span
-                key={i}
-                className={`text-xs leading-tight pl-1 ${
-                  nightMode ? 'text-gray-400' : 'text-gray-500'
-                }`}
-                style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
-              >
-                · {Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion}
-              </span>
-            ))}
+            {complementosSeleccionados.map((comp, i) => {
+              // v2.0: Mostrar cantidad si es mayor a 1
+              const opcionTexto = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion;
+              const cantidadComp = comp.cantidad || 1;
+              const mostrarCantidad = cantidadComp > 1;
+              
+              return (
+                <span
+                  key={i}
+                  className={`text-xs leading-tight pl-1 ${
+                    nightMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                  style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
+                >
+                  · {opcionTexto}{mostrarCantidad ? ` x${cantidadComp}` : ''}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
