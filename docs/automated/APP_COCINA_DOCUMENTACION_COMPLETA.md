@@ -1317,4 +1317,350 @@ REACT_APP_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.100
 
 ---
 
-**Fin de la Documentación - App de Cocina v7.4.1**
+---
+
+## 🖥️ ComandaStyle vs ComandastylePerso: Vistas KDS
+
+### Descripción General
+
+El App de Cocina dispone de **dos vistas KDS** principales que comparten la misma funcionalidad base pero difieren en el filtrado de información:
+
+| Aspecto | ComandaStyle (Vista General) | ComandastylePerso (Vista Personalizada) |
+|---------|------------------------------|----------------------------------------|
+| **Propósito** | Vista completa para gestión de cocina | Vista filtrada por cocinero/zona |
+| **Usuarios** | Jefe de cocina, supervisores | Cocineros con zonas asignadas |
+| **Filtrado** | Sin filtros, muestra todo | Filtra por zona, tipo de plato, área |
+| **Navegación** | Menú → "Vista General" | Menú → "Vista Personalizada (KDS)" |
+| **Configuración** | `useConfig()` global | `useAuth().cocineroConfig` personal |
+
+---
+
+### ComandaStyle.jsx - Vista General KDS
+
+**Ubicación:** `appcocina/src/components/Principal/comandastyle.jsx`
+
+**Propósito:**
+Vista de tablero Kanban que muestra **todas las comandas del día** sin ningún filtro. Diseñada para el **jefe de cocina** o personal de gestión que necesita visibilidad completa del estado de la cocina.
+
+**Funciones principales:**
+- Visualización completa de comandas activas
+- Control de estados de platos (checkboxes)
+- Sistema multi-cocinero (tomar/dejar/finalizar)
+- Priorización de comandas (rol cocina)
+- Revertir estados y generar reportes
+- Alertas visuales por tiempo transcurrido
+
+**Características de UI:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Header: [Hora] [Fecha] COCINA LAS GAMBUSINAS [Pendientes: N]   │
+│         [● Conexión] [← Menú] [🔍] [📊] [⚙️] [↩️] [⛶]          │
+├─────────────────────────────────────────────────────────────────┤
+│ Grid de tarjetas Kanban (5 columnas default)                    │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐│
+│ │ Orden #1 │ │ Orden #2 │ │ Orden #3 │ │ Orden #4 │ │ Orden #5 ││
+│ │ [Platos] │ │ [Platos] │ │ [Platos] │ │ [Platos] │ │ [Platos] ││
+│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘│
+│ [Paginación: ← Página 1 de N →]                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ Barra inferior: [Tomar/Dejar/Finalizar] [REVERTIR] [🚀 Prioridad]│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Hook de configuración utilizado:**
+```javascript
+// ComandaStyle usa ConfigContext para configuración global
+const { config, updateConfig } = useConfig();
+const kdsBehavior = useKdsBehavior({ onNotifyAssignment });
+```
+
+---
+
+### ComandastylePerso.jsx - Vista Personalizada KDS
+
+**Ubicación:** `appcocina/src/components/Principal/ComandastylePerso.jsx`
+
+**Propósito:**
+Vista filtrada que muestra **solo las comandas y platos relevantes** para un cocinero específico según sus **zonas asignadas** y **filtros personales**. Diseñada para cocineros que trabajan en estaciones específicas (parrilla, wok, pastas, etc.).
+
+**Funciones principales (heredadas de ComandaStyle):**
+- Las mismas funciones de gestión de platos
+- Sistema multi-cocinero completo
+- Alertas y priorización
+
+**Funciones adicionales específicas:**
+- Filtrado automático por zonas asignadas
+- Selector de zona activa en header
+- Estadísticas de filtrado visible
+- Indicador de platos/comandas ocultos
+
+**Características de UI adicionales:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Header: [Hora] [Fecha] COCINA - [ZoneChips: Parrilla | Wok]    │
+│         [● Conexión] [← Menú] [🔍] [📊] [⚙️] [↩️] [⛶]          │
+│         [Cocinero: Juan] [Filtrando: 12/25 comandas]            │
+├─────────────────────────────────────────────────────────────────┤
+│ Grid filtrado (solo platos de zonas asignadas)                   │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐                          │
+│ │ Orden #3 │ │ Orden #7 │ │ Orden #12│                          │
+│ │[Solo carnes]│[Solo carnes]│[Solo carnes]│                       │
+│ └──────────┘ └──────────┘ └──────────┘                          │
+├─────────────────────────────────────────────────────────────────┤
+│ Barra inferior: Igual a ComandaStyle                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Hook de configuración utilizado:**
+```javascript
+// ComandastylePerso usa AuthContext para configuración personal
+const {
+  cocineroConfig,     // Filtros y zonas del cocinero
+  configLoading,
+  zonaActivaId,       // Zona seleccionada actualmente
+  setZonaActiva,      // Cambiar zona activa
+  getZonasActivas,    // Lista de zonas asignadas
+  updateCocineroConfig
+} = useAuth();
+```
+
+---
+
+### Sistema de Clonación y Herencia
+
+#### Patrón de Diseño: Hook Compartido `useComandastyleCore`
+
+Para evitar duplicación de código masiva (~4500 líneas por componente), se extrajo la **lógica común** a un hook compartido:
+
+```
+useComandastyleCore.js (~400 líneas)
+├── Suscripción Socket.io
+├── Obtención de comandas
+├── Ordenamiento (prioridad + tiempo)
+├── Paginación
+├── Estados visuales (expandido, seleccionado)
+├── Cálculo de tiempos y alertas
+└── Filtrado inyectable (customFilter)
+```
+
+**Uso en cada componente:**
+
+```javascript
+// ComandaStyle.jsx (Vista General)
+const core = useComandastyleCore({
+  getToken,
+  config: { soundEnabled, alertYellowMinutes, alertRedMinutes },
+  // SIN customFilter = muestra todo
+});
+
+// ComandastylePerso.jsx (Vista Personalizada)
+const core = useComandastyleCore({
+  getToken,
+  customFilter: (comandas) => aplicarFiltrosAComandas(comandas, cocineroConfig),
+  cocineroConfig,
+  cocineroId: userId,
+  config: { soundEnabled, alertYellowMinutes, alertRedMinutes }
+});
+```
+
+#### Módulo de Filtrado: `kdsFilters.js`
+
+**Ubicación:** `appcocina/src/utils/kdsFilters.js`
+
+**Funciones principales:**
+
+| Función | Propósito |
+|---------|-----------|
+| `debeMostrarPlato()` | Determina si un plato pasa los filtros |
+| `debeMostrarComanda()` | Determina si una comanda pasa los filtros |
+| `aplicarFiltrosAComandas()` | Filtra array completo de comandas |
+| `filtrarPlatosDeComanda()` | Filtra platos dentro de una comanda |
+| `calcularEstadisticasFiltrado()` | Stats para UI (visibles vs ocultos) |
+
+**Lógica de Filtrado (3 niveles):**
+
+```
+1. ZONA ACTIVA ESPECÍFICA
+   └── Si hay zonaActivaId → usar SOLO filtros de esa zona
+
+2. ZONAS ASIGNADAS (UNIÓN)
+   └── Si hay múltiples zonas → el plato debe pasar AL MENOS UNA
+
+3. FILTROS PROPIOS DEL COCINERO
+   └── Filtros adicionales restrictivos del usuario
+```
+
+**Filtros disponibles por Plato:**
+- `platosPermitidos[]`: IDs de platos
+- `categoriasPermitidas[]`: Categorías (entradas, principales, etc.)
+- `tiposPermitidos[]`: Tipos (carne, pollo, pescado, etc.)
+- `modoFiltro`: `'todos'` | `'solo'` | `'no-ver'`
+
+**Filtros disponibles por Comanda:**
+- `areasPermitidas[]`: Áreas/mesonas
+- `mesasEspecificas[]`: Números de mesa
+- `rangoHorario`: { inicio, fin }
+- `soloPrioritarias`: boolean
+- `estadosPermitidos[]`: Estados de comanda
+- `tiempoMinimoCocina` / `tiempoMaximoCocina`: Rango de minutos
+
+---
+
+### Diferencias de Estado entre Vistas
+
+| Estado | ComandaStyle | ComandastylePerso |
+|--------|--------------|-------------------|
+| `comandas[]` | Todas las comandas | Comandas filtradas |
+| `filteredComandas[]` | Resultado de búsqueda | Comandas ya filtradas |
+| `comandasOriginales[]` | No usado | Backup sin filtrar |
+| `estadisticasFiltrado` | No usado | Objeto con stats |
+| `zonaActivaId` | No aplicable | Desde `useAuth()` |
+
+---
+
+### Estructura de Configuración del Cocinero
+
+```javascript
+{
+  cocineroId: "usr_123",
+  aliasCocinero: "Juan",
+  
+  // Filtros propios del cocinero (adicional a zonas)
+  filtrosPlatos: {
+    modoFiltro: 'todos', // 'todos' | 'solo' | 'no-ver'
+    platosPermitidos: [],
+    categoriasPermitidas: [],
+    tiposPermitidos: []
+  },
+  
+  filtrosComandas: {
+    areasPermitidas: [],
+    mesasEspecificas: [],
+    rangoHorario: { inicio: null, fin: null },
+    soloPrioritarias: false
+  },
+  
+  // Zonas asignadas con sus filtros específicos
+  zonasAsignadas: [
+    {
+      _id: "zona_1",
+      nombre: "Parrilla",
+      activo: true,
+      filtrosPlatos: {
+        modoFiltro: 'solo',
+        tiposPermitidos: ['carne', 'pollo']
+      },
+      filtrosComandas: {
+        areasPermitidas: ['mesona_1']
+      }
+    }
+  ],
+  
+  // Configuración del tablero visual
+  configTableroKDS: {
+    tiempoAmarillo: 15,
+    tiempoRojo: 20,
+    maxTarjetasVisibles: 20,
+    sonidoNotificacion: true,
+    modoNocturno: true,
+    columnasGrid: 5,
+    filasGrid: 1,
+    tamanioFuente: 15
+  }
+}
+```
+
+---
+
+### Flujo de Datos entre Componentes
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ARQUITECTURA DE VISTAS KDS                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    AuthContext                                   │   │
+│  │  cocineroConfig ◄───── Backend API (/api/cocineros/:id/config)  │   │
+│  │  zonaActivaId ◄────── localStorage (cocinaZonaActiva)           │   │
+│  └───────────────────────────┬─────────────────────────────────────┘   │
+│                              │                                          │
+│         ┌────────────────────┴────────────────────┐                    │
+│         │                                          │                    │
+│         ▼                                          ▼                    │
+│  ┌──────────────────┐                    ┌──────────────────┐          │
+│  │  ComandaStyle    │                    │ComandastylePerso │          │
+│  │  (Vista General) │                    │(Vista Personal)  │          │
+│  │                  │                    │                  │          │
+│  │  useConfig()     │                    │  useAuth()       │          │
+│  │       │          │                    │       │          │          │
+│  │       ▼          │                    │       ▼          │          │
+│  │  useComandastyle │                    │  useComandastyle │          │
+│  │  Core            │                    │  Core            │          │
+│  │  (SIN filtro)    │                    │  (CON filtro)    │          │
+│  │       │          │                    │       │          │          │
+│  │       ▼          │                    │       ▼          │          │
+│  │  [Todas las      │                    │  kdsFilters.js   │          │
+│  │   comandas]      │                    │       │          │          │
+│  └──────────────────┘                    │       ▼          │          │
+│                                          │  [Comandas       │          │
+│                                          │   filtradas]     │          │
+│                                          └──────────────────┘          │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    useSocketCocina                               │   │
+│  │  Eventos: nueva-comanda, comanda-actualizada, plato-actualizado │   │
+│  │  Rooms: fecha_actual, cocinero_id (si personalizada)            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Eventos Socket.io por Vista
+
+| Evento | ComandaStyle | ComandastylePerso |
+|--------|--------------|-------------------|
+| `nueva-comanda` | Agrega a lista | Agrega y filtra |
+| `comanda-actualizada` | Actualiza estado | Actualiza y re-filtra |
+| `plato-actualizado` | Actualiza plato | Actualiza si pasa filtro |
+| `config-cocinero-actualizada` | No aplica | Re-carga configuración |
+| `zona-asignada` | No aplica | Re-filtra con nueva zona |
+
+---
+
+### Casos de Uso por Rol
+
+**Rol `cocina` (Jefe de Cocina):**
+- Usa **ComandaStyle** (Vista General)
+- Ve todas las comandas sin filtro
+- Puede priorizar comandas
+- Accede a reportes completos
+
+**Rol `cocinero`:**
+- Usa **ComandastylePerso** (Vista Personalizada)
+- Ve solo platos de sus zonas asignadas
+- No puede priorizar comandas (botón oculto)
+- Reportes limitados a su trabajo
+
+---
+
+### Componentes UI Compartidos
+
+Ambas vistas usan los mismos componentes secundarios:
+
+| Componente | Ubicación | Función |
+|------------|-----------|---------|
+| `PlatoPreparacion.jsx` | Principal/ | Checkbox y estado visual de plato |
+| `DejarPlatoModal.jsx` | Principal/ | Modal para liberar plato con motivo |
+| `AnotacionesModal.jsx` | Principal/ | Ver/anotar observaciones |
+| `ConfigModal.jsx` | Principal/ | Configurar tiempos, sonido, grid |
+| `ReportsModal.jsx` | Principal/ | Estadísticas del día |
+| `RevertirModal.jsx` | Principal/ | Deshacer finalizaciones |
+| `SearchBar.jsx` | additionals/ | Búsqueda por mesa/mozo/comanda |
+| `ZoneSelector.jsx` | common/ | Solo en ComandastylePerso |
+
+---
+
+**Fin de la Documentación - App de Cocina v7.4.2**
