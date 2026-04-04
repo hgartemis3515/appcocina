@@ -5,15 +5,17 @@ import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import ComandaStyle from './Principal/comandastyle';
 import ComandaStylePerso from './Principal/ComandastylePerso';
+import ComandaStyleSupervi from './Principal/ComandaStyleSupervi';
 import ProtectedRoute from './common/ProtectedRoute';
 import { FaSpinner } from 'react-icons/fa';
 
 /**
  * Router interno de la App de Cocina
- * Maneja navegación entre vistas: LOGIN | MENU | COCINA | COCINA_PERSONALIZADA
+ * Maneja navegación entre vistas: LOGIN | MENU | COCINA | COCINA_PERSONALIZADA | COCINA_SUPERVISOR
  * 
  * COCINA = Vista General (sin filtros de zonas) - usa Comandastyle.jsx
  * COCINA_PERSONALIZADA = Vista Personalizada (filtrada por zonas) - usa ComandastylePerso.jsx
+ * COCINA_SUPERVISOR = Vista Supervisor (asigna cocineros) - usa ComandaStyleSupervi.jsx
  */
 const AppRouter = () => {
   const [currentView, setCurrentView] = useState('LOADING');
@@ -28,7 +30,7 @@ const AppRouter = () => {
       // Si está autenticado, ir al menú por defecto
       // Si venía de un refresh en cocina, podría restaurarse desde localStorage
       const lastView = localStorage.getItem('cocinaLastView');
-      if (lastView === 'COCINA' || lastView === 'COCINA_PERSONALIZADA') {
+      if (lastView === 'COCINA' || lastView === 'COCINA_PERSONALIZADA' || lastView === 'COCINA_SUPERVISOR') {
         setCurrentView(lastView);
         localStorage.removeItem('cocinaLastView');
       } else {
@@ -44,7 +46,7 @@ const AppRouter = () => {
     console.log('🔄 Navegando a:', view, options ? 'con opciones' : '');
     
     // Guardar última vista para restaurar en refresh
-    if (view === 'COCINA' || view === 'COCINA_PERSONALIZADA') {
+    if (view === 'COCINA' || view === 'COCINA_PERSONALIZADA' || view === 'COCINA_SUPERVISOR') {
       localStorage.setItem('cocinaLastView', view);
     } else {
       localStorage.removeItem('cocinaLastView');
@@ -110,6 +112,19 @@ const AppRouter = () => {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <ComandaStylePerso 
+          onGoToMenu={goToMenu} 
+          initialOptions={cocinaOptions}
+        />
+      </ProtectedRoute>
+    );
+  }
+
+  // Vista de Supervisor (requiere autenticación + rol supervisor/admin)
+  // Usa ComandaStyleSupervi.jsx con capacidad de asignar cocineros
+  if (currentView === 'COCINA_SUPERVISOR') {
+    return (
+      <ProtectedRoute onRedirect={handleNotAuthenticated}>
+        <ComandaStyleSupervi 
           onGoToMenu={goToMenu} 
           initialOptions={cocinaOptions}
         />

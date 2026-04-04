@@ -12,6 +12,7 @@ import {
   FaEye,
   FaFilter,
   FaMapMarkerAlt,
+  FaUserPlus,
   FaTimes
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
@@ -45,6 +46,8 @@ const MenuPage = ({ onNavigate }) => {
     setShowViewSelector(false);
     if (selectedViewMode === 'personalizada') {
       onNavigate('COCINA_PERSONALIZADA');
+    } else if (selectedViewMode === 'supervisor') {
+      onNavigate('COCINA_SUPERVISOR');
     } else {
       onNavigate('COCINA');
     }
@@ -61,6 +64,9 @@ const MenuPage = ({ onNavigate }) => {
   };
 
   // Opciones de vista para el modal
+  // La Vista Supervisor solo está disponible para supervisores y admins
+  const esSupervisorOAdmin = user?.rol === 'supervisor' || user?.rol === 'admin';
+  
   const viewOptions = [
     {
       id: 'general',
@@ -86,7 +92,19 @@ const MenuPage = ({ onNavigate }) => {
         : 'Personaliza tu vista según tu configuración de cocinero.',
       badge: tieneZonas ? `${zonasActivas.length} zona${zonasActivas.length > 1 ? 's' : ''}` : null,
       disabled: !tieneConfiguracion
-    }
+    },
+    // Vista Supervisor: Solo visible para supervisores y admins
+    ...(esSupervisorOAdmin ? [{
+      id: 'supervisor',
+      title: 'Vista Supervisor',
+      subtitle: 'Asigna cocineros a platos y comandas',
+      icon: FaUserPlus,
+      color: 'from-purple-500 to-purple-700',
+      shadowColor: 'shadow-purple-500/30',
+      description: 'Controla la asignación de cocineros y gestiona el flujo de trabajo.',
+      badge: 'Supervisor',
+      disabled: false
+    }] : [])
   ];
 
   // Opciones principales del menú

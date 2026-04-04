@@ -31,6 +31,7 @@ import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useProcesamiento from "../../hooks/useProcesamiento";
+import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { 
@@ -1356,7 +1357,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // el usuario haga click en la tarjeta para activar el ciclo de 2 estados.
   }, [comandas, userId]);
 
-  // Filtrar comandas por término de búsqueda
+  // Filtrar comandas por término de búsqueda - Usar useBuscadorPlatos para filtrado mejorado
+  // El hook filtra a nivel de plato y solo muestra comandas con coincidencias
+  const {
+    comandasFiltradas: comandasConPlatosFiltrados,
+    totalPlatosEncontrados,
+    hayFiltroActivo,
+    getPlatosVisibles
+  } = useBuscadorPlatos(comandas);
+
+  // Filtrar comandas por término de búsqueda (mantener filtrado original para compatibilidad)
   useEffect(() => {
     const filtered = comandas.filter((comanda) => {
       if (searchTerm === "") return true;
@@ -3197,7 +3207,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       {/* Barra de búsqueda (opcional, se puede ocultar) */}
       {showSearch && (
         <div className={`${bgSearch} border-b ${borderSearch} px-6 py-2 flex-shrink-0`}>
-          <SearchBar onSearch={setSearchTerm} />
+          <SearchBar 
+            onSearch={setSearchTerm}
+            totalPlatosEncontrados={totalPlatosEncontrados}
+            hayFiltroActivo={hayFiltroActivo}
+          />
         </div>
       )}
 
