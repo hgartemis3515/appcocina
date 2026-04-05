@@ -117,6 +117,7 @@ const clearRememberedUser = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [permisos, setPermisos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -170,6 +171,7 @@ export const AuthProvider = ({ children }) => {
     
     setToken(null);
     setUser(null);
+    setPermisos([]);
     setError(null);
     setShowInactivityWarning(false);
     setCocineroConfig(null);
@@ -297,6 +299,7 @@ export const AuthProvider = ({ children }) => {
           
           setToken(authData.token);
           setUser(authData.usuario);
+          setPermisos(authData.usuario.permisos || []);
           
           console.log('[AuthContext] Sesión restaurada:', authData.usuario.name, `(${authData.usuario.rol})`);
           
@@ -370,6 +373,7 @@ export const AuthProvider = ({ children }) => {
       // Actualizar estado
       setToken(newToken);
       setUser(usuario);
+      setPermisos(usuario.permisos || []);
 
       console.log('[AuthContext] Login exitoso:', usuario.name, `(${usuario.rol})`);
 
@@ -425,6 +429,25 @@ export const AuthProvider = ({ children }) => {
   const canPerformSensitiveActions = useCallback(() => {
     return hasRole(['supervisor', 'admin']);
   }, [hasRole]);
+
+  /**
+   * Verificar si el usuario tiene un permiso específico
+   * @param {string} permiso - ID del permiso a verificar
+   */
+  const hasPermission = useCallback((permiso) => {
+    // Admin tiene todos los permisos
+    if (user?.rol === 'admin') return true;
+    // Verificar si el permiso está en la lista de permisos del usuario
+    return permisos.includes(permiso);
+  }, [user, permisos]);
+
+  /**
+   * Verificar si el usuario tiene al menos uno de los permisos especificados
+   * @param {string[]} permisosArray - Array de IDs de permisos
+   */
+  const hasAnyPermission = useCallback((permisosArray) => {
+    return permisosArray.some(p => hasPermission(p));
+  }, [hasPermission]);
 
   /**
    * Obtiene el token para usar en Socket (no exponer directamente)
@@ -654,6 +677,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     hasRole,
     canPerformSensitiveActions,
+    hasPermission,
+    hasAnyPermission,
     getToken,
     setError,
     showInactivityWarning,
@@ -675,7 +700,8 @@ export const AuthProvider = ({ children }) => {
     // Información del usuario expuesta convenientemente
     userId: user?._id || user?.id,
     userName: user?.name,
-    userRole: user?.rol
+    userRole: user?.rol,
+    permisos
   };
 
   return (
