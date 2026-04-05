@@ -1371,24 +1371,19 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     comandasFiltradas: comandasConPlatosFiltrados,
     totalPlatosEncontrados,
     hayFiltroActivo,
+    sugerencias,
     getPlatosVisibles
-  } = useBuscadorPlatos(comandas);
-
-  // Filtrar comandas por término de búsqueda (mantener filtrado original para compatibilidad)
-  useEffect(() => {
-    const filtered = comandas.filter((comanda) => {
-      if (searchTerm === "") return true;
-      return comanda.platos?.some((plato) =>
-        (plato.plato?.nombre || plato?.nombre || "").toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
-    setFilteredComandas(filtered);
-  }, [comandas, searchTerm]);
+  } = useBuscadorPlatos(comandas, searchTerm);
 
   // Filtrar comandas por estado (SICAR) - Solo se muestran comandas con status "en_espera"
   // y que tengan al menos un plato aún no entregado (filtro por estado individual de plato).
   // No mostrar comandas donde TODOS los platos están entregado/pagado (ya salieron del ámbito cocina).
-  const enEspera = filteredComandas.filter(c => {
+  // 
+  // IMPORTANTE: Cuando hay búsqueda activa, filtrar desde comandasConPlatosFiltrados (ya filtradas por búsqueda)
+  // Cuando no hay búsqueda, filtrar desde comandas directamente
+  const comandasBase = hayFiltroActivo ? comandasConPlatosFiltrados : comandas;
+  
+  const enEspera = comandasBase.filter(c => {
     // Si no tiene platos, no mostrar
     if (!c.platos || c.platos.length === 0) return false;
 
@@ -3219,6 +3214,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             onSearch={setSearchTerm}
             totalPlatosEncontrados={totalPlatosEncontrados}
             hayFiltroActivo={hayFiltroActivo}
+            sugerencias={sugerencias}
+            onSugerenciaClick={setSearchTerm}
           />
         </div>
       )}
@@ -4420,8 +4417,12 @@ const SicarComandaCard = ({
 
   // Agrupar platos en dos secciones: EN PREPARACIÓN y PLATOS LISTOS
   // 🔥 NUEVO: También filtrar platos anulados
+  // 🔥 BÚSQUEDA: Si hay platosFiltrados (búsqueda activa), usarlos en lugar de todos los platos
   const { platosPreparacion, platosListos, platosAnulados, totalPlatos } = React.useMemo(() => {
-    const platosConNombre = (comanda.platos || []).filter(p => {
+    // Usar platosFiltrados si existen (búsqueda activa), sino usar todos los platos
+    const platosBase = comanda.platosFiltrados || comanda.platos || [];
+    
+    const platosConNombre = platosBase.filter(p => {
       const platoObj = p.plato || p;
       const nombre = platoObj?.nombre || p?.nombre;
       return nombre && nombre.trim().length > 0 && !p.eliminado && !p.anulado;
@@ -4449,7 +4450,7 @@ const SicarComandaCard = ({
       platosAnulados: anulados,
       totalPlatos: platosConNombre.length
     };
-  }, [comanda.platos]);
+  }, [comanda.platos, comanda.platosFiltrados]);
 
   // Filtrar platos por estado según columna (mantener para compatibilidad)
   const platosFiltrados = comanda.platos?.filter(p => {
