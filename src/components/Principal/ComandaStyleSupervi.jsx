@@ -46,6 +46,9 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
   const [dejarLoading, setDejarLoading] = useState(false);
   const [accionDejarPendiente, setAccionDejarPendiente] = useState(null); // { tipo: 'platos'|'comanda', datos }
   
+  // Estado para forzar reseteo de selección en ComandaStyle
+  const [resetKey, setResetKey] = useState(0);
+  
   // Hook de asignación de cocinero (existente)
   const {
     cocineros,
@@ -86,6 +89,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       if (data.type === 'PLATO_LIBERADO' || data.type === 'COMANDA_LIBERADA') {
         setModalDejarAbierto(false);
         setAccionDejarPendiente(null);
+        // Forzar reseteo de selección en ComandaStyle
+        setResetKey(prev => prev + 1);
       }
     }
   });
@@ -185,6 +190,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
           text: `👨‍🍳 Comanda asignada al cocinero`,
           duration: 3000
         });
+        // Forzar reseteo de selección
+        setResetKey(prev => prev + 1);
       }
     } else if (tipo === 'platos') {
       let exitosos = 0;
@@ -204,6 +211,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
           text: `👨‍🍳 ${exitosos} plato${exitosos > 1 ? 's' : ''} asignado${exitosos > 1 ? 's' : ''}`,
           duration: 3000
         });
+        // Forzar reseteo de selección
+        setResetKey(prev => prev + 1);
       }
     }
   }, [accionPendiente, tomarPlato, tomarComanda]);
@@ -229,6 +238,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         if (result.success) {
           setToastLocal({ type: 'info', text: 'Comanda liberada', duration: 3000 });
           setModalDejarAbierto(false);
+          // Forzar reseteo de selección
+          setResetKey(prev => prev + 1);
         }
       } else if (tipo === 'platos') {
         let exitosos = 0;
@@ -244,6 +255,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         if (exitosos > 0) {
           setToastLocal({ type: 'info', text: `${exitosos} plato${exitosos > 1 ? 's' : ''} liberado${exitosos > 1 ? 's' : ''}`, duration: 3000 });
           setModalDejarAbierto(false);
+          // Forzar reseteo de selección
+          setResetKey(prev => prev + 1);
         }
       }
     } finally {
@@ -275,6 +288,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         text: `✅ ${exitosos} plato${exitosos > 1 ? 's' : ''} finalizado${exitosos > 1 ? 's' : ''}`,
         duration: 3000
       });
+      // Forzar reseteo de selección
+      setResetKey(prev => prev + 1);
     }
   }, [userId, finalizarPlato]);
 
@@ -290,6 +305,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         text: '✅ Comanda finalizada',
         duration: 3000
       });
+      // Forzar reseteo de selección
+      setResetKey(prev => prev + 1);
     }
   }, [userId, finalizarComanda]);
 
@@ -337,6 +354,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
 
       {/* Renderizar ComandaStyle con interceptores */}
       <ComandaStyle
+        key={resetKey}
         onGoToMenu={onGoToMenu}
         initialOptions={initialOptions}
         isSupervisorView={true}
