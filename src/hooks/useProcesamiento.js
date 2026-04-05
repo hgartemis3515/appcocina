@@ -30,8 +30,12 @@ const useProcesamiento = ({
 
   /**
    * Tomar un plato para preparación
+   * @param {string} comandaId - ID de la comanda
+   * @param {string} platoId - ID del plato
+   * @param {string} cocineroId - ID del cocinero que toma
+   * @param {boolean} forzar - Si es true (supervisor), fuerza la reasignación aunque esté tomado
    */
-  const tomarPlato = useCallback(async (comandaId, platoId, cocineroId) => {
+  const tomarPlato = useCallback(async (comandaId, platoId, cocineroId, forzar = false) => {
     setLoading(true);
     setError(null);
     
@@ -39,7 +43,7 @@ const useProcesamiento = ({
       const token = getToken();
       const response = await axios.put(
         `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/procesando`,
-        { cocineroId },
+        { cocineroId, forzar },
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -65,7 +69,7 @@ const useProcesamiento = ({
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Error al tomar el plato';
       
-      // Error de conflicto (ya tomado por otro)
+      // Error de conflicto (ya tomado por otro) - solo si no es forzado
       if (err.response?.status === 409) {
         showToast({
           type: 'warning',
@@ -196,8 +200,11 @@ const useProcesamiento = ({
 
   /**
    * Tomar una comanda completa
+   * @param {string} comandaId - ID de la comanda
+   * @param {string} cocineroId - ID del cocinero que toma
+   * @param {boolean} forzar - Si es true (supervisor), fuerza la reasignación
    */
-  const tomarComanda = useCallback(async (comandaId, cocineroId) => {
+  const tomarComanda = useCallback(async (comandaId, cocineroId, forzar = false) => {
     setLoading(true);
     setError(null);
     
@@ -205,7 +212,7 @@ const useProcesamiento = ({
       const token = getToken();
       const response = await axios.put(
         `${getServerBaseUrl()}/api/comanda/${comandaId}/procesando`,
-        { cocineroId },
+        { cocineroId, forzar },
         {
           headers: {
             'Authorization': `Bearer ${token}`,

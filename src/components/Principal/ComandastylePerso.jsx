@@ -1330,19 +1330,27 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   useEffect(() => {
     if (comandas.length === 0) return;
     
-    // Inicializar platoStates para platos que ya tienen procesandoPor
+    const miUsuarioId = userId?.toString();
+    
+    // 🔥 FIX: Solo inicializar platoStates para platos tomados POR MI
+    // Platos tomados por otros cocineros NO se agregan para evitar conflictos
+    // cuando el usuario quiere seleccionar otros platos libres
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
       let cambios = false;
       
       comandas.forEach(comanda => {
-        if (comanda.platos && comanda.procesandoPor?.cocineroId) {
+        if (comanda.platos) {
           comanda.platos.forEach((plato, index) => {
             if (plato.procesandoPor?.cocineroId) {
-              const key = `${comanda._id}-${index}`;
-              if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
-                nuevo.set(key, 'procesando');
-                cambios = true;
+              // Solo agregar si fue tomado por el usuario actual
+              const esMio = plato.procesandoPor.cocineroId.toString() === miUsuarioId;
+              if (esMio) {
+                const key = `${comanda._id}-${index}`;
+                if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
+                  nuevo.set(key, 'procesando');
+                  cambios = true;
+                }
               }
             }
           });

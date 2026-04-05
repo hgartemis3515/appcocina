@@ -61,7 +61,21 @@ const playNotificationSound = () => {
   }
 };
 
-const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
+const ComandaStyle = ({ 
+  onGoToMenu, 
+  initialOptions,
+  // Props opcionales para Vista Supervisor (no afectan uso normal)
+  isSupervisorView = false,
+  onPlatosSeleccionadosChange = null,
+  onComandasSeleccionadasChange = null,
+  // Interceptadores para acciones de supervisor
+  onSupervisorTomarPlato = null,
+  onSupervisorTomarComanda = null,
+  onSupervisorDejarPlato = null,
+  onSupervisorDejarComanda = null,
+  onSupervisorFinalizarPlato = null,
+  onSupervisorFinalizarComanda = null
+}) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
   const { 
     userRole, 
@@ -137,6 +151,44 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   
   // Estado de conexión Socket.io
   const [socketConnectionStatus, setSocketConnectionStatus] = useState('desconectado');
+
+  // === SUPERVISOR VIEW: Notificar cambios de selección al padre ===
+  // Solo se ejecuta cuando isSupervisorView=true y hay callbacks definidos
+  
+  // Notificar platos seleccionados al padre (ComandaStyleSupervi)
+  useEffect(() => {
+    if (isSupervisorView && onPlatosSeleccionadosChange && platosChecked.size > 0) {
+      // Convertir platosChecked Map a array de objetos útiles
+      const platosArray = [];
+      platosChecked.forEach((checked, key) => {
+        if (checked) {
+          // key tiene formato "comandaId-platoIndex" o similar
+          const [comandaId, platoId] = key.split('-');
+          const comanda = comandas.find(c => c._id === comandaId);
+          const plato = comanda?.platos?.find((p, i) => `${p._id || i}` === platoId);
+          platosArray.push({
+            comandaId,
+            platoId,
+            platoNombre: plato?.nombre || 'Plato',
+            comanda
+          });
+        }
+      });
+      onPlatosSeleccionadosChange(platosArray);
+    }
+  }, [platosChecked, isSupervisorView, onPlatosSeleccionadosChange, comandas]);
+
+  // Notificar comandas seleccionadas al padre (ComandaStyleSupervi)
+  useEffect(() => {
+    if (isSupervisorView && onComandasSeleccionadasChange && selectedOrders.size > 0) {
+      // Convertir selectedOrders Set a array de comandas completas
+      const comandasArray = Array.from(selectedOrders).map(orderId => {
+        return comandas.find(c => c._id === orderId);
+      }).filter(Boolean);
+      onComandasSeleccionadasChange(comandasArray);
+    }
+  }, [selectedOrders, isSupervisorView, onComandasSeleccionadasChange, comandas]);
+  // === FIN SUPERVISOR VIEW ===
 
   // Actualizar hora y fecha cada segundo
   useEffect(() => {
@@ -1169,19 +1221,28 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   useEffect(() => {
     if (comandas.length === 0) return;
     
-    // Inicializar platoStates para platos que ya tienen procesandoPor
+    const miUsuarioId = userId?.toString();
+    
+    // 🔥 FIX: Solo inicializar platoStates para platos tomados POR MI
+    // Platos tomados por otros cocineros NO se agregan para evitar conflictos
+    // cuando el usuario quiere seleccionar otros platos libres
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
       let cambios = false;
       
       comandas.forEach(comanda => {
-        if (comanda.platos && comanda.procesandoPor?.cocineroId) {
+        if (comanda.platos) {
           comanda.platos.forEach((plato, index) => {
             if (plato.procesandoPor?.cocineroId) {
-              const key = `${comanda._id}-${index}`;
-              if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
-                nuevo.set(key, 'procesando');
-                cambios = true;
+              // Solo agregar si fue tomado por el usuario actual
+              // EXCEPCIÓN: En modo supervisor, agregar TODOS los platos tomados
+              const esMio = plato.procesandoPor.cocineroId.toString() === miUsuarioId;
+              if (esMio || isSupervisorView) {
+                const key = `${comanda._id}-${index}`;
+                if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
+                  nuevo.set(key, 'procesando');
+                  cambios = true;
+                }
               }
             }
           });
@@ -1194,7 +1255,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     // NOTA: NO inicializamos comandaStates automáticamente.
     // Las comandas tomadas por el usuario quedan sin estado visual hasta que
     // el usuario haga click en la tarjeta para activar el ciclo de 2 estados.
-  }, [comandas, userId]);
+  }, [comandas, userId, isSupervisorView]);
 
   // Filtrar comandas por término de búsqueda - Usar useBuscadorPlatos para filtrado mejorado
   // El hook filtra a nivel de plato y solo muestra comandas con coincidencias
@@ -1515,22 +1576,25 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     const plato = comanda?.platos?.[platoIndex];
     
     // 🔥 FIX: Si el plato está tomado por OTRO cocinero, ignorar el click
+    // EXCEPCIÓN: En modo supervisor, permitir interactuar con cualquier plato
     const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
                           plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
-    if (tomadoPorOtro) {
+    if (tomadoPorOtro && !isSupervisorView) {
       console.log(`[togglePlatoCheck] Plato ${platoIndex} tomado por otro cocinero, ignorando click`);
-      return; // No hacer nada
+      return; // No hacer nada (excepto supervisor)
     }
     
     const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
+    // En modo supervisor, cualquier plato tomado puede ser manejado
+    const platoTomado = isSupervisorView ? (plato?.procesandoPor?.cocineroId != null) : tomadoPorMi;
     
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
       const estadoActual = nuevo.get(key) || 'normal';
       
       let nuevoEstado;
-      if (tomadoPorMi) {
-        // Ciclo para platos que YO tomé: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+      if (platoTomado) {
+        // Ciclo para platos que están tomados (por mí o supervisor): Normal → Dejar (rojo) → Seleccionado (verde) → Normal
         if (estadoActual === 'normal') {
           nuevoEstado = 'dejar'; // → Rojo ↩️ (para liberar)
         } else if (estadoActual === 'dejar') {
@@ -1569,7 +1633,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       
       return nuevo;
     });
-  }, [comandas, userId]);
+  }, [comandas, userId, isSupervisorView]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -1890,7 +1954,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     
     // Método 2: Platos que tienen procesandoPor asignado PERO SOLO LOS MÍOS
     // (platos tomados por otros cocineros NO se agregan automáticamente)
-    // Esto permite que el usuario pueda seleccionar otros platos sin ser bloqueado
+    // EXCEPCIÓN: En modo supervisor, incluye TODOS los platos tomados
     const miUsuarioId = userId?.toString();
     comandas.forEach(comanda => {
       const comandaId = comanda._id;
@@ -1898,8 +1962,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         if (!plato.procesandoPor?.cocineroId) return;
         
         // 🔥 FIX: Solo agregar platos tomados POR MI, no por otros cocineros
+        // EXCEPCIÓN: En modo supervisor, incluir TODOS los platos tomados
         const esMio = plato.procesandoPor.cocineroId?.toString() === miUsuarioId;
-        if (!esMio) return; // Ignorar platos tomados por otros
+        if (!esMio && !isSupervisorView) return; // Ignorar platos tomados por otros (excepto supervisor)
         
         const key = `${comandaId}-${platoIndex}`;
         if (platosProcesadosSet.has(key)) return; // Ya incluido
@@ -1923,7 +1988,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     });
     
     return platosInfo;
-  }, [comandas, platoStates, userId]);
+  }, [comandas, platoStates, userId, isSupervisorView]);
 
   /**
    * Determina que accion debe mostrar el boton principal de la barra inferior
@@ -1979,8 +2044,9 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     });
     
     // CASO 1: Algun plato tomado por otro cocinero -> BLOQUEAR
+    // EXCEPCIÓN: En modo supervisor, permitir interacción con cualquier plato
     const platosAjenos = analisis.filter(p => p.tomadoPorOtro);
-    if (platosAjenos.length > 0) {
+    if (platosAjenos.length > 0 && !isSupervisorView) {
       const nombres = [...new Set(platosAjenos.map(p => p.nombreCocinero))].join(', ');
       return {
         modo: 'SIN_ACCION',
@@ -1991,7 +2057,10 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     }
     
     // CASO 2: Platos en estado 'dejar' (rojo) -> DEJAR_PLATO (liberar)
-    const platosADejar = analisis.filter(p => p.quiereDejar && p.tomadoPorMi);
+    // En modo supervisor, puede dejar platos tomados por otros
+    const platosADejar = analisis.filter(p => 
+      p.quiereDejar && (p.tomadoPorMi || (isSupervisorView && p.tomadoPorOtro))
+    );
     if (platosADejar.length > 0) {
       return {
         modo: 'DEJAR_PLATO',
@@ -2001,8 +2070,11 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       };
     }
     
-    // CASO 3: Platos en estado 'seleccionado' (verde) tomados por mi -> FINALIZAR
-    const platosAFinalizar = analisis.filter(p => p.quiereFinalizar && p.tomadoPorMi);
+    // CASO 3: Platos en estado 'seleccionado' (verde) -> FINALIZAR
+    // En modo supervisor, puede finalizar platos tomados por otros
+    const platosAFinalizar = analisis.filter(p => 
+      p.quiereFinalizar && (p.tomadoPorMi || (isSupervisorView && p.tomadoPorOtro))
+    );
     if (platosAFinalizar.length > 0) {
       return {
         modo: 'FINALIZAR_PLATO',
@@ -2029,14 +2101,24 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       mensaje: 'Sin accion disponible',
       subMensaje: ''
     };
-  }, [userId, obtenerPlatosSeleccionadosInfo]);
+  }, [userId, obtenerPlatosSeleccionadosInfo, isSupervisorView]);
 
   /**
    * Handler para TOMAR platos seleccionados
    * Marca los platos como "en preparacion" por el cocinero actual
+   * IMPORTANTE: En modo supervisor, intercepta y abre modal de selección de cocinero
    */
   const handleTomarPlatos = useCallback(async (platos) => {
     if (!platos || platos.length === 0) return;
+    
+    // === INTERCEPTACIÓN SUPERVISOR ===
+    // Si hay callback de supervisor, abrir modal de selección de cocinero
+    if (isSupervisorView && onSupervisorTomarPlato) {
+      console.log('[TomarPlatos] Modo supervisor - delegando a modal');
+      onSupervisorTomarPlato(platos);
+      return; // No ejecutar la acción normal
+    }
+    // === FIN INTERCEPTACIÓN ===
     
     setIsFinalizandoPlatos(true);
     console.log(`[TomarPlatos] Tomando ${platos.length} plato(s)...`);
@@ -2079,20 +2161,29 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [userId, tomarPlato, config.soundEnabled]);
+  }, [userId, tomarPlato, config.soundEnabled, isSupervisorView, onSupervisorTomarPlato]);
 
   /**
    * Handler para DEJAR (liberar) platos que el cocinero actual habia tomado
    * Muestra modal para ingresar motivo antes de liberar (para auditoría)
+   * IMPORTANTE: En modo supervisor, delega al modal del supervisor
    */
   const handleDejarPlatos = useCallback(async (platos) => {
     if (!platos || platos.length === 0) return;
+    
+    // === INTERCEPTACIÓN SUPERVISOR ===
+    if (isSupervisorView && onSupervisorDejarPlato) {
+      console.log('[DejarPlatos] Modo supervisor - delegando a modal');
+      onSupervisorDejarPlato(platos);
+      return;
+    }
+    // === FIN INTERCEPTACIÓN ===
     
     // Guardar platos pendientes y mostrar modal de motivo
     setPlatosPendientesDejar(platos);
     setDejarMotivo('');
     setShowDejarModal(true);
-  }, []);
+  }, [isSupervisorView, onSupervisorDejarPlato]);
 
   /**
    * Ejecuta la liberación de platos después de confirmar el motivo
@@ -2157,6 +2248,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
   }, [userId, liberarPlato, dejarMotivo, platosPendientesDejar]);
 
   // Handler para finalizar platos marcados con checkboxes
+  // IMPORTANTE: En modo supervisor, delega al callback del supervisor
   const handleFinalizarPlatosGlobal = useCallback(async () => {
     // Prevenir double-submit
     if (isFinalizandoPlatos) {
@@ -2169,6 +2261,38 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       console.warn('⚠️ No hay platos seleccionados');
       return;
     }
+
+    // === INTERCEPTACIÓN SUPERVISOR ===
+    // En modo supervisor, recopilar platos y delegar
+    if (isSupervisorView && onSupervisorFinalizarPlato) {
+      console.log('[FinalizarPlatos] Modo supervisor - delegando');
+      
+      // Recopilar platos de la misma forma que abajo
+      const platosAFinalizar = [];
+      platoStates.forEach((estado, key) => {
+        if (estado !== 'seleccionado') return;
+        const lastDashIndex = key.lastIndexOf('-');
+        if (lastDashIndex === -1) return;
+        const comandaId = key.substring(0, lastDashIndex);
+        const platoIndexStr = key.substring(lastDashIndex + 1);
+        const platoIndex = parseInt(platoIndexStr, 10);
+        if (isNaN(platoIndex)) return;
+        const comanda = comandas.find(c => c._id === comandaId);
+        if (!comanda) return;
+        const plato = comanda.platos?.[platoIndex];
+        if (!plato) return;
+        platosAFinalizar.push({
+          comandaId,
+          platoId: plato._id || plato.platoId,
+          platoIndex,
+          plato
+        });
+      });
+      
+      onSupervisorFinalizarPlato(platosAFinalizar);
+      return;
+    }
+    // === FIN INTERCEPTACIÓN ===
 
     setIsFinalizandoPlatos(true);
 
@@ -2217,10 +2341,11 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         if (!platoId) return;
         
         // v7.2: EXCLUIR platos tomados por otro cocinero
+        // EXCEPCIÓN: En modo supervisor, permitir finalizar cualquier plato
         const miUsuarioId = userId?.toString();
         const tomadoPorOtro = plato.procesandoPor?.cocineroId && 
                               plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
-        if (tomadoPorOtro) {
+        if (tomadoPorOtro && !isSupervisorView) {
           console.warn(`⚠️ Plato "${plato.plato?.nombre || plato.nombre}" excluido: tomado por ${plato.procesandoPor?.alias || 'otro cocinero'}`);
           return;
         }
@@ -2261,10 +2386,11 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         if (!platoId) return;
         
         // v7.2: EXCLUIR platos tomados por otro cocinero
+        // EXCEPCIÓN: En modo supervisor, permitir finalizar cualquier plato
         const miUsuarioId = userId?.toString();
         const tomadoPorOtro = plato.procesandoPor?.cocineroId && 
                               plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
-        if (tomadoPorOtro) {
+        if (tomadoPorOtro && !isSupervisorView) {
           console.warn(`⚠️ Plato "${plato.plato?.nombre || plato.nombre}" excluido: tomado por ${plato.procesandoPor?.alias || 'otro cocinero'}`);
           return;
         }
@@ -2355,7 +2481,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId]);
+  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId, isSupervisorView, onSupervisorFinalizarPlato]);
 
   /**
    * Handler unificado para el boton contextual de la barra inferior
@@ -2515,12 +2641,21 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
    * Handler para tomar una comanda completa
    * v7.4.1: Después de tomar, la comanda queda sin selección visual.
    * El usuario debe hacer click en la tarjeta para activar el ciclo de 2 estados.
+   * IMPORTANTE: En modo supervisor, intercepta y abre modal de selección de cocinero
    */
   const handleTomarComanda = useCallback(async (comandaId) => {
     if (!userId) {
       setToastMessage({ type: 'error', message: '⚠️ Usuario no identificado', duration: 3000 });
       return;
     }
+    
+    // === INTERCEPTACIÓN SUPERVISOR ===
+    if (isSupervisorView && onSupervisorTomarComanda) {
+      console.log('[TomarComanda] Modo supervisor - delegando a modal');
+      onSupervisorTomarComanda(comandaId);
+      return;
+    }
+    // === FIN INTERCEPTACIÓN ===
     
     console.log(`[TomarComanda] Tomando comanda ${comandaId}`);
     const result = await tomarComanda(comandaId, userId);
@@ -2556,19 +2691,40 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
         duration: 3000
       });
     }
-  }, [userId, tomarComanda, comandas, setPlatoStates, setComandaStates]);
+  }, [userId, tomarComanda, comandas, setPlatoStates, setComandaStates, isSupervisorView, onSupervisorTomarComanda]);
 
   /**
    * Handler para cambiar el estado visual de una comanda (ciclar entre dejar y finalizar)
    * Solo 2 estados de selección: dejar (rojo) → finalizar (verde) → deseleccionar
    * v7.4.3: Solo permite UNA comanda seleccionada a la vez
+   * IMPORTANTE: En modo supervisor, puede interactuar con cualquier comanda
+   * v7.5: También considera platos individuales tomados
    */
   const handleComandaCardClick = useCallback((comandaId) => {
     const comanda = comandas.find(c => c._id === comandaId);
     if (!comanda) return;
     
     const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === userId?.toString();
-    if (!tomadaPorMi) return;
+    
+    // v7.5: También verificar platos individuales tomados
+    const tienePlatosTomados = comanda.platos?.some(p => p.procesandoPor?.cocineroId);
+    const platosTomadosPorMi = comanda.platos?.some(p => 
+      p.procesandoPor?.cocineroId?.toString() === userId?.toString()
+    );
+    
+    // La comanda está tomada por alguien (completa o individualmente)
+    const estaTomada = comanda.procesandoPor?.cocineroId || tienePlatosTomados;
+    const laTengoYo = tomadaPorMi || platosTomadosPorMi;
+    
+    // En modo supervisor, puede interactuar con CUALQUIER comanda tomada
+    // Sin supervisor, solo puede interactuar si la tiene él
+    if (isSupervisorView) {
+      // Supervisor: puede interactuar si está tomada (por cualquiera)
+      if (!estaTomada) return;
+    } else {
+      // No supervisor: solo puede interactuar si la tiene él
+      if (!laTengoYo) return;
+    }
     
     // v7.4.3: Limpiar selección de comandas NO tomadas (selectedOrders)
     setSelectedOrders(new Set());
@@ -2590,11 +2746,12 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       
       return nuevo;
     });
-  }, [comandas, userId, setComandaStates, setSelectedOrders]);
+  }, [comandas, userId, setComandaStates, setSelectedOrders, isSupervisorView]);
 
   /**
    * Handler para dejar una comanda (liberar)
    * v7.4.1: Muestra modal para ingresar motivo antes de liberar (para auditoría)
+   * IMPORTANTE: En modo supervisor, delega al modal del supervisor
    */
   const handleDejarComanda = useCallback((comandaId) => {
     if (!userId) {
@@ -2602,11 +2759,19 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
       return;
     }
     
+    // === INTERCEPTACIÓN SUPERVISOR ===
+    if (isSupervisorView && onSupervisorDejarComanda) {
+      console.log('[DejarComanda] Modo supervisor - delegando a modal');
+      onSupervisorDejarComanda(comandaId);
+      return;
+    }
+    // === FIN INTERCEPTACIÓN ===
+    
     // Guardar comanda pendiente y mostrar modal de motivo
     setComandaPendienteDejar(comandaId);
     setDejarComandaMotivo('');
     setShowDejarComandaModal(true);
-  }, [userId]);
+  }, [userId, isSupervisorView, onSupervisorDejarComanda]);
   
   /**
    * Ejecuta la liberación de la comanda después de confirmar el motivo
@@ -3180,14 +3345,34 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     isSelected={isSelected}
                     onToggleSelect={() => {
                       const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === userId?.toString();
-                      if (tomadaPorMi) {
-                        // Comanda tomada por mí: solo ciclar estados (dejar → finalizar → normal)
-                        handleComandaCardClick(comanda._id);
+                      const tomadaPorOtro = comanda.procesandoPor?.cocineroId && !tomadaPorMi;
+                      
+                      // v7.5: También verificar si hay platos individuales tomados
+                      const tienePlatosTomados = comanda.platos?.some(p => p.procesandoPor?.cocineroId);
+                      const platosTomadosPorMi = comanda.platos?.some(p => 
+                        p.procesandoPor?.cocineroId?.toString() === userId?.toString()
+                      );
+                      
+                      const estaTomada = comanda.procesandoPor?.cocineroId || tienePlatosTomados;
+                      const laTengoYo = tomadaPorMi || platosTomadosPorMi;
+                      
+                      // Lógica simple:
+                      // - Supervisor: puede interactuar si está tomada (por cualquiera)
+                      // - No supervisor: solo si la tiene él
+                      if (isSupervisorView) {
+                        if (estaTomada) {
+                          handleComandaCardClick(comanda._id);
+                        } else {
+                          setComandaStates(new Map());
+                          toggleSelectOrder(comanda._id);
+                        }
                       } else {
-                        // Comanda no tomada: limpiar comandaStates primero (para selección única)
-                        setComandaStates(new Map());
-                        // Luego usar sistema de selección normal
-                        toggleSelectOrder(comanda._id);
+                        if (laTengoYo) {
+                          handleComandaCardClick(comanda._id);
+                        } else {
+                          setComandaStates(new Map());
+                          toggleSelectOrder(comanda._id);
+                        }
                       }
                     }}
                     fontSize={config.design?.fontSize || 15}
@@ -3199,6 +3384,7 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     platosChecked={platosChecked}
                     togglePlatoCheck={togglePlatoCheck}
                     usuarioActualId={userId}
+                    isSupervisorView={isSupervisorView}
                     // v7.4: Props para el sistema de 3 estados de comanda
                     comandaStates={comandaStates}
                     setComandaStates={setComandaStates}
@@ -3376,15 +3562,40 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                   };
                   
                   // v7.4.1: Nueva lógica para el botón
+                  // v7.5: En modo supervisor, puede interactuar con comandas tomadas por otros
                   if (comandaPrincipal) {
-                    if (tomadaPorOtro) {
-                      // Comanda tomada por otro - no mostrar botón
+                    if (tomadaPorOtro && !isSupervisorView) {
+                      // Comanda tomada por otro - no mostrar botón (excepto supervisor)
                       buttonConfig = {
                         label: `Tomada por ${comandaPrincipal.procesandoPor?.alias || 'otro'}`,
                         color: 'bg-gray-600 cursor-not-allowed',
                         action: () => {},
                         visible: true
                       };
+                    } else if (tomadaPorOtro && isSupervisorView) {
+                      // v7.5: Supervisor puede dejar/finalizar comandas de otros
+                      if (comandaState === 'dejar') {
+                        buttonConfig = {
+                          label: `Dejar Comanda #${comandaPrincipal.comandaNumber}`,
+                          color: 'bg-red-500 hover:bg-red-600',
+                          action: () => handleDejarComanda(comandaPrincipal._id),
+                          visible: true
+                        };
+                      } else if (comandaState === 'finalizar') {
+                        buttonConfig = {
+                          label: `Finalizar #${comandaPrincipal.comandaNumber}`,
+                          color: 'bg-green-600 hover:bg-green-700',
+                          action: () => handleFinalizarComandaCard(comandaPrincipal._id),
+                          visible: true
+                        };
+                      } else {
+                        buttonConfig = {
+                          label: '',
+                          color: '',
+                          action: () => {},
+                          visible: false
+                        };
+                      }
                     } else if (!comandaPrincipal.procesandoPor?.cocineroId) {
                       // Comanda no tomada → "Tomar Comanda"
                       buttonConfig = {
@@ -3429,7 +3640,8 @@ const ComandaStyle = ({ onGoToMenu, initialOptions }) => {
                     return null;
                   }
                   
-                  const isDisabled = tomadaPorOtro;
+                  // v7.5: Solo deshabilitar si está tomada por otro Y NO es supervisor
+                  const isDisabled = tomadaPorOtro && !isSupervisorView;
                   
                   return (
                     <motion.button
@@ -4100,7 +4312,9 @@ const SicarComandaCard = ({
   onTomarComanda,
   onDejarComanda,
   onFinalizarComanda,
-  obtenerNombreMesa // Función helper para obtener nombre de mesa
+  obtenerNombreMesa, // Función helper para obtener nombre de mesa
+  // v7.5: Prop para supervisor
+  isSupervisorView = false
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -4326,14 +4540,29 @@ const SicarComandaCard = ({
 
   // v7.4: Determinar el estado visual de la comanda para el contorno
   const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === usuarioActualId?.toString();
+  const tomadaPorOtro = comanda.procesandoPor?.cocineroId && !tomadaPorMi;
   const comandaState = comandaStates?.get(comandaId) || 'normal';
+  
+  // v7.5: También verificar si hay platos individuales tomados
+  const tienePlatosTomados = comanda.platos?.some(p => p.procesandoPor?.cocineroId);
+  const platosTomadosPorMi = comanda.platos?.some(p => 
+    p.procesandoPor?.cocineroId?.toString() === usuarioActualId?.toString()
+  );
+  
+  const estaTomada = comanda.procesandoPor?.cocineroId || tienePlatosTomados;
+  const laTengoYo = tomadaPorMi || platosTomadosPorMi;
   
   // Determinar el color del contorno según el estado
   let borderStyle = '2px solid';
   let shadowStyle = '0 8px 32px rgba(0, 0, 0, 0.3)';
   let backgroundStyle = undefined;
   
-  if (tomadaPorMi) {
+  // Lógica de contorno:
+  // - Supervisor: puede mostrar estados si está tomada por cualquiera
+  // - No supervisor: solo si la tiene él
+  const puedeMostrarEstados = isSupervisorView ? estaTomada : laTengoYo;
+  
+  if (puedeMostrarEstados) {
     if (comandaState === 'dejar') {
       // Estado DEJAR: contorno rojo
       borderStyle = '4px solid #ef4444';
@@ -4346,7 +4575,7 @@ const SicarComandaCard = ({
       backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.3), rgba(34,197,94,0.1))`;
     }
   } else if (isSelected) {
-    // Comanda seleccionada (no tomada por mí)
+    // Comanda seleccionada (no tomada)
     borderStyle = '4px solid #22c55e';
     shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.4)';
     backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
@@ -4384,7 +4613,7 @@ const SicarComandaCard = ({
         {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
         {/* Solo mostrar cuando está en estado 'finalizar' (contorno verde) */}
         <AnimatePresence>
-          {tomadaPorMi && comandaState === 'finalizar' && (
+          {puedeMostrarEstados && comandaState === 'finalizar' && (
             <motion.div
               className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
               initial={{ scale: 0, opacity: 0 }}
@@ -4579,6 +4808,8 @@ const SicarComandaCard = ({
                       // v7.2: Props para multi-cocinero
                       procesandoPor={plato.procesandoPor}
                       usuarioActualId={usuarioActualId}
+                      // v7.5: Supervisor puede interactuar con cualquier plato
+                      isSupervisorView={isSupervisorView}
                     />
                   );
                 })}

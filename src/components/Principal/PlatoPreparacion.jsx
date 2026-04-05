@@ -24,16 +24,20 @@ const PlatoPreparacion = ({
   // v7.2: Props para multi-cocinero
   procesandoPor = null,  // { cocineroId, nombre, alias, timestamp }
   usuarioActualId = null, // Para mostrar "Tú" vs nombre del cocinero
+  // v7.5: Prop para supervisor (puede interactuar con cualquier plato)
+  isSupervisorView = false,
 }) => {
-  // v7.2: Determinar si el plato está tomado por otro cocinero (no se puede interactuar)
+  // v7.2: Determinar si el plato está tomado por otro cocinero
+  // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
   const tomadoPorOtro = procesandoPor?.cocineroId && 
                          procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
+  const puedeInteractuar = isSupervisorView || !tomadoPorOtro;
   
   const handleClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    // 🔥 FIX: No permitir interacción si está tomado por otro cocinero
-    if (tomadoPorOtro || isEliminado) return;
+    // 🔥 FIX: No permitir interacción si está tomado por otro cocinero (excepto supervisor)
+    if (!puedeInteractuar || isEliminado) return;
     if (onToggle && platoIndex !== undefined) {
       onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
     }
