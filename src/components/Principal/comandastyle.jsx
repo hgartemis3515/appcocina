@@ -3136,7 +3136,7 @@ const ComandaStyle = ({
   };
 
   comandas.forEach(comanda => {
-    const mozoName = comanda.mozos?.name || "Sin mozo";
+    const mozoName = comanda.mozoNombre || comanda.mozos?.name || "Sin mozo";
     const venta = calcularTotal(comanda);
     estadisticas.ventasPorMozo[mozoName] = (estadisticas.ventasPorMozo[mozoName] || 0) + venta;
     
@@ -3680,7 +3680,7 @@ const ComandaStyle = ({
                         platoId: p.plato?._id || p._id || p.platoId,
                         nombre: p.plato?.nombre || p.nombre || 'Sin nombre',
                         estado: p.estado,
-                        mozo: c.mozos?.name || 'Sin mozo',
+                        mozo: c.mozoNombre || c.mozos?.name || 'Sin mozo',
                         mesa: obtenerNombreMesa(c.mesas)
                       }))
                   );
@@ -4667,7 +4667,7 @@ const SicarComandaCard = ({
         {/* Mozo y badges inline en header - Compacto */}
         <div className="flex items-center justify-between text-white text-xs flex-wrap gap-1">
           <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
-            👤 {comanda.mozos?.name || comanda.mozos?.nombre || 'admin'}
+            👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
             {/* v7.4: Badge del cocinero que está procesando la comanda */}

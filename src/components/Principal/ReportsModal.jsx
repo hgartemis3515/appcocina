@@ -15,7 +15,7 @@ const ReportsModal = ({ estadisticas, comandas, onClose, nightMode = true }) => 
   const [filtroEstado, setFiltroEstado] = useState("");
 
   // Obtener lista única de mozos
-  const mozos = [...new Set(comandas.map(c => c.mozos?.name).filter(Boolean))];
+  const mozos = [...new Set(comandas.map(c => c.mozoNombre || c.mozos?.name).filter(Boolean))];
   
   // Obtener lista única de mesas
   const mesas = [...new Set(comandas.map(c => c.mesas?.nummesa).filter(Boolean))].sort((a, b) => a - b);

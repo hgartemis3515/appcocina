@@ -406,7 +406,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                           )}
                         </div>
                         <div className={`text-sm ${textTertiary} mt-1`}>
-                          Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozos?.name || "Sin mozo"}
+                          Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozoNombre || comanda.mozos?.name || "Sin mozo"}
                         </div>
                         <div className={`text-xs ${textSecondary} mt-1`}>
                           Estado: <span className={`font-medium ${esComandaActiva ? 'text-yellow-300' : 'text-blue-300'}`}>{comanda.status || "N/A"}</span> | {formatearFecha(comanda.updatedAt || comanda.createdAt)}
