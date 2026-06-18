@@ -4748,6 +4748,8 @@ const SicarComandaCard = ({
                       // v7.2: Props para multi-cocinero
                       procesandoPor={plato.procesandoPor}
                       usuarioActualId={usuarioActualId}
+                      // NUEVO: Tipo de servicio (Mesa vs Para llevar)
+                      tipoServicio={plato.tipoServicio || 'mesa'}
                     />
                   );
                 })}

@@ -458,6 +458,14 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                                   <span className={reversible ? 'font-medium' : ''}>
                                     {cantidad}x {plato.nombre || "Sin nombre"}
                                   </span>
+                                  {p.tipoServicio === 'para_llevar' && (
+                                    <span
+                                      className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold"
+                                      title="Plato para llevar"
+                                    >
+                                      🥡 PARA LLEVAR
+                                    </span>
+                                  )}
                                   <span className={`text-xs px-2 py-0.5 rounded ${
                                     p.estado === 'entregado' ? 'bg-green-600/30 text-green-300' :
                                     p.estado === 'recoger' ? 'bg-blue-600/30 text-blue-300' :

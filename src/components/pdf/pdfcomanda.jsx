@@ -76,7 +76,9 @@ const PDFButton = () => {
           doc.addPage();
           y = 20;
         }
-        doc.text(`${cantidad} x ${plato.nombre} - S/.${plato.precio}`, 20, y);
+        // Sufijo "(P.L.)" cuando el plato es para llevar
+        const sufijoParaLlevar = platoObj.tipoServicio === 'para_llevar' ? ' (P.L.)' : '';
+        doc.text(`${cantidad} x ${plato.nombre}${sufijoParaLlevar} - S/.${plato.precio}`, 20, y);
         y += 10;
       });
 

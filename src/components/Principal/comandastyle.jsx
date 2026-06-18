@@ -4809,6 +4809,8 @@ const SicarComandaCard = ({
                       usuarioActualId={usuarioActualId}
                       // v7.5: Supervisor puede interactuar con cualquier plato
                       isSupervisorView={isSupervisorView}
+                      // NUEVO: Tipo de servicio (Mesa vs Para llevar)
+                      tipoServicio={plato.tipoServicio || 'mesa'}
                     />
                   );
                 })}

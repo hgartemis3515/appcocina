@@ -26,6 +26,8 @@ const PlatoPreparacion = ({
   usuarioActualId = null, // Para mostrar "Tú" vs nombre del cocinero
   // v7.5: Prop para supervisor (puede interactuar con cualquier plato)
   isSupervisorView = false,
+  // NUEVO: Tipo de servicio del plato ('mesa' | 'para_llevar')
+  tipoServicio = 'mesa',
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -240,6 +242,16 @@ const PlatoPreparacion = ({
       <div className="flex-1 pointer-events-none">
         <div className="flex items-center gap-2 flex-wrap">
           <span>{cantidad} {nombre}</span>
+
+          {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
+          {tipoServicio === 'para_llevar' && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40"
+              title="Este plato es para llevar (no se sirve en mesa)"
+            >
+              🥡 PARA LLEVAR
+            </span>
+          )}
           
           {/* v7.2: Badge de cocinero que esta procesando el plato */}
           {procesandoPor?.cocineroId && (
