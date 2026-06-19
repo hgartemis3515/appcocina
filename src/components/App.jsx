@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { ConfigProvider } from '../contexts/ConfigContext';
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
+import TicketsPpaPage from './pages/TicketsPpaPage';
 import ComandaStyle from './Principal/comandastyle';
 import ComandaStylePerso from './Principal/ComandastylePerso';
 import ComandaStyleSupervi from './Principal/ComandaStyleSupervi';
@@ -11,7 +12,7 @@ import { FaSpinner } from 'react-icons/fa';
 
 /**
  * Router interno de la App de Cocina
- * Maneja navegación entre vistas: LOGIN | MENU | COCINA | COCINA_PERSONALIZADA | COCINA_SUPERVISOR
+ * Maneja navegación entre vistas: LOGIN | MENU | COCINA | COCINA_PERSONALIZADA | COCINA_SUPERVISOR | TICKETS_PPA
  * 
  * COCINA = Vista General (sin filtros de zonas) - usa Comandastyle.jsx
  * COCINA_PERSONALIZADA = Vista Personalizada (filtrada por zonas) - usa ComandastylePerso.jsx
@@ -128,6 +129,15 @@ const AppRouter = () => {
           onGoToMenu={goToMenu} 
           initialOptions={cocinaOptions}
         />
+      </ProtectedRoute>
+    );
+  }
+
+  // Vista de Tickets PPA (requiere autenticación)
+  if (currentView === 'TICKETS_PPA') {
+    return (
+      <ProtectedRoute onRedirect={handleNotAuthenticated}>
+        <TicketsPpaPage onGoToMenu={goToMenu} />
       </ProtectedRoute>
     );
   }

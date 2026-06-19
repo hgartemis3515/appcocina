@@ -13,7 +13,8 @@ import {
   FaFilter,
   FaMapMarkerAlt,
   FaUserPlus,
-  FaTimes
+  FaTimes,
+  FaShoppingBag
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -117,6 +118,16 @@ const MenuPage = ({ onNavigate }) => {
       color: 'from-green-500 to-emerald-600',
       shadowColor: 'shadow-green-500/30',
       action: () => setShowViewSelector(true),
+      enabled: true,
+    },
+    {
+      id: 'ppa',
+      title: 'Tickets de Pagos Adelantados',
+      subtitle: 'Aprobar pagos antes de enviar a cocina',
+      icon: FaShoppingBag,
+      color: 'from-violet-500 to-purple-600',
+      shadowColor: 'shadow-violet-500/30',
+      action: () => onNavigate('TICKETS_PPA'),
       enabled: true,
     },
     {

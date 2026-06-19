@@ -22,13 +22,15 @@ import {
   FaSearch,
   FaArrowLeft,
   FaEye,
-  FaFilter
+  FaFilter,
+  FaShoppingBag
 } from "react-icons/fa";
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
+import PpaSidebar from "./PpaSidebar";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useProcesamiento from "../../hooks/useProcesamiento";
 import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
@@ -103,6 +105,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const [showConfig, setShowConfig] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showRevertir, setShowRevertir] = useState(false);
+  const [ppaSidebarOpen, setPpaSidebarOpen] = useState(false);
   // 🔥 NUEVO: Estado para modal de anular plato
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [anularMotivo, setAnularMotivo] = useState('');
@@ -1296,7 +1299,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Hook Socket.io - REEMPLAZA EL POLLING
   // Se pasa el token para autenticación del handshake
   // TEMA 1: Se pasa el cocineroId para unirse a la room personal y recibir actualizaciones de config
-  const { connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
+  const { socket: cocinaSocket, connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
     onNuevaComanda: handleNuevaComanda,
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
@@ -1387,8 +1390,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // Si no tiene platos, no mostrar
     if (!c.platos || c.platos.length === 0) return false;
 
-    const platosActivos = c.platos.filter(p => p.eliminado !== true);
+    const platosActivos = c.platos.filter(p => p.eliminado !== true && p.anulado !== true);
     if (platosActivos.length === 0) return false;
+
+    // 🔥 PARA LLEVAR: Ocultar comandas 100% "para llevar" SOLO hasta que cocina apruebe el PPA.
+    // Tras la aprobación (estadoTicket === 'aprobado') se muestran en los tableros como comanda normal.
+    const todosParaLlevar = platosActivos.every(p => p.tipoServicio === 'para_llevar');
+    if (todosParaLlevar) {
+      const todasAprobadas = platosActivos.every(p => p.pagoAdelantado?.estadoTicket === 'aprobado');
+      if (!todasAprobadas) return false;
+    }
 
     // REGLA: No mostrar comanda si TODOS los platos están en estado entregado o pagado
     const todosEntregadosOPagados = platosActivos.every(p => {
@@ -1396,6 +1407,18 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       return e === 'entregado' || e === 'pagado';
     });
     if (todosEntregadosOPagados) return false;
+
+    // 🔥 PPA: No mostrar comandas donde TODOS los platos activos tienen pagoAdelantado.requerido=true
+    // y estadoTicket pendiente_aprobacion (retenidos hasta aprobación del TPA)
+    const platosVisiblesEnKDS = platosActivos.filter(p => {
+      // Plato retenido por PPA pendiente: no visible en KDS
+      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+        return false;
+      }
+      return true;
+    });
+    // Si después de filtrar platos retenidos no queda ningún plato visible, ocultar la comanda
+    if (platosVisiblesEnKDS.length === 0) return false;
 
     // SOLO mostrar comandas con status "en_espera"
     // REGLA COCINA: NO mostrar comandas con status "recoger" o "entregado" (solo mozos manejan entregado)
@@ -3158,8 +3181,17 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             )}
           </div>
           
-          {/* Botones pequeños arriba derecha - Orden: Regresar → Buscar → Reportes → Config → Revertir */}
+          {/* Botones pequeños arriba derecha - Orden: PPA → Regresar → Buscar → Reportes → Config → Revertir */}
           <div className="flex gap-2">
+            {/* 🔥 Botón PPA - Tickets de Pagos Adelantados */}
+            <button
+              onClick={() => setPpaSidebarOpen(prev => !prev)}
+              className={`px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1`}
+              title="Tickets de Pagos Adelantados"
+            >
+              <FaShoppingBag className="text-xs" />
+              <span>PPA</span>
+            </button>
             {/* Botón Regresar al Menú */}
             <button
               onClick={handleGoToMenu}
@@ -3206,6 +3238,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           </div>
         </div>
       </header>
+
+      {/* 🔥 PPA Sidebar - Tickets de Pagos Adelantados */}
+      {ppaSidebarOpen && (
+        <div className="fixed top-0 right-0 h-full z-[100]">
+          <PpaSidebar socket={cocinaSocket} onClose={() => setPpaSidebarOpen(false)} />
+        </div>
+      )}
 
       {/* Barra de búsqueda (opcional, se puede ocultar) */}
       {showSearch && (
@@ -4429,6 +4468,10 @@ const SicarComandaCard = ({
     });
 
     const preparacion = platosConNombre.filter(p => {
+      // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
+      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+        return false;
+      }
       const estado = p.estado || "en_espera";
       return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
     });

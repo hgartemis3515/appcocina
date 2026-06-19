@@ -22,13 +22,15 @@ import {
   FaCompress,
   FaSearch,
   FaArrowLeft,
-  FaEye
+  FaEye,
+  FaShoppingBag
 } from "react-icons/fa";
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
+import PpaSidebar from "./PpaSidebar";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
 import useProcesamiento from "../../hooks/useProcesamiento";
@@ -143,6 +145,9 @@ const ComandaStyle = ({
   const [comandasAutoCompletadas, setComandasAutoCompletadas] = useState(new Set());
   // Estado para toast notifications simples
   const [toastMessage, setToastMessage] = useState(null);
+  
+  // 🔥 PPA Sidebar state
+  const [ppaSidebarOpen, setPpaSidebarOpen] = useState(false);
   
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
@@ -1280,8 +1285,16 @@ const ComandaStyle = ({
     // Si no tiene platos, no mostrar
     if (!c.platos || c.platos.length === 0) return false;
 
-    const platosActivos = c.platos.filter(p => p.eliminado !== true);
+    const platosActivos = c.platos.filter(p => p.eliminado !== true && p.anulado !== true);
     if (platosActivos.length === 0) return false;
+
+    // 🔥 PARA LLEVAR: Ocultar comandas 100% "para llevar" SOLO hasta que cocina apruebe el PPA.
+    // Tras la aprobación (estadoTicket === 'aprobado') se muestran en los tableros como comanda normal.
+    const todosParaLlevar = platosActivos.every(p => p.tipoServicio === 'para_llevar');
+    if (todosParaLlevar) {
+      const todasAprobadas = platosActivos.every(p => p.pagoAdelantado?.estadoTicket === 'aprobado');
+      if (!todasAprobadas) return false;
+    }
 
     // REGLA: No mostrar comanda si TODOS los platos están en estado entregado o pagado
     const todosEntregadosOPagados = platosActivos.every(p => {
@@ -1289,6 +1302,18 @@ const ComandaStyle = ({
       return e === 'entregado' || e === 'pagado';
     });
     if (todosEntregadosOPagados) return false;
+
+    // 🔥 PPA: No mostrar comandas donde TODOS los platos activos tienen pagoAdelantado.requerido=true
+    // y estadoTicket pendiente_aprobacion (retenidos hasta aprobación del TPA)
+    const platosVisiblesEnKDS = platosActivos.filter(p => {
+      // Plato retenido por PPA pendiente: no visible en KDS
+      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+        return false;
+      }
+      return true;
+    });
+    // Si después de filtrar platos retenidos no queda ningún plato visible, ocultar la comanda
+    if (platosVisiblesEnKDS.length === 0) return false;
 
     // SOLO mostrar comandas con status "en_espera"
     // REGLA COCINA: NO mostrar comandas con status "recoger" o "entregado" (solo mozos manejan entregado)
@@ -3219,8 +3244,17 @@ const ComandaStyle = ({
             )}
           </div>
           
-          {/* Botones pequeños arriba derecha - Orden: Regresar → Buscar → Reportes → Config → Revertir */}
+          {/* Botones pequeños arriba derecha - Orden: PPA → Regresar → Buscar → Reportes → Config → Revertir */}
           <div className="flex gap-2">
+            {/* 🔥 Botón PPA - Tickets de Pagos Adelantados */}
+            <button
+              onClick={() => setPpaSidebarOpen(prev => !prev)}
+              className={`px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1 relative`}
+              title="Tickets de Pagos Adelantados"
+            >
+              <FaShoppingBag className="text-xs" />
+              <span>PPA</span>
+            </button>
             {/* Botón Regresar al Menú */}
             <button
               onClick={handleGoToMenu}
@@ -4274,6 +4308,12 @@ const ComandaStyle = ({
         )}
       </AnimatePresence>
       
+      {/* 🔥 PPA Sidebar - Tickets de Pagos Adelantados */}
+      {ppaSidebarOpen && (
+        <div className="fixed top-0 right-0 h-full z-[100]">
+          <PpaSidebar socket={socket} onClose={() => setPpaSidebarOpen(false)} />
+        </div>
+      )}
     </div>
   );
 };
@@ -4473,6 +4513,10 @@ const SicarComandaCard = ({
     });
 
     const preparacion = platosConNombre.filter(p => {
+      // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
+      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+        return false;
+      }
       const estado = p.estado || "en_espera";
       return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
     });
