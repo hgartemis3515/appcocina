@@ -76,6 +76,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     liberarPlato,
     liberarComanda,
     finalizarPlato,
+    entregarPlato,
     finalizarComanda
   } = useProcesamiento({
     getToken,
@@ -294,6 +295,35 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
   }, [userId, finalizarPlato]);
 
   /**
+   * SALIO: Ejecuta la entrega del pass (recoger → salio) como supervisor.
+   * Confirma que el plato salió físicamente de cocina; auditoría con userId del supervisor.
+   */
+  const handleSupervisorEntregarPlato = useCallback(async (platos) => {
+    console.log('[Supervi] Entregar platos del pass:', platos);
+    if (!platos || platos.length === 0) return;
+
+    let exitosos = 0;
+    for (const plato of platos) {
+      const result = await entregarPlato(
+        plato.comandaId || plato.comanda?._id,
+        plato.platoId || plato._id,
+        userId
+      );
+      if (result.success) exitosos++;
+    }
+
+    if (exitosos > 0) {
+      setToastLocal({
+        type: 'success',
+        text: `🚶 ${exitosos} plato${exitosos > 1 ? 's' : ''} entregado${exitosos > 1 ? 's' : ''} - Salió de cocina`,
+        duration: 3000
+      });
+      // Forzar reseteo de selección
+      setResetKey(prev => prev + 1);
+    }
+  }, [userId, entregarPlato]);
+
+  /**
    * Ejecuta finalizar comanda
    */
   const handleSupervisorFinalizarComanda = useCallback(async (comandaId) => {
@@ -367,6 +397,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         // Interceptadores para "Finalizar"
         onSupervisorFinalizarPlato={handleSupervisorFinalizarPlato}
         onSupervisorFinalizarComanda={handleSupervisorFinalizarComanda}
+        // SALIO: Interceptor para "Entregar del pass" (recoger → salio)
+        onSupervisorEntregarPlato={handleSupervisorEntregarPlato}
       />
 
       {/* Modal de "Tomar" - Selección de cocinero OBLIGATORIO */}

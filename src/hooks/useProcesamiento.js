@@ -199,6 +199,51 @@ const useProcesamiento = ({
   }, [getToken, showToast, onProcesamientoChange]);
 
   /**
+   * Entregar un plato del pass (marcar como salió de cocina: recoger → salio)
+   * Flujo SALIO: el cocinero confirma que el plato salió físicamente del pass.
+   * @param {string} comandaId - ID de la comanda
+   * @param {string} platoId - ID del plato
+   * @param {string} cocineroId - ID del cocinero/supervisor que confirma la salida
+   */
+  const entregarPlato = useCallback(async (comandaId, platoId, cocineroId) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/estado`,
+        { nuevoEstado: 'salio', cocineroId },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      onProcesamientoChange({
+        type: 'PLATO_ENTREGADO',
+        comandaId,
+        platoId
+      });
+
+      return { success: true, data: response.data };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al entregar el plato';
+      showToast({
+        type: 'error',
+        message: `❌ ${errorMsg}`,
+        duration: 4000
+      });
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, showToast, onProcesamientoChange]);
+
+  /**
    * Tomar una comanda completa
    * @param {string} comandaId - ID de la comanda
    * @param {string} cocineroId - ID del cocinero que toma
@@ -370,6 +415,7 @@ const useProcesamiento = ({
     tomarPlato,
     liberarPlato,
     finalizarPlato,
+    entregarPlato,
     tomarComanda,
     liberarComanda,
     finalizarComanda

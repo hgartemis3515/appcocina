@@ -76,7 +76,9 @@ const ComandaStyle = ({
   onSupervisorDejarPlato = null,
   onSupervisorDejarComanda = null,
   onSupervisorFinalizarPlato = null,
-  onSupervisorFinalizarComanda = null
+  onSupervisorFinalizarComanda = null,
+  // SALIO: Interceptor para entregar plato del pass (recoger → salio)
+  onSupervisorEntregarPlato = null
 }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
   const { 
@@ -936,6 +938,12 @@ const ComandaStyle = ({
         if (data.nuevoEstado === "recoger") {
           nuevo.set(platoKey, 'normal');
         }
+        // SALIO: Si el plato salió de cocina (posiblemente desde otro tablero),
+        // limpiar el estado visual 'entregando' — el plato desaparecerá de PREPARADOS
+        if (data.nuevoEstado === "salio") {
+          nuevo.delete(platoKey);
+          console.log(`🚶 Plato salió de cocina: ${data.platoId} (índice: ${platoIndexParaKey})`);
+        }
         // PARRAFO 5: Si vuelve a 'en_espera' (revertido), también resetear
         if (data.nuevoEstado === "en_espera") {
           nuevo.set(platoKey, 'normal');
@@ -1193,6 +1201,7 @@ const ComandaStyle = ({
     tomarPlato,
     liberarPlato,
     finalizarPlato: finalizarPlatoConCocinero,
+    entregarPlato,
     tomarComanda,
     liberarComanda,
     finalizarComanda
@@ -1273,9 +1282,8 @@ const ComandaStyle = ({
     getPlatosVisibles
   } = useBuscadorPlatos(comandas, searchTerm);
 
-  // Filtrar comandas por estado (SICAR) - Solo se muestran comandas con status "en_espera"
-  // y que tengan al menos un plato aún no entregado (filtro por estado individual de plato).
-  // No mostrar comandas donde TODOS los platos están entregado/pagado (ya salieron del ámbito cocina).
+  // Filtrar comandas visibles en KDS: mantener tarjeta mientras haya platos
+  // pendientes en cocina (en_espera/recoger). Ocultar solo cuando todos salieron del pass.
   // 
   // IMPORTANTE: Cuando hay búsqueda activa, filtrar desde comandasConPlatosFiltrados (ya filtradas por búsqueda)
   // Cuando no hay búsqueda, filtrar desde comandas directamente
@@ -1296,10 +1304,11 @@ const ComandaStyle = ({
       if (!todasAprobadas) return false;
     }
 
-    // REGLA: No mostrar comanda si TODOS los platos están en estado entregado o pagado
+    // REGLA: No mostrar comanda si TODOS los platos están en estado salio, entregado o pagado
+    // SALIO: los platos que ya salieron de cocina no deben ocupar espacio en el KDS
     const todosEntregadosOPagados = platosActivos.every(p => {
       const e = (p.estado || '').toLowerCase();
-      return e === 'entregado' || e === 'pagado';
+      return e === 'salio' || e === 'entregado' || e === 'pagado';
     });
     if (todosEntregadosOPagados) return false;
 
@@ -1315,9 +1324,10 @@ const ComandaStyle = ({
     // Si después de filtrar platos retenidos no queda ningún plato visible, ocultar la comanda
     if (platosVisiblesEnKDS.length === 0) return false;
 
-    // SOLO mostrar comandas con status "en_espera"
-    // REGLA COCINA: NO mostrar comandas con status "recoger" o "entregado" (solo mozos manejan entregado)
-    if (c.status !== "en_espera") return false;
+    // SALIO: Mantener tarjeta mientras haya platos en cocina (en_espera o recoger/PREPARADOS).
+    // La visibilidad final la define el filtro por plato; excluir solo comandas pagadas.
+    const statusComanda = (c.status || '').toLowerCase();
+    if (statusComanda === 'pagado') return false;
 
     // VALIDACIÓN CRÍTICA: Solo mostrar comandas donde TODOS los platos tengan nombre cargado
     const todosPlatosConNombre = c.platos.every(plato => {
@@ -1334,12 +1344,8 @@ const ComandaStyle = ({
     return true;
   });
 
-  // Ya no mostramos comandas en "recoger" o "entregado" en el panel principal
-  // Solo se muestran comandas con status "en_espera"
-  const recoger = []; // Vacío - no mostramos comandas en recoger
-
-  // Ya no mostramos comandas entregadas en el panel principal
-  // Solo se muestran en_espera y recoger
+  // Comandas visibles en KDS (en_espera + recoger con platos pendientes de salir del pass)
+  const recoger = [];
 
   // Debug logs
   useEffect(() => {
@@ -1592,6 +1598,19 @@ const ComandaStyle = ({
     // Buscar el plato para verificar si está tomado por mí o por otro
     const comanda = comandas.find(c => c._id === comandaId);
     const plato = comanda?.platos?.[platoIndex];
+    
+    // SALIO: Rama para platos en PREPARADOS (recoger). Clic individual selecciona
+    // el plato para confirmar su salida del pass (recoger → salio).
+    // Ciclo simple: normal ↔ entregando (rojo). No usa platosChecked.
+    if (plato?.estado === 'recoger') {
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        const estadoActual = nuevo.get(key) || 'normal';
+        nuevo.set(key, estadoActual === 'entregando' ? 'normal' : 'entregando');
+        return nuevo;
+      });
+      return;
+    }
     
     // 🔥 FIX: Si el plato está tomado por OTRO cocinero, ignorar el click
     // EXCEPCIÓN: En modo supervisor, permitir interactuar con cualquier plato
@@ -1933,7 +1952,8 @@ const ComandaStyle = ({
     // Método 1: Platos con estado visual local interactuado
     platoStates.forEach((estado, key) => {
       // v7.2: Incluir 'procesando', 'seleccionado' y 'dejar'
-      if (estado !== 'procesando' && estado !== 'seleccionado' && estado !== 'dejar') return;
+      // SALIO: Incluir también 'entregando' (platos en recoger marcados para salir del pass)
+      if (estado !== 'procesando' && estado !== 'seleccionado' && estado !== 'dejar' && estado !== 'entregando') return;
       
       // Parsear key: formato es ${comandaId}-${platoIndex}
       const lastDashIndex = key.lastIndexOf('-');
@@ -1954,6 +1974,22 @@ const ComandaStyle = ({
       // 🔥 Usar subdocumento _id como ID único
       const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
       if (!platoId) return;
+      
+      // SALIO: Platos en 'recoger' marcados como 'entregando' (salida del pass)
+      if (plato.estado === 'recoger' && estado === 'entregando') {
+        platosProcesadosSet.add(key);
+        platosInfo.push({
+          comandaId,
+          platoId,
+          platoIndex,
+          plato,
+          nombre: plato.plato?.nombre || plato.nombre || 'Plato',
+          procesandoPor: plato.procesandoPor,
+          estadoBackend: 'recoger',
+          estadoVisual: estado
+        });
+        return;
+      }
       
       // Solo incluir platos que esten pendientes de preparacion
       if (plato.estado === "en_espera" || plato.estado === "ingresante" || plato.estado === "pedido") {
@@ -2060,6 +2096,20 @@ const ComandaStyle = ({
         nombreCocinero: procesandoPor?.alias || procesandoPor?.nombre || 'otro'
       };
     });
+    
+    // CASO 0 (SALIO): Platos en 'recoger' marcados para entregar del pass -> ENTREGAR_PLATO
+    // Máxima prioridad: confirmar salida de cocina (recoger → salio)
+    const platosAEntregar = platosSeleccionados.filter(p => 
+      p.estadoBackend === 'recoger' && p.estadoVisual === 'entregando'
+    );
+    if (platosAEntregar.length > 0) {
+      return {
+        modo: 'ENTREGAR_PLATO',
+        platos: platosAEntregar,
+        mensaje: `Entregar ${platosAEntregar.length} Plato${platosAEntregar.length > 1 ? 's' : ''}`,
+        subMensaje: 'Confirmar salida de cocina'
+      };
+    }
     
     // CASO 1: Algun plato tomado por otro cocinero -> BLOQUEAR
     // EXCEPCIÓN: En modo supervisor, permitir interacción con cualquier plato
@@ -2502,6 +2552,90 @@ const ComandaStyle = ({
   }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId, isSupervisorView, onSupervisorFinalizarPlato]);
 
   /**
+   * SALIO: Handler para entregar platos del pass (recoger → salio)
+   * Confirma que el cocinero sacó físicamente el plato del pass.
+   * En modo supervisor, delega al interceptor onSupervisorEntregarPlato.
+   */
+  const [isEntregandoPlatos, setIsEntregandoPlatos] = useState(false);
+  const handleEntregarPlatosGlobal = useCallback(async () => {
+    if (isEntregandoPlatos) {
+      console.warn('⚠️ Ya se están entregando platos, por favor espera...');
+      return;
+    }
+
+    // Recopilar platos marcados como 'entregando' en estado 'recoger'
+    const platosAEntregar = [];
+    platoStates.forEach((estado, key) => {
+      if (estado !== 'entregando') return;
+      const lastDashIndex = key.lastIndexOf('-');
+      if (lastDashIndex === -1) return;
+      const comandaId = key.substring(0, lastDashIndex);
+      const platoIndex = parseInt(key.substring(lastDashIndex + 1), 10);
+      if (isNaN(platoIndex)) return;
+      const comanda = comandas.find(c => c._id === comandaId);
+      if (!comanda) return;
+      const plato = comanda.platos?.[platoIndex];
+      if (!plato || plato.estado !== 'recoger') return;
+      const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
+      if (!platoId) return;
+      platosAEntregar.push({ comandaId, platoId, platoIndex, plato });
+    });
+
+    if (platosAEntregar.length === 0) {
+      console.warn('⚠️ No hay platos marcados para entregar');
+      return;
+    }
+
+    // === INTERCEPTACIÓN SUPERVISOR ===
+    if (isSupervisorView && onSupervisorEntregarPlato) {
+      console.log('[EntregarPlatos] Modo supervisor - delegando');
+      onSupervisorEntregarPlato(platosAEntregar);
+      return;
+    }
+    // === FIN INTERCEPTACIÓN ===
+
+    setIsEntregandoPlatos(true);
+    try {
+      const resultados = await Promise.allSettled(
+        platosAEntregar.map(p => entregarPlato(p.comandaId, p.platoId, userId))
+      );
+
+      const exitosKeys = [];
+      let fallidos = 0;
+      resultados.forEach((result, idx) => {
+        const p = platosAEntregar[idx];
+        if (result.status === 'fulfilled' && result.value?.success) {
+          exitosKeys.push(`${p.comandaId}-${p.platoIndex}`);
+        } else {
+          fallidos++;
+        }
+      });
+
+      // Limpiar platoStates de los entregados (el socket/refresh removerá el plato)
+      if (exitosKeys.length > 0) {
+        setPlatoStates(prev => {
+          const nuevo = new Map(prev);
+          exitosKeys.forEach(k => nuevo.delete(k));
+          return nuevo;
+        });
+      }
+
+      if (exitosKeys.length > 0) {
+        setToastMessage({
+          type: 'success',
+          message: `🚶 ${exitosKeys.length} plato(s) entregado(s) - Salió de cocina`,
+          duration: 3000
+        });
+      }
+      if (fallidos > 0) {
+        console.warn(`⚠️ ${fallidos} plato(s) fallaron al entregar`);
+      }
+    } finally {
+      setIsEntregandoPlatos(false);
+    }
+  }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId, isSupervisorView, onSupervisorEntregarPlato]);
+
+  /**
    * Handler unificado para el boton contextual de la barra inferior
    * Decide la accion basandose en el modo calculado
    * IMPORTANTE: Este handler debe definirse DESPUES de handleFinalizarPlatosGlobal
@@ -2510,6 +2644,9 @@ const ComandaStyle = ({
     const { modo, platos } = determinarAccionBoton();
     
     switch (modo) {
+      case 'ENTREGAR_PLATO':
+        await handleEntregarPlatosGlobal();
+        break;
       case 'TOMAR_PLATO':
         await handleTomarPlatos(platos);
         break;
@@ -2524,7 +2661,7 @@ const ComandaStyle = ({
         console.log('[BotonContextual] Sin accion disponible');
         break;
     }
-  }, [determinarAccionBoton, handleTomarPlatos, handleDejarPlatos, handleFinalizarPlatosGlobal]);
+  }, [determinarAccionBoton, handleEntregarPlatosGlobal, handleTomarPlatos, handleDejarPlatos, handleFinalizarPlatosGlobal]);
 
   // Handler para finalizar comanda completa - REGLA: Solo batch platos a 'recoger', nunca 'entregado'
   const handleFinalizarComandaCompletaGlobal = useCallback(async () => {
@@ -3443,7 +3580,7 @@ const ComandaStyle = ({
                   // v7.2: Contar platos con interaccion (amarillo O verde)
                   const platosConInteraccion = obtenerPlatosSeleccionadosInfo();
                   const hayPlatosSeleccionados = platosConInteraccion.length > 0;
-                  const isLoading = isFinalizandoPlatos || procesamientoLoading;
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || procesamientoLoading;
                   
                   // Determinar estilos segun el modo
                   const getButtonStyles = () => {
@@ -3453,6 +3590,8 @@ const ComandaStyle = ({
                         : 'bg-gray-300 text-gray-400 cursor-not-allowed';
                     }
                     switch (modo) {
+                      case 'ENTREGAR_PLATO':
+                        return 'bg-green-800 text-white hover:bg-green-900 cursor-pointer';
                       case 'TOMAR_PLATO':
                         return 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer';
                       case 'DEJAR_PLATO':
@@ -3470,6 +3609,7 @@ const ComandaStyle = ({
                   const getHoverEffect = () => {
                     if (!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading) return {};
                     const colors = {
+                      'ENTREGAR_PLATO': 'rgba(6, 95, 70, 0.7)',
                       'TOMAR_PLATO': 'rgba(59, 130, 246, 0.7)',
                       'DEJAR_PLATO': 'rgba(239, 68, 68, 0.7)',
                       'FINALIZAR_PLATO': 'rgba(34, 197, 94, 0.7)'
@@ -3493,6 +3633,15 @@ const ComandaStyle = ({
                       );
                     }
                     switch (modo) {
+                      case 'ENTREGAR_PLATO':
+                        return (
+                          <motion.span
+                            animate={{ x: [0, 4, 0] }}
+                            transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.8 }}
+                          >
+                            🚶
+                          </motion.span>
+                        );
                       case 'TOMAR_PLATO':
                         return <span>👆</span>;
                       case 'DEJAR_PLATO':
@@ -4943,6 +5092,9 @@ const SicarComandaCard = ({
                     const platoIdUnico = plato._id?.toString() || platoObj?._id || index;
                     const platoIndex = comanda.platos.indexOf(plato);
                     const estadoRealPlato = plato.estado || 'recoger';
+                    // SALIO: Estado visual de selección para entregar del pass
+                    const platoKeyListo = `${comandaId}-${platoIndex}`;
+                    const seleccionadoEntregar = platoStates.get(platoKeyListo) === 'entregando';
                     
                     return (
                       <motion.div
@@ -4951,20 +5103,30 @@ const SicarComandaCard = ({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
                         transition={{ duration: 0.3 }}
-                        className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 cursor-pointer ${
-                          nightMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'
+                        onClick={(e) => {
+                          // SALIO: Selección individual del plato para confirmar salida del pass.
+                          // stopPropagation evita seleccionar la comanda completa.
+                          e.stopPropagation();
+                          togglePlatoCheck(comandaId, platoIndex);
+                        }}
+                        className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 cursor-pointer border-2 ${
+                          seleccionadoEntregar
+                            ? 'bg-red-600/40 border-red-500 text-white'
+                            : nightMode ? 'bg-green-900/30 border-transparent text-green-300' : 'bg-green-100 border-transparent text-green-800'
                         }`}
                         whileHover={{ scale: 1.02, x: 4 }}
                         style={{ 
                           fontFamily: 'Arial, sans-serif',
                           fontSize: '18px'
                         }}
-                        title="Click para seleccionar comanda"
+                        title={seleccionadoEntregar ? 'Click para deseleccionar' : 'Click para marcar salida de cocina'}
                       >
-                        {/* Check verde bold (no interactivo) */}
+                        {/* Checkbox: verde si listo, rojo si seleccionado para entregar */}
                         <div 
                           className={`w-6 h-6 border-2 rounded flex items-center justify-center pointer-events-none ${
-                            nightMode ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-600'
+                            seleccionadoEntregar
+                              ? 'bg-red-600 border-red-400'
+                              : nightMode ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-600'
                           }`}
                         >
                           <motion.svg
@@ -4980,8 +5142,8 @@ const SicarComandaCard = ({
                         </div>
                         
                         <span className="flex items-center gap-2 flex-1 font-bold pointer-events-none">
-                          <span className={nightMode ? 'text-green-300' : 'text-green-700'}>
-                            ✓
+                          <span className={seleccionadoEntregar ? 'text-white' : nightMode ? 'text-green-300' : 'text-green-700'}>
+                            {seleccionadoEntregar ? '🚶' : '✓'}
                           </span>
                           <span>
                             {cantidad} {platoObj?.nombre || "Sin nombre"}
