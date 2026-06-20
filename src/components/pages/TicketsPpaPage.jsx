@@ -45,7 +45,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const handleAprobar = async (ticket) => {
     setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
     try {
-      const ticketTipo = ticket.tipo === 'pago_adelantado' ? 'ADELANTADO' : 'COMANDA';
+      const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.tipo === 'ADELANTADO') ? 'ADELANTADO' : 'COMANDA';
       await aprobarItem(ticket._id, ticketTipo, user?._id || user?.id, user?.name || 'Cocina');
     } catch (err) {
       alert('Error al aprobar: ' + (err.userMessage || err.message));
