@@ -299,7 +299,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       </div>
                     )}
 
-                    {/* Acciones */}
+                    {/* Acciones según estado del ticket */}
                     {ticket.estado === 'pendiente_aprobacion' && (
                       <div className="p-3 flex gap-2">
                         <button
@@ -352,6 +352,20 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       </div>
                     )}
 
+                    {/* Aprobados: solo imprimir */}
+                    {ticket.estado === 'aprobado' && (
+                      <div className="p-2">
+                        <button
+                          onClick={() => handleImprimir(ticket)}
+                          className="w-full flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
+                            text-white py-2 rounded-lg transition-colors text-sm font-medium"
+                        >
+                          <FaPrint className="text-xs" />
+                          Imprimir
+                        </button>
+                      </div>
+                    )}
+
                     {/* Info de reporte */}
                     {ticket.estado === 'reportado' && ticket.motivoReporte && (
                       <div className="p-3 bg-red-900/20">
@@ -384,8 +398,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       </div>
                     )}
 
-                    {/* Imprimir para tickets no pendientes */}
-                    {ticket.estado !== 'pendiente_aprobacion' && ticket.estado !== 'reportado' && (
+                    {/* Imprimir para rechazados u otros estados no pendientes */}
+                    {(ticket.estado === 'rechazado') && (
                       <div className="p-2">
                         <button
                           onClick={() => handleImprimir(ticket)}

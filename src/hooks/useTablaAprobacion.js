@@ -164,19 +164,45 @@ export default function useTablaAprobacion() {
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch aprobación tickets (comandas + adelantados unificados)
+      // Fetch aprobación tickets pendientes (comandas + adelantados unificados)
       const fechaHoy = new Date().toISOString().split('T')[0];
-      const data = await apiGet(`/api/aprobacion/pendientes?fecha=${fechaHoy}`);
 
+      // Cargar tickets pendientes
+      const data = await apiGet(`/api/aprobacion/pendientes?fecha=${fechaHoy}`);
+      let pendientes = [];
       if (data?.success && Array.isArray(data.tickets)) {
-        setItems(data.tickets);
-        setError(null);
+        pendientes = data.tickets;
       } else if (Array.isArray(data)) {
-        setItems(data);
-        setError(null);
+        pendientes = data;
       }
 
-      // Also fetch PPA tickets for backwards compatibility
+      // PLAN: también cargar tickets aprobados/rechazados del día
+      // para que la pestaña "Aprobados" funcione.
+      let todos = [];
+      try {
+        const todosData = await apiGet(`/api/aprobacion/fecha/${fechaHoy}`);
+        if (todosData?.success && Array.isArray(todosData.tickets)) {
+          todos = todosData.tickets;
+        }
+      } catch (todosErr) {
+        // Non-critical: si falla, solo tendremos pendientes
+        console.warn('[TablaAprobacion] Error cargando todos los tickets:', todosErr.message);
+      }
+
+      // Merge: pendientes (por si el endpoint de todos no trae los PPA) + todos
+      // Evitar duplicados por _id
+      const pendientesMap = new Map(pendientes.map(t => [String(t._id), t]));
+      for (const t of todos) {
+        if (!pendientesMap.has(String(t._id))) {
+          pendientes.push(t);
+          pendientesMap.set(String(t._id), t);
+        }
+      }
+
+      setItems(pendientes);
+      setError(null);
+
+      // Also fetch PPA tickets for backwards compatibility (legacy endpoint)
       try {
         const ppaData = await apiGet(`/api/pago-adelantado/pendientes?fecha=${fechaHoy}`);
         if (ppaData?.success && Array.isArray(ppaData.tickets)) {
@@ -257,7 +283,11 @@ export default function useTablaAprobacion() {
 
     newSocket.on('comanda-aprobada', (data) => {
       console.log('[TablaAprobacion] Comanda aprobada:', data?.ticketNumber);
-      setItems(prev => prev.filter(t => t._id !== data?.ticketId));
+      // PLAN: Instead of removing the ticket, update its state to 'aprobado'
+      // so it appears in the "Aprobados" filter tab immediately.
+      setItems(prev => prev.map(t =>
+        t._id === data?.ticketId ? { ...t, estado: 'aprobado', aprobadoPorNombre: data?.aprobadoPorNombre, fechaAprobacion: data?.fechaAprobacion || new Date().toISOString() } : t
+      ));
       fetchItems();
     });
 
