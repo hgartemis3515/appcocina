@@ -1304,13 +1304,14 @@ const ComandaStyle = ({
       if (!todasAprobadas) return false;
     }
 
-    // REGLA: No mostrar comanda si TODOS los platos están en estado salio, entregado o pagado
-    // SALIO: los platos que ya salieron de cocina no deben ocupar espacio en el KDS
-    const todosEntregadosOPagados = platosActivos.every(p => {
+    // REGLA: No mostrar comanda si TODOS los platos están en estado salio o entregado.
+    // PLAN_PLANTILLA_COMANDAS v2: 'pagado' ahora significa "cobrado y aprobado por cocina,
+    // pendiente de preparar". No se incluye en la lista de estados que ocultan la comanda.
+    const todosSalidosOEntregados = platosActivos.every(p => {
       const e = (p.estado || '').toLowerCase();
-      return e === 'salio' || e === 'entregado' || e === 'pagado';
+      return e === 'salio' || e === 'entregado';
     });
-    if (todosEntregadosOPagados) return false;
+    if (todosSalidosOEntregados) return false;
 
     // 🔥 PPA: No mostrar comandas donde TODOS los platos activos tienen pagoAdelantado.requerido=true
     // y estadoTicket pendiente_aprobacion (retenidos hasta aprobación del TPA)
@@ -1319,15 +1320,18 @@ const ComandaStyle = ({
       if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
         return false;
       }
+      // PLAN_PLANTILLA_COMANDAS: Plato en estado "pendiente" (esperando aprobación cocina): no visible en KDS
+      if ((p.estado || '').toLowerCase() === 'pendiente') {
+        return false;
+      }
       return true;
     });
     // Si después de filtrar platos retenidos no queda ningún plato visible, ocultar la comanda
     if (platosVisiblesEnKDS.length === 0) return false;
 
     // SALIO: Mantener tarjeta mientras haya platos en cocina (en_espera o recoger/PREPARADOS).
-    // La visibilidad final la define el filtro por plato; excluir solo comandas pagadas.
-    const statusComanda = (c.status || '').toLowerCase();
-    if (statusComanda === 'pagado') return false;
+    // PLAN_PLANTILLA_COMANDAS v2: NO ocultar por status 'pagado' — tras aprobación de cocina,
+    // la comanda tiene status 'pagado' pero los platos acaban de pasar a preparar.
 
     // VALIDACIÓN CRÍTICA: Solo mostrar comandas donde TODOS los platos tengan nombre cargado
     const todosPlatosConNombre = c.platos.every(plato => {

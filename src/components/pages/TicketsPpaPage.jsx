@@ -1,15 +1,16 @@
 /**
- * TicketsPpaPage - Tablero dedicado de Tickets de Pago Adelantado
- * Accesible desde el menú principal de App Cocina.
+ * TicketsPpaPage - Tablero unificado de Comandas y Pagos Adelantados
+ * Renombrado: "Tabla de comandas y pagos adelantados"
+ * Acceso desde el menú principal de App Cocina.
  */
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
-  FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter,
+  FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
-import useTicketsPPA from '../../hooks/useTicketsPPA';
+import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -23,48 +24,89 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+// Badge type label + color
+const tipoBadge = (tipo) => {
+  if (tipo === 'comanda_completa') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300 border-blue-500/40' };
+  if (tipo === 'pago_adelantado') return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300 border-violet-500/40' };
+  return { label: tipo || 'OTRO', bg: 'bg-gray-500/30 text-gray-300 border-gray-500/40' };
+};
+
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user, getToken } = useAuth();
-  const { tickets, loading, error, aprobarTicket, rechazarTicket, fetchTickets } = useTicketsPPA();
-  const [filtro, setFiltro] = useState('pendientes'); // pendientes, todos, aprobados, rechazados
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA } = useTablaAprobacion();
+  const [filtro, setFiltro] = useState('pendientes'); // pendientes, todos, aprobados, reportados
   const [aprobarLoading, setAprobarLoading] = useState({});
+  const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
-  const [rechazarMotivo, setRechazarMotivo] = useState({});
+  const [reportarMotivo, setReportarMotivo] = useState({});
+  const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
 
-  const handleAprobar = async (ticketId) => {
-    setAprobarLoading(prev => ({ ...prev, [ticketId]: true }));
+  const handleAprobar = async (ticket) => {
+    setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
     try {
-      await aprobarTicket(ticketId, user?._id || user?.id, user?.name || 'Cocina');
+      const ticketTipo = ticket.tipo === 'pago_adelantado' ? 'ADELANTADO' : 'COMANDA';
+      await aprobarItem(ticket._id, ticketTipo, user?._id || user?.id, user?.name || 'Cocina');
     } catch (err) {
-      alert('Error al aprobar: ' + err.message);
+      alert('Error al aprobar: ' + (err.userMessage || err.message));
     } finally {
-      setAprobarLoading(prev => ({ ...prev, [ticketId]: false }));
+      setAprobarLoading(prev => ({ ...prev, [ticket._id]: false }));
+    }
+  };
+
+  const handleReportar = async (ticketId) => {
+    const motivo = (reportarMotivo[ticketId] || '').trim();
+    if (motivo.length < 3) {
+      alert('El motivo es obligatorio y debe tener al menos 3 caracteres.');
+      return;
+    }
+    setReportarLoading(prev => ({ ...prev, [ticketId]: true }));
+    try {
+      await reportarItem(ticketId, motivo, user?._id || user?.id, user?.name || 'Cocina');
+      setShowReportarModal(null);
+    } catch (err) {
+      alert('Error al reportar: ' + (err.userMessage || err.message));
+    } finally {
+      setReportarLoading(prev => ({ ...prev, [ticketId]: false }));
     }
   };
 
   const handleRechazar = async (ticketId) => {
-    const motivo = rechazarMotivo[ticketId] || 'Sin motivo';
+    const motivo = (rechazarLoading[ticketId + '_motivo'] || '').trim();
+    if (motivo.length < 3) {
+      alert('El motivo es obligatorio y debe tener al menos 3 caracteres.');
+      return;
+    }
     setRechazarLoading(prev => ({ ...prev, [ticketId]: true }));
     try {
-      await rechazarTicket(ticketId, motivo, user?._id || user?.id, user?.name || 'Cocina');
+      await rechazarItem(ticketId, motivo, user?._id || user?.id, user?.name || 'Cocina');
       setShowRechazarModal(null);
     } catch (err) {
-      alert('Error al rechazar: ' + err.message);
+      alert('Error al rechazar: ' + (err.userMessage || err.message));
     } finally {
       setRechazarLoading(prev => ({ ...prev, [ticketId]: false }));
     }
   };
 
-  const ticketsFiltrados = filtro === 'pendientes'
-    ? tickets.filter(t => t.estado === 'pendiente_aprobacion')
-    : filtro === 'aprobados'
-      ? tickets.filter(t => t.estado === 'aprobado')
-      : filtro === 'rechazados'
-        ? tickets.filter(t => t.estado === 'rechazado')
-        : tickets;
+  const handleImprimir = async (ticket) => {
+    try {
+      await imprimirComanda(ticket);
+    } catch (err) {
+      alert('Error al imprimir comanda: ' + (err.userMessage || err.message));
+    }
+  };
 
-  const cantidadPendientes = tickets.filter(t => t.estado === 'pendiente_aprobacion').length;
+  const itemsFiltrados = filtro === 'pendientes'
+    ? items.filter(t => t.estado === 'pendiente_aprobacion')
+    : filtro === 'aprobados'
+      ? items.filter(t => t.estado === 'aprobado')
+      : filtro === 'reportados'
+        ? items.filter(t => t.estado === 'reportado')
+        : filtro === 'comandas'
+          ? items.filter(t => t.tipo === 'comanda_completa')
+          : filtro === 'adelantados'
+            ? items.filter(t => t.tipo === 'pago_adelantado')
+            : items;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
@@ -82,8 +124,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               <FaShoppingBag className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Tickets de Pagos Adelantados</h1>
-              <p className="text-gray-400 text-xs">Aprobación de pagos antes de enviar a cocina</p>
+              <h1 className="text-lg font-bold text-white">Comandas y Pagos Adelantados</h1>
+              <p className="text-gray-400 text-xs">Aprobar comandas, reportar incidencias</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -92,8 +134,18 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 {cantidadPendientes} pendiente{cantidadPendientes > 1 ? 's' : ''}
               </span>
             )}
+            {cantidadComandas > 0 && (
+              <span className="bg-blue-500/80 text-white text-xs px-2 py-1 rounded-full">
+                {cantidadComandas} comanda{cantidadComandas > 1 ? 's' : ''}
+              </span>
+            )}
+            {cantidadPPA > 0 && (
+              <span className="bg-violet-500/80 text-white text-xs px-2 py-1 rounded-full">
+                {cantidadPPA} adelantado{cantidadPPA > 1 ? 's' : ''}
+              </span>
+            )}
             <button
-              onClick={fetchTickets}
+              onClick={fetchItems}
               className="text-gray-400 hover:text-white p-2 transition-colors"
               title="Actualizar"
             >
@@ -104,17 +156,19 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       </header>
 
       {/* Filtros */}
-      <div className="max-w-7xl mx-auto px-4 py-3 flex gap-2 border-b border-gray-800">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex gap-2 border-b border-gray-800 overflow-x-auto">
         {[
           { key: 'pendientes', label: 'Pendientes', icon: FaClock },
+          { key: 'comandas', label: 'Comandas', icon: FaUtensils },
+          { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
+          { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
           { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
-          { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
           { key: 'todos', label: 'Todos', icon: FaFilter },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setFiltro(key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
               ${filtro === key
                 ? 'bg-violet-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
@@ -125,14 +179,23 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         ))}
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 py-2">
+          <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-3 text-red-300 text-sm">
+            {error}
+          </div>
+        </div>
+      )}
+
       {/* Contenido */}
       <main className="max-w-7xl mx-auto px-4 py-4">
-        {loading && ticketsFiltrados.length === 0 ? (
+        {loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
             <FaSyncAlt className="text-4xl text-violet-500 mx-auto mb-4 animate-spin" />
             <p className="text-gray-400">Cargando tickets...</p>
           </div>
-        ) : ticketsFiltrados.length === 0 ? (
+        ) : itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
             <FaCheck className="text-4xl text-green-500 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">Sin tickets {filtro === 'pendientes' ? 'pendientes' : filtro}</p>
@@ -140,135 +203,261 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <AnimatePresence>
-              {ticketsFiltrados.map((ticket) => (
-                <motion.div
-                  key={ticket._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg"
-                >
-                  {/* Header del card */}
-                  <div className={`p-3 ${
-                    ticket.estado === 'pendiente_aprobacion' ? 'bg-violet-600/20 border-b border-violet-500/30' :
-                    ticket.estado === 'aprobado' ? 'bg-green-600/20 border-b border-green-500/30' :
-                    'bg-red-600/20 border-b border-red-500/30'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-violet-300 text-sm font-mono font-bold">
-                        TPA #{ticket.ticketNumber || '...'}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        ticket.estado === 'pendiente_aprobacion' ? 'bg-violet-500/30 text-violet-300' :
-                        ticket.estado === 'aprobado' ? 'bg-green-500/30 text-green-300' :
-                        'bg-red-500/30 text-red-300'
-                      }`}>
-                        {ticket.estado === 'pendiente_aprobacion' ? '⏳ Pendiente' :
-                         ticket.estado === 'aprobado' ? '✅ Aprobado' : '❌ Rechazado'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <div className="flex items-center gap-1 text-gray-300 text-xs">
-                        <FaUtensils className="text-gray-400" />
-                        <span>Mesa {ticket.numMesa || '?'}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-400 text-xs">
-                        <FaUser className="text-gray-500" />
-                        <span>{ticket.nombreMozo || ticket.mozoNombre || '?'}</span>
-                      </div>
-                    </div>
-                    <div className="text-gray-500 text-[10px] mt-1">
-                      {formatDate(ticket.createdAt)} {formatTime(ticket.createdAt)}
-                    </div>
-                  </div>
-
-                  {/* Platos */}
-                  <div className="p-3 max-h-40 overflow-y-auto border-b border-gray-700">
-                    {(ticket.platos || []).map((plato, i) => (
-                      <div key={i} className="flex items-center justify-between py-1">
+              {itemsFiltrados.map((ticket) => {
+                const badge = tipoBadge(ticket.tipo);
+                const isComanda = ticket.tipo === 'comanda_completa';
+                return (
+                  <motion.div
+                    key={ticket._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg"
+                  >
+                    {/* Header del card */}
+                    <div className={`p-3 ${
+                      ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-600/20 border-b border-yellow-500/30' :
+                      ticket.estado === 'aprobado' ? 'bg-green-600/20 border-b border-green-500/30' :
+                      ticket.estado === 'reportado' ? 'bg-red-600/20 border-b border-red-500/30' :
+                      'bg-violet-600/20 border-b border-violet-500/30'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-yellow-300 text-sm font-mono font-bold">
+                          #{ticket.ticketNumber || '...'}
+                        </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-400 text-xs">{plato.cantidad}x</span>
-                          <span className="text-gray-200 text-sm">{plato.nombre}</span>
-                          {plato.tipoServicio === 'para_llevar' && (
-                            <span className="text-[10px] bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded">
-                              Para llevar
-                            </span>
-                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
+                            {badge.label}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-500/30 text-yellow-300' :
+                            ticket.estado === 'aprobado' ? 'bg-green-500/30 text-green-300' :
+                            ticket.estado === 'reportado' ? 'bg-red-500/30 text-red-300' :
+                            'bg-gray-500/30 text-gray-300'
+                          }`}>
+                            {ticket.estado === 'pendiente_aprobacion' ? '⏳ Pendiente' :
+                             ticket.estado === 'aprobado' ? '✅ Aprobado' :
+                             ticket.estado === 'reportado' ? '🔴 Reportado' :
+                             ticket.estado === 'rechazado' ? '❌ Rechazado' : ticket.estado}
+                          </span>
                         </div>
-                        <span className="text-gray-400 text-xs">{formatCurrency(plato.subtotal)}</span>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Total */}
-                  <div className="p-3 flex items-center justify-between border-b border-gray-700">
-                    <div className="flex items-center gap-1">
-                      <FaMoneyBill className="text-green-400" />
-                      <span className="text-white font-bold">{formatCurrency(ticket.total)}</span>
+                      <div className="flex items-center gap-3 mt-1">
+                        <div className="flex items-center gap-1 text-gray-300 text-xs">
+                          <FaUtensils className="text-gray-400" />
+                          <span>Mesa {ticket.numMesa || '?'}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <FaUser className="text-gray-500" />
+                          <span>{ticket.nombreMozo || ticket.mozoNombre || '?'}</span>
+                        </div>
+                      </div>
+                      <div className="text-gray-500 text-[10px] mt-1">
+                        {formatDate(ticket.createdAt)} {formatTime(ticket.createdAt)}
+                      </div>
                     </div>
-                    <div className="text-gray-500 text-xs flex items-center gap-2">
-                      {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
-                      <span className="uppercase">{ticket.metodoPago}</span>
-                    </div>
-                  </div>
 
-                  {/* Acciones */}
-                  {ticket.estado === 'pendiente_aprobacion' && (
-                    <div className="p-3 flex gap-2">
-                      <button
-                        onClick={() => handleAprobar(ticket._id)}
-                        disabled={aprobarLoading[ticket._id]}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500
-                          disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                          transition-colors font-medium text-sm"
-                      >
-                        <FaCheck />
-                        {aprobarLoading[ticket._id] ? 'Aprobando...' : 'Aprobar'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowRechazarModal(ticket._id);
-                          setRechazarMotivo(prev => ({ ...prev, [ticket._id]: '' }));
-                        }}
-                        disabled={rechazarLoading[ticket._id]}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
-                          disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                          transition-colors font-medium text-sm"
-                      >
-                        <FaTimes />
-                        {rechazarLoading[ticket._id] ? '...' : 'Rechazar'}
-                      </button>
+                    {/* Platos */}
+                    <div className="p-3 max-h-40 overflow-y-auto border-b border-gray-700">
+                      {(ticket.platos || []).map((plato, i) => (
+                        <div key={i} className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 text-xs">{plato.cantidad}x</span>
+                            <span className="text-gray-200 text-sm">{plato.nombre}</span>
+                            {plato.tipoServicio === 'para_llevar' && (
+                              <span className="text-[10px] bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded">
+                                Para llevar
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-gray-400 text-xs">{formatCurrency(plato.subtotal)}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
 
-                  {/* Info de rechazo */}
-                  {ticket.estado === 'rechazado' && ticket.motivoRechazo && (
-                    <div className="p-3 bg-red-900/20">
-                      <p className="text-red-400 text-xs">
-                        <strong>Motivo:</strong> {ticket.motivoRechazo}
-                      </p>
-                      {ticket.aprobadoPorNombre && (
-                        <p className="text-gray-500 text-[10px] mt-1">
-                          Aprobado por: {ticket.aprobadoPorNombre}
+                    {/* Total & Pago */}
+                    <div className="p-3 flex items-center justify-between border-b border-gray-700">
+                      <div className="flex items-center gap-1">
+                        <FaMoneyBill className="text-green-400" />
+                        <span className="text-white font-bold">{formatCurrency(ticket.total)}</span>
+                      </div>
+                      <div className="text-gray-500 text-xs flex items-center gap-2">
+                        {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
+                        <span className="uppercase">{ticket.moneda || 'Soles'}</span>
+                        {ticket.metodoPago && <span>· {ticket.metodoPago}</span>}
+                      </div>
+                    </div>
+
+                    {/* Cliente */}
+                    {(ticket.cliente?.nombre || ticket.nombreCliente) && (
+                      <div className="px-3 py-1 border-b border-gray-700 text-xs text-gray-400">
+                        <FaUser className="inline mr-1" />
+                        {ticket.cliente?.nombre || ticket.nombreCliente || 'Invitado'}
+                        {(ticket.cliente?.dni || ticket.dniCliente) && (
+                          <span className="ml-2 text-gray-500">DNI: {ticket.cliente?.dni || ticket.dniCliente}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Acciones */}
+                    {ticket.estado === 'pendiente_aprobacion' && (
+                      <div className="p-3 flex gap-2">
+                        <button
+                          onClick={() => handleImprimir(ticket)}
+                          className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
+                            text-white py-2 rounded-lg transition-colors font-medium text-sm"
+                        >
+                          <FaPrint className="text-xs" />
+                          Imprimir
+                        </button>
+                        <button
+                          onClick={() => handleAprobar(ticket)}
+                          disabled={aprobarLoading[ticket._id]}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500
+                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                            transition-colors font-medium text-sm"
+                        >
+                          <FaCheck />
+                          {aprobarLoading[ticket._id] ? 'Aprobando...' : 'Aprobar'}
+                        </button>
+                        {isComanda ? (
+                          <button
+                            onClick={() => {
+                              setShowReportarModal(ticket._id);
+                              setReportarMotivo(prev => ({ ...prev, [ticket._id]: '' }));
+                            }}
+                            disabled={reportarLoading[ticket._id]}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
+                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                              transition-colors font-medium text-sm"
+                          >
+                            <FaExclamationTriangle className="text-xs" />
+                            Reportar
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setShowRechazarModal(ticket._id);
+                              setRechazarLoading(prev => ({ ...prev, [ticket._id + '_motivo']: '' }));
+                            }}
+                            disabled={rechazarLoading[ticket._id]}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
+                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                              transition-colors font-medium text-sm"
+                          >
+                            <FaTimes className="text-xs" />
+                            Rechazar
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Info de reporte */}
+                    {ticket.estado === 'reportado' && ticket.motivoReporte && (
+                      <div className="p-3 bg-red-900/20">
+                        <p className="text-red-400 text-xs">
+                          <strong>Motivo:</strong> {ticket.motivoReporte}
                         </p>
-                      )}
-                    </div>
-                  )}
-                  {ticket.estado === 'aprobado' && ticket.aprobadoPorNombre && (
-                    <div className="p-2 bg-green-900/20">
-                      <p className="text-green-400 text-xs">
-                        Aprobado por: {ticket.aprobadoPorNombre} — {formatTime(ticket.fechaAprobacion)}
-                      </p>
-                    </div>
-                  )}
-                </motion.div>
-              ))}
+                        {ticket.reportadoPorNombre && (
+                          <p className="text-gray-500 text-[10px] mt-1">
+                            Reportado por: {ticket.reportadoPorNombre}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Info de rechazo (PPA) */}
+                    {ticket.estado === 'rechazado' && ticket.motivoRechazo && (
+                      <div className="p-3 bg-red-900/20">
+                        <p className="text-red-400 text-xs">
+                          <strong>Motivo:</strong> {ticket.motivoRechazo}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Info de aprobación */}
+                    {ticket.estado === 'aprobado' && ticket.aprobadoPorNombre && (
+                      <div className="p-2 bg-green-900/20">
+                        <p className="text-green-400 text-xs">
+                          Aprobado por: {ticket.aprobadoPorNombre} — {formatTime(ticket.fechaAprobacion)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Imprimir para tickets no pendientes */}
+                    {ticket.estado !== 'pendiente_aprobacion' && ticket.estado !== 'reportado' && (
+                      <div className="p-2">
+                        <button
+                          onClick={() => handleImprimir(ticket)}
+                          className="w-full flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-600
+                            text-white py-1.5 rounded-lg transition-colors text-sm"
+                        >
+                          <FaPrint className="text-xs" />
+                          Reimprimir
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         )}
       </main>
 
-      {/* Modal de rechazo */}
+      {/* Modal de reportar (comandas) */}
+      <AnimatePresence>
+        {showReportarModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowReportarModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-gray-800 rounded-xl p-6 max-w-md w-full border border-gray-600"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <FaExclamationTriangle className="text-red-400 text-lg" />
+                <h4 className="text-white font-bold text-lg">Reportar Comanda</h4>
+              </div>
+              <p className="text-gray-400 text-sm mb-3">
+                ¿Reportar un problema con esta comanda? El mozo será notificado.
+              </p>
+              <textarea
+                value={reportarMotivo[showReportarModal] || ''}
+                onChange={e => setReportarMotivo(prev => ({ ...prev, [showReportarModal]: e.target.value }))}
+                placeholder="Describe el motivo del reporte (mínimo 3 caracteres)..."
+                className="w-full bg-gray-700 text-white rounded-lg p-3 text-sm h-24 resize-none border border-gray-600
+                  focus:border-red-500 focus:outline-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowReportarModal(null)}
+                  className="flex-1 py-2.5 bg-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-600 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleReportar(showReportarModal)}
+                  disabled={(reportarMotivo[showReportarModal] || '').trim().length < 3 || reportarLoading[showReportarModal]}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-500 transition-colors font-medium
+                    disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                  {reportarLoading[showReportarModal] ? 'Reportando...' : 'Reportar Comanda'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de rechazo (PPA) */}
       <AnimatePresence>
         {showRechazarModal && (
           <motion.div
@@ -287,8 +476,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             >
               <h4 className="text-white font-bold text-lg mb-3">Motivo de rechazo</h4>
               <textarea
-                value={rechazarMotivo[showRechazarModal] || ''}
-                onChange={e => setRechazarMotivo(prev => ({ ...prev, [showRechazarModal]: e.target.value }))}
+                value={rechazarLoading[showRechazarModal + '_motivo'] || ''}
+                onChange={e => setRechazarLoading(prev => ({ ...prev, [showRechazarModal + '_motivo']: e.target.value }))}
                 placeholder="Describe el motivo del rechazo..."
                 className="w-full bg-gray-700 text-white rounded-lg p-3 text-sm h-24 resize-none border border-gray-600
                   focus:border-violet-500 focus:outline-none"
@@ -302,9 +491,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 </button>
                 <button
                   onClick={() => handleRechazar(showRechazarModal)}
-                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-500 transition-colors font-medium"
+                  disabled={(rechazarLoading[showRechazarModal + '_motivo'] || '').trim().length < 3 || rechazarLoading[showRechazarModal]}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-500 transition-colors font-medium
+                    disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
-                  Rechazar Ticket
+                  {rechazarLoading[showRechazarModal] ? 'Rechazando...' : 'Rechazar Ticket'}
                 </button>
               </div>
             </motion.div>

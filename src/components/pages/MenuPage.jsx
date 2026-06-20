@@ -122,8 +122,8 @@ const MenuPage = ({ onNavigate }) => {
     },
     {
       id: 'ppa',
-      title: 'Tickets de Pagos Adelantados',
-      subtitle: 'Aprobar pagos antes de enviar a cocina',
+      title: 'Tabla de Comandas y Pagos Adelantados',
+      subtitle: 'Aprobar comandas y pagos adelantados',
       icon: FaShoppingBag,
       color: 'from-violet-500 to-purple-600',
       shadowColor: 'shadow-violet-500/30',
