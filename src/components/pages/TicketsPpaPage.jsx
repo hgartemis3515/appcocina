@@ -31,6 +31,44 @@ const tipoBadge = (tipo) => {
   return { label: tipo || 'OTRO', bg: 'bg-gray-500/30 text-gray-300 border-gray-500/40' };
 };
 
+function VistaModoToggle({ modo, onChange }) {
+  const isAvanzado = modo === 'avanzado';
+  return (
+    <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1 border border-gray-700">
+      <button
+        type="button"
+        onClick={() => onChange('basico')}
+        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap
+          ${!isAvanzado ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+      >
+        Básico
+      </button>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isAvanzado}
+        aria-label="Cambiar entre vista básica y avanzada"
+        onClick={() => onChange(isAvanzado ? 'basico' : 'avanzado')}
+        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0
+          ${isAvanzado ? 'bg-violet-500' : 'bg-gray-600'}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
+            ${isAvanzado ? 'translate-x-5' : 'translate-x-0'}`}
+        />
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('avanzado')}
+        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap
+          ${isAvanzado ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+      >
+        Avanzado
+      </button>
+    </div>
+  );
+}
+
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user, getToken } = useAuth();
   const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA } = useTablaAprobacion();
@@ -41,6 +79,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [reportarMotivo, setReportarMotivo] = useState({});
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
+  const [modoVista, setModoVista] = useState('basico'); // basico: tarjetas | avanzado: tabla (próximamente)
 
   const handleAprobar = async (ticket) => {
     setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
@@ -109,26 +148,27 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             : items;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+    <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black">
       {/* Header */}
-      <header className="bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <header className="flex-shrink-0 bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onGoToMenu}
               className="text-gray-400 hover:text-white transition-colors p-2"
             >
               <FaArrowLeft className="text-lg" />
             </button>
-            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <FaShoppingBag className="text-white" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">Comandas y Pagos Adelantados</h1>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-white truncate">Comandas y Pagos Adelantados</h1>
               <p className="text-gray-400 text-xs">Aprobar comandas, reportar incidencias</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <VistaModoToggle modo={modoVista} onChange={setModoVista} />
             {cantidadPendientes > 0 && (
               <span className="bg-violet-500 text-white text-sm px-3 py-1 rounded-full font-bold animate-pulse">
                 {cantidadPendientes} pendiente{cantidadPendientes > 1 ? 's' : ''}
@@ -156,7 +196,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       </header>
 
       {/* Filtros */}
-      <div className="max-w-7xl mx-auto px-4 py-3 flex gap-2 border-b border-gray-800 overflow-x-auto">
+      <div className="flex-shrink-0 max-w-7xl w-full mx-auto px-4 py-3 flex gap-2 border-b border-gray-800 overflow-x-auto">
         {[
           { key: 'pendientes', label: 'Pendientes', icon: FaClock },
           { key: 'comandas', label: 'Comandas', icon: FaUtensils },
@@ -181,16 +221,34 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
       {/* Error */}
       {error && (
-        <div className="max-w-7xl mx-auto px-4 py-2">
+        <div className="flex-shrink-0 max-w-7xl w-full mx-auto px-4 py-2">
           <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-3 text-red-300 text-sm">
             {error}
           </div>
         </div>
       )}
 
-      {/* Contenido */}
-      <main className="max-w-7xl mx-auto px-4 py-4">
-        {loading && itemsFiltrados.length === 0 ? (
+      {/* Contenido con scroll independiente */}
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+        {modoVista === 'avanzado' ? (
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 mb-5">
+              <FaFilter className="text-3xl text-violet-400" />
+            </div>
+            <h2 className="text-white text-xl font-bold mb-2">Vista Avanzada — Próximamente</h2>
+            <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">
+              La vista avanzada mostrará las solicitudes en formato de tabla formal,
+              con ordenamiento y columnas para gestionar comandas y pagos adelantados de forma más eficiente.
+            </p>
+            <button
+              onClick={() => setModoVista('basico')}
+              className="mt-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
+            >
+              Volver a vista Básica
+            </button>
+          </div>
+        ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
             <FaSyncAlt className="text-4xl text-violet-500 mx-auto mb-4 animate-spin" />
             <p className="text-gray-400">Cargando tickets...</p>
@@ -417,6 +475,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </AnimatePresence>
           </div>
         )}
+        </div>
       </main>
 
       {/* Modal de reportar (comandas) */}
