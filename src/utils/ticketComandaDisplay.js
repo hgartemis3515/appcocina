@@ -4,15 +4,19 @@ import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
 export function getComandasNumbersFromTicket(ticket) {
   if (!ticket) return [];
 
-  if (Array.isArray(ticket.comandasNumbers) && ticket.comandasNumbers.length > 0) {
-    return ticket.comandasNumbers;
-  }
+  const nums = new Set();
+  (ticket.comandasNumbers || []).forEach((n) => {
+    if (n == null || n === '') return;
+    const num = Number(n);
+    if (!Number.isNaN(num)) nums.add(num);
+  });
+  (ticket.platos || []).forEach((p) => {
+    if (p?.comandaNumber == null || p.comandaNumber === '') return;
+    const num = Number(p.comandaNumber);
+    if (!Number.isNaN(num)) nums.add(num);
+  });
 
-  const fromPlatos = (ticket.platos || [])
-    .map((p) => p.comandaNumber)
-    .filter((n) => n != null && n !== '');
-
-  return [...new Set(fromPlatos)];
+  return [...nums].sort((a, b) => a - b);
 }
 
 /** Etiqueta visible: #12 o #12+#13+#14 */

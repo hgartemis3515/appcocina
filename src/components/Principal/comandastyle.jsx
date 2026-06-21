@@ -970,7 +970,7 @@ const ComandaStyle = ({
 
   // Hook Socket.io - REEMPLAZA EL POLLING
   // Se pasa el token para autenticación del handshake
-  const { connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
+  const { socket: cocinaSocket, connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
     onNuevaComanda: handleNuevaComanda,
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
@@ -4464,7 +4464,7 @@ const ComandaStyle = ({
       {/* 🔥 PPA Sidebar - Tickets de Pagos Adelantados */}
       {ppaSidebarOpen && (
         <div className="fixed top-0 right-0 h-full z-[100]">
-          <PpaSidebar socket={socket} onClose={() => setPpaSidebarOpen(false)} />
+          <PpaSidebar socket={cocinaSocket} onClose={() => setPpaSidebarOpen(false)} />
         </div>
       )}
     </div>
