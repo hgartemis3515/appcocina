@@ -26,8 +26,9 @@ const formatDate = (dateStr) => {
 
 // Badge type label + color
 const tipoBadge = (tipo) => {
-  if (tipo === 'comanda_completa') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300 border-blue-500/40' };
-  if (tipo === 'pago_adelantado') return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300 border-violet-500/40' };
+  const t = String(tipo || '').toLowerCase();
+  if (t === 'comanda_completa' || t === 'comanda') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300 border-blue-500/40' };
+  if (t === 'pago_adelantado' || t === 'adelantado') return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300 border-violet-500/40' };
   return { label: tipo || 'OTRO', bg: 'bg-gray-500/30 text-gray-300 border-gray-500/40' };
 };
 
@@ -263,7 +264,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <AnimatePresence>
               {itemsFiltrados.map((ticket) => {
                 const badge = tipoBadge(ticket.tipo);
-                const isComanda = ticket.tipo === 'comanda_completa';
+                const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
                 return (
                   <motion.div
                     key={ticket._id}

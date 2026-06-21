@@ -8,6 +8,7 @@
  * Usa apiClient para las peticiones REST (inyección automática de token).
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import moment from 'moment-timezone';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { apiGet, apiPut } from '../config/apiClient';
 import { io } from 'socket.io-client';
@@ -24,7 +25,7 @@ export default function useTicketsPPA() {
   const fetchTickets = useCallback(async () => {
     setLoading(true);
     try {
-      const fechaHoy = new Date().toISOString().split('T')[0];
+      const fechaHoy = moment().tz('America/Lima').format('YYYY-MM-DD');
       const data = await apiGet(`/api/pago-adelantado/pendientes?fecha=${fechaHoy}`);
       if (data?.success) {
         setTickets(data.tickets || []);
@@ -75,7 +76,7 @@ export default function useTicketsPPA() {
     newSocket.on('connect', () => {
       console.log('🔌 [PPA] Socket conectado');
       setSocketConnected(true);
-      const fechaHoy = new Date().toISOString().split('T')[0];
+      const fechaHoy = moment().tz('America/Lima').format('YYYY-MM-DD');
       newSocket.emit('join-fecha', fechaHoy);
     });
 

@@ -16,7 +16,8 @@ const formatTime = (dateStr) => {
 };
 
 const tipoBadge = (tipo) => {
-  if (tipo === 'comanda_completa') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300' };
+  const t = String(tipo || '').toLowerCase();
+  if (t === 'comanda_completa' || t === 'comanda') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300' };
   return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300' };
 };
 
@@ -30,12 +31,14 @@ export default function PpaSidebar({ socket, onClose }) {
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
 
-  const handleAprobar = async (ticketId) => {
+  const handleAprobar = async (ticket) => {
+    const ticketId = ticket._id;
     setAprobarLoading(prev => ({ ...prev, [ticketId]: true }));
     try {
       const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
       const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
-      await aprobarItem(ticketId, userId, userName);
+      const ticketTipo = ticket.tipo === 'pago_adelantado' ? 'ADELANTADO' : 'COMANDA';
+      await aprobarItem(ticketId, ticketTipo, userId, userName);
     } catch (err) {
       console.error('Error al aprobar:', err);
       alert('Error al aprobar el ticket: ' + (err.userMessage || err.message));
@@ -126,7 +129,7 @@ export default function PpaSidebar({ socket, onClose }) {
         <AnimatePresence>
           {pendientes.map((ticket) => {
             const badge = tipoBadge(ticket.tipo);
-            const isComanda = ticket.tipo === 'comanda_completa';
+            const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
             return (
               <motion.div
                 key={ticket._id}
@@ -212,7 +215,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     <FaPrint className="text-[10px]" />
                   </button>
                   <button
-                    onClick={() => handleAprobar(ticket._id)}
+                    onClick={() => handleAprobar(ticket)}
                     disabled={aprobarLoading[ticket._id]}
                     className="flex-1 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-500
                       disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs py-1.5 rounded-lg

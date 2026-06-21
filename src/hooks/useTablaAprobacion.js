@@ -19,12 +19,30 @@
  *   ticket-ppa-actualizado   → actualizar PPA
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import moment from 'moment-timezone';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { apiGet, apiPut } from '../config/apiClient';
 import { io } from 'socket.io-client';
 import { imprimirComandaDesdeTicket } from '../utils/comandaPrint/comandaPrintWeb';
 
 const TICKETS_REFRESH_INTERVAL = 30000;
+const ZONA = 'America/Lima';
+
+/** Fecha operativa del restaurante (misma lógica que KDS y backend). */
+const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
+
+/** Normaliza tipo devuelto por API (COMANDA/ADELANTADO) al formato de la UI. */
+const normalizeTicket = (ticket) => {
+  if (!ticket) return ticket;
+  const tipo = String(ticket.tipo || '').toUpperCase();
+  if (tipo === 'COMANDA' || tipo === 'COMANDA_COMPLETA') {
+    return { ...ticket, tipo: 'comanda_completa' };
+  }
+  if (tipo === 'ADELANTADO' || tipo === 'PAGO_ADELANTADO') {
+    return { ...ticket, tipo: 'pago_adelantado' };
+  }
+  return ticket;
+};
 
 export default function useTablaAprobacion() {
   const [items, setItems] = useState([]);
@@ -37,15 +55,15 @@ export default function useTablaAprobacion() {
     setLoading(true);
     try {
       // Fetch aprobación tickets pendientes (comandas + adelantados unificados)
-      const fechaHoy = new Date().toISOString().split('T')[0];
+      const fechaHoy = getFechaOperativa();
 
       // Cargar tickets pendientes
       const data = await apiGet(`/api/aprobacion/pendientes?fecha=${fechaHoy}`);
       let pendientes = [];
       if (data?.success && Array.isArray(data.tickets)) {
-        pendientes = data.tickets;
+        pendientes = data.tickets.map(normalizeTicket);
       } else if (Array.isArray(data)) {
-        pendientes = data;
+        pendientes = data.map(normalizeTicket);
       }
 
       // PLAN: también cargar tickets aprobados/rechazados del día
@@ -54,7 +72,7 @@ export default function useTablaAprobacion() {
       try {
         const todosData = await apiGet(`/api/aprobacion/fecha/${fechaHoy}`);
         if (todosData?.success && Array.isArray(todosData.tickets)) {
-          todos = todosData.tickets;
+          todos = todosData.tickets.map(normalizeTicket);
         }
       } catch (todosErr) {
         // Non-critical: si falla, solo tendremos pendientes
@@ -80,7 +98,9 @@ export default function useTablaAprobacion() {
         if (ppaData?.success && Array.isArray(ppaData.tickets)) {
           setItems(prev => {
             const existingIds = new Set(prev.map(t => t._id));
-            const newPpaTickets = ppaData.tickets.filter(t => !existingIds.has(t._id));
+            const newPpaTickets = ppaData.tickets
+              .map(normalizeTicket)
+              .filter(t => !existingIds.has(t._id));
             return [...prev, ...newPpaTickets];
           });
         }
@@ -133,7 +153,7 @@ export default function useTablaAprobacion() {
     newSocket.on('connect', () => {
       console.log('[TablaAprobacion] Socket conectado');
       setSocketConnected(true);
-      const fechaHoy = new Date().toISOString().split('T')[0];
+      const fechaHoy = getFechaOperativa();
       newSocket.emit('join-fecha', fechaHoy);
     });
 
