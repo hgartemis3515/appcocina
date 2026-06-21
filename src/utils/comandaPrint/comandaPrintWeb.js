@@ -138,8 +138,13 @@ function mapearTicketADatos(ticket) {
   const comandaNumeroDisplay = formatComandasNumbersLabel(comandasNumbers)
     || (ticket.ticketNumber ? `#${ticket.ticketNumber}` : '');
 
+  const tipoLower = String(ticket.tipo || '').toLowerCase();
+
   return {
-    comandaNumero: ticket.ticketNumber || ticket.comandaNumero || null,
+    ticketId: ticket._id || ticket.ticketId || null,
+    ticketNumber: ticket.ticketNumber || null,
+    tipo: tipoLower || null,
+    comandaNumero: comandasNumbers[0] ?? ticket.comandaNumero ?? null,
     comandasNumbers,
     comandaNumeroDisplay,
     cantidadComandas: comandasNumbers.filter((n) => n != null).length || 1,
@@ -193,7 +198,41 @@ function mapearTicketADatos(ticket) {
  * @returns {Promise<true|null>}
  */
 export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
-  // Try to resolve comandaId from multiple possible fields
+  const datosFromTicket = mapearTicketADatos(ticket);
+  const ticketId = ticket._id || ticket.ticketId || null;
+  const tieneSnapshot = Array.isArray(ticket.platos) && ticket.platos.length > 0;
+
+  const printOpts = {
+    ...opts,
+    ticketEstado: ticket.estado,
+    comandasNumbersOverride: ticket.comandasNumbers || opts.comandasNumbersOverride || null,
+  };
+
+  // Pagos parciales: varios TicketAprobacion comparten la misma comanda.
+  // Imprimir siempre el snapshot de ESTE ticket, no GET /comanda/:id/ticket-imprimible
+  // (ese endpoint devuelve un solo ticket por comanda, normalmente el primero).
+  if (ticketId && tieneSnapshot) {
+    const fetchJson = opts.fetchJson || defaultFetchJson;
+    try {
+      const res = await fetchJson(`/api/aprobacion/${ticketId}/ticket-imprimible`);
+      if (res?.success && res.datos) {
+        return imprimirComandaWeb({
+          ...printOpts,
+          comandaId: null,
+          datos: res.datos,
+        });
+      }
+    } catch {
+      // Usar snapshot local
+    }
+    return imprimirComandaWeb({
+      ...printOpts,
+      comandaId: null,
+      datos: datosFromTicket,
+    });
+  }
+
+  // Legacy: impresión desde comanda sin ticket de aprobación
   const comandaId = ticket.comandasIds?.[0]
     || ticket.comandaId
     || (Array.isArray(ticket.comandas) && ticket.comandas.length > 0
@@ -202,17 +241,7 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
     || (ticket.comanda?._id)
     || null;
 
-  // Map ticket data to print format
-  const datosFromTicket = mapearTicketADatos(ticket);
-
-  const printOpts = {
-    ...opts,
-    ticketEstado: ticket.estado,
-    comandasNumbersOverride: ticket.comandasNumbers || opts.comandasNumbersOverride || null,
-  };
-
   if (!comandaId) {
-    // No comandaId — print directly with ticket data (no API fetch needed)
     return imprimirComandaWeb({
       ...printOpts,
       comandaId: null,
@@ -220,20 +249,26 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
     });
   }
 
-  // Try fetching from API for richer data (boucher, populated fields)
   try {
-    return await imprimirComandaWeb({
-      ...printOpts,
-      comandaId,
-      datos: null, // Let imprimirComandaWeb fetch
-    });
+    const fetchJson = opts.fetchJson || defaultFetchJson;
+    const url = ticketId
+      ? `/api/comanda/${comandaId}/ticket-imprimible?ticketId=${ticketId}`
+      : `/api/comanda/${comandaId}/ticket-imprimible`;
+    const res = await fetchJson(url);
+    if (res?.success && res.datos) {
+      return imprimirComandaWeb({
+        ...printOpts,
+        comandaId: null,
+        datos: res.datos,
+      });
+    }
   } catch (err) {
-    // Fallback: print with ticket data directly
     console.warn('[comandaPrintWeb] Failed to fetch ticket-imprimible, using ticket data:', err);
-    return imprimirComandaWeb({
-      ...printOpts,
-      comandaId: null,
-      datos: datosFromTicket,
-    });
   }
+
+  return imprimirComandaWeb({
+    ...printOpts,
+    comandaId: null,
+    datos: datosFromTicket,
+  });
 }

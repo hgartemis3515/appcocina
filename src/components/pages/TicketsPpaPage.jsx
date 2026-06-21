@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
-import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
+import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets } from '../../utils/ticketSort';
@@ -96,7 +96,7 @@ function VistaModoToggle({ modo, onChange }) {
 
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user, getToken } = useAuth();
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
   const [filtro, setFiltro] = useState('pendientes'); // pendientes, todos, aprobados, reportados
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
@@ -230,6 +230,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 {cantidadComandas} comanda{cantidadComandas > 1 ? 's' : ''} por aprobar
               </span>
             )}
+            {cantidadParciales > 0 && (
+              <span className="bg-amber-500/80 text-white text-xs px-2 py-1 rounded-full">
+                {cantidadParciales} parcial{cantidadParciales > 1 ? 'es' : ''} por aprobar
+              </span>
+            )}
             {cantidadPPA > 0 && (
               <span className="bg-violet-500/80 text-white text-xs px-2 py-1 rounded-full">
                 {cantidadPPA} adelantado{cantidadPPA > 1 ? 's' : ''} por aprobar
@@ -336,6 +341,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const cantidadComandasTicket = getCantidadComandas(ticket);
                 // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mostrar si quedan más tickets
                 // pendientes de esta misma mesa para que cocina sepa que no debe liberar aún.
+                const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
                 const mesaId = String(ticket.mesa?._id || ticket.mesa || '');
                 const ticketsPendientesMismaMesa = ticketsPendientesPorMesa.get(mesaId) || 0;
                 const quedanMasTickets = ticketsPendientesMismaMesa > 1;
@@ -357,6 +363,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       <div className="flex items-center justify-between">
                         <span className="text-yellow-300 text-sm font-mono font-bold">
                           Comanda: {comandaLabel}
+                          {ticket.ticketNumber != null && (
+                            <span className="text-amber-200/90 font-normal ml-1">
+                              · Ticket #{ticket.ticketNumber}
+                            </span>
+                          )}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
@@ -399,7 +410,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         )}
                       </div>
                       {/* BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): aviso de tickets pendientes de la misma mesa */}
-                      {isPagoParcial && (
+                      {infoMismaComanda && (
+                        <div className="mt-1 px-2 py-1 bg-amber-600/25 border border-amber-500/40 rounded text-[10px] text-amber-200 font-medium">
+                          {infoMismaComanda.indice != null
+                            ? `Ticket ${infoMismaComanda.indice} de ${infoMismaComanda.total} de la misma comanda ${infoMismaComanda.comandaLabel}`
+                            : `${infoMismaComanda.total} tickets de la misma comanda ${infoMismaComanda.comandaLabel} — apruebe cada envío por separado`}
+                        </div>
+                      )}
+                      {isPagoParcial && !infoMismaComanda && (
                         <div className="mt-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300">
                           Pago parcial — {ticket.platos?.length || 0} plato{(ticket.platos?.length || 0) !== 1 ? 's' : ''} en este envío
                         </div>

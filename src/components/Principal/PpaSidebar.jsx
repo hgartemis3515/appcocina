@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaCheck, FaTimes, FaClock, FaUtensils, FaShoppingBag, FaUser, FaMoneyBill, FaPrint, FaExclamationTriangle } from 'react-icons/fa';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
-import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
+import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
@@ -32,7 +32,7 @@ const labelPagoTicket = (ticket) => {
 };
 
 export default function PpaSidebar({ socket, onClose }) {
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
@@ -116,6 +116,11 @@ export default function PpaSidebar({ socket, onClose }) {
               {cantidadComandas} com.
             </span>
           )}
+          {cantidadParciales > 0 && (
+            <span className="bg-amber-500/80 text-white text-[10px] px-1.5 py-0.5 rounded-full" title="Pagos parciales por aprobar">
+              {cantidadParciales} parc.
+            </span>
+          )}
           {cantidadPPA > 0 && (
             <span className="bg-violet-500/80 text-white text-[10px] px-1.5 py-0.5 rounded-full" title="Pagos adelantados por aprobar">
               {cantidadPPA} PPA
@@ -153,8 +158,10 @@ export default function PpaSidebar({ socket, onClose }) {
           {pendientes.map((ticket) => {
             const badge = tipoBadge(ticket.tipo);
             const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
+            const isPagoParcial = ticket.tipo === 'pago_parcial';
             const comandaLabel = getComandaDisplayLabel(ticket);
             const cantidadComandasTicket = getCantidadComandas(ticket);
+            const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
             return (
               <motion.div
                 key={ticket._id}
@@ -168,6 +175,9 @@ export default function PpaSidebar({ socket, onClose }) {
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-mono font-bold text-yellow-300">
                       Comanda: {comandaLabel}
+                      {ticket.ticketNumber != null && (
+                        <span className="text-amber-200/90 font-normal"> · T#{ticket.ticketNumber}</span>
+                      )}
                     </span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.bg}`}>
                       {badge.label}
@@ -176,6 +186,16 @@ export default function PpaSidebar({ socket, onClose }) {
                   {cantidadComandasTicket > 1 && (
                     <p className="text-[10px] text-yellow-400/80 font-medium mb-1">
                       {cantidadComandasTicket} comandas · {comandaLabel}
+                    </p>
+                  )}
+                  {infoMismaComanda && (
+                    <p className="text-[10px] text-amber-300 font-medium mb-1 px-1">
+                      Ticket {infoMismaComanda.indice} de {infoMismaComanda.total} · misma comanda {infoMismaComanda.comandaLabel}
+                    </p>
+                  )}
+                  {isPagoParcial && !infoMismaComanda && (
+                    <p className="text-[10px] text-amber-400/90 mb-1">
+                      Pago parcial — {ticket.platos?.length || 0} plato{(ticket.platos?.length || 0) !== 1 ? 's' : ''}
                     </p>
                   )}
                   <div className="flex items-center gap-2 mb-1">
