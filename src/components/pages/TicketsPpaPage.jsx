@@ -3,7 +3,7 @@
  * Renombrado: "Tabla de comandas y pagos adelantados"
  * Acceso desde el menú principal de App Cocina.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
@@ -15,7 +15,7 @@ import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
-import { sortTickets } from '../../utils/ticketSort';
+import { sortTickets, filterTicketsByMozo, getMozosFromTickets } from '../../utils/ticketSort';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -107,6 +107,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [modoVista, setModoVista] = useState('basico'); // basico: tarjetas | avanzado: tabla (próximamente)
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
+  const [filtroMozo, setFiltroMozo] = useState(null);
 
   const handleAprobar = async (ticket) => {
     setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
@@ -162,28 +163,37 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
-  const itemsFiltrados = useMemo(() => {
-    const filtrados = filtro === 'pendientes'
-      ? items.filter(t => t.estado === 'pendiente_aprobacion')
-      : filtro === 'aprobados'
-        ? items.filter(t => t.estado === 'aprobado')
-        : filtro === 'reportados'
-          ? items.filter(t => t.estado === 'reportado')
-          : filtro === 'comandas'
-            ? items.filter(t => t.tipo === 'comanda_completa')
-            : filtro === 'adelantados'
-              ? items.filter(t => t.tipo === 'pago_adelantado')
-              : filtro === 'parciales'
-                ? items.filter(t => t.tipo === 'pago_parcial')
-                : items;
+  const itemsPorEstado = useMemo(() => {
+    if (filtro === 'pendientes') return items.filter(t => t.estado === 'pendiente_aprobacion');
+    if (filtro === 'aprobados') return items.filter(t => t.estado === 'aprobado');
+    if (filtro === 'reportados') return items.filter(t => t.estado === 'reportado');
+    if (filtro === 'comandas') return items.filter(t => t.tipo === 'comanda_completa');
+    if (filtro === 'adelantados') return items.filter(t => t.tipo === 'pago_adelantado');
+    if (filtro === 'parciales') return items.filter(t => t.tipo === 'pago_parcial');
+    return items;
+  }, [items, filtro]);
 
-    return sortTickets(filtrados, sortBy, sortDir);
-  }, [items, filtro, sortBy, sortDir]);
+  const mozosDisponibles = useMemo(
+    () => getMozosFromTickets(itemsPorEstado),
+    [itemsPorEstado]
+  );
+
+  const itemsFiltrados = useMemo(() => {
+    const porMozo = filterTicketsByMozo(itemsPorEstado, filtroMozo);
+    return sortTickets(porMozo, sortBy, sortDir);
+  }, [itemsPorEstado, filtroMozo, sortBy, sortDir]);
 
   const handleSortChange = (field, dir) => {
     setSortBy(field);
     setSortDir(dir);
   };
+
+  // Limpiar filtro de mozo si ya no hay tickets de ese mozo en la pestaña actual
+  useEffect(() => {
+    if (filtroMozo && !mozosDisponibles.some((m) => m.key === filtroMozo)) {
+      setFiltroMozo(null);
+    }
+  }, [filtroMozo, mozosDisponibles]);
 
   // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mapa de tickets pendientes por mesa
   const ticketsPendientesPorMesa = countTicketsPendientesByMesa(items);
@@ -262,7 +272,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </button>
           ))}
         </div>
-        <TicketSortBar sortBy={sortBy} sortDir={sortDir} onChange={handleSortChange} />
+        <TicketSortBar
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onChange={handleSortChange}
+          mozoFilter={filtroMozo}
+          mozosDisponibles={mozosDisponibles}
+          onMozoFilterChange={setFiltroMozo}
+        />
       </div>
 
       {/* Error */}
@@ -302,7 +319,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         ) : itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
             <FaCheck className="text-4xl text-green-500 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg">Sin tickets {filtro === 'pendientes' ? 'pendientes' : filtro}</p>
+            <p className="text-gray-400 text-lg">
+              {filtroMozo
+                ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
+                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
