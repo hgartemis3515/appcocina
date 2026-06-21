@@ -3,7 +3,7 @@
  * Renombrado: "Tabla de comandas y pagos adelantados"
  * Acceso desde el menú principal de App Cocina.
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
@@ -13,6 +13,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
+import PlatoTicketItem from '../common/PlatoTicketItem';
+import TicketSortBar from '../common/TicketSortBar';
+import { sortTickets } from '../../utils/ticketSort';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -102,6 +105,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
   const [modoVista, setModoVista] = useState('basico'); // basico: tarjetas | avanzado: tabla (próximamente)
+  const [sortBy, setSortBy] = useState('fecha');
+  const [sortDir, setSortDir] = useState('desc');
 
   const handleAprobar = async (ticket) => {
     setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
@@ -157,19 +162,28 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
-  const itemsFiltrados = filtro === 'pendientes'
-    ? items.filter(t => t.estado === 'pendiente_aprobacion')
-    : filtro === 'aprobados'
-      ? items.filter(t => t.estado === 'aprobado')
-      : filtro === 'reportados'
-        ? items.filter(t => t.estado === 'reportado')
-        : filtro === 'comandas'
-          ? items.filter(t => t.tipo === 'comanda_completa')
-          : filtro === 'adelantados'
-            ? items.filter(t => t.tipo === 'pago_adelantado')
-            : filtro === 'parciales'
-              ? items.filter(t => t.tipo === 'pago_parcial')
-              : items;
+  const itemsFiltrados = useMemo(() => {
+    const filtrados = filtro === 'pendientes'
+      ? items.filter(t => t.estado === 'pendiente_aprobacion')
+      : filtro === 'aprobados'
+        ? items.filter(t => t.estado === 'aprobado')
+        : filtro === 'reportados'
+          ? items.filter(t => t.estado === 'reportado')
+          : filtro === 'comandas'
+            ? items.filter(t => t.tipo === 'comanda_completa')
+            : filtro === 'adelantados'
+              ? items.filter(t => t.tipo === 'pago_adelantado')
+              : filtro === 'parciales'
+                ? items.filter(t => t.tipo === 'pago_parcial')
+                : items;
+
+    return sortTickets(filtrados, sortBy, sortDir);
+  }, [items, filtro, sortBy, sortDir]);
+
+  const handleSortChange = (field, dir) => {
+    setSortBy(field);
+    setSortDir(dir);
+  };
 
   // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mapa de tickets pendientes por mesa
   const ticketsPendientesPorMesa = countTicketsPendientesByMesa(items);
@@ -223,29 +237,32 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         </div>
       </header>
 
-      {/* Filtros */}
-      <div className="flex-shrink-0 max-w-7xl w-full mx-auto px-4 py-3 flex gap-2 border-b border-gray-800 overflow-x-auto">
-        {[
-          { key: 'pendientes', label: 'Pendientes', icon: FaClock },
-          { key: 'comandas', label: 'Comandas', icon: FaUtensils },
-          { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
-          { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
-          { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
-          { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
-          { key: 'todos', label: 'Todos', icon: FaFilter },
-        ].map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setFiltro(key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
-              ${filtro === key
-                ? 'bg-violet-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
-          >
-            <Icon className="text-xs" />
-            {label}
-          </button>
-        ))}
+      {/* Filtros + Ordenar */}
+      <div className="flex-shrink-0 max-w-7xl w-full mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-800">
+        <div className="flex gap-2 overflow-x-auto min-w-0 flex-1 pb-0.5">
+          {[
+            { key: 'pendientes', label: 'Pendientes', icon: FaClock },
+            { key: 'comandas', label: 'Comandas', icon: FaUtensils },
+            { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
+            { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
+            { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
+            { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
+            { key: 'todos', label: 'Todos', icon: FaFilter },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setFiltro(key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
+                ${filtro === key
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
+            >
+              <Icon className="text-xs" />
+              {label}
+            </button>
+          ))}
+        </div>
+        <TicketSortBar sortBy={sortBy} sortDir={sortDir} onChange={handleSortChange} />
       </div>
 
       {/* Error */}
@@ -374,20 +391,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     </div>
 
                     {/* Platos */}
-                    <div className="p-3 max-h-40 overflow-y-auto border-b border-gray-700">
+                    <div className="p-3 max-h-48 overflow-y-auto border-b border-gray-700">
                       {(ticket.platos || []).map((plato, i) => (
-                        <div key={i} className="flex items-center justify-between py-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 text-xs">{plato.cantidad}x</span>
-                            <span className="text-gray-200 text-sm">{plato.nombre}</span>
-                            {plato.tipoServicio === 'para_llevar' && (
-                              <span className="text-[10px] bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded">
-                                Para llevar
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-gray-400 text-xs">{formatCurrency(plato.subtotal)}</span>
-                        </div>
+                        <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="sm" />
                       ))}
                     </div>
 

@@ -9,6 +9,7 @@ import { FaCheck, FaTimes, FaClock, FaUtensils, FaShoppingBag, FaUser, FaMoneyBi
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
+import PlatoTicketItem from '../common/PlatoTicketItem';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -192,24 +193,9 @@ export default function PpaSidebar({ socket, onClose }) {
                 </div>
 
                 {/* Platos */}
-                <div className="p-3 border-b border-gray-700 max-h-32 overflow-y-auto">
+                <div className="p-3 border-b border-gray-700 max-h-40 overflow-y-auto">
                   {(ticket.platos || []).map((plato, i) => (
-                    <div key={i} className="flex items-center justify-between py-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-gray-300 text-xs">{plato.cantidad}x</span>
-                        <span className="text-gray-200 text-xs truncate max-w-[140px]">
-                          {plato.nombre}
-                        </span>
-                        {plato.tipoServicio === 'para_llevar' && (
-                          <span className="text-[10px] bg-amber-600/30 text-amber-300 px-1 rounded">
-                            Llevar
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-gray-400 text-xs">
-                        {formatCurrency(plato.subtotal)}
-                      </span>
-                    </div>
+                    <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="xs" />
                   ))}
                 </div>
 
