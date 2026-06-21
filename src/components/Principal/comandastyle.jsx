@@ -4947,6 +4947,23 @@ const SicarComandaCard = ({
       {/* Lista de platos vertical */}
       <div className={`flex-1 overflow-y-auto ${bgPlatos}`}>
         <div className="flex flex-col h-full">
+          {/* Observaciones del mozo - se muestra solo si hay contenido */}
+          {typeof comanda.observaciones === 'string' && comanda.observaciones.trim() !== '' && (
+            <div
+              className={`flex-shrink-0 px-3 py-2 border-b flex items-start gap-2 ${nightMode ? 'bg-yellow-900/40 border-yellow-700' : 'bg-yellow-100 border-yellow-300'}`}
+              title="Observaciones del mozo"
+            >
+              <span className="text-sm leading-tight flex-shrink-0">📝</span>
+              <div className="flex-1 min-w-0">
+                <div className={`text-[10px] uppercase font-bold tracking-wider mb-0.5 ${nightMode ? 'text-yellow-300' : 'text-yellow-700'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                  Observaciones
+                </div>
+                <div className={`text-sm font-semibold leading-tight break-words whitespace-pre-wrap ${nightMode ? 'text-yellow-100' : 'text-yellow-900'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                  {comanda.observaciones.trim()}
+                </div>
+              </div>
+            </div>
+          )}
           {/* NUEVA SECCIÓN EN PREPARACIÓN - Arquitectura limpia, zero bubbling */}
           {platosPreparacion.length > 0 && (
             <div className="flex-shrink-0 cursor-default">
