@@ -7,6 +7,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaCheck, FaTimes, FaClock, FaUtensils, FaShoppingBag, FaUser, FaMoneyBill, FaPrint, FaExclamationTriangle } from 'react-icons/fa';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
+import SocketConnectionBadge from '../common/SocketConnectionBadge';
+import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -28,7 +30,7 @@ const labelPagoTicket = (ticket) => {
 };
 
 export default function PpaSidebar({ socket, onClose }) {
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA } = useTablaAprobacion();
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
@@ -118,12 +120,15 @@ export default function PpaSidebar({ socket, onClose }) {
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-white transition-colors p-1"
-        >
-          <FaTimes />
-        </button>
+        <div className="flex items-center gap-2">
+          <SocketConnectionBadge connectionStatus={connectionStatus} authError={authError} />
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors p-1"
+          >
+            <FaTimes />
+          </button>
+        </div>
       </div>
 
       {/* Lista de tickets */}
@@ -146,6 +151,8 @@ export default function PpaSidebar({ socket, onClose }) {
           {pendientes.map((ticket) => {
             const badge = tipoBadge(ticket.tipo);
             const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
+            const comandaLabel = getComandaDisplayLabel(ticket);
+            const cantidadComandasTicket = getCantidadComandas(ticket);
             return (
               <motion.div
                 key={ticket._id}
@@ -158,12 +165,17 @@ export default function PpaSidebar({ socket, onClose }) {
                 <div className="p-3 border-b border-gray-700">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-mono font-bold text-yellow-300">
-                      #{ticket.ticketNumber || '...'}
+                      Comanda: {comandaLabel}
                     </span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.bg}`}>
                       {badge.label}
                     </span>
                   </div>
+                  {cantidadComandasTicket > 1 && (
+                    <p className="text-[10px] text-yellow-400/80 font-medium mb-1">
+                      {cantidadComandasTicket} comandas · {comandaLabel}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mb-1">
                     <FaUtensils className="text-gray-400 text-xs" />
                     <span className="text-gray-300 text-xs font-medium">

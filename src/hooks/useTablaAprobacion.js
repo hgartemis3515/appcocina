@@ -49,6 +49,8 @@ export default function useTablaAprobacion() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('desconectado');
+  const [authError, setAuthError] = useState(null);
   const socketRef = useRef(null);
 
   const fetchItems = useCallback(async () => {
@@ -153,6 +155,8 @@ export default function useTablaAprobacion() {
     newSocket.on('connect', () => {
       console.log('[TablaAprobacion] Socket conectado');
       setSocketConnected(true);
+      setConnectionStatus('conectado');
+      setAuthError(null);
       const fechaHoy = getFechaOperativa();
       newSocket.emit('join-fecha', fechaHoy);
     });
@@ -160,11 +164,19 @@ export default function useTablaAprobacion() {
     newSocket.on('disconnect', () => {
       console.log('[TablaAprobacion] Socket desconectado');
       setSocketConnected(false);
+      setConnectionStatus('desconectado');
     });
 
     newSocket.on('connect_error', (err) => {
+      const msg = String(err?.message || '').toLowerCase();
       console.warn('[TablaAprobacion] Socket error:', err?.message);
       setSocketConnected(false);
+      if (msg.includes('auth') || msg.includes('token') || msg.includes('jwt') || msg.includes('unauthorized')) {
+        setConnectionStatus('auth_error');
+        setAuthError(err?.message || 'Error de autenticación');
+      } else {
+        setConnectionStatus('desconectado');
+      }
     });
 
     // Aprobación events
@@ -317,6 +329,8 @@ export default function useTablaAprobacion() {
     loading,
     error,
     socketConnected,
+    connectionStatus,
+    authError,
     fetchItems,
     aprobarItem,
     reportarItem,

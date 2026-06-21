@@ -11,6 +11,8 @@ import {
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
+import SocketConnectionBadge from '../common/SocketConnectionBadge';
+import { getComandaDisplayLabel, getCantidadComandas } from '../../utils/ticketComandaDisplay';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -78,7 +80,7 @@ function VistaModoToggle({ modo, onChange }) {
 
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user, getToken } = useAuth();
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA } = useTablaAprobacion();
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
   const [filtro, setFiltro] = useState('pendientes'); // pendientes, todos, aprobados, reportados
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
@@ -191,6 +193,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 {cantidadPPA} adelantado{cantidadPPA > 1 ? 's' : ''} por aprobar
               </span>
             )}
+            <SocketConnectionBadge connectionStatus={connectionStatus} authError={authError} />
             <button
               onClick={fetchItems}
               className="text-gray-400 hover:text-white p-2 transition-colors"
@@ -271,6 +274,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               {itemsFiltrados.map((ticket) => {
                 const badge = tipoBadge(ticket.tipo);
                 const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
+                const comandaLabel = getComandaDisplayLabel(ticket);
+                const cantidadComandasTicket = getCantidadComandas(ticket);
                 return (
                   <motion.div
                     key={ticket._id}
@@ -288,7 +293,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     }`}>
                       <div className="flex items-center justify-between">
                         <span className="text-yellow-300 text-sm font-mono font-bold">
-                          #{ticket.ticketNumber || '...'}
+                          Comanda: {comandaLabel}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
@@ -307,6 +312,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           </span>
                         </div>
                       </div>
+                      {cantidadComandasTicket > 1 && (
+                        <div className="text-yellow-400/80 text-[11px] font-medium mt-0.5">
+                          {cantidadComandasTicket} comandas agrupadas · {comandaLabel}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 mt-1">
                         <div className="flex items-center gap-1 text-gray-300 text-xs">
                           <FaUtensils className="text-gray-400" />
@@ -319,6 +329,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       </div>
                       <div className="text-gray-500 text-[10px] mt-1">
                         {formatDate(ticket.createdAt)} {formatTime(ticket.createdAt)}
+                        {ticket.observaciones && (
+                          <span className="block text-gray-400 mt-0.5 truncate" title={ticket.observaciones}>
+                            Obs: {ticket.observaciones}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -359,7 +374,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     {(ticket.cliente?.nombre || ticket.nombreCliente) && (
                       <div className="px-3 py-1 border-b border-gray-700 text-xs text-gray-400">
                         <FaUser className="inline mr-1" />
-                        {ticket.cliente?.nombre || ticket.nombreCliente || 'Invitado'}
+                        {ticket.cliente?.nombre || ticket.nombreCliente || 'Cliente'}
                         {(ticket.cliente?.dni || ticket.dniCliente) && (
                           <span className="ml-2 text-gray-500">DNI: {ticket.cliente?.dni || ticket.dniCliente}</span>
                         )}
