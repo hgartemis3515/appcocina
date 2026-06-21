@@ -20,6 +20,7 @@ const formatTime = (dateStr) => {
 const tipoBadge = (tipo) => {
   const t = String(tipo || '').toLowerCase();
   if (t === 'comanda_completa' || t === 'comanda') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300' };
+  if (t === 'pago_parcial') return { label: 'PAGO PARCIAL', bg: 'bg-amber-500/30 text-amber-300' };
   return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300' };
 };
 

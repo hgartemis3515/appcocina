@@ -36,8 +36,21 @@ const labelPagoTicket = (ticket) => {
 const tipoBadge = (tipo) => {
   const t = String(tipo || '').toLowerCase();
   if (t === 'comanda_completa' || t === 'comanda') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300 border-blue-500/40' };
+  if (t === 'pago_parcial') return { label: 'PAGO PARCIAL', bg: 'bg-amber-500/30 text-amber-300 border-amber-500/40' };
   if (t === 'pago_adelantado' || t === 'adelantado') return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300 border-violet-500/40' };
   return { label: tipo || 'OTRO', bg: 'bg-gray-500/30 text-gray-300 border-gray-500/40' };
+};
+
+// Cuenta cuántos tickets pendientes hay por mesa (para avisar a cocina que aún faltan)
+const countTicketsPendientesByMesa = (items) => {
+  const map = new Map();
+  for (const t of items) {
+    if (t.estado !== 'pendiente_aprobacion') continue;
+    const key = String(t.mesa?._id || t.mesa || '');
+    if (!key) continue;
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return map;
 };
 
 function VistaModoToggle({ modo, onChange }) {
@@ -154,7 +167,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           ? items.filter(t => t.tipo === 'comanda_completa')
           : filtro === 'adelantados'
             ? items.filter(t => t.tipo === 'pago_adelantado')
-            : items;
+            : filtro === 'parciales'
+              ? items.filter(t => t.tipo === 'pago_parcial')
+              : items;
+
+  // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mapa de tickets pendientes por mesa
+  const ticketsPendientesPorMesa = countTicketsPendientesByMesa(items);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black">
@@ -210,6 +228,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         {[
           { key: 'pendientes', label: 'Pendientes', icon: FaClock },
           { key: 'comandas', label: 'Comandas', icon: FaUtensils },
+          { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
           { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
           { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
           { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
@@ -274,8 +293,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               {itemsFiltrados.map((ticket) => {
                 const badge = tipoBadge(ticket.tipo);
                 const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
+                const isPagoParcial = ticket.tipo === 'pago_parcial';
                 const comandaLabel = getComandaDisplayLabel(ticket);
                 const cantidadComandasTicket = getCantidadComandas(ticket);
+                // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mostrar si quedan más tickets
+                // pendientes de esta misma mesa para que cocina sepa que no debe liberar aún.
+                const mesaId = String(ticket.mesa?._id || ticket.mesa || '');
+                const ticketsPendientesMismaMesa = ticketsPendientesPorMesa.get(mesaId) || 0;
+                const quedanMasTickets = ticketsPendientesMismaMesa > 1;
                 return (
                   <motion.div
                     key={ticket._id}
@@ -335,6 +360,17 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           </span>
                         )}
                       </div>
+                      {/* BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): aviso de tickets pendientes de la misma mesa */}
+                      {isPagoParcial && (
+                        <div className="mt-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300">
+                          Pago parcial — {ticket.platos?.length || 0} plato{(ticket.platos?.length || 0) !== 1 ? 's' : ''} en este envío
+                        </div>
+                      )}
+                      {quedanMasTickets && ticket.estado === 'pendiente_aprobacion' && (
+                        <div className="mt-1 px-2 py-1 bg-yellow-600/20 border border-yellow-500/30 rounded text-[10px] text-yellow-400">
+                          Esta mesa tiene {ticketsPendientesMismaMesa} ticket{ticketsPendientesMismaMesa > 1 ? 's' : ''} pendiente{ticketsPendientesMismaMesa > 1 ? 's' : ''} — apruebe todos para liberar la mesa
+                        </div>
+                      )}
                     </div>
 
                     {/* Platos */}

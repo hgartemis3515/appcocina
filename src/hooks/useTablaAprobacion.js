@@ -31,12 +31,15 @@ const ZONA = 'America/Lima';
 /** Fecha operativa del restaurante (misma lógica que KDS y backend). */
 const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
 
-/** Normaliza tipo devuelto por API (COMANDA/ADELANTADO) al formato de la UI. */
+/** Normaliza tipo devuelto por API (COMANDA/ADELANTADO/PAGO_PARCIAL) al formato de la UI. */
 const normalizeTicket = (ticket) => {
   if (!ticket) return ticket;
   const tipo = String(ticket.tipo || '').toUpperCase();
   if (tipo === 'COMANDA' || tipo === 'COMANDA_COMPLETA') {
     return { ...ticket, tipo: 'comanda_completa' };
+  }
+  if (tipo === 'PAGO_PARCIAL') {
+    return { ...ticket, tipo: 'pago_parcial' };
   }
   if (tipo === 'ADELANTADO' || tipo === 'PAGO_ADELANTADO') {
     return { ...ticket, tipo: 'pago_adelantado' };
@@ -322,6 +325,8 @@ export default function useTablaAprobacion() {
   const isPendiente = (t) => t.estado === 'pendiente_aprobacion';
   const cantidadPendientes = items.filter(isPendiente).length;
   const cantidadComandas = items.filter(t => t.tipo === 'comanda_completa' && isPendiente(t)).length;
+  // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): contar parciales (viven en TicketAprobacion)
+  const cantidadParciales = items.filter(t => t.tipo === 'pago_parcial' && isPendiente(t)).length;
   const cantidadPPA = items.filter(t => t.tipo === 'pago_adelantado' && isPendiente(t)).length;
 
   return {
@@ -338,6 +343,7 @@ export default function useTablaAprobacion() {
     imprimirComanda,
     cantidadPendientes,
     cantidadComandas,
+    cantidadParciales,
     cantidadPPA,
   };
 }
