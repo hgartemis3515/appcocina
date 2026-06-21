@@ -21,8 +21,14 @@ const tipoBadge = (tipo) => {
   return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300' };
 };
 
+const labelPagoTicket = (ticket) => {
+  if (ticket.estado === 'pendiente_aprobacion') return 'Pago: Pendiente';
+  if (ticket.metodoPago) return ticket.metodoPago;
+  return 'Pago: Pendiente';
+};
+
 export default function PpaSidebar({ socket, onClose }) {
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes } = useTablaAprobacion();
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadPPA } = useTablaAprobacion();
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
@@ -93,12 +99,22 @@ export default function PpaSidebar({ socket, onClose }) {
     <div className="w-80 h-full bg-gray-900 border-l border-gray-700 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="p-4 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <FaShoppingBag className="text-violet-400" />
           <h3 className="text-white font-bold text-sm">Comandas y Adelantados</h3>
           {cantidadPendientes > 0 && (
-            <span className="bg-violet-500 text-white text-xs px-2 py-0.5 rounded-full">
+            <span className="bg-violet-500 text-white text-xs px-2 py-0.5 rounded-full" title="Total pendientes">
               {cantidadPendientes}
+            </span>
+          )}
+          {cantidadComandas > 0 && (
+            <span className="bg-blue-500/80 text-white text-[10px] px-1.5 py-0.5 rounded-full" title="Comandas por aprobar">
+              {cantidadComandas} com.
+            </span>
+          )}
+          {cantidadPPA > 0 && (
+            <span className="bg-violet-500/80 text-white text-[10px] px-1.5 py-0.5 rounded-full" title="Pagos adelantados por aprobar">
+              {cantidadPPA} PPA
             </span>
           )}
         </div>
@@ -198,8 +214,8 @@ export default function PpaSidebar({ socket, onClose }) {
                         Voucher: {ticket.voucherId}
                       </span>
                     )}
-                    <span className="text-[10px] text-gray-500 uppercase">
-                      {ticket.moneda || 'Soles'} {ticket.metodoPago ? `· ${ticket.metodoPago}` : ''}
+                    <span className={`text-[10px] uppercase ${ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : 'text-gray-500'}`}>
+                      {ticket.moneda || 'Soles'} · {labelPagoTicket(ticket)}
                     </span>
                   </div>
                 </div>

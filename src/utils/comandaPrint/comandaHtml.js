@@ -184,6 +184,7 @@ function getSimboloMoneda(moneda) {
 function getLabelMetodoPago(metodoPago) {
   if (!metodoPago) return 'Pendiente';
   const m = String(metodoPago).toLowerCase();
+  if (m === 'pendiente') return 'Pendiente';
   if (m === 'efectivo') return 'Efectivo';
   if (m === 'digital') return 'YAPE/PLIN';
   if (m === 'tarjeta') return 'CRÉDITO/DÉBITO';
@@ -339,8 +340,8 @@ export function generarHtmlComanda({ datos, plantilla, serverOrigin }) {
     if (vis.area !== false && datos.area) {
       html += filaMeta(`${etiquetas.area}:`, escapeHtml(datos.area));
     }
-    if (vis.tipoPago !== false && datos.tipoPago) {
-      html += filaMeta(`${etiquetas.tipoPago}:`, escapeHtml(getLabelMetodoPago(datos.tipoPago)));
+    if (vis.tipoPago !== false) {
+      html += filaMeta(`${etiquetas.tipoPago}:`, escapeHtml(getLabelMetodoPago(datos.tipoPago || 'Pendiente')));
     }
     if (isTipoPagoEfectivo(datos.tipoPago) && datos.moneda) {
       html += filaMeta(`${etiquetas.moneda}:`, escapeHtml(getLabelMoneda(datos.moneda)));

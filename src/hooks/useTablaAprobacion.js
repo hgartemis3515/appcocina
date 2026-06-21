@@ -307,9 +307,10 @@ export default function useTablaAprobacion() {
     }
   }, []);
 
-  const cantidadPendientes = items.filter(t => t.estado === 'pendiente_aprobacion').length;
-  const cantidadComandas = items.filter(t => t.tipo === 'comanda_completa').length;
-  const cantidadPPA = items.filter(t => t.tipo === 'pago_adelantado').length;
+  const isPendiente = (t) => t.estado === 'pendiente_aprobacion';
+  const cantidadPendientes = items.filter(isPendiente).length;
+  const cantidadComandas = items.filter(t => t.tipo === 'comanda_completa' && isPendiente(t)).length;
+  const cantidadPPA = items.filter(t => t.tipo === 'pago_adelantado' && isPendiente(t)).length;
 
   return {
     items,

@@ -24,6 +24,12 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+const labelPagoTicket = (ticket) => {
+  if (ticket.estado === 'pendiente_aprobacion') return 'Pago: Pendiente';
+  if (ticket.metodoPago) return ticket.metodoPago;
+  return 'Pago: Pendiente';
+};
+
 // Badge type label + color
 const tipoBadge = (tipo) => {
   const t = String(tipo || '').toLowerCase();
@@ -177,12 +183,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             )}
             {cantidadComandas > 0 && (
               <span className="bg-blue-500/80 text-white text-xs px-2 py-1 rounded-full">
-                {cantidadComandas} comanda{cantidadComandas > 1 ? 's' : ''}
+                {cantidadComandas} comanda{cantidadComandas > 1 ? 's' : ''} por aprobar
               </span>
             )}
             {cantidadPPA > 0 && (
               <span className="bg-violet-500/80 text-white text-xs px-2 py-1 rounded-full">
-                {cantidadPPA} adelantado{cantidadPPA > 1 ? 's' : ''}
+                {cantidadPPA} adelantado{cantidadPPA > 1 ? 's' : ''} por aprobar
               </span>
             )}
             <button
@@ -343,7 +349,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       <div className="text-gray-500 text-xs flex items-center gap-2">
                         {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
                         <span className="uppercase">{ticket.moneda || 'Soles'}</span>
-                        {ticket.metodoPago && <span>· {ticket.metodoPago}</span>}
+                        <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''}>
+                          · {labelPagoTicket(ticket)}
+                        </span>
                       </div>
                     </div>
 
