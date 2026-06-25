@@ -27,7 +27,7 @@ import { useAuth } from '../../contexts/AuthContext';
  * - Vista Personalizada (COCINA_PERSONALIZADA): Filtrada por Zonas KDS - usa ComandastylePerso.jsx
  */
 const MenuPage = ({ onNavigate }) => {
-  const { user, logout, cocineroConfig, configLoading, getZonasActivas } = useAuth();
+  const { user, logout, cocineroConfig, configLoading, getZonasActivas, hasPermission } = useAuth();
   const [showViewSelector, setShowViewSelector] = useState(false);
 
   // Obtener zonas activas del cocinero
@@ -65,8 +65,9 @@ const MenuPage = ({ onNavigate }) => {
   };
 
   // Opciones de vista para el modal
-  // La Vista Supervisor solo está disponible para supervisores y admins
-  const esSupervisorOAdmin = user?.rol === 'supervisor' || user?.rol === 'admin';
+  // La Vista Supervisor está disponible para usuarios con el permiso correspondiente
+  // (admin, supervisor o cualquier rol personalizado que tenga ver-vista-supervisor-cocina)
+  const esSupervisorOAdmin = user?.rol === 'supervisor' || user?.rol === 'admin' || hasPermission('ver-vista-supervisor-cocina');
   
   const viewOptions = [
     {

@@ -118,6 +118,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [permisos, setPermisos] = useState([]);
+  const [reglas, setReglas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -172,6 +173,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
     setPermisos([]);
+    setReglas([]);
     setError(null);
     setShowInactivityWarning(false);
     setCocineroConfig(null);
@@ -300,7 +302,8 @@ export const AuthProvider = ({ children }) => {
           setToken(authData.token);
           setUser(authData.usuario);
           setPermisos(authData.usuario.permisos || []);
-          
+          setReglas(authData.usuario.reglas || []);
+
           console.log('[AuthContext] Sesión restaurada:', authData.usuario.name, `(${authData.usuario.rol})`);
           
           if (expiryStatus.willExpireSoon) {
@@ -374,6 +377,7 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken);
       setUser(usuario);
       setPermisos(usuario.permisos || []);
+      setReglas(usuario.reglas || []);
 
       console.log('[AuthContext] Login exitoso:', usuario.name, `(${usuario.rol})`);
 
@@ -440,6 +444,17 @@ export const AuthProvider = ({ children }) => {
     // Verificar si el permiso está en la lista de permisos del usuario
     return permisos.includes(permiso);
   }, [user, permisos]);
+
+  /**
+   * Verifica si el usuario tiene una regla específica activa
+   * Las reglas son restricciones de comportamiento (admin no está sujeto a ellas)
+   * @param {string} regla - ID de la regla a verificar
+   */
+  const hasRegla = useCallback((regla) => {
+    // Admin no está sujeto a reglas restrictivas
+    if (user?.rol === 'admin') return false;
+    return reglas.includes(regla);
+  }, [user, reglas]);
 
   /**
    * Verificar si el usuario tiene al menos uno de los permisos especificados
@@ -679,6 +694,7 @@ export const AuthProvider = ({ children }) => {
     canPerformSensitiveActions,
     hasPermission,
     hasAnyPermission,
+    hasRegla,
     getToken,
     setError,
     showInactivityWarning,
@@ -701,7 +717,8 @@ export const AuthProvider = ({ children }) => {
     userId: user?._id || user?.id,
     userName: user?.name,
     userRole: user?.rol,
-    permisos
+    permisos,
+    reglas
   };
 
   return (

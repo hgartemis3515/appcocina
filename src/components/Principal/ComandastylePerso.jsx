@@ -42,6 +42,7 @@ import {
   debeMostrarPlato,
   calcularEstadisticasFiltrado 
 } from "../../utils/kdsFilters";
+import { obtenerNombrePlato, obtenerPlatoSubdocId } from "../../utils/platoHelpers";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 
 // Sonido de notificación
@@ -70,9 +71,9 @@ const playNotificationSound = () => {
 const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
   // Configuración de cocinero, zonas para Vista Personalizada
-  const { 
-    userRole, 
-    canPerformSensitiveActions, 
+  const {
+    userRole,
+    canPerformSensitiveActions,
     getToken,
     cocineroConfig,
     configLoading,
@@ -84,8 +85,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     userId,
     // TEMA 1: Funciones para actualizar configuración cuando llega evento Socket
     updateCocineroConfig,
-    loadCocineroConfig
+    loadCocineroConfig,
+    hasRegla
   } = useAuth();
+
+  // Regla: solo mostrar la comanda más antigua al usar el buscador de platos
+  const reglaSoloUltimaComandaBuscador = hasRegla('solo-ultima-comanda-buscador');
   
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
@@ -1422,7 +1427,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     hayFiltroActivo,
     sugerencias,
     getPlatosVisibles
-  } = useBuscadorPlatos(comandas, searchTerm);
+  } = useBuscadorPlatos(comandas, searchTerm, { soloUltimaComanda: reglaSoloUltimaComandaBuscador });
+
+  // 🔥 BÚSQUEDA: Cuando se activa el filtro, volver a la página 0 para que la
+  // comanda más antigua (regla solo-ultima-comanda-buscador) sea visible aun si
+  // el usuario estaba en una página distinta.
+  useEffect(() => {
+    if (hayFiltroActivo) {
+      setCurrentPage(0);
+    }
+  }, [hayFiltroActivo]);
 
   // Filtrar comandas visibles en KDS: mantener tarjeta mientras haya platos
   // pendientes en cocina (en_espera/recoger). Ocultar solo cuando todos salieron del pass.
@@ -1432,7 +1446,20 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const comandasBase = hayFiltroActivo ? comandasConPlatosFiltrados : comandas;
   
   const enEspera = comandasBase.filter(c => {
-    // Si no tiene platos, no mostrar
+    // Si hay búsqueda activa, mostrar la comanda si coincide algún plato con el
+    // término, sin importar el estado del resto de platos. Esto permite ver la
+    // comanda más antigua con el plato buscado (regla solo-ultima-comanda-buscador)
+    // incluso cuando sus demás platos ya están terminados.
+    if (hayFiltroActivo) {
+      const platosFiltrados = c.platosFiltrados || [];
+      if (platosFiltrados.length === 0) return false;
+      // Validación de integridad: platos filtrados deben tener nombre cargado
+      // (usar helper compartido para consistencia con el hook)
+      const algunoSinNombre = platosFiltrados.some(plato => obtenerNombrePlato(plato).length === 0);
+      return !algunoSinNombre;
+    }
+
+    // Modo normal (sin búsqueda): validar visibilidad con todos los platos
     if (!c.platos || c.platos.length === 0) return false;
 
     const platosActivos = c.platos.filter(p => p.eliminado !== true && p.anulado !== true);
@@ -3549,6 +3576,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     onDejarComanda={handleDejarComanda}
                     onFinalizarComanda={handleFinalizarComandaCard}
                     obtenerNombreMesa={obtenerNombreMesa}
+                    hayBusquedaActiva={hayFiltroActivo}
+                    platosVisiblesBusqueda={getPlatosVisibles(comanda)}
                   />
                   );
                 })}
@@ -4477,7 +4506,11 @@ const SicarComandaCard = ({
   onTomarComanda,
   onDejarComanda,
   onFinalizarComanda,
-  obtenerNombreMesa // Función helper para obtener nombre de mesa
+  obtenerNombreMesa, // Función helper para obtener nombre de mesa
+  // 🔥 BÚSQUEDA: props explícitas para que la tarjeta no dependa de
+  // comanda.platosFiltrados (que puede perderse en re-renders / sockets)
+  hayBusquedaActiva = false,
+  platosVisiblesBusqueda = null,
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -4629,35 +4662,69 @@ const SicarComandaCard = ({
 
   // Agrupar platos en dos secciones: EN PREPARACIÓN y PLATOS LISTOS
   // 🔥 NUEVO: También filtrar platos anulados
-  // 🔥 BÚSQUEDA: Si hay platosFiltrados (búsqueda activa), usarlos en lugar de todos los platos
+  // 🔥 BÚSQUEDA: Cuando hay búsqueda activa, usar platosVisiblesBusqueda (vía props)
+  // en lugar de comanda.platosFiltrados. Esto evita pérdida de datos en re-renders.
   const { platosPreparacion, platosListos, platosAnulados, totalPlatos } = React.useMemo(() => {
-    // Usar platosFiltrados si existen (búsqueda activa), sino usar todos los platos
-    const platosBase = comanda.platosFiltrados || comanda.platos || [];
-    
+    // Determinar la fuente de platos y el estado de búsqueda.
+    // Prioridad: props explícitas (hayBusquedaActiva + platosVisiblesBusqueda)
+    //            > comanda.platosFiltrados (legacy)
+    //            > comanda.platos (sin búsqueda)
+    const tienePlatosVisiblesBusqueda = Array.isArray(platosVisiblesBusqueda)
+      && platosVisiblesBusqueda.length > 0;
+    const hayBusquedaActivaLocal = hayBusquedaActiva === true
+      || (Array.isArray(comanda.platosFiltrados) && comanda.platosFiltrados.length > 0);
+
+    let platosBase;
+    if (hayBusquedaActivaLocal && tienePlatosVisiblesBusqueda) {
+      platosBase = platosVisiblesBusqueda;
+    } else if (hayBusquedaActivaLocal && Array.isArray(comanda.platosFiltrados)) {
+      platosBase = comanda.platosFiltrados;
+    } else {
+      platosBase = comanda.platos || [];
+    }
+
+    // Usar helper compartido para extraer nombre de forma consistente con el hook
     const platosConNombre = platosBase.filter(p => {
-      const platoObj = p.plato || p;
-      const nombre = platoObj?.nombre || p?.nombre;
-      return nombre && nombre.trim().length > 0 && !p.eliminado && !p.anulado;
+      const nombre = obtenerNombrePlato(p);
+      return nombre.length > 0 && !p.eliminado && !p.anulado;
     });
 
-    const preparacion = platosConNombre.filter(p => {
-      // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
-      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
-        return false;
-      }
-      // PLAN_PLANTILLA_COMANDAS: Ocultar platos en estado "pendiente" (esperando aprobación cocina)
-      if ((p.estado || '').toLowerCase() === 'pendiente') {
-        return false;
-      }
-      const estado = p.estado || "en_espera";
-      return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
-    });
+    let preparacion;
+    let listos;
 
-    // REGLA COCINA: Solo platos en "recoger" (listos para que mozo recoga). No mostrar entregado/pagado.
-    const listos = platosConNombre.filter(p => {
-      const estado = (p.estado || "en_espera").toLowerCase();
-      return estado === "recoger";
-    });
+    if (hayBusquedaActivaLocal) {
+      // Búsqueda activa: mostrar TODOS los platos que coincidieron con el término,
+      // sin importar su estado. Esto es crítico para ver el plato buscado en la
+      // comanda más antigua (regla solo-ultima-comanda-buscador), incluso si ese
+      // plato ya está en estado salio/entregado/pagado.
+      preparacion = platosConNombre.filter(p => {
+        // PLAN_PLANTILLA_COMANDAS: Ocultar platos en estado "pendiente" (esperando aprobación cocina)
+        if ((p.estado || '').toLowerCase() === 'pendiente') {
+          return false;
+        }
+        return true;
+      });
+      listos = [];
+    } else {
+      preparacion = platosConNombre.filter(p => {
+        // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
+        if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+          return false;
+        }
+        // PLAN_PLANTILLA_COMANDAS: Ocultar platos en estado "pendiente" (esperando aprobación cocina)
+        if ((p.estado || '').toLowerCase() === 'pendiente') {
+          return false;
+        }
+        const estado = p.estado || "en_espera";
+        return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
+      });
+
+      // REGLA COCINA: Solo platos en "recoger" (listos para que mozo recoga). No mostrar entregado/pagado.
+      listos = platosConNombre.filter(p => {
+        const estado = (p.estado || "en_espera").toLowerCase();
+        return estado === "recoger";
+      });
+    }
 
     // 🔥 NUEVO: Platos anulados desde cocina
     const anulados = (comanda.platos || []).filter(p => {
@@ -4670,7 +4737,7 @@ const SicarComandaCard = ({
       platosAnulados: anulados,
       totalPlatos: platosConNombre.length
     };
-  }, [comanda.platos, comanda.platosFiltrados]);
+  }, [comanda.platos, comanda.platosFiltrados, hayBusquedaActiva, platosVisiblesBusqueda]);
 
   // Filtrar platos por estado según columna (mantener para compatibilidad)
   const platosFiltrados = comanda.platos?.filter(p => {
@@ -4953,11 +5020,12 @@ const SicarComandaCard = ({
               <div className="px-2 py-2 space-y-1">
                 {platosPreparacion.map((plato, index) => {
                   const platoObj = plato.plato || plato;
-                  // 🔥 CORREGIDO: indexOf por referencia falla cuando los platos vienen
-                  // de platosFiltrados (búsqueda), porque son copias spread con _puntuacion.
-                  const platoSubdocId = plato._id || platoObj?._id;
+                  // 🔥 FIX: Usar helper para obtener el subdoc id y comparar como string.
+                  // Las copias spread del buscador ({ ...plato, _puntuacion }) mantienen
+                  // el _id, pero ObjectId vs string puede fallar en findIndex.
+                  const platoSubdocId = obtenerPlatoSubdocId(plato);
                   const platoIndex = platoSubdocId
-                    ? comanda.platos.findIndex(p => (p._id || p.plato?._id) === platoSubdocId)
+                    ? comanda.platos.findIndex(p => obtenerPlatoSubdocId(p) === platoSubdocId)
                     : comanda.platos.indexOf(plato);
                   const platoIndexFinal = platoIndex !== -1 ? platoIndex : index;
                   const cantidad = comanda.cantidades?.[platoIndexFinal] || 1;
@@ -4973,6 +5041,9 @@ const SicarComandaCard = ({
                     estadoVisual = 'procesando';
                   }
                   
+                  // 🔥 Usar helper de nombre para consistencia con el hook
+                  const nombrePlato = obtenerNombrePlato(plato) || 'Sin nombre';
+                  
                   return (
                     <PlatoPreparacion
                       key={platoKey}
@@ -4981,7 +5052,7 @@ const SicarComandaCard = ({
                       platoId={platoId}
                       platoIndex={platoIndex}
                       cantidad={cantidad}
-                      nombre={platoObj?.nombre || plato?.nombre || 'Sin nombre'}
+                      nombre={nombrePlato}
                       estadoVisual={estadoVisual}
                       nightMode={nightMode}
                       isEliminado={plato.eliminado === true}

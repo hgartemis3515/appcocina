@@ -26,10 +26,10 @@ import { useAuth } from '../../contexts/AuthContext';
  * Componente wrapper que extiende ComandaStyle con funcionalidades de supervisor
  */
 const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
-  const { hasRole, getToken, userId } = useAuth();
-  
-  // Verificar permisos de supervisor
-  const tienePermiso = hasRole(['supervisor', 'admin']);
+  const { hasRole, hasPermission, getToken, userId } = useAuth();
+
+  // Verificar permisos de supervisor (por rol del sistema o por permiso)
+  const tienePermiso = hasRole(['supervisor', 'admin']) || hasPermission('ver-vista-supervisor-cocina');
   
   // Estado para toast notifications
   const [toastLocal, setToastLocal] = useState(null);

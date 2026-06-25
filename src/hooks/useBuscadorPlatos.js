@@ -16,6 +16,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { obtenerNombrePlato, obtenerCodigoPlato } from '../utils/platoHelpers';
 
 /**
  * Normaliza texto para comparación (quita tildes, pasa a minúsculas)
@@ -165,11 +166,11 @@ const extraerNombresPlatos = (comandas) => {
   
   comandas.forEach(comanda => {
     comanda.platos?.forEach(plato => {
-      const nombre = plato.plato?.nombre || plato.nombre || '';
-      if (nombre && nombre.trim().length >= 2) {
-        const norm = normalizarTexto(nombre.trim());
+      const nombre = obtenerNombrePlato(plato);
+      if (nombre.length >= 2) {
+        const norm = normalizarTexto(nombre);
         if (!nombres.has(norm)) {
-          nombres.set(norm, nombre.trim());
+          nombres.set(norm, nombre);
         }
       }
     });
@@ -188,7 +189,7 @@ const extraerPalabrasClave = (comandas) => {
   
   comandas.forEach(comanda => {
     comanda.platos?.forEach(plato => {
-      const nombre = plato.plato?.nombre || plato.nombre || '';
+      const nombre = obtenerNombrePlato(plato);
       nombre.split(/\s+/).forEach(palabra => {
         const p = normalizarTexto(palabra);
         if (p.length >= 2) palabras.add(p);
@@ -293,12 +294,15 @@ const generarSugerencias = (termino, nombresPlatos, palabrasClave) => {
  * @param {string} terminoExterno - Término de búsqueda externo (opcional)
  * @returns {Object} Estado y funciones del buscador
  */
-const useBuscadorPlatos = (comandas, terminoExterno = null) => {
+const useBuscadorPlatos = (comandas, terminoExterno = null, options = {}) => {
   // Estado interno solo si no se proporciona término externo
   const [searchTermInterno, setSearchTermInterno] = useState('');
-  
+
   // Usar término externo si se proporciona, sino usar interno
   const searchTerm = terminoExterno !== null ? terminoExterno : searchTermInterno;
+
+  // Opciones de comportamiento
+  const soloUltimaComanda = options?.soloUltimaComanda === true;
 
   /**
    * Extrae nombres de platos y palabras clave para sugerencias
@@ -331,8 +335,8 @@ const useBuscadorPlatos = (comandas, terminoExterno = null) => {
       // Filtrar y puntuar platos de esta comanda
       const platosConPuntuacion = comanda.platos
         .map(plato => {
-          const nombrePlato = plato.plato?.nombre || plato.nombre || '';
-          const codigoPlato = plato.plato?.codigo || plato.codigo || '';
+          const nombrePlato = obtenerNombrePlato(plato);
+          const codigoPlato = obtenerCodigoPlato(plato);
           const puntNombre = calcularPuntuacion(nombrePlato, terminoNormalizado);
           const puntCodigo = calcularPuntuacionCodigo(codigoPlato, terminoNormalizado);
           const { puntuacion, tipo } = puntCodigo.puntuacion >= puntNombre.puntuacion
@@ -354,16 +358,42 @@ const useBuscadorPlatos = (comandas, terminoExterno = null) => {
       }
     }
 
+    // REGLA: solo-ultima-comanda-buscador
+    // Si está activa, conservar únicamente la comanda más antigua con coincidencias.
+    // "Más antigua" = menor fecha de creación (createdAt). También se considera
+    // comandaNumber como desempate para entornos sin createdAt.
+    let comandasFinales = comandasConResultados;
+    if (soloUltimaComanda && comandasConResultados.length > 1) {
+      comandasFinales = comandasConResultados
+        .slice()
+        .sort((a, b) => {
+          const fa = new Date(a.createdAt || a.fechaCreacion || a.fecha || 0).getTime();
+          const fb = new Date(b.createdAt || b.fechaCreacion || b.fecha || 0).getTime();
+          if (fa !== fb) return fa - fb; // ascendente: la más antigua primero
+          // Desempate por número de comanda ascendente
+          const na = a.comandaNumber ?? 0;
+          const nb = b.comandaNumber ?? 0;
+          return na - nb;
+        })
+        .slice(0, 1);
+
+      // Recalcular el total de platos para la comanda restante
+      totalPlatos = comandasFinales.reduce(
+        (acc, c) => acc + (c._totalPlatosFiltrados || 0),
+        0
+      );
+    }
+
     // Generar sugerencias siempre (para mostrar alternativas)
     const sugerencias = generarSugerencias(searchTerm.trim(), nombresPlatos, palabrasClave);
 
     return {
-      comandasFiltradas: comandasConResultados,
+      comandasFiltradas: comandasFinales,
       totalPlatosEncontrados: totalPlatos,
       hayFiltroActivo: true,
       sugerencias
     };
-  }, [comandas, searchTerm, nombresPlatos, palabrasClave]);
+  }, [comandas, searchTerm, nombresPlatos, palabrasClave, soloUltimaComanda]);
 
   /**
    * Obtiene los platos a mostrar para una comanda específica
