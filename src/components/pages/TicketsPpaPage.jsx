@@ -437,27 +437,40 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     </div>
 
                     {/* Total & Pago */}
-                    <div className="p-3 flex items-center justify-between border-b border-gray-700">
-                      <div className="flex items-center gap-1">
-                        <FaMoneyBill className="text-green-400" />
-                        <span className="text-white font-bold">{formatCurrency(ticket.total)}</span>
+                    <div className="p-3 border-b border-gray-700">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <FaMoneyBill className="text-green-400" />
+                          <span className="text-white font-bold">{formatCurrency(ticket.total)}</span>
+                        </div>
+                        <div className="text-gray-500 text-xs flex items-center gap-2">
+                          {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
+                          <span className="uppercase">{ticket.moneda || 'Soles'}</span>
+                          <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''}>
+                            · {labelPagoTicket(ticket)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-gray-500 text-xs flex items-center gap-2">
-                        {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
-                        <span className="uppercase">{ticket.moneda || 'Soles'}</span>
-                        <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''}>
-                          · {labelPagoTicket(ticket)}
-                        </span>
-                      </div>
+                      {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&
+                        (ticket.montoRecibido != null || ticket.vuelto != null) && (
+                        <div className="mt-2 flex items-center justify-between text-xs bg-gray-900/50 rounded px-2 py-1.5">
+                          <span className="text-gray-400">
+                            Recibido: <span className="text-gray-200 font-medium">{formatCurrency(ticket.montoRecibido)}</span>
+                          </span>
+                          <span className="text-green-400 font-bold">
+                            Vuelto: {formatCurrency(ticket.vuelto)}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Cliente */}
-                    {(ticket.cliente?.nombre || ticket.nombreCliente) && (
+                    {(ticket.cliente?.nombre || ticket.nombreCliente || ticket.clienteNombre) && (
                       <div className="px-3 py-1 border-b border-gray-700 text-xs text-gray-400">
                         <FaUser className="inline mr-1" />
-                        {ticket.cliente?.nombre || ticket.nombreCliente || 'Cliente'}
-                        {(ticket.cliente?.dni || ticket.dniCliente) && (
-                          <span className="ml-2 text-gray-500">DNI: {ticket.cliente?.dni || ticket.dniCliente}</span>
+                        {ticket.cliente?.nombre || ticket.nombreCliente || ticket.clienteNombre || 'Cliente'}
+                        {(ticket.cliente?.dni || ticket.dniCliente || ticket.clienteDni) && (
+                          <span className="ml-2 text-gray-500">DNI: {ticket.cliente?.dni || ticket.dniCliente || ticket.clienteDni}</span>
                         )}
                       </div>
                     )}
