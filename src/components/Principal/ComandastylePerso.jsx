@@ -1303,6 +1303,43 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
   }, [updateCocineroConfig, loadCocineroConfig, config.soundEnabled]);
 
+  // Handler: plato del menú actualizado desde el admin (platos.html).
+  // Actualiza datos del plato (nombre, codigo, precio, categoria) en todas
+  // las comandas en memoria que lo referencian, sin recargar todo.
+  const handlePlatoMenuActualizado = useCallback((platoActualizado) => {
+    console.log('[ComandastylePerso] Plato del menú actualizado:', platoActualizado?._id || platoActualizado?.id);
+    if (!platoActualizado || (!platoActualizado._id && platoActualizado.id == null)) return;
+
+    const platoOid = String(platoActualizado._id || '');
+    const platoNumId = platoActualizado.id != null ? Number(platoActualizado.id) : null;
+
+    setComandas(prev => {
+      let cambios = false;
+      const nuevas = prev.map(comanda => {
+        if (!comanda.platos) return comanda;
+        const platosActualizados = comanda.platos.map(item => {
+          const ref = item.plato;
+          const matchOid = ref && ref._id && String(ref._id) === platoOid;
+          const matchNum = ref && platoNumId != null && ref.id != null && Number(ref.id) === platoNumId;
+          if (matchOid || matchNum) {
+            cambios = true;
+            return {
+              ...item,
+              plato: {
+                ...ref,
+                ...platoActualizado,
+                _id: ref?._id || platoActualizado._id
+              }
+            };
+          }
+          return item;
+        });
+        return cambios ? { ...comanda, platos: platosActualizados } : comanda;
+      });
+      return cambios ? nuevas : prev;
+    });
+  }, []);
+
   // Hook Socket.io - REEMPLAZA EL POLLING
   // Se pasa el token para autenticación del handshake
   // TEMA 1: Se pasa el cocineroId para unirse a la room personal y recibir actualizaciones de config
@@ -1310,6 +1347,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     onNuevaComanda: handleNuevaComanda,
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
+    onPlatoMenuActualizado: handlePlatoMenuActualizado,
     onConfigCocineroActualizada: handleConfigCocineroActualizada, // TEMA 1: Handler para actualizaciones de config
     obtenerComandas: obtenerComandas,
     token: getToken(), // Token JWT para autenticación
@@ -1380,6 +1418,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const {
     comandasFiltradas: comandasConPlatosFiltrados,
     totalPlatosEncontrados,
+    totalComandasEncontradas,
     hayFiltroActivo,
     sugerencias,
     getPlatosVisibles
@@ -3373,6 +3412,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           <SearchBar 
             onSearch={setSearchTerm}
             totalPlatosEncontrados={totalPlatosEncontrados}
+            totalComandasEncontradas={totalComandasEncontradas}
             hayFiltroActivo={hayFiltroActivo}
             sugerencias={sugerencias}
             onSugerenciaClick={setSearchTerm}
@@ -4913,11 +4953,16 @@ const SicarComandaCard = ({
               <div className="px-2 py-2 space-y-1">
                 {platosPreparacion.map((plato, index) => {
                   const platoObj = plato.plato || plato;
-                  const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
-                  const platoId = platoObj?._id || plato._id || index;
-                  // 🔥 CORREGIDO: Obtener el índice real del plato en comanda.platos
-                  const platoIndex = comanda.platos.indexOf(plato);
-                  const platoKey = `${comandaId}-${platoIndex}`;
+                  // 🔥 CORREGIDO: indexOf por referencia falla cuando los platos vienen
+                  // de platosFiltrados (búsqueda), porque son copias spread con _puntuacion.
+                  const platoSubdocId = plato._id || platoObj?._id;
+                  const platoIndex = platoSubdocId
+                    ? comanda.platos.findIndex(p => (p._id || p.plato?._id) === platoSubdocId)
+                    : comanda.platos.indexOf(plato);
+                  const platoIndexFinal = platoIndex !== -1 ? platoIndex : index;
+                  const cantidad = comanda.cantidades?.[platoIndexFinal] || 1;
+                  const platoId = platoObj?._id || plato._id || platoIndexFinal;
+                  const platoKey = `${comandaId}-${platoIndexFinal}`;
                   const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
                   
                   // v7.2: Si el plato tiene procesandoPor y está en estado local normal/procesando,

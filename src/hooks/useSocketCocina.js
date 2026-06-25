@@ -77,6 +77,7 @@ const useSocketCocina = ({
   onPlatoAnulado,
   onComandaAnulada,
   onConfigCocineroActualizada,
+  onPlatoMenuActualizado,
   obtenerComandas,
   token, // Token obligatorio para autenticación
   cocineroId // TEMA 1: ID del cocinero para room personal
@@ -618,6 +619,23 @@ const useSocketCocina = ({
       }
     });
 
+    // ============================================================
+    // EVENTO: Plato del menú actualizado desde el admin (platos.html)
+    // Incluye cambio de código de serie, nombre, precio, etc.
+    // Cocina debe refrescar sus comandas para usar el dato nuevo.
+    // ============================================================
+    socket.on('plato-menu-actualizado', (data) => {
+      console.log('[useSocketCocina] Plato del menú actualizado:', data.plato?.id || data.plato?._id);
+      ultimoPingRef.current = Date.now();
+
+      if (onPlatoMenuActualizado) {
+        onPlatoMenuActualizado(data.plato);
+      } else if (obtenerComandas) {
+        // Fallback: recargar todas las comandas para traer el plato populado con datos nuevos
+        obtenerComandas();
+      }
+    });
+
     // Heartbeat para mantener conexión activa
     heartbeatIntervalRef.current = setInterval(() => {
       if (socket.connected) {
@@ -660,7 +678,7 @@ const useSocketCocina = ({
         socketRef.current = null;
       }
     };
-  }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, obtenerComandas, cocineroId]);
+  }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, onPlatoMenuActualizado, obtenerComandas, cocineroId]);
 
   return {
     socket: socketRef.current,

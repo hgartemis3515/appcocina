@@ -70,6 +70,43 @@ const calcularSimilitud = (a, b) => {
 };
 
 /**
+ * Calcula puntuación de relevancia para un plato por su código de serie.
+ * Soporta códigos de longitud variable: L1, M23, D345, P100, etc.
+ * Acepta búsqueda por código completo (L1), prefijo (L, M2) o solo dígitos (1, 23, 345).
+ *
+ * @param {string} codigoPlato - Código del plato (ej. "L923")
+ * @param {string} termino - Término de búsqueda normalizado (minúsculas, sin tildes)
+ * @returns {Object} { puntuacion, tipoCoincidencia } — puntuación 0 si no coincide
+ */
+const calcularPuntuacionCodigo = (codigoPlato, termino) => {
+  if (!codigoPlato || !termino) return { puntuacion: 0, tipo: 'ninguna' };
+
+  const codigo = String(codigoPlato).trim().toUpperCase();
+  const terminoUpper = termino.toUpperCase();
+
+  // Coincidencia exacta de código (L1 == L1, M23 == M23, D345 == D345)
+  if (codigo === terminoUpper) return { puntuacion: 110, tipo: 'codigo_exacto' };
+
+  // Prefijo del código: el término es inicio del código (L -> L1, M2 -> M23, D34 -> D345)
+  // Sirve para escribir solo la letra y filtrar todos los de esa letra.
+  if (codigo.startsWith(terminoUpper)) {
+    return { puntuacion: 95, tipo: 'codigo_prefijo' };
+  }
+
+  // Solo dígitos: el término numérico coincide con la parte numérica del código
+  // (1 -> L1, 23 -> M23, 345 -> D345). Solo activar si el término es puramente numérico.
+  if (/^[0-9]+$/.test(terminoUpper)) {
+    const digitosCodigo = codigo.replace(/^[A-Z]/, '');
+    if (digitosCodigo === terminoUpper) return { puntuacion: 90, tipo: 'codigo_numeros' };
+    if (digitosCodigo.startsWith(terminoUpper)) {
+      return { puntuacion: 80, tipo: 'codigo_numeros_prefijo' };
+    }
+  }
+
+  return { puntuacion: 0, tipo: 'ninguna' };
+};
+
+/**
  * Calcula puntuación de relevancia para un plato
  * @param {string} nombrePlato - Nombre del plato
  * @param {string} termino - Término de búsqueda normalizado
@@ -295,7 +332,12 @@ const useBuscadorPlatos = (comandas, terminoExterno = null) => {
       const platosConPuntuacion = comanda.platos
         .map(plato => {
           const nombrePlato = plato.plato?.nombre || plato.nombre || '';
-          const { puntuacion, tipo } = calcularPuntuacion(nombrePlato, terminoNormalizado);
+          const codigoPlato = plato.plato?.codigo || plato.codigo || '';
+          const puntNombre = calcularPuntuacion(nombrePlato, terminoNormalizado);
+          const puntCodigo = calcularPuntuacionCodigo(codigoPlato, terminoNormalizado);
+          const { puntuacion, tipo } = puntCodigo.puntuacion >= puntNombre.puntuacion
+            ? puntCodigo
+            : puntNombre;
           return { ...plato, _puntuacion: puntuacion, _tipoCoincidencia: tipo };
         })
         .filter(plato => plato._puntuacion > 0)
@@ -369,6 +411,7 @@ const useBuscadorPlatos = (comandas, terminoExterno = null) => {
     aplicarSugerencia,
     comandasFiltradas: resultadoFiltrado.comandasFiltradas,
     totalPlatosEncontrados: resultadoFiltrado.totalPlatosEncontrados,
+    totalComandasEncontradas: resultadoFiltrado.comandasFiltradas.length,
     hayFiltroActivo: resultadoFiltrado.hayFiltroActivo,
     sugerencias: resultadoFiltrado.sugerencias,
     getPlatosVisibles,

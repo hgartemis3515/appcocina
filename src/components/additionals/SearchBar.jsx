@@ -1,19 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { FaSearch, FaTimes, FaLightbulb, FaUtensils, FaFont } from 'react-icons/fa';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { FaSearch, FaTimes, FaLightbulb, FaUtensils, FaFont, FaSpinner } from 'react-icons/fa';
 
 /**
  * SearchBar - Barra de búsqueda de platos con sugerencias inteligentes
- * 
+ *
+ * Mejoras:
+ * - Indicador animado mientras está buscando (spinner + borde pulsante)
+ * - Lupa presionable opcional (dispara búsqueda manual sin Esperar debounce)
+ * - Sugerencias por nombre y código
+ *
  * Props:
  * - onSearch: función llamada con el término de búsqueda
  * - totalPlatosEncontrados: número de platos que coinciden
+ * - totalComandasEncontradas: número de comandas que coinciden
  * - hayFiltroActivo: booleano indicando si hay búsqueda activa
  * - sugerencias: array de sugerencias [{ texto, tipo, relevancia }]
  * - onSugerenciaClick: función llamada al seleccionar sugerencia
  */
-const SearchBar = ({ 
-  onSearch, 
-  totalPlatosEncontrados = 0, 
+const SearchBar = ({
+  onSearch,
+  totalPlatosEncontrados = 0,
+  totalComandasEncontradas = 0,
   hayFiltroActivo = false,
   sugerencias = [],
   onSugerenciaClick
@@ -21,9 +28,11 @@ const SearchBar = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const suggestionsRef = useRef(null);
+  const searchTimerRef = useRef(null);
 
   const handleChange = (event) => {
     const value = event.target.value;
@@ -31,6 +40,15 @@ const SearchBar = ({
     onSearch(value);
     setShowSuggestions(value.length >= 1 && sugerencias.length > 0);
     setSelectedIndex(-1);
+
+    // Activar indicador de "buscando" y apagarlo tras 450ms sin escribir
+    setIsSearching(true);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!value) {
+      setIsSearching(false);
+      return;
+    }
+    searchTimerRef.current = setTimeout(() => setIsSearching(false), 450);
   };
 
   const handleClear = () => {
@@ -38,6 +56,8 @@ const SearchBar = ({
     onSearch('');
     setShowSuggestions(false);
     setSelectedIndex(-1);
+    setIsSearching(false);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     inputRef.current?.focus();
   };
 
@@ -46,17 +66,33 @@ const SearchBar = ({
     onSugerenciaClick?.(sugerencia.texto);
     setShowSuggestions(false);
     setSelectedIndex(-1);
+    setIsSearching(false);
     inputRef.current?.focus();
   };
 
+  // Lupa presionable opcional: re-dispara la búsqueda con el término actual
+  const handleSearchClick = useCallback(() => {
+    if (searchTerm) {
+      setIsSearching(true);
+      onSearch(searchTerm);
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = setTimeout(() => setIsSearching(false), 450);
+    }
+    inputRef.current?.focus();
+  }, [searchTerm, onSearch]);
+
   // Navegación con teclado
   const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !showSuggestions) {
+      handleSearchClick();
+      return;
+    }
     if (!showSuggestions || sugerencias.length === 0) return;
 
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
-        setSelectedIndex(prev => 
+        setSelectedIndex(prev =>
           prev < sugerencias.length - 1 ? prev + 1 : prev
         );
         break;
@@ -87,7 +123,7 @@ const SearchBar = ({
         setSelectedIndex(-1);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -108,6 +144,13 @@ const SearchBar = ({
       }
     }
   }, [selectedIndex]);
+
+  // Limpiar timer al desmontar
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
 
   // Icono según tipo de sugerencia
   const getSuggestionIcon = (tipo) => {
@@ -140,57 +183,89 @@ const SearchBar = ({
   return (
     <div className="flex justify-center w-full" ref={containerRef}>
       <div className="flex flex-col items-center w-full max-w-2xl gap-2 relative">
-        <div className="flex items-center rounded-lg border-2 border-gray-600 bg-gray-700 w-full focus-within:border-blue-500 transition-colors">
-          <FaSearch className="text-gray-400 mx-3" />
-          <input
-            ref={inputRef}
-            className="appearance-none bg-transparent border-none w-full text-white py-3 px-2 leading-tight focus:outline-none rounded-lg text-lg"
-            type="text"
-            placeholder="Buscar por nombre de plato..."
-            value={searchTerm}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onFocus={() => {
-              if (searchTerm.length >= 1 && sugerencias.length > 0) {
-                setShowSuggestions(true);
-              }
-            }}
-          />
-          {searchTerm && (
+        <div className="flex items-center gap-3 w-full">
+          <div
+            className={`flex items-center rounded-lg border-2 flex-1 transition-colors ${
+              isSearching
+                ? 'border-blue-400 animate-pulse bg-gray-700'
+                : 'border-gray-600 bg-gray-700 focus-within:border-blue-500'
+            }`}
+          >
+            {/* Lupa presionable opcional */}
             <button
-              onClick={handleClear}
-              className="text-gray-400 hover:text-white mr-3 transition-colors"
-              title="Limpiar búsqueda"
+              onClick={handleSearchClick}
+              className={`mx-3 transition-colors ${
+                isSearching
+                  ? 'text-blue-400'
+                  : 'text-gray-400 hover:text-blue-400 cursor-pointer'
+              }`}
+              title="Buscar"
+              aria-label="Buscar"
+              type="button"
             >
-              <FaTimes />
-            </button>
-          )}
-        </div>
-        
-        {/* Contador de platos encontrados */}
-        {hayFiltroActivo && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className={`px-3 py-1 rounded-full font-medium flex items-center gap-2 ${
-              totalPlatosEncontrados > 0 
-                ? 'bg-green-600 text-white' 
-                : 'bg-red-600 text-white'
-            }`}>
-              {totalPlatosEncontrados > 0 ? (
-                <>
-                  <span>✓</span>
-                  <span>{totalPlatosEncontrados} plato{totalPlatosEncontrados !== 1 ? 's' : ''} encontrado{totalPlatosEncontrados !== 1 ? 's' : ''}</span>
-                </>
+              {isSearching ? (
+                <FaSpinner className="animate-spin" />
               ) : (
-                <>
-                  <span>✗</span>
-                  <span>Sin resultados</span>
-                </>
+                <FaSearch />
               )}
-            </span>
-            {sugerencias.length > 0 && totalPlatosEncontrados === 0 && (
-              <span className="text-gray-400 text-xs">Prueba las sugerencias</span>
+            </button>
+            <input
+              ref={inputRef}
+              className="appearance-none bg-transparent border-none w-full text-white py-3 px-2 leading-tight focus:outline-none rounded-lg text-lg"
+              type="text"
+              placeholder="Buscar por nombre o código (L1, M23, D345)..."
+              value={searchTerm}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onFocus={() => {
+                if (searchTerm.length >= 1 && sugerencias.length > 0) {
+                  setShowSuggestions(true);
+                }
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={handleClear}
+                className="text-gray-400 hover:text-white mr-3 transition-colors"
+                title="Limpiar búsqueda"
+                type="button"
+              >
+                <FaTimes />
+              </button>
             )}
           </div>
+
+          {/* Contador de platos y comandas encontradas (solo si hay búsqueda) */}
+          {hayFiltroActivo && (
+            <div className="flex items-center gap-2 text-sm flex-shrink-0">
+              <span className={`px-3 py-1 rounded-full font-medium flex items-center gap-2 whitespace-nowrap ${
+                totalPlatosEncontrados > 0
+                  ? 'bg-green-600 text-white'
+                  : 'bg-red-600 text-white'
+              }`}>
+                {totalPlatosEncontrados > 0 ? (
+                  <>
+                    <span>✓</span>
+                    <span>
+                      {totalPlatosEncontrados} plato{totalPlatosEncontrados !== 1 ? 's' : ''}
+                      {' · '}
+                      {totalComandasEncontradas} comanda{totalComandasEncontradas !== 1 ? 's' : ''}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>✗</span>
+                    <span>{isSearching ? 'Buscando...' : 'Sin resultados'}</span>
+                  </>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Sugerencias cuando no hay resultados */}
+        {hayFiltroActivo && sugerencias.length > 0 && totalPlatosEncontrados === 0 && !isSearching && (
+          <div className="text-gray-400 text-xs -mt-1">Prueba las sugerencias</div>
         )}
 
         {/* Sugerencias de búsqueda */}
@@ -199,8 +274,8 @@ const SearchBar = ({
             <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-700 flex items-center gap-2 bg-gray-900">
               <FaLightbulb className="text-yellow-500" />
               <span>
-                {totalPlatosEncontrados === 0 
-                  ? '¿Quisiste decir?' 
+                {totalPlatosEncontrados === 0
+                  ? '¿Quisiste decir?'
                   : 'Sugerencias:'}
               </span>
               <span className="ml-auto text-gray-500">
@@ -213,8 +288,8 @@ const SearchBar = ({
                   <button
                     onClick={() => handleSuggestionClick(sugerencia)}
                     className={`w-full px-4 py-2.5 text-left transition-colors flex items-center justify-between gap-3 ${
-                      idx === selectedIndex 
-                        ? 'bg-blue-600 text-white' 
+                      idx === selectedIndex
+                        ? 'bg-blue-600 text-white'
                         : 'text-white hover:bg-gray-700'
                     }`}
                   >

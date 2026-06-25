@@ -250,13 +250,13 @@ const useComandastyleCore = ({
 
   const handlePlatoActualizado = useCallback((data) => {
     console.log('[useComandastyleCore] Plato actualizado:', data?.platoId);
-    
+
     if (!data?.comandaId || !data?.platoId) return;
-    
+
     setComandasOriginales(prev => {
       return prev.map(comanda => {
         if (comanda._id !== data.comandaId) return comanda;
-        
+
         return {
           ...comanda,
           platos: comanda.platos.map(plato => {
@@ -271,12 +271,51 @@ const useComandastyleCore = ({
     });
   }, []);
 
+  // Handler: plato del menú actualizado desde el admin (platos.html).
+  // Actualiza datos del plato (nombre, codigo, precio, categoria) en todas
+  // las comandas en memoria que lo referencian, sin recargar todas las comandas.
+  const handlePlatoMenuActualizado = useCallback((platoActualizado) => {
+    console.log('[useComandastyleCore] Plato del menú actualizado:', platoActualizado?._id || platoActualizado?.id);
+
+    if (!platoActualizado || (!platoActualizado._id && platoActualizado.id == null)) return;
+
+    const platoOid = String(platoActualizado._id || '');
+    const platoNumId = platoActualizado.id != null ? Number(platoActualizado.id) : null;
+
+    setComandasOriginales(prev => {
+      let cambios = false;
+      const nuevas = prev.map(comanda => {
+        if (!comanda.platos) return comanda;
+        const platosActualizados = comanda.platos.map(item => {
+          const ref = item.plato;
+          const matchOid = ref && ref._id && String(ref._id) === platoOid;
+          const matchNum = ref && platoNumId != null && ref.id != null && Number(ref.id) === platoNumId;
+          if (matchOid || matchNum) {
+            cambios = true;
+            return {
+              ...item,
+              plato: {
+                ...ref,
+                ...platoActualizado,
+                _id: ref?._id || platoActualizado._id
+              }
+            };
+          }
+          return item;
+        });
+        return cambios ? { ...comanda, platos: platosActualizados } : comanda;
+      });
+      return cambios ? nuevas : prev;
+    });
+  }, []);
+
   // ==================== SOCKET.IO ====================
-  
+
   const { connected, connectionStatus, authError } = useSocketCocina({
     onNuevaComanda: handleNuevaComanda,
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
+    onPlatoMenuActualizado: handlePlatoMenuActualizado,
     onConfigCocineroActualizada,
     obtenerComandas,
     token: getToken ? getToken() : null,
