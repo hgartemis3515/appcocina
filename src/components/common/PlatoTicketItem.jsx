@@ -1,5 +1,9 @@
 import React from 'react';
-import { getComplementosDePlato, formatComplementoTexto } from '../../utils/platoComplementos';
+import {
+  getComplementosDePlato,
+  formatComplementoTexto,
+  textoResumenComplementos,
+} from '../../utils/platoComplementos';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 
@@ -64,6 +68,22 @@ export default function PlatoTicketItem({
                     )}
                   </div>
                 ))}
+
+                {/* v3.0: línea de resumen si el plato lo activa */}
+                {plato.mostrarResumenComplementos && (() => {
+                  const flags = plato.resumenComplementosImpresion || {};
+                  const texto = textoResumenComplementos(complementos, {
+                    mostrarCantidad: flags.mostrarCantidad !== false,
+                    mostrarMontoExtra: flags.mostrarMontoExtra !== false,
+                  });
+                  if (!texto) return null;
+                  return (
+                    <div className={`${metaClass} leading-tight pl-0.5 mt-0.5 pt-0.5 border-t border-gray-700/50`}>
+                      <span className="text-gold-400 font-semibold">Σ Complementos: </span>
+                      <span className="text-gray-300 font-medium">{texto}</span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

@@ -28,6 +28,9 @@ const PlatoPreparacion = ({
   isSupervisorView = false,
   // NUEVO: Tipo de servicio del plato ('mesa' | 'para_llevar')
   tipoServicio = 'mesa',
+  // v3.0: flags para mostrar resumen de complementos en cocina
+  mostrarResumenComplementos = false,
+  resumenComplementosImpresion = null,
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -301,6 +304,38 @@ const PlatoPreparacion = ({
             })}
           </div>
         )}
+
+        {/* v3.0: Resumen agregado de complementos (Σ unidades + monto extra) */}
+        {mostrarResumenComplementos && complementosSeleccionados && complementosSeleccionados.length > 0 && (() => {
+          const flags = resumenComplementosImpresion || {};
+          const mostrarCantidad = flags.mostrarCantidad !== false;
+          const mostrarMontoExtra = flags.mostrarMontoExtra !== false;
+          let totalUnidades = 0;
+          let extra = 0;
+          for (const c of complementosSeleccionados) {
+            const cant = Math.max(1, Number(c.cantidad) || 1);
+            totalUnidades += cant;
+            extra += (Number(c.precio) || 0) * cant;
+          }
+          if (totalUnidades === 0) return null;
+          const partes = [];
+          if (mostrarCantidad) {
+            partes.push(`${totalUnidades} ${totalUnidades === 1 ? 'ud.' : 'uds.'}`);
+          }
+          if (mostrarMontoExtra && extra > 0) {
+            partes.push(`(+S/. ${extra.toFixed(2)})`);
+          }
+          const textoResumen = partes.join(' ').trim();
+          if (!textoResumen) return null;
+          return (
+            <div
+              className={`text-xs leading-tight pl-1 mt-0.5 pt-0.5 border-t border-gray-700/50 font-semibold ${nightMode ? 'text-amber-400' : 'text-amber-600'}`}
+              style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
+            >
+              Σ Complementos: {textoResumen}
+            </div>
+          );
+        })()}
       </div>
     </motion.div>
   );

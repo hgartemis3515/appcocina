@@ -86,7 +86,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // TEMA 1: Funciones para actualizar configuración cuando llega evento Socket
     updateCocineroConfig,
     loadCocineroConfig,
-    hasRegla
+    hasRegla,
+    hasPermission
   } = useAuth();
 
   // Regla: solo mostrar la comanda más antigua al usar el buscador de platos
@@ -3907,6 +3908,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
                 {/* PARRAFO 2 - BOTÓN TOOLBAR v5.5: Prioridad Alta - Toggle según estado actual */}
                 {(() => {
+                  // Permiso: solo usuarios con ver-boton-prioridad-kds pueden ver el botón
+                  if (!hasPermission('ver-boton-prioridad-kds')) return null;
                   // El rol viene del contexto de autenticación, no de localStorage
                   const hayEnEspera = enEspera.length > 0;
                   const isEnabled = hayEnEspera;
@@ -5054,6 +5057,9 @@ const SicarComandaCard = ({
                       usuarioActualId={usuarioActualId}
                       // NUEVO: Tipo de servicio (Mesa vs Para llevar)
                       tipoServicio={plato.tipoServicio || 'mesa'}
+                      // v3.0: flags de resumen de complementos
+                      mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
+                      resumenComplementosImpresion={plato.resumenComplementosImpresion || null}
                     />
                   );
                 })}
