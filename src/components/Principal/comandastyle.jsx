@@ -4757,29 +4757,26 @@ const SicarComandaCard = ({
     let preparacion;
     let listos;
 
-    if (hayBusquedaActivaLocal) {
-      // Búsqueda activa: mostrar TODOS los platos que coincidieron con el término,
-      // sin importar su estado. Esto es crítico para ver el plato buscado en la
-      // comanda más antigua (regla solo-ultima-comanda-buscador), incluso si ese
-      // plato ya está en estado salio/entregado/pagado.
-      preparacion = platosConNombre;
-      listos = [];
-    } else {
-      preparacion = platosConNombre.filter(p => {
-        // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
-        if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
-          return false;
-        }
-        const estado = p.estado || "en_espera";
-        return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
-      });
+    // Búsqueda activa o no, los platos deben clasificarse por su estado REAL.
+    // Antes, cuando había búsqueda, se forzaba TODO a 'preparacion' para poder
+    // ver coincidencias incluso en estados terminales (salio/entregado/pagado).
+    // Esto causaba que un plato en estado 'recoger' (Listo) se mostrara como
+    // 'en_espera' (En Preparación). Ahora el hook useBuscadorPlatos ya excluye
+    // los estados terminales del resultado, así que podemos clasificar normally.
+    preparacion = platosConNombre.filter(p => {
+      // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
+      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+        return false;
+      }
+      const estado = p.estado || "en_espera";
+      return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
+    });
 
-      // REGLA COCINA: Solo platos en "recoger" (listos para que mozo recoga). No mostrar entregado/pagado.
-      listos = platosConNombre.filter(p => {
-        const estado = (p.estado || "en_espera").toLowerCase();
-        return estado === "recoger";
-      });
-    }
+    // REGLA COCINA: Solo platos en "recoger" (listos para que mozo recoga). No mostrar entregado/pagado.
+    listos = platosConNombre.filter(p => {
+      const estado = (p.estado || "en_espera").toLowerCase();
+      return estado === "recoger";
+    });
 
     // 🔥 NUEVO: Platos anulados desde cocina
     const anulados = (comanda.platos || []).filter(p => {

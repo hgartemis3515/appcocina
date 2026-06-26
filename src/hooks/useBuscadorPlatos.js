@@ -328,12 +328,32 @@ const useBuscadorPlatos = (comandas, terminoExterno = null, options = {}) => {
     let totalPlatos = 0;
     const comandasConResultados = [];
 
+    // Estados terminales que NO deben aparecer en el buscador.
+    // Un plato en salio/entregado ya salió del pass de cocina, así que buscarlo
+    // de nuevo solo traería ruido (comandas antiguas ya despachadas).
+    // Visible solo: en_espera, pedido (recién tomado sin empezar) y recoger (listo).
+    const ESTADOS_OCULTOS_BUSCADOR = new Set(['salio', 'entregado', 'pagado']);
+
+    const esPlatoVisibleEnBuscador = (plato) => {
+      // Excluir platos eliminados/anulados
+      if (plato.eliminado === true || plato.anulado === true) return false;
+      // Excluir platos en estados terminales de cocina
+      const estado = String(plato.estado || '').toLowerCase();
+      if (ESTADOS_OCULTOS_BUSCADOR.has(estado)) return false;
+      // Excluir platos retenidos por PPA pendiente de aprobación
+      if (plato.pagoAdelantado?.requerido && plato.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
+        return false;
+      }
+      return true;
+    };
+
     // Procesar cada comanda
     for (const comanda of comandas) {
       if (!comanda.platos || comanda.platos.length === 0) continue;
 
-      // Filtrar y puntuar platos de esta comanda
+      // Filtrar y puntuar platos de esta comanda (solo platos visibles en cocina)
       const platosConPuntuacion = comanda.platos
+        .filter(esPlatoVisibleEnBuscador)
         .map(plato => {
           const nombrePlato = obtenerNombrePlato(plato);
           const codigoPlato = obtenerCodigoPlato(plato);
