@@ -1,24 +1,54 @@
 # Plan: Vista "Ver Cocina" — Monitor pasivo para cocineros
 
-**Versión:** 1.0  
+**Versión:** 2.0  
 **Fecha:** Junio 2026  
 **Proyecto:** App Cocina (`appcocina`) + Admin (`cocineros.html`) + Backend  
 **Estado:** Planificación — sin implementar
+
+**Cambios v2.0:** Sesión persistente sin cierre automático, modelo de permisos supervisor/cocinero, despliegue multi-pantalla (8 TVs desde un PC), modo monitor fijo y consola de despliegue.
 
 ---
 
 ## Resumen ejecutivo
 
-Se agregará una nueva funcionalidad **"Ver Cocina"** en el menú principal de la App de Cocina. A diferencia de **"Ver Comandas"** (KDS interactivo), esta vista es **solo lectura**: los cocineros ven qué platos deben preparar, sin poder cambiar estados, tomar platos ni finalizar comandas.
+Se agregará **"Ver Cocina"** en el menú principal de la App de Cocina: un monitor **solo lectura** para que los cocineros vean qué platos deben preparar, sin cambiar estados.
 
-La funcionalidad se divide en dos modos:
+### Escenario operativo real (Las Gambusinas)
+
+Una **persona encargada de manejar las comandas** (rol **supervisor** o **cocinero con permisos de supervisor**) opera desde **un solo PC** con **8 televisores** extendidos como pantallas adicionales. Esa persona:
+
+1. Inicia sesión **una vez** al abrir el turno.
+2. La sesión **no se cierra** durante toda la jornada (ni por inactividad ni por expiración de token).
+3. Desde su PC despliega **Ver Cocina Personalizado** en cada TV, cada una con una **Vista de Cocina** distinta (Criolla, Parrilla, Postres, etc.).
+4. Los cocineros en cada área **solo miran** su televisor; no interactúan con la app.
+5. La misma sesión del encargado alimenta el **KDS interactivo** (Ver Comandas / Vista Supervisor) en el monitor principal del PC.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  PC ENCARGADO DE COMANDAS (Supervisor / Cocinero+Supervisor)                │
+│  Monitor principal: Ver Comandas · Vista Supervisor · gestión del turno       │
+│  Sesión única · persistente · sin cierre automático                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  TV 1          TV 2          TV 3    ...    TV 8                            │
+│  Vista         Vista         Vista          Vista                           │
+│  Criolla       Parrilla      Postres        Bar / Bebidas                   │
+│  (solo lectura, pantalla completa, sin menú ni logout)                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Dos modos de Ver Cocina
 
 | Modo | Propósito |
 |------|-----------|
-| **Ver Cocina Completo** | Lista plana de todos los platos pendientes de preparación del día |
-| **Ver Cocina Personalizado** | Igual que el completo, pero filtrado por una **Vista de Cocina** creada en el admin |
+| **Ver Cocina Completo** | Todos los platos pendientes del día (panorama general) |
+| **Ver Cocina Personalizado** | Solo platos de una **Vista de Cocina** — **modo principal para las 8 TVs** |
 
-La personalización visual (fuentes, tamaños, colores) y la definición de vistas por plato se gestionan desde **`cocineros.html`**, en una nueva sección **"Personalizar vista"** junto a la pestaña **"Zonas"**.
+La personalización visual y la definición de vistas se gestionan en **`cocineros.html`** → pestaña **"Personalizar vista"** (junto a Zonas).
+
+### Principio rector
+
+> **Ver Cocina observa el mismo flujo de datos que el KDS, pero nunca escribe en el backend.**  
+> La sesión del encargado es compartida por todas las ventanas; los monitores en TV son ventanas en **modo fijo** sin controles de gestión.
 
 ---
 
@@ -28,584 +58,703 @@ La personalización visual (fuentes, tamaños, colores) y la definición de vist
 
 | Funcionalidad | Ubicación | Naturaleza |
 |---------------|-----------|------------|
-| Ver Comandas | `MenuPage.jsx` → `comandastyle.jsx` | Interactivo: tomar, finalizar, entregar |
-| Vista Personalizada (KDS) | `ComandastylePerso.jsx` | Interactivo + filtro por **Zonas** del cocinero |
+| Ver Comandas | `MenuPage.jsx` → `comandastyle.jsx` | Interactivo |
+| Vista Personalizada (KDS) | `ComandastylePerso.jsx` | Interactivo + filtro por Zonas |
 | Vista Supervisor | `ComandaStyleSupervi.jsx` | Interactivo + asignación de cocineros |
-| Zonas | `cocineros.html` + `zona.model.js` | Filtros para el tablero KDS asignados a cocineros |
+| Zonas | `cocineros.html` + `zona.model.js` | Filtros KDS por cocinero |
+| Autenticación | `AuthContext.jsx` + `POST /api/admin/cocina/auth` | JWT 8h + logout por inactividad 30 min |
 
 ### 1.2 Qué se construye
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         MENÚ PRINCIPAL (MenuPage)                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Ver Comandas          → KDS interactivo (sin cambios)                   │
-│  Ver Cocina      ← NUEVO → Monitor pasivo (solo visualización)          │
-│  Tabla PPA / Configuración                                               │
-└─────────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │  Modal selector     │
-                    ├─────────────────────┤
-                    │ Ver Cocina Completo │
-                    │ Ver Cocina Personal.│
-                    └─────────────────────┘
+MENÚ PRINCIPAL
+├── Ver Comandas     → KDS interactivo (encargado en monitor principal)
+├── Ver Cocina  ← NUEVO
+│   ├── Ver Cocina Completo
+│   └── Ver Cocina Personalizado  ← una ventana por TV
+├── Tabla PPA
+└── Configuración
+
+cocineros.html
+├── Cocineros
+├── Zonas
+└── Personalizar vista  ← NUEVO (CRUD Vistas de Cocina + mapeo pantallas)
 ```
-
-### 1.3 Principio rector
-
-> **La vista Ver Cocina observa el mismo flujo de datos que el KDS, pero nunca escribe en el backend.**  
-> No llama a `PUT /procesando`, `PUT /estado`, `PUT /finalizar` ni modifica `platoStates` locales.
 
 ---
 
-## 2. Estados de plato — criterio de visibilidad
+## 2. Autenticación, permisos y sesión persistente
 
-### 2.1 Mapeo de estados (referencia del sistema)
+### 2.1 Modelo de usuario objetivo
 
-| Etiqueta de negocio | Estado backend | Sección en KDS | ¿Visible en Ver Cocina? |
-|---------------------|----------------|----------------|-------------------------|
-| En cola / esperando | `pedido`, `en_espera` | EN PREPARACIÓN | **Sí** |
-| Procesando (UI) | `procesandoPor` set (sin cambio de `estado`) | EN PREPARACIÓN + badge | **Sí** |
-| Listo para recoger | `recoger` | PREPARADOS | **No** — desaparece |
-| Salió de cocina | `salio` | — | No |
-| Entregado / pagado | `entregado`, `pagado` | — | No |
+El encargado de comandas inicia sesión con credenciales de **supervisor** o de **cocinero al que se le otorgaron permisos de supervisor**. Esto ya está soportado por el sistema de roles:
 
-### 2.2 Regla de filtrado (Ver Cocina Completo)
+| Rol / permiso | Uso en este plan |
+|---------------|------------------|
+| `supervisor` | Acceso completo: KDS supervisor, desplegar 8 TVs, administrar vistas |
+| `cocinero` + `ver-vista-supervisor-cocina` | Vista Supervisor en el KDS |
+| `cocinero` + `utilidad-supervisor` | Tomar/finalizar platos de otros cocineros |
+| `cocinero` + `ver-comandas-cocina` | Acceso base a la app |
+| `ver-cocina-completo` | **Nuevo** — ver monitor completo |
+| `ver-cocina-personalizado` | **Nuevo** — ver monitor filtrado / TVs |
+| `desplegar-monitores-cocina` | **Nuevo** — abrir consola de 8 pantallas |
+| `administrar-vistas-cocina` | **Nuevo** — CRUD en admin (supervisor/admin) |
 
-Un plato **aparece** en la lista si:
+**Recomendación:** Crear un rol personalizado **"Encargado de Cocina"** con:
 
-```javascript
-plato.estado ∈ ['pedido', 'en_espera']
-// y no está anulado/eliminado
+```
+ver-comandas-cocina, cambiar-estados-platos, revertir-comandas,
+ver-vista-supervisor-cocina, utilidad-supervisor, ver-boton-prioridad-kds,
+ver-cocina-completo, ver-cocina-personalizado, desplegar-monitores-cocina
 ```
 
-Un plato **desaparece** automáticamente cuando:
+No incluir permisos de dashboard admin salvo `administrar-vistas-cocina` si también configura vistas desde el panel web.
 
-```javascript
-plato.estado === 'recoger'  // "Listo para recoger"
-// o estados posteriores: salio, entregado, pagado
+### 2.2 Problema actual — por qué la sesión se cierra
+
+Hoy en `AuthContext.jsx`:
+
+| Mecanismo | Valor actual | Efecto |
+|-----------|--------------|--------|
+| Expiración JWT | `8h` (`adminController.js` línea 353) | Logout automático al expirar |
+| Check de expiración | Cada 60 s | `logout()` si token vencido |
+| Inactividad | 30 min sin mouse/teclado | `logout()` — **crítico para TVs sin interacción** |
+| Advertencia inactividad | 25 min | Modal que interrumpe |
+| 401 en API | `apiClient` | Logout automático |
+
+Las **8 TVs no reciben interacción** del usuario → la inactividad cerraría la sesión en todas las ventanas a los 30 minutos. **Esto debe eliminarse para la App Cocina.**
+
+### 2.3 Requisito: sesión que nunca se cierre automáticamente
+
+**Alcance:** App Cocina únicamente (cocinero y supervisor). No aplica a App Mozos ni dashboard admin.
+
+**Comportamiento deseado:**
+
+| Evento | Comportamiento nuevo |
+|--------|----------------------|
+| Login exitoso | Sesión activa hasta **logout manual** explícito |
+| Sin actividad en TVs | **No** cerrar sesión |
+| Token JWT próximo a vencer | **Renovar silenciosamente** (refresh) |
+| Cierre de navegador / reinicio PC | Restaurar sesión desde `localStorage` si token válido o renovable |
+| Logout manual | Solo desde monitor principal del encargado (no desde TVs) |
+
+### 2.4 Diseño técnico — sesión persistente
+
+#### Backend
+
+Nuevo endpoint de renovación:
+
+```
+POST /api/admin/cocina/auth/refresh
+Authorization: Bearer <token_actual>
+→ { token, usuario, expiresAt }
 ```
 
-**Nota sobre "Procesando":** En el KDS, "Procesando" es un estado **visual local** (`platoStates`) que acompaña a `procesandoPor` en el backend. En Ver Cocina no se replica ese ciclo de clicks; el plato sigue visible mientras su `estado` backend sea `pedido` o `en_espera`, independientemente de si otro cocinero lo marcó como tomado en el KDS. Opcionalmente se puede mostrar un indicador visual si `procesandoPor` existe (recomendado).
+Cambios en emisión del token inicial:
 
-### 2.3 Actualización en tiempo real
+```javascript
+// adminController.js — App Cocina
+{ expiresIn: process.env.COCINA_JWT_EXPIRY || '30d' }  // antes: '8h'
+```
 
-Reutilizar la infraestructura existente:
+Opcional: claim `sesionPersistente: true` en el JWT cuando el usuario tiene permiso `sesion-persistente-cocina` (o siempre para app cocina).
 
-- **Carga inicial:** `GET /api/comanda/cocina/:fecha`
-- **Sockets:** namespace `/cocina`, eventos `plato-actualizado`, `plato-actualizado-batch`, `comanda-actualizada`, `nueva-comanda`
-- **Hook base:** extraer lógica de `useComandastyleCore.js` en un hook compartido `useCocinaMonitorData.js` (solo lectura)
+#### Frontend (`AuthContext.jsx`)
+
+```javascript
+// Nuevas constantes
+const COCINA_PERSISTENT_SESSION = true;  // flag global app cocina
+const INACTIVITY_TIMEOUT_MS = null;      // deshabilitado para app cocina
+const TOKEN_REFRESH_MARGIN_MS = 24 * 60 * 60 * 1000; // renovar 24h antes
+
+// Eliminar o condicionar:
+// - logout por inactividad
+// - showInactivityWarning
+// - listener de mousedown/keydown para reset timer (solo en vistas interactivas si se desea)
+```
+
+**Renovación silenciosa:**
+
+```
+Cada 1h (o cuando remainingMs < TOKEN_REFRESH_MARGIN_MS):
+  POST /auth/refresh
+  → actualizar token en estado + localStorage (cocinaAuth)
+  → reconectar socket con nuevo token (useSocketCocina)
+```
+
+**Protección en TVs (modo fijo):**
+
+- Ocultar botón "Cerrar sesión"
+- Ocultar navegación al menú (o requerir PIN de supervisor para salir)
+- `beforeunload` solo informativo en ventanas TV
+
+#### Almacenamiento
+
+| Clave | Contenido |
+|-------|-----------|
+| `cocinaAuth` | `{ token, usuario, sesionPersistente: true }` |
+| `cocinaSessionStartedAt` | Timestamp inicio de turno (métricas) |
+| `cocinaMonitorWindows` | Config de ventanas desplegadas (opcional) |
+
+### 2.5 Seguridad — equilibrio operativo
+
+La sesión persistente es un requisito de negocio para TVs de cocina. Mitigaciones:
+
+| Riesgo | Mitigación |
+|--------|------------|
+| PC encargado desatendido | Logout manual al fin de turno; capacitación |
+| Token robado de localStorage | JWT con `app: 'cocina'`; refresh invalida token anterior (fase 2) |
+| TVs accesibles físicamente | Modo fijo sin menú; sin datos sensibles en monitor |
+| Turnos largos (&gt; 30 días) | Refresh automático indefinido mientras el backend esté activo |
+
+**Logout manual obligatorio al cierre de turno** — mensaje en Vista Supervisor al detectar hora de cierre configurada (opcional, fase 2).
 
 ---
 
-## 3. Navegación y rutas (App Cocina)
+## 3. Despliegue multi-pantalla — 8 televisores desde un PC
 
-### 3.1 Cambios en `MenuPage.jsx`
+### 3.1 Arquitectura física
 
-Agregar en `mainOptions` (junto a "Ver Comandas"):
+```
+                    ┌──────────────────┐
+                    │   PC Windows     │
+                    │   GPU + 8 outputs│
+                    │   (o 2 GPUs /    │
+                    │    splitters)    │
+                    └────────┬─────────┘
+         ┌──────────┬───────┴───────┬──────────┐
+         ▼          ▼               ▼          ▼
+      Monitor    TV-1 ... TV-7    TV-8
+      principal  (HDMI)           (HDMI)
+      Encargado  Cocina área      Cocina área
+      KDS activo por estación
+```
+
+**Requisitos hardware recomendados:**
+
+- Windows 10/11 con **8 monitores** en modo extendido (no duplicar)
+- GPU con suficientes salidas o adaptadores DisplayPort → HDMI
+- Cables HDMI de calidad para distancias de cocina (≤ 15 m con extensor activo si hace falta)
+- PC con **8 GB+ RAM** y SSD — 9 instancias de Chromium (1 encargado + 8 TVs) consumen ~2–4 GB
+
+### 3.2 Modelo lógico — Pantalla de Cocina
+
+Nueva entidad que vincula **índice de monitor físico** con **Vista de Cocina**:
+
+**Archivo:** `backend-gambusinas/src/database/models/pantallaCocina.model.js`
 
 ```javascript
+{
+  numeroPantalla: Number,      // 1–8 (o más)
+  nombre: String,              // "TV Criolla - Pared norte"
+  vistaCocinaId: ObjectId,     // ref VistaCocina
+  activo: Boolean,
+  orden: Number,               // para UI de despliegue
+  configDespliegue: {
+    anchoVentana: Number,      // px, default pantalla completa del monitor
+    altoVentana: Number,
+    posicionX: Number,         // offset en desktop extendido
+    posicionY: Number,
+    pantallaCompleta: Boolean, // default true
+    ocultarCursor: Boolean,    // default true en TVs
+    ocultarBarraTareas: Boolean
+  }
+}
+```
+
+En admin (**Personalizar vista**), sección **"Pantallas de cocina"**:
+
+| Pantalla | Vista asignada | Área física |
+|----------|----------------|-------------|
+| TV 1 | Criolla | Estación criolla |
+| TV 2 | Parrilla | Parrilla |
+| TV 3 | Freír | Freidora |
+| … | … | … |
+| TV 8 | Bebidas | Bar |
+
+### 3.3 URLs de despliegue directo (deep link)
+
+Cada TV abre una URL fija que restaura la vista sin pasar por el menú:
+
+```
+https://cocina.lasgambusinas.local/?monitor=1&vistaId=abc123&modo=fijo
+```
+
+Parámetros:
+
+| Param | Descripción |
+|-------|-------------|
+| `monitor` | Número de pantalla (1–8) |
+| `vistaId` | ID de VistaCocina (override del mapeo en BD) |
+| `modo=fijo` | Modo monitor: sin menú, sin logout, pantalla completa |
+| `token` | **No en URL** — usa `localStorage` compartido del mismo origen |
+
+**Importante:** Todas las ventanas deben ser del **mismo origen** (`localhost:3000` o dominio cocina) para compartir `cocinaAuth` en `localStorage`.
+
+### 3.4 Consola "Desplegar monitores" (App Cocina)
+
+Nueva opción en el menú principal — visible con permiso `desplegar-monitores-cocina`:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DESPLEGAR MONITORES DE COCINA                              │
+├─────────────────────────────────────────────────────────────┤
+│  ☑ TV 1 → Criolla (1920×1080 @ 0,0)      [Abrir] [Probar]  │
+│  ☑ TV 2 → Parrilla (1920×1080 @ 1920,0)  [Abrir] [Probar]  │
+│  ...                                                         │
+│  ☑ TV 8 → Bebidas                        [Abrir] [Probar]  │
+│                                                              │
+│  [ Desplegar todas las seleccionadas ]  [ Cerrar todas ]    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Flujo:**
+
+1. Encargado inicia sesión en monitor principal.
+2. Abre **Desplegar monitores**.
+3. Pulsa **Desplegar todas** → la app abre 8 ventanas con `window.open()`, posicionadas con `left`/`top` según `configDespliegue` de cada `PantallaCocina`.
+4. Cada ventana navega a `VER_COCINA_PERSONALIZADO` en `modo=fijo` con su `vistaId`.
+5. Ventanas entran en pantalla completa (`requestFullscreen`).
+
+**API de ventanas (navegador):**
+
+```javascript
+// utils/monitorWindowManager.js
+function abrirMonitorPantalla(pantalla) {
+  const url = `${window.location.origin}/?monitor=${pantalla.numeroPantalla}&vistaId=${pantalla.vistaCocinaId}&modo=fijo`;
+  const features = [
+    `left=${pantalla.configDespliegue.posicionX}`,
+    `top=${pantalla.configDespliegue.posicionY}`,
+    `width=${pantalla.configDespliegue.anchoVentana}`,
+    `height=${pantalla.configDespliegue.altoVentana}`,
+    'menubar=no,toolbar=no,location=no,status=no'
+  ].join(',');
+  return window.open(url, `cocina-monitor-${pantalla.numeroPantalla}`, features);
+}
+```
+
+**Limitación navegador:** `window.open` múltiple puede ser bloqueado por popup blocker — la consola debe abrir la primera ventana con click del usuario y luego encadenar el resto, o usar **Gambusinas Launcher** (fase 2) para control nativo de ventanas.
+
+### 3.5 Modo fijo (`modo=fijo`) — comportamiento UI
+
+Cuando `modo=fijo` está activo en `CocinaMonitorPersonalizado`:
+
+| Elemento | Visible |
+|----------|---------|
+| Lista de platos + cronómetros | Sí |
+| Nombre de la vista ("CRIOLLA") | Sí |
+| Reloj / contador pendientes | Sí |
+| Botón Menú | **No** |
+| Botón Cerrar sesión | **No** |
+| Selector de otras vistas | **No** (bloqueado a la vista asignada) |
+| Panel apariencia ⚙ | **No** (config solo desde admin) |
+| Cursor del mouse | Oculto tras 5 s sin movimiento (CSS `cursor: none`) |
+
+**Salida de emergencia:** `Ctrl+Shift+M` → modal con PIN de supervisor para volver al menú (evita que personal de limpieza cierre la vista).
+
+### 3.6 Arranque automático del turno
+
+Procedimiento recomendado al inicio del día:
+
+1. Encender PC y TVs.
+2. Abrir **Gambusinas Launcher** → App Cocina (o acceso directo Chrome).
+3. Login del encargado (una vez).
+4. **Desplegar monitores** → 8 TVs activas.
+5. En monitor principal: **Ver Comandas → Vista Supervisor**.
+
+Al fin del turno:
+
+1. Cerrar ventanas de monitores (botón "Cerrar todas" en consola).
+2. **Cerrar sesión** manual en monitor principal.
+
+### 3.7 Alternativa: Gambusinas Launcher (fase 2)
+
+Para evitar limitaciones del navegador con 8 ventanas:
+
+- Launcher nativo Windows lee `pantallasCocina` del backend.
+- Abre 8 procesos/ventanas Chromium embebidas posicionadas por monitor index (`user32.EnumDisplayMonitors`).
+- Comparte perfil de usuario para `localStorage` común.
+- Inicia en modo kiosko por pantalla.
+
+Referencia: `backend-gambusinas/docs/PLAN_LAUNCHER_NATIVO_WINDOWS.md`
+
+### 3.8 Configuración Windows recomendada
+
+| Setting | Valor |
+|---------|-------|
+| Energía | Nunca suspender pantallas ni PC |
+| Screensaver | Desactivado en todas las pantallas |
+| Actualizaciones Windows | Horario fuera de servicio |
+| Chrome | `--disable-session-crashed-bubble --noerrdialogs` |
+| Inicio automático | Launcher o script `.bat` al boot (opcional) |
+
+---
+
+## 4. Estados de plato — criterio de visibilidad
+
+### 4.1 Mapeo de estados
+
+| Etiqueta | Estado backend | ¿Visible en Ver Cocina? |
+|----------|----------------|-------------------------|
+| En cola / esperando | `pedido`, `en_espera` | **Sí** |
+| Tomado por cocinero | `procesandoPor` set | **Sí** (+ badge opcional) |
+| Listo para recoger | `recoger` | **No** — desaparece |
+| Salió / entregado | `salio`, `entregado`, `pagado` | No |
+
+### 4.2 Regla de filtrado
+
+```javascript
+// Incluir
+plato.estado ∈ ['pedido', 'en_espera'] && !plato.anulado && !plato.eliminado
+
+// Excluir (desaparece)
+plato.estado === 'recoger' || estados posteriores
+```
+
+### 4.3 Tiempo real
+
+- **REST:** `GET /api/comanda/cocina/:fecha`
+- **Socket:** `/cocina` — `plato-actualizado`, `plato-actualizado-batch`, `comanda-actualizada`, `nueva-comanda`
+- **Hook:** `useCocinaMonitorData.js` (solo lectura, sin `useProcesamiento`)
+
+**Reconexión socket:** Tras refresh de token, `useSocketCocina` debe re-autenticar sin perder la lista (patrón existente + `disconnect`/`connect` con nuevo token).
+
+---
+
+## 5. Navegación y rutas (App Cocina)
+
+### 5.1 `MenuPage.jsx` — opciones principales
+
+```javascript
+// Nuevo en mainOptions
 {
   id: 'ver-cocina',
   title: 'Ver Cocina',
   subtitle: 'Monitor de platos por preparar',
-  icon: FaTv, // o FaDesktop / FaEye
-  color: 'from-amber-500 to-orange-600',
-  shadowColor: 'shadow-amber-500/30',
+  icon: FaTv,
   action: () => setShowCocinaViewSelector(true),
-  enabled: true,
+  enabled: hasPermission('ver-cocina-completo') || hasPermission('ver-cocina-personalizado'),
+},
+// Nuevo — solo encargado
+{
+  id: 'desplegar-monitores',
+  title: 'Desplegar Monitores',
+  subtitle: 'Abrir vistas en las 8 TVs de cocina',
+  icon: FaDesktop,
+  action: () => onNavigate('DESPLEGAR_MONITORES'),
+  enabled: hasPermission('desplegar-monitores-cocina'),
 }
 ```
 
-Modal de selección (análogo al de Ver Comandas):
-
-| Opción | ID | Navega a |
-|--------|-----|----------|
-| Ver Cocina Completo | `completo` | `VER_COCINA_COMPLETO` |
-| Ver Cocina Personalizado | `personalizado` | `VER_COCINA_PERSONALIZADO` |
-
-### 3.2 Cambios en `App.jsx`
-
-Nuevas vistas en el router:
+### 5.2 Rutas en `App.jsx`
 
 ```javascript
-// Vistas existentes: LOGIN | MENU | COCINA | COCINA_PERSONALIZADA | COCINA_SUPERVISOR | TICKETS_PPA
-// Nuevas:
-// VER_COCINA_COMPLETO      → CocinaMonitorCompleto.jsx
-// VER_COCINA_PERSONALIZADO → CocinaMonitorPersonalizado.jsx
+VER_COCINA_COMPLETO        → CocinaMonitorCompleto.jsx
+VER_COCINA_PERSONALIZADO   → CocinaMonitorPersonalizado.jsx
+DESPLEGAR_MONITORES        → DesplegarMonitoresPage.jsx
 ```
 
-Persistencia en `localStorage`:
+**Arranque por URL** (`App.jsx`):
+
+```javascript
+// Al montar, si ?monitor=3&modo=fijo → saltar menú, ir directo a monitor
+const params = new URLSearchParams(window.location.search);
+if (params.get('modo') === 'fijo' && params.get('monitor')) {
+  setCurrentView('VER_COCINA_PERSONALIZADO');
+  setMonitorOptions({ fijo: true, monitor: params.get('monitor'), vistaId: params.get('vistaId') });
+}
+```
+
+### 5.3 Persistencia
 
 | Clave | Valor |
 |-------|-------|
-| `cocinaLastView` | Incluir las dos nuevas vistas |
-| `cocinaMonitorMode` | `'completo'` \| `'personalizado'` |
-| `cocinaMonitorVistaId` | ID de la Vista de Cocina activa (modo personalizado) |
-
-### 3.3 Permisos (opcional, fase 2)
-
-| Permiso | Descripción |
-|---------|-------------|
-| `ver-cocina-completo` | Acceso al monitor completo |
-| `ver-cocina-personalizado` | Acceso al monitor filtrado |
-| `administrar-vistas-cocina` | CRUD en `cocineros.html` (admin/supervisor) |
-
-Por defecto en fase 1: cualquier cocinero autenticado puede ver ambos modos.
+| `cocinaLastView` | Incluir vistas monitor |
+| `cocinaMonitorMode` | `completo` \| `personalizado` |
+| `cocinaMonitorVistaId` | Vista activa |
+| `cocinaMonitorFijo` | `{ monitor: 1–8, vistaId }` por ventana |
 
 ---
 
-## 4. Diseño de la vista — Ver Cocina Completo
+## 6. Diseño de la vista — Ver Cocina
 
-### 4.1 Layout propuesto
-
-Vista **sin tarjetas de comanda** — lista agregada de platos, optimizada para lectura a distancia en pantalla de cocina.
+### 6.1 Layout (optimizado para TV 55"–65", viewing distance 2–4 m)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  🍳 VER COCINA — COMPLETO          [⚙ Apariencia]  [◀ Menú]  14:32:05  │
+│  🍲 CRIOLLA — ÁREA 1                              Pendientes: 7   14:32  │
 ├──────────────────────────────────────────────────────────────────────────┤
-│  Pendientes: 12 platos    │  Más antiguo: 08:45    │  Urgentes: 2       │
+│  AJÍ DE GALLINA ×2                              Mesa 14      ⏱ 12:34  │
+│  Sin picante                                                    🔴      │
 ├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │ LOMO SALTADO ×2          Mesa 14 · Comanda #1284        ⏱ 12:34   │  │
-│  │ Sin cebolla · Poco picante                              🔴 URGENTE │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │ AJÍ DE GALLINA ×1        Para llevar · #1290            ⏱ 08:12   │  │
-│  │ 👨‍🍳 Juan (tomado)                                      🟡 Alerta  │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-│  ...                                                                     │
+│  SECO DE RES ×1                                  #1284        ⏱ 08:12  │
+│                                                                  🟡      │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ... auto-scroll si overflow ...                                         │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 Campos por fila de plato (información mínima para el cocinero)
+En **modo fijo** no hay botones en el header — solo información.
 
-| Campo | Fuente de datos | Prioridad |
-|-------|-----------------|-----------|
-| **Nombre del plato** | `plato.nombre` | Obligatorio |
-| **Cantidad** | `plato.cantidad` | Obligatorio |
-| **Cronómetro** | `plato.tiempos.en_espera` o `plato.tiempos.pedido` | Obligatorio |
-| **Mesa / área** | `comanda.mesa`, `comanda.area` | Recomendado |
-| **Nº comanda** | `comanda.numero` o ticket | Recomendado |
-| **Complementos / notas** | `plato.complementos`, `plato.observaciones` | Si existen |
-| **Tipo servicio** | `mesa` / `para_llevar` | Recomendado |
-| **Prioridad** | `comanda.prioridadOrden` | Si es urgente |
-| **Cocinero que lo tomó** | `plato.procesandoPor.alias` | Opcional (configurable) |
-| **Código de búsqueda** | `plato.codigoSerie` | Opcional |
+### 6.2 Campos por fila
 
-### 4.3 Cronómetro
+| Campo | Prioridad | Modo TV |
+|-------|-----------|---------|
+| Nombre del plato | Obligatorio | Fuente grande (32–48 px) |
+| Cantidad | Obligatorio | Junto al nombre `×N` |
+| Cronómetro | Obligatorio | Derecha, color alerta |
+| Complementos / notas | Si existen | Texto secundario |
+| Mesa / comanda | Recomendado | Texto secundario |
+| `procesandoPor` | Opcional | Badge pequeño — en TVs suele ocultarse |
+| Prioridad urgente | Si aplica | Badge 🔴 |
 
-Reutilizar la lógica de alertas del KDS (`configTableroKDS.tiempoAmarillo`, `tiempoRojo`):
+### 6.3 Presets visuales para TV
 
-| Tiempo transcurrido | Indicador visual |
-|---------------------|------------------|
-| &lt; amarillo | Normal (color base) |
-| ≥ amarillo | Borde/fondo amarillo |
-| ≥ rojo | Borde/fondo rojo + pulso suave |
+| Preset | `tamanioFuentePlato` | Uso |
+|--------|----------------------|-----|
+| TV 55" @ 3 m | 36 px | Default TVs cocina |
+| TV 65" @ 4 m | 42 px | Áreas grandes |
+| TV 43" @ 2 m | 28 px | Estaciones compactas |
 
-El tiempo se calcula desde el timestamp del estado actual (`tiempos.en_espera` preferido sobre `tiempos.pedido`).
-
-### 4.4 Ordenamiento recomendado (por defecto)
-
-1. Comandas prioritarias / urgentes primero  
-2. Tiempo de espera descendente (más antiguo arriba)  
-3. Alfabético por nombre de plato (desempate)
-
-Configurable en fase 2: por mesa, por área, por categoría.
-
-### 4.5 Interacciones permitidas (solo lectura)
-
-| Acción | Permitida |
-|--------|-----------|
-| Ver lista de platos | Sí |
-| Cambiar apariencia (local) | Sí |
-| Volver al menú | Sí |
-| Pantalla completa (F11 / botón) | Sí |
-| Click en plato para cambiar estado | **No** |
-| Tomar / finalizar / entregar | **No** |
-| Buscar plato por código | Opcional (solo resalta, no actúa) |
+Configurar en **Vista de Cocina** → `configVisual` en admin, no en la TV.
 
 ---
 
-## 5. Personalización visual
+## 7. Vista de Cocina y Personalizar vista (admin)
 
-### 5.1 Opciones configurables
-
-Extender o crear un contexto dedicado `VistaCocinaConfigContext` (separado del KDS interactivo para no mezclar perfiles):
-
-| Parámetro | Tipo | Default sugerido |
-|-----------|------|------------------|
-| `fuenteFamilia` | select | `'Inter, system-ui, sans-serif'` |
-| `tamanioFuentePlato` | number (px) | `28` |
-| `tamanioFuenteDetalle` | number (px) | `18` |
-| `tamanioFuenteCronometro` | number (px) | `24` |
-| `colorFondo` | hex | `#0a0a0f` |
-| `colorTextoPrincipal` | hex | `#ffffff` |
-| `colorTextoSecundario` | hex | `#9ca3af` |
-| `colorAcento` | hex | `#d4af37` (gold Gambusinas) |
-| `colorAlertaAmarilla` | hex | `#fbbf24` |
-| `colorAlertaRoja` | hex | `#ef4444` |
-| `colorFilaPlato` | hex | `#1a1a28` |
-| `espaciadoFilas` | `'compacto' \| 'normal' \| 'amplio'` | `'normal'` |
-| `mostrarCocineroTomado` | boolean | `true` |
-| `mostrarComplementos` | boolean | `true` |
-| `modoAltoContraste` | boolean | `false` |
-| `modoNocturno` | boolean | `true` |
-
-Fuentes sugeridas en el selector: Inter, Arial, Roboto, Oswald, Bebas Neue (legibles a distancia).
-
-### 5.2 Dónde se guarda la configuración
-
-| Alcance | Almacenamiento | Uso |
-|---------|----------------|-----|
-| Por dispositivo (rápido) | `localStorage` → `cocinaMonitorDesign` | Ajuste en pantalla sin login admin |
-| Por Vista de Cocina (persistente) | Backend → `VistaCocina.configVisual` | Pantallas fijas de estación |
-| Global del restaurante | `configuracionSistema` (opcional) | Default para nuevas vistas |
-
-### 5.3 Modal "Apariencia" en la vista
-
-Botón ⚙ en el header que abre un panel lateral (no el `ConfigModal` del KDS) con preview en vivo. Los cambios se aplican instantáneamente.
-
----
-
-## 6. Ver Cocina Personalizado
-
-### 6.1 Concepto: Vista de Cocina (nueva entidad)
-
-Las **Zonas** actuales filtran el KDS interactivo y se asignan a cocineros. Las **Vistas de Cocina** son un concepto distinto: presets de **monitor pasivo** por estación física (ej. "Criolla", "Parrilla", "Postres").
-
-| Aspecto | Zona (existente) | Vista de Cocina (nueva) |
-|---------|------------------|-------------------------|
-| Uso principal | KDS interactivo del cocinero | Monitor de pared / tablet fija |
-| Asignación | Por cocinero (`zonasAsignadas`) | Por pantalla / selección manual |
-| Filtro | Platos + comandas + horario | **Solo platos** (lista plana) |
-| Interacción | Control total | Solo lectura |
-| Config visual | `configTableroKDS` del cocinero | `configVisual` propio de la vista |
-
-### 6.2 Modelo de datos propuesto — `VistaCocina`
-
-**Archivo:** `backend-gambusinas/src/database/models/vistaCocina.model.js`
+### 7.1 Entidad `VistaCocina`
 
 ```javascript
 {
-  nombre: String,           // "Criolla", "Parrilla", "Bar"
+  nombre: String,              // "Criolla"
   descripcion: String,
-  color: String,            // Identificación visual en selector
+  color: String,
   icono: String,
   activo: Boolean,
-
   filtrosPlatos: {
-    modoInclusion: Boolean, // true = solo estos, false = todos excepto estos
-    platosPermitidos: [Number],      // platoId
+    modoInclusion: Boolean,
+    platosPermitidos: [Number],
     categoriasPermitidas: [String],
-    tiposPermitidos: [String]        // slugs tipos_plato
+    tiposPermitidos: [String]
   },
-
-  configVisual: {
-    fuenteFamilia, tamanioFuentePlato, tamanioFuenteDetalle,
-    tamanioFuenteCronometro, colorFondo, colorTextoPrincipal,
-    colorAcento, colorAlertaAmarilla, colorAlertaRoja,
-    espaciadoFilas, mostrarCocineroTomado, mostrarComplementos,
-    modoAltoContraste, modoNocturno
-  },
-
-  ordenamiento: {
-    criterio: 'tiempo' | 'prioridad' | 'mesa' | 'alfabetico',
-    direccion: 'asc' | 'desc'
-  },
-
+  configVisual: { /* fuentes, colores, preset TV */ },
+  ordenamiento: { criterio, direccion },
   creadoPor, actualizadoPor, timestamps
 }
 ```
 
-### 6.3 API REST propuesta
+### 7.2 API
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/vistas-cocina` | Listar vistas activas |
-| GET | `/api/vistas-cocina/:id` | Detalle + config visual |
-| POST | `/api/vistas-cocina` | Crear vista |
-| PUT | `/api/vistas-cocina/:id` | Actualizar |
-| DELETE | `/api/vistas-cocina/:id` | Eliminar (soft delete) |
-| PATCH | `/api/vistas-cocina/:id/reactivar` | Reactivar |
+| Método | Endpoint |
+|--------|----------|
+| GET/POST/PUT/DELETE | `/api/vistas-cocina` |
+| GET/PUT | `/api/pantallas-cocina` |
+| PUT | `/api/pantallas-cocina/despliegue` — guardar posiciones detectadas |
 
-### 6.4 Flujo en App Cocina — modo personalizado
+### 7.3 Tab en `cocineros.html`
 
 ```
-Usuario elige "Ver Cocina Personalizado"
-        │
-        ▼
-GET /api/vistas-cocina  →  Si hay vistas:
-        │                    Mostrar selector de vista (chips: Criolla, Parrilla...)
-        │                    Recordar última en localStorage
-        ▼
-CocinaMonitorPersonalizado.jsx
-        │
-        ├─ Aplica filtrosPlatos de la vista seleccionada
-        ├─ Aplica configVisual de la vista (con override local opcional)
-        └─ Selector en header para cambiar de vista sin volver al menú
+[ Cocineros ]  [ Zonas ]  [ Personalizar vista ]
 ```
 
-Ejemplo de uso real:
+Sub-secciones:
 
-- Vista **"Criolla"**: 5 platos (Ají de gallina, Seco, Tacu tacu, …)  
-- Vista **"Internacional"**: 10 platos (Lomo saltado, Tallarines, …)  
-- Cada pantalla en la cocina abre la vista que le corresponde.
-
-### 6.5 Cambiar vista desde el monitor
-
-En el header del modo personalizado:
-
-```
-[ Criolla ▼ ]  [ Parrilla ]  [ Postres ]  [ ⚙ ]  [ ◀ Menú ]
-```
-
-Al cambiar vista: recarga filtros + config visual + guarda preferencia en `localStorage`.
+1. **Vistas de cocina** — CRUD de presets de platos + apariencia TV  
+2. **Pantallas (TV 1–8)** — asignar vista a cada monitor + coordenadas de ventana  
+3. **Vista previa** — simulador de cómo se verá en TV
 
 ---
 
-## 7. Admin — `cocineros.html`: "Personalizar vista"
-
-### 7.1 Ubicación en la UI
-
-Agregar una **tercera pestaña** en `cocineros.html` (junto a Cocineros y Zonas):
-
-```
-[ Cocineros ]  [ Zonas ]  [ Personalizar vista ]  ← NUEVO
-```
-
-### 7.2 Funcionalidades del tab
-
-| Función | Descripción |
-|---------|-------------|
-| Listar vistas | Tabla con nombre, # platos, color, activo |
-| Crear vista | Modal: nombre, icono, color, selección de platos |
-| Editar filtros | Multi-select de platos / categorías / tipos (reutilizar UI de Zonas) |
-| Editar apariencia | Panel de fuentes, tamaños, colores con preview |
-| Duplicar vista | Crear "Criolla 2" desde una existente |
-| Activar / desactivar | Sin borrar historial |
-| Vista previa | Botón "Abrir en Ver Cocina" (deep link o QR para tablet) |
-
-### 7.3 Reutilización de código admin
-
-- Patrón CRUD: copiar estructura de tab **Zonas** (`cargarZonas`, modales, paginación)
-- Selector de platos: reutilizar búsqueda de `platos.html` / cosmos-search
-- Filtros: misma lógica que `zona.model.js` → método `debeMostrarPlato(plato)`
-
-### 7.4 Relación Zonas ↔ Vistas de Cocina
-
-| Escenario | Recomendación |
-|-----------|---------------|
-| Misma estación, KDS + monitor | Crear Zona y Vista de Cocina con los mismos `filtrosPlatos` |
-| Solo monitor en pared | Solo Vista de Cocina |
-| Sincronización automática | Fase 3: botón "Crear vista desde zona" |
-
----
-
-## 8. Arquitectura de componentes (frontend)
-
-### 8.1 Estructura de archivos propuesta
+## 8. Arquitectura de componentes
 
 ```
 appcocina/src/
 ├── components/
 │   ├── pages/
-│   │   └── MenuPage.jsx                    (modificar: botón Ver Cocina)
-│   ├── monitor/                            (NUEVO)
+│   │   ├── MenuPage.jsx
+│   │   └── DesplegarMonitoresPage.jsx       ← NUEVO
+│   ├── monitor/
 │   │   ├── CocinaMonitorCompleto.jsx
 │   │   ├── CocinaMonitorPersonalizado.jsx
-│   │   ├── CocinaMonitorLayout.jsx         (header, stats, fullscreen)
-│   │   ├── PlatoMonitorRow.jsx             (fila de plato)
-│   │   ├── VistaCocinaSelector.jsx         (chips de vistas)
-│   │   ├── MonitorAparienciaPanel.jsx      (config visual)
-│   │   └── MonitorEmptyState.jsx
-│   └── App.jsx                             (modificar: rutas)
+│   │   ├── CocinaMonitorLayout.jsx          (soporta modo=fijo)
+│   │   ├── PlatoMonitorRow.jsx
+│   │   ├── MonitorEmptyState.jsx
+│   │   └── MonitorSalidaEmergencia.jsx      (Ctrl+Shift+M)
+│   └── App.jsx
 ├── hooks/
-│   ├── useCocinaMonitorData.js             (fetch + sockets, solo lectura)
-│   ├── useCocinaMonitorFilter.js           (aplana comandas → platos)
-│   └── useCocinaMonitorTimer.js            (cronómetros)
+│   ├── useCocinaMonitorData.js
+│   ├── useCocinaMonitorFilter.js
+│   ├── useCocinaMonitorTimer.js
+│   └── useSesionPersistente.js              ← NUEVO (refresh token)
 ├── contexts/
-│   └── VistaCocinaConfigContext.jsx        (config visual del monitor)
+│   ├── VistaCocinaConfigContext.jsx
+│   └── AuthContext.jsx                      (modificar: sin inactividad)
 └── utils/
-    └── cocinaMonitorFilters.js             (filtro por vista + estados)
-```
-
-### 8.2 Hook `useCocinaMonitorFilter`
-
-Transforma comandas del KDS en lista plana:
-
-```javascript
-function flattenPlatosPendientes(comandas) {
-  return comandas
-    .flatMap(comanda => 
-      comanda.platos
-        .filter(p => ['pedido', 'en_espera'].includes(p.estado))
-        .filter(p => !p.anulado && !p.eliminado)
-        .map(plato => ({ plato, comanda, tiempoInicio: plato.tiempos?.en_espera || plato.tiempos?.pedido }))
-    )
-    .sort(/* criterio configurable */);
-}
-```
-
-### 8.3 Componente base compartido
-
-`CocinaMonitorPersonalizado` puede envolver `CocinaMonitorCompleto` con un prop `vistaId`:
-
-```javascript
-<CocinaMonitorLayout modo={vistaId ? 'personalizado' : 'completo'}>
-  <PlatoMonitorList 
-    platos={platosFiltrados} 
-    configVisual={configVisual}
-    readOnly={true}  // siempre
-  />
-</CocinaMonitorLayout>
+    ├── cocinaMonitorFilters.js
+    └── monitorWindowManager.js              ← NUEVO
 ```
 
 ---
 
-## 9. Diagrama de flujo de datos
+## 9. Diagrama de flujo completo
 
 ```mermaid
 flowchart TB
-    subgraph Admin
-        CH[cocineros.html - Personalizar vista]
-        CH -->|CRUD| API_VC[/api/vistas-cocina/]
+    subgraph Turno
+        LOGIN[Encargado inicia sesión]
+        LOGIN --> PERSIST[Sesión persistente + refresh automático]
+        PERSIST --> DESP[Desplegar 8 monitores]
+        DESP --> KDS[Vista Supervisor en monitor principal]
     end
 
-    subgraph Backend
-        API_COM[/api/comanda/cocina/:fecha/]
-        SOCKET[Socket /cocina]
-        API_VC --> Mongo[(VistaCocina)]
-        API_COM --> MongoC[(Comandas)]
+    subgraph TVs
+        TV1[TV1 - Criolla modo fijo]
+        TV2[TV2 - Parrilla modo fijo]
+        TV8[TV8 - Bebidas modo fijo]
     end
 
-    subgraph AppCocina
-        MENU[MenuPage - Ver Cocina]
-        MENU -->|Completo| MON_C[CocinaMonitorCompleto]
-        MENU -->|Personalizado| MON_P[CocinaMonitorPersonalizado]
-        MON_C --> HOOK[useCocinaMonitorData]
-        MON_P --> HOOK
-        MON_P --> SEL[VistaCocinaSelector]
-        SEL --> API_VC
-        HOOK --> API_COM
-        HOOK --> SOCKET
-        HOOK --> FILTER[cocinaMonitorFilters]
-        FILTER --> ROW[PlatoMonitorRow x N]
+    subgraph Datos
+        API[/api/comanda/cocina/]
+        SOCK[Socket /cocina]
+        VC[(VistaCocina + PantallaCocina)]
     end
 
-    subgraph KDS_Interactivo
-        KDS[comandastyle.jsx]
-        KDS -->|PUT estados| API_COM
-    end
-
-    KDS -.->|plato-actualizado| SOCKET
-    SOCKET -.->|actualiza lista| HOOK
+    DESP --> TV1 & TV2 & TV8
+    TV1 & TV2 & TV8 --> API
+    TV1 & TV2 & TV8 --> SOCK
+    VC --> TV1 & TV2 & TV8
+    KDS --> API
+    KDS -->|plato-actualizado| SOCK
+    SOCK --> TV1 & TV2 & TV8
 ```
 
 ---
 
-## 10. Recomendaciones de UX para cocineros
+## 10. Recomendaciones UX
 
-### 10.1 Ver Cocina Completo — pantalla general
+### 10.1 Para cocineros frente a la TV
 
-1. **Un plato por fila, texto grande.** En cocina el usuario está a 1–2 metros de la pantalla; priorizar legibilidad sobre densidad.
-2. **Cronómetro prominente a la derecha.** Es la señal principal de urgencia; usar colores amarillo/rojo del KDS para consistencia.
-3. **Sin ruido de comanda completa.** No mostrar tarjetas de comanda; solo la información que el cocinero necesita para cocinar ese ítem.
-4. **Complementos visibles pero secundarios.** Tamaño menor, debajo del nombre; evitar que un plato largo oculte el siguiente.
-5. **Indicador "tomado por X" discreto.** Informa sin distraer; si otro ya lo tiene, el cocinero puede enfocarse en otro plato.
-6. **Contador en header:** "12 platos pendientes" da contexto de carga de trabajo.
-7. **Modo pantalla completa por defecto** en dispositivos fijos (tablets en pared).
-8. **Sin sonidos de notificación** por defecto en el monitor (el KDS interactivo ya los tiene); opcional activar para nueva comanda.
-9. **Auto-scroll lento** si hay más platos que caben en pantalla (carrusel vertical cada 30 s).
-10. **Refresh silencioso vía socket** — nunca mostrar spinner que parpadee toda la lista.
+1. **Un plato por fila, máximo contraste** — fondo oscuro, texto blanco, acento dorado Gambusinas.  
+2. **Cronómetro grande a la derecha** — es la señal principal de urgencia.  
+3. **Sin información de comanda completa** — solo lo necesario para cocinar ese ítem.  
+4. **Nombre de estación siempre visible** — "CRIOLLA" en header fijo.  
+5. **Empty state positivo** — "Sin platos pendientes en esta estación ✓".  
+6. **Sin parpadeos** — actualizaciones socket en silencio; animación suave al entrar/salir platos.  
+7. **Auto-scroll** cada 25–30 s si la lista excede la pantalla.  
+8. **No mostrar quién tomó el plato en TV** — reduce ruido; el encargado lo ve en el KDS.  
+9. **Máximo 8–12 platos visibles** por vista — si hay más tipos de plato, crear otra vista/TV.  
+10. **Complementos en mayúsculas o color acento** — errores de preparación son costosos.
 
-### 10.2 Ver Cocina Personalizado — estación específica
+### 10.2 Para el encargado de comandas
 
-1. **Nombre de la vista siempre visible** en el header ("🍲 CRIOLLA") para que el cocinero confirme que está en la pantalla correcta.
-2. **Cambio rápido de vista** con chips grandes (no dropdown pequeño).
-3. **Vista vacía amigable:** "No hay platos criollos pendientes ✓" en lugar de pantalla en blanco.
-4. **QR en admin** para emparejar tablet con vista sin navegar menús.
-5. **Máximo 15–20 platos por vista** — si hay más, subdividir en dos vistas (ej. Criolla A / Criolla B).
+1. **Un solo login al inicio del turno** — confiar en sesión persistente.  
+2. **Consola de despliegue** con estado de cada TV (conectada / desconectada / última actualización socket).  
+3. **Botón "Cerrar todas las TVs"** al fin del turno antes del logout.  
+4. **Monitor principal siempre en Vista Supervisor** — control centralizado.  
+5. **Probar cada TV** con botón "Probar" antes del servicio.  
+6. **Documento físico** en cocina: mapa TV → estación → vista.
 
-### 10.3 Personalización visual
+### 10.3 Para configuración en admin
 
-1. **Preset "Pantalla de pared":** fuente 32px, alto contraste, fondo oscuro.
-2. **Preset "Tablet cercana":** fuente 22px, espaciado compacto.
-3. **Probar a 2 metros** antes de guardar en producción.
-4. **No más de 3 colores de acento** — evitar arcoíris que confunda alertas.
+1. **Crear vistas por estación física**, no por cocinero individual.  
+2. **Duplicar vista desde zona** cuando KDS y TV comparten los mismos platos.  
+3. **Preset "TV 55 pulgadas"** en config visual.  
+4. **Asignar pantalla 1–8** con nombre del área física ("TV Pared norte").  
+5. **Calibrar posiciones** una vez: botón "Detectar monitores" guarda resolución/offset.
 
-### 10.4 Operativa en restaurante
+### 10.4 Distribución sugerida de 8 TVs (ejemplo)
 
-1. Una tablet por estación con la vista personalizada correspondiente.
-2. El KDS interactivo (Ver Comandas) en la estación de expedición / supervisor.
-3. Los monitores Ver Cocina **no requieren login de cocinero individual** — opción fase 2: modo kiosko con token de vista.
-4. Capacitar: "Esta pantalla solo muestra; para marcar listo usen el tablero de comandas."
+| TV | Vista sugerida | Platos típicos |
+|----|----------------|----------------|
+| 1 | Criolla | Ají, seco, tacu tacu, arroz con pollo |
+| 2 | Parrilla | Anticuchos, brochetas, carnes |
+| 3 | Plancha / Salteados | Lomo saltado, tallarines, saltados |
+| 4 | Freír | Papas, chicharrón, pescado frito |
+| 5 | Sopas / Caldos | Sopa, chupe, caldo de gallina |
+| 6 | Ensaladas / Fríos | Ensaladas, ceviche, entradas frías |
+| 7 | Postres | Suspiro, mazamorra, helados |
+| 8 | Bebidas / Bar | Jugos, cócteles, café |
+
+Ajustar según carta real del restaurante.
 
 ---
 
 ## 11. Fases de implementación
 
-### Fase 1 — MVP (2–3 sprints)
+### Fase 1 — Fundamentos (crítico para operación)
 
-| # | Tarea | Archivos principales |
-|---|-------|----------------------|
-| 1 | Botón Ver Cocina + modal selector en menú | `MenuPage.jsx`, `App.jsx` |
-| 2 | `CocinaMonitorCompleto` con lista plana y cronómetro | `components/monitor/*` |
-| 3 | Hook `useCocinaMonitorData` (reutiliza socket + API) | `hooks/useCocinaMonitorData.js` |
-| 4 | Panel de apariencia básico (localStorage) | `MonitorAparienciaPanel.jsx` |
-| 5 | Modelo + API `VistaCocina` | backend model, controller, routes |
-| 6 | Tab "Personalizar vista" en cocineros.html | `cocineros.html` |
-| 7 | `CocinaMonitorPersonalizado` + selector de vistas | `CocinaMonitorPersonalizado.jsx` |
+| # | Tarea | Prioridad |
+|---|-------|-----------|
+| 1 | **Sesión persistente** — deshabilitar inactividad, JWT largo, endpoint refresh | **P0** |
+| 2 | Permisos nuevos en `roles.model.js` | P0 |
+| 3 | Botón Ver Cocina + modal en `MenuPage.jsx` | P0 |
+| 4 | `CocinaMonitorPersonalizado` + `modo=fijo` | P0 |
+| 5 | `useCocinaMonitorData` + filtros de estado | P0 |
+| 6 | Modelo `VistaCocina` + API | P0 |
+| 7 | Tab Personalizar vista en `cocineros.html` | P1 |
+| 8 | `CocinaMonitorCompleto` | P1 |
 
-### Fase 2 — Pulido
+### Fase 2 — Multi-pantalla
 
-- Permisos por rol
-- Ordenamiento configurable por vista
-- Presets de apariencia
-- Deep link / QR para abrir vista directa
-- Botón "Crear vista desde zona"
-- Modo kiosko (sin menú, solo monitor)
+| # | Tarea |
+|---|-------|
+| 9 | Modelo `PantallaCocina` + mapeo TV 1–8 |
+| 10 | `DesplegarMonitoresPage` + `monitorWindowManager.js` |
+| 11 | Deep link `?monitor=&modo=fijo` en `App.jsx` |
+| 12 | Indicador de estado socket por ventana en consola |
+| 13 | Salida de emergencia `Ctrl+Shift+M` |
+| 14 | Presets visuales TV en admin |
 
-### Fase 3 — Avanzado
+### Fase 3 — Robustez
 
-- Múltiples pantallas sincronizadas por sala
-- Historial de platos completados en la última hora (opcional, solo lectura)
-- Integración con métricas de cocinero en admin
-- Exportar configuración de vista entre sucursales
+| # | Tarea |
+|---|-------|
+| 15 | Integración Gambusinas Launcher (ventanas nativas) |
+| 16 | Invalidación de token en refresh (rotación) |
+| 17 | Recordatorio logout fin de turno |
+| 18 | "Crear vista desde zona" |
+| 19 | Métricas de uptime por pantalla |
 
 ---
 
 ## 12. Criterios de aceptación
 
-### Ver Cocina Completo
+### Sesión persistente
 
-- [ ] Desde el menú principal aparece "Ver Cocina" en Opciones principales
-- [ ] Al pulsar, muestra modal con "Ver Cocina Completo" y "Ver Cocina Personalizado"
-- [ ] Lista todos los platos con `estado` ∈ {`pedido`, `en_espera`} del día actual
-- [ ] Cada fila muestra: nombre, cantidad, cronómetro, mesa/comanda
-- [ ] Al cambiar un plato a `recoger` en el KDS, desaparece de la lista en &lt; 2 s (socket)
-- [ ] No hay botones de tomar, finalizar ni cambiar estado
-- [ ] Se puede personalizar fuente, tamaño y colores desde la vista
-- [ ] Funciona en pantalla completa
+- [ ] Tras login, la sesión **no** se cierra por 8+ horas sin interacción en TVs
+- [ ] No aparece modal de inactividad a los 25 min
+- [ ] El token se renueva automáticamente antes de expirar
+- [ ] Tras reiniciar el navegador, la sesión se restaura si el turno sigue activo
+- [ ] Logout manual funciona solo desde monitor principal / menú encargado
+- [ ] TVs en modo fijo no muestran botón de cerrar sesión
 
-### Ver Cocina Personalizado
+### Permisos supervisor / cocinero
 
-- [ ] Solo muestra platos definidos en la Vista de Cocina activa
-- [ ] Permite cambiar entre vistas creadas sin volver al menú
-- [ ] En `cocineros.html` existe tab "Personalizar vista" junto a Zonas
-- [ ] Se pueden crear vistas con nombre y selección de platos (ej. "Criolla" con 5 platos)
-- [ ] La config visual de la vista se aplica al abrir el monitor
-- [ ] Vista vacía muestra mensaje claro cuando no hay platos pendientes
+- [ ] Cocinero con `utilidad-supervisor` + `ver-vista-supervisor-cocina` accede a Vista Supervisor
+- [ ] Encargado con `desplegar-monitores-cocina` ve opción Desplegar Monitores
+- [ ] Usuario sin permisos de Ver Cocina no ve el botón en el menú
+
+### Ver Cocina (funcional)
+
+- [ ] Platos en `pedido`/`en_espera` visibles; al pasar a `recoger` desaparecen en &lt; 2 s
+- [ ] Vista personalizada filtra solo platos de la Vista de Cocina
+- [ ] Modo fijo: sin menú, sin selector de vistas, pantalla completa
+- [ ] Config visual de la vista se aplica correctamente en TV
+
+### Multi-pantalla (8 TVs)
+
+- [ ] Admin permite asignar Vista de Cocina a pantallas 1–8
+- [ ] Consola despliega 8 ventanas en posiciones configuradas
+- [ ] Cada TV muestra solo su vista asignada
+- [ ] Las 8 ventanas comparten sesión y reciben actualizaciones socket
+- [ ] Botón "Cerrar todas" cierra ventanas de monitores
+- [ ] Mapa de prueba: 8 TVs operativas durante servicio simulado de 2+ horas sin logout
 
 ### Admin
 
-- [ ] CRUD completo de Vistas de Cocina
-- [ ] Preview de apariencia al editar
-- [ ] Vistas inactivas no aparecen en el selector del monitor
+- [ ] CRUD Vistas de Cocina en Personalizar vista
+- [ ] CRUD Pantallas de cocina con asignación vista ↔ TV
+- [ ] Preview de apariencia TV
 
 ---
 
@@ -613,11 +762,13 @@ flowchart TB
 
 | Riesgo | Mitigación |
 |--------|------------|
-| Confusión entre Zonas y Vistas de Cocina | Nombres distintos en UI; documentación en admin; tooltips |
-| Cocinero intenta tocar el monitor para marcar listo | Mensaje en empty state + capacitación; sin affordances de click |
-| Lista muy larga en hora pico | Auto-scroll, modo compacto, subdividir vistas |
-| Doble fuente de verdad en config visual | Vista guarda default; dispositivo puede override local |
-| Performance con muchas comandas | Misma optimización que `useComandastyleCore`; lista plana es más liviana que grid de tarjetas |
+| Popup blocker impide abrir 8 ventanas | Consola con instrucciones; Launcher nativo fase 3 |
+| `localStorage` no compartido entre perfiles Chrome | Mismo perfil de usuario Windows; documentar |
+| 9 ventanas Chrome consumen RAM | PC dedicado 16 GB; cerrar pestañas innecesarias |
+| Sesión eterna = riesgo seguridad | Logout manual obligatorio; capacitación fin de turno |
+| Token refresh falla de noche | Reintentos exponenciales; banner en consola encargado |
+| Confusión Zonas vs Vistas de Cocina | Nombres claros; wizard "crear desde zona" |
+| Cocinero toca TV esperando interactuar | Sin affordances click; cartel "Solo consulta" |
 
 ---
 
@@ -625,32 +776,33 @@ flowchart TB
 
 | Recurso | Ruta |
 |---------|------|
+| Auth + inactividad + JWT | `appcocina/src/contexts/AuthContext.jsx` |
+| Login cocina + JWT 8h | `backend-gambusinas/src/controllers/adminController.js` |
+| Permisos sistema | `backend-gambusinas/src/database/models/roles.model.js` |
 | Menú principal | `appcocina/src/components/pages/MenuPage.jsx` |
-| Router de vistas | `appcocina/src/components/App.jsx` |
-| KDS interactivo | `appcocina/src/components/Principal/comandastyle.jsx` |
-| Core de datos comandas | `appcocina/src/hooks/useComandastyleCore.js` |
-| Sockets cocina | `appcocina/src/hooks/useSocketCocina.js` |
-| Filtros KDS / zonas | `appcocina/src/utils/kdsFilters.js` |
-| Config visual KDS | `appcocina/src/contexts/ConfigContext.jsx` |
-| Modelo zona (referencia filtros) | `backend-gambusinas/src/database/models/zona.model.js` |
+| Router | `appcocina/src/components/App.jsx` |
+| KDS + supervisor | `appcocina/src/components/Principal/ComandaStyleSupervi.jsx` |
+| Sockets | `appcocina/src/hooks/useSocketCocina.js` |
+| Zonas (referencia filtros) | `backend-gambusinas/src/database/models/zona.model.js` |
 | Admin cocineros | `backend-gambusinas/public/cocineros.html` |
-| Modelo comanda / estados | `backend-gambusinas/src/database/models/comanda.model.js` |
-| Doc zonas KDS | `appcocina/docs/INTEGRACION_COCINEROS_ZONAS_KDS.md` |
-| Doc config KDS | `appcocina/docs/CONFIGURACION_KDS_V7.1.md` |
+| Launcher Windows | `backend-gambusinas/docs/PLAN_LAUNCHER_NATIVO_WINDOWS.md` |
+| Plan v1 | `appcocina/docs/PLAN_VISTA_VER_COCINA.md` |
 
 ---
 
 ## 15. Glosario
 
-| Término | Significado en este plan |
-|---------|--------------------------|
-| **Ver Cocina** | Funcionalidad de monitor pasivo (esta feature) |
-| **Ver Comandas** | KDS interactivo existente |
-| **Procesando** | Platos aún no listos (`pedido` / `en_espera`); desaparecen al llegar a `recoger` |
-| **Listo para recoger** | Estado backend `recoger` |
-| **Vista de Cocina** | Preset admin de platos + apariencia para monitor personalizado |
-| **Zona** | Preset existente para filtrar el KDS interactivo por cocinero |
+| Término | Significado |
+|---------|-------------|
+| **Ver Cocina** | Monitor pasivo de platos pendientes |
+| **Ver Comandas** | KDS interactivo |
+| **Encargado de comandas** | Supervisor o cocinero con permisos supervisor |
+| **Modo fijo** | Vista TV sin navegación ni logout |
+| **Vista de Cocina** | Preset de platos + apariencia para un monitor |
+| **Pantalla de Cocina** | Mapeo TV física (1–8) → Vista de Cocina |
+| **Sesión persistente** | Sin cierre automático durante el turno |
+| **Desplegar monitores** | Abrir las 8 ventanas en sus TVs |
 
 ---
 
-*Documento listo para revisión. Siguiente paso sugerido: validar con el equipo si "Procesando" incluye solo `en_espera` o también platos con `procesandoPor`, y aprobar Fase 1 para comenzar implementación.*
+*Documento v2.0 — listo para revisión e inicio de Fase 1 (sesión persistente + monitor básico).*

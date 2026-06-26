@@ -366,6 +366,18 @@ const useSocketCocina = ({
       }
     });
 
+    // Evento: Varios platos actualizados en lote (push comanda / acciones masivas)
+    socket.on('plato-actualizado-batch', (data) => {
+      console.log('[useSocketCocina] Plato actualizado (batch):', data.batchSize, 'platos');
+      ultimoPingRef.current = Date.now();
+
+      if (onPlatoActualizado && data.comanda) {
+        onPlatoActualizado({ comandaId: data.comandaId, comanda: data.comanda });
+      } else if (obtenerComandas) {
+        obtenerComandas();
+      }
+    });
+
     // Evento: Plato entregado por mozo
     socket.on('plato-entregado', (data) => {
       console.log('[useSocketCocina] Plato entregado (mozo):', data.platoId);

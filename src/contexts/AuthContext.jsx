@@ -25,9 +25,10 @@ const KDS_CONFIG_KEY = 'cocinaKdsConfig';
 const VIEW_MODE_KEY = 'cocinaViewMode';
 
 // Configuración de seguridad
-const TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 minutos antes de expirar
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos de inactividad
-const INACTIVITY_WARNING_MS = 25 * 60 * 1000; // Advertencia a los 25 minutos
+// v2.0: App Cocina usa sesion persistente - sin logout por inactividad
+const TOKEN_EXPIRY_MARGIN_MS = 24 * 60 * 60 * 1000; // Renovar 24h antes de expirar
+const INACTIVITY_TIMEOUT_MS = null; // Deshabilitado: las TVs no reciben interaccion
+const INACTIVITY_WARNING_MS = null; // Deshabilitado
 
 /**
  * Decodifica el payload de un JWT sin validar la firma
@@ -188,94 +189,101 @@ export const AuthProvider = ({ children }) => {
   }, [logout]);
 
   /**
+   * Renueva el token JWT silenciosamente vía POST /api/admin/cocina/auth/refresh
+   * v2.0: Sesión persistente - evita el cierre de sesión por expiración
+   */
+  const refreshToken = useCallback(async () => {
+    try {
+      const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!storedAuth) return null;
+
+      const authData = JSON.parse(storedAuth);
+      if (!authData.token) return null;
+
+      const serverUrl = getServerBaseUrl();
+      const response = await axios.post(
+        `${serverUrl}/api/admin/cocina/auth/refresh`,
+        {},
+        {
+          headers: { 'Authorization': `Bearer ${authData.token}` },
+          timeout: 10000
+        }
+      );
+
+      const { token: newToken, usuario } = response.data;
+      if (!newToken) {
+        console.warn('[AuthContext] Refresh sin nuevo token');
+        return null;
+      }
+
+      const newAuthData = { token: newToken, usuario };
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newAuthData));
+
+      setToken(newToken);
+      setUser(usuario);
+      setPermisos(usuario.permisos || []);
+      setReglas(usuario.reglas || []);
+
+      console.log('[AuthContext] Token renovado exitosamente, sesión persistente activa');
+      return newToken;
+    } catch (err) {
+      console.warn('[AuthContext] Error renovando token (sesión persistente):', err.message);
+      // No cerramos sesión - reintentaremos en el próximo ciclo
+      return null;
+    }
+  }, []);
+
+  /**
    * Inicia los timers de seguridad después del login
+   * v2.0: Sesión persistente - renueva el token en vez de cerrar sesión
    */
   const startSecurityTimers = useCallback(() => {
     // Limpiar timers existentes
     clearSecurityTimers();
-    
-    // Check de expiración cada minuto
-    expiryCheckIntervalRef.current = setInterval(() => {
+
+    // Check de expiración cada 10 minutos - renueva silenciosamente
+    expiryCheckIntervalRef.current = setInterval(async () => {
       const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
       if (storedAuth) {
-        const authData = JSON.parse(storedAuth);
-        const expiryStatus = checkTokenExpiry(authData.token);
-        
-        if (expiryStatus.isExpired) {
-          console.warn('[AuthContext] Token expirado, cerrando sesión');
-          logout();
-        } else if (expiryStatus.willExpireSoon) {
-          console.warn(`[AuthContext] Token expira pronto: ${Math.round(expiryStatus.remainingMs / 60000)} minutos restantes`);
+        try {
+          const authData = JSON.parse(storedAuth);
+          const expiryStatus = checkTokenExpiry(authData.token);
+
+          if (expiryStatus.isExpired || expiryStatus.willExpireSoon) {
+            console.log('[AuthContext] Token próximo a expirar o expirado, renovando...');
+            await refreshToken();
+          }
+        } catch (err) {
+          console.warn('[AuthContext] Error en check de expiración:', err.message);
         }
       }
-    }, 60000); // Cada minuto
+    }, 10 * 60 * 1000); // Cada 10 minutos
 
-    // Timer de inactividad
-    inactivityTimerRef.current = setTimeout(() => {
-      console.warn('[AuthContext] Sesión expirada por inactividad');
-      logout();
-    }, INACTIVITY_TIMEOUT_MS);
-
-    // Advertencia de inactividad
-    inactivityWarningTimerRef.current = setTimeout(() => {
-      setShowInactivityWarning(true);
-    }, INACTIVITY_WARNING_MS);
-  }, [clearSecurityTimers, logout]);
+    // v2.0: Inactividad deshabilitada para App Cocina (TVs sin interacción)
+    // No se configuran timers de inactividad ni advertencias
+  }, [clearSecurityTimers, refreshToken]);
 
   /**
    * Reinicia el timer de inactividad cuando hay actividad del usuario
+   * v2.0: NO-OP - la inactividad está deshabilitada en App Cocina
    */
   const resetInactivityTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     setShowInactivityWarning(false);
-    
-    // Reiniciar timer de inactividad
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-    }
-    inactivityTimerRef.current = setTimeout(() => {
-      console.warn('[AuthContext] Sesión expirada por inactividad');
-      logout();
-    }, INACTIVITY_TIMEOUT_MS);
-
-    // Reiniciar timer de advertencia
-    if (inactivityWarningTimerRef.current) {
-      clearTimeout(inactivityWarningTimerRef.current);
-    }
-    inactivityWarningTimerRef.current = setTimeout(() => {
-      setShowInactivityWarning(true);
-    }, INACTIVITY_WARNING_MS);
-  }, [logout]);
+    // v2.0: No se reinicia_timer de inactividad (deshabilitado)
+  }, []);
 
   /**
    * Extiende la sesión (usado cuando el usuario responde a la advertencia)
+   * v2.0: NO-OP - no hay advertencia de inactividad en App Cocina
    */
   const extendSession = useCallback(() => {
     setShowInactivityWarning(false);
-    resetInactivityTimer();
-    console.log('[AuthContext] Sesión extendida por actividad del usuario');
-  }, [resetInactivityTimer]);
+    console.log('[AuthContext] Sesión extendida');
+  }, []);
 
-  // Listener de actividad del usuario
-  useEffect(() => {
-    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
-    
-    const handleActivity = () => {
-      if (token) {
-        resetInactivityTimer();
-      }
-    };
-
-    events.forEach(event => {
-      window.addEventListener(event, handleActivity, { passive: true });
-    });
-
-    return () => {
-      events.forEach(event => {
-        window.removeEventListener(event, handleActivity);
-      });
-    };
-  }, [token, resetInactivityTimer]);
+  // v2.0: Listener de actividad eliminado - no se tracking de inactividad
+  // (eliminado el useEffect que reseteaba timers)
 
   // Cargar sesión desde localStorage al iniciar
   useEffect(() => {
@@ -320,6 +328,56 @@ export const AuthProvider = ({ children }) => {
 
     loadStoredAuth();
   }, []);
+
+  // v2.1: Sincronización multi-ventana (1-8 páginas compartiendo sesión en un PC)
+  // Escucha cambios en localStorage para que cuando una ventana hace login/logout
+  // o el token se renueva, todas las demás ventanas se actualicen automáticamente.
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key !== AUTH_STORAGE_KEY) return;
+
+      console.log('[AuthContext] Cambio en localStorage detectado (multi-ventana)', {
+        hasNewValue: !!e.newValue,
+        hasOldValue: !!e.oldValue
+      });
+
+      try {
+        if (!e.newValue) {
+          // La sesión se eliminó en otra ventana - hacer logout aquí también
+          if (token) {
+            console.log('[AuthContext] Logout detectado en otra ventana');
+            clearSecurityTimers();
+            setToken(null);
+            setUser(null);
+            setPermisos([]);
+            setReglas([]);
+            setCocineroConfig(null);
+          }
+        } else {
+          // La sesión se actualizó (login o refresh de token en otra ventana)
+          const authData = JSON.parse(e.newValue);
+          if (authData.token && authData.usuario) {
+            const expiryStatus = checkTokenExpiry(authData.token);
+            if (!expiryStatus.isExpired) {
+              // Solo actualizar si el token es diferente (evita loops)
+              if (authData.token !== token) {
+                console.log('[AuthContext] Token actualizado desde otra ventana');
+                setToken(authData.token);
+                setUser(authData.usuario);
+                setPermisos(authData.usuario.permisos || []);
+                setReglas(authData.usuario.reglas || []);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[AuthContext] Error procesando cambio de storage:', err.message);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [token, clearSecurityTimers]);
 
   // Iniciar timers de seguridad cuando hay token
   useEffect(() => {
@@ -699,6 +757,7 @@ export const AuthProvider = ({ children }) => {
     setError,
     showInactivityWarning,
     extendSession,
+    refreshToken, // v2.0: renovación silenciosa de sesión persistente
     getRememberedUser,
     // Configuración del cocinero
     cocineroConfig,

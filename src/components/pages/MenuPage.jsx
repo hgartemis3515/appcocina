@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaUtensils, 
-  FaCog, 
-  FaSignOutAlt, 
-  FaChartBar, 
-  FaHistory, 
+import {
+  FaUtensils,
+  FaCog,
+  FaSignOutAlt,
+  FaChartBar,
+  FaHistory,
   FaClock,
   FaUserCircle,
   FaChevronRight,
@@ -14,7 +14,9 @@ import {
   FaMapMarkerAlt,
   FaUserPlus,
   FaTimes,
-  FaShoppingBag
+  FaShoppingBag,
+  FaTv,
+  FaDesktop
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -29,6 +31,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const MenuPage = ({ onNavigate }) => {
   const { user, logout, cocineroConfig, configLoading, getZonasActivas, hasPermission } = useAuth();
   const [showViewSelector, setShowViewSelector] = useState(false);
+  const [showCocinaViewSelector, setShowCocinaViewSelector] = useState(false);
 
   // Obtener zonas activas del cocinero
   const zonasActivas = useMemo(() => getZonasActivas(), [getZonasActivas]);
@@ -51,6 +54,16 @@ const MenuPage = ({ onNavigate }) => {
       onNavigate('COCINA_SUPERVISOR');
     } else {
       onNavigate('COCINA');
+    }
+  };
+
+  // Función para navegar a Ver Cocina (monitor pasivo) con el modo seleccionado
+  const handleNavigateToVerCocina = (selectedMode) => {
+    setShowCocinaViewSelector(false);
+    if (selectedMode === 'personalizado') {
+      onNavigate('VER_COCINA_PERSONALIZADO');
+    } else {
+      onNavigate('VER_COCINA_COMPLETO');
     }
   };
 
@@ -120,6 +133,26 @@ const MenuPage = ({ onNavigate }) => {
       shadowColor: 'shadow-green-500/30',
       action: () => setShowViewSelector(true),
       enabled: true,
+    },
+    {
+      id: 'ver-cocina',
+      title: 'Ver Cocina',
+      subtitle: 'Monitor de platos por preparar (solo lectura)',
+      icon: FaTv,
+      color: 'from-amber-500 to-orange-600',
+      shadowColor: 'shadow-amber-500/30',
+      action: () => setShowCocinaViewSelector(true),
+      enabled: hasPermission('ver-cocina-completo') || hasPermission('ver-cocina-personalizado'),
+    },
+    {
+      id: 'desplegar-monitores',
+      title: 'Desplegar Monitores',
+      subtitle: 'Abrir vistas en los televisores de cocina',
+      icon: FaDesktop,
+      color: 'from-cyan-500 to-blue-600',
+      shadowColor: 'shadow-cyan-500/30',
+      action: () => onNavigate('DESPLEGAR_MONITORES'),
+      enabled: hasPermission('desplegar-monitores-cocina'),
     },
     {
       id: 'ppa',
@@ -471,6 +504,99 @@ const MenuPage = ({ onNavigate }) => {
                   </p>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Modal selector Ver Cocina (monitor pasivo) */}
+        {showCocinaViewSelector && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowCocinaViewSelector(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full p-6 border border-gray-700"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 flex items-center justify-center">
+                    <FaTv className="text-xl text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Ver Cocina</h3>
+                    <p className="text-sm text-gray-400">Monitor de platos por preparar (solo lectura)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCocinaViewSelector(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <FaTimes className="text-xl" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {/* Ver Cocina Completo */}
+                {hasPermission('ver-cocina-completo') && (
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => handleNavigateToVerCocina('completo')}
+                    className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:shadow-lg hover:shadow-amber-500/30 transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                        <FaEye className="text-lg text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-white">Ver Cocina Completo</h4>
+                        <p className="text-sm text-white/80">Todos los platos pendientes del día</p>
+                        <p className="text-xs mt-1 text-white/60">
+                          Panorama general de la cocina sin filtros. Ideal para vista general.
+                        </p>
+                      </div>
+                      <FaChevronRight className="text-white" />
+                    </div>
+                  </motion.button>
+                )}
+
+                {/* Ver Cocina Personalizado */}
+                {hasPermission('ver-cocina-personalizado') && (
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => handleNavigateToVerCocina('personalizado')}
+                    className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:shadow-lg hover:shadow-cyan-500/30 transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                        <FaFilter className="text-lg text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-white">Ver Cocina Personalizado</h4>
+                        <p className="text-sm text-white/80">Solo platos de una Vista de Cocina específica</p>
+                        <p className="text-xs mt-1 text-white/60">
+                          Selecciona una vista (ej. "Criolla") y ve solo los platos de esa estación. Ideal para las TVs de cocina.
+                        </p>
+                      </div>
+                      <FaChevronRight className="text-white" />
+                    </div>
+                  </motion.button>
+                )}
+              </div>
+
+              <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg">
+                <p className="text-amber-300 text-xs">
+                  💡 El monitor es solo de visualización. Para marcar platos como listos use "Ver Comandas".
+                </p>
+              </div>
             </motion.div>
           </motion.div>
         )}
