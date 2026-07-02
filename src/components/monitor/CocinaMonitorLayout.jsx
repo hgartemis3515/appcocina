@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import moment from 'moment-timezone';
 import PlatoMonitorRow from './PlatoMonitorRow';
+import CocineroPlatoCard from './CocineroPlatoCard';
+import CocineroBlockHeader from './CocineroBlockHeader';
 import MonitorEmptyState from './MonitorEmptyState';
 import MonitorConfigPanel from './MonitorConfigPanel';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
+import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -13,6 +16,7 @@ const DEFAULT_CONFIG = {
   tamanioFuentePlato: 36,
   tamanioFuenteDetalle: 20,
   tamanioFuenteCronometro: 28,
+  tamanioFuenteCocinero: 28,
   colorFondo: '#0a0a0f',
   colorTextoPrincipal: '#ffffff',
   colorTextoSecundario: '#9ca3af',
@@ -32,6 +36,20 @@ const DEFAULT_CONFIG = {
   mostrarNotificacionEntrada: true,
   textoNotificacionEntrada: 'Entra plato',
   duracionNotificacionEntrada: 8,
+  // Rediseño por cocinero
+  modoAgrupacion: 'bloques',     // 'bloques' (col-1) | 'tarjetas' (multi-col)
+  mostrarMesas: true,
+  modoTimers: 'completos',       // 'completos' | 'resumidos'
+  maxTimersVisibles: 6,
+  mostrarCabeceraCocinero: true,
+  colorPorCocinero: true,
+  umbralCargaAlta: 8,
+  umbralSobrecarga: 12,
+  // Estilo referencia KDS
+  estiloTemporizador: 'vertical',  // 'vertical' (columna derecha) | 'horizontal' (línea)
+  intensidadAlerta: 'normal',      // 'suave' | 'normal' | 'alta'
+  mostrarEtiquetaPlato: false,     // mostrar "Plato:" antes del nombre
+  mostrarIconoCocinero: true,      // avatar con iniciales del cocinero
 };
 
 const ICONO_MAP = {
@@ -43,6 +61,12 @@ const ICONO_MAP = {
 /**
  * CocinaMonitorLayout - Componente principal del monitor Ver Cocina
  *
+ * v3.0:
+ * - Modo "por cocinero" (modoCocineros=true): agrupa en bloques de cocinero con
+ *   cabecera + tarjetas cocinero+plato, y temporizadores individuales.
+ * - Modo "por plato" (modoCocineros=false): comportamiento anterior con PlatoMonitorRow.
+ * - Selector de cocineros en la barra superior (props cocineros/ onCambiarCocinero).
+ *
  * v2.2:
  * - Agrupa platos por nombre (suma cantidades de diferentes comandas)
  * - Muestra nombre del cocinero que tomó el plato
@@ -51,9 +75,16 @@ const ICONO_MAP = {
  * - Barra de notificación "Entra plato ####" del último plato agregado
  *
  * Props:
- * - platosPendientes: array de grupos { nombre, cantidadTotal, platos, tiempoInicio, key }
+ * - platosPendientes: array de grupos { nombre, cantidadTotal, platos, tiempoInicio, key,
+ *                                        cocinero, timers[] } (modoCocineros) o formato v2
  * - configVisual: apariencia + umbrales (puede ser override local)
- * - nombreVista, modoFijo, onVolver, onAbrirApariencia, vistasCocina, vistaActivaId, onCambiarVista
+ * - nombreVista, modoFijo, onVolver, vistasCocina, vistaActivaId, onCambiarVista
+ * - modoCocineros: si true, usa CocineroPlatoCard / CocineroBlockHeader (default: detecta
+ *                  cocinero en los items)
+ * - cocineros: lista de cocineros activos para el selector (opcional)
+ * - cocineroActivoId: id del cocinero seleccionado (null = General)
+ * - onCambiarCocinero: callback del selector
+ * - nombreCocineroActivo: nombre/alias del cocinero seleccionado (para empty state)
  */
 const CocinaMonitorLayout = ({
   platosPendientes = [],
@@ -64,6 +95,11 @@ const CocinaMonitorLayout = ({
   vistasCocina = null,
   vistaActivaId = null,
   onCambiarVista = null,
+  cocineros = null,
+  cocineroActivoId = null,
+  onCambiarCocinero = null,
+  nombreCocineroActivo = null,
+  modoCocineros: modoCocinerosProp = null,
 }) => {
   const tick = useCocinaMonitorTimer();
   const [reloj, setReloj] = useState(moment().tz('America/Lima').format('HH:mm:ss'));
@@ -196,6 +232,53 @@ const CocinaMonitorLayout = ({
   const esGrid = layoutColumnas > 1;
   const gapGrid = configVisual.espaciadoFilas === 'compacto' ? '8px' : configVisual.espaciadoFilas === 'amplio' ? '20px' : '12px';
 
+  // Detección automática del modo "por cocinero": si los items tienen `cocinero` y `timers`
+  const modoCocineros = modoCocinerosProp != null
+    ? modoCocinerosProp
+    : Array.isArray(platosPendientes) && platosPendientes.some(p => p && p.cocinero && Array.isArray(p.timers));
+
+  // Modo de agrupación visual efectivo:
+  // - tarjetas independientes si multi-columna O config.modoAgrupacion === 'tarjetas'
+  // - bloques por cocinero en columna única (default)
+  const modoBloques = modoCocineros
+    && !esGrid
+    && (configVisual.modoAgrupacion || 'bloques') === 'bloques'
+    && configVisual.mostrarCabeceraCocinero !== false;
+
+  // Agrupar items por cocineroId (solo en modo bloques)
+  const bloquesCocinero = useMemo(() => {
+    if (!modoCocineros) return [];
+    const map = new Map();
+    for (const item of platosPendientes) {
+      const cid = item.cocinero?.id || '_sin_cocinero';
+      const alias = item.cocinero?.alias || 'Cocinero';
+      const nombre = item.cocinero?.nombre || '';
+      if (!map.has(cid)) {
+        map.set(cid, {
+          cocinero: { id: cid, alias, nombre, fotoUrl: item.cocinero?.fotoUrl || '' },
+          tarjetas: [],
+          totalPlatos: 0,
+        });
+      }
+      const bloque = map.get(cid);
+      bloque.tarjetas.push(item);
+      bloque.totalPlatos += item.cantidadTotal || 0;
+    }
+    const bloques = Array.from(map.values());
+    // Orden: alerta máxima (rojo>amarillo>normal) desc -> totalPlatos desc
+    const peso = (b) => {
+      let max = 0;
+      for (const t of b.tarjetas) for (const ti of (t.timers || [])) {
+        const s = calcularSegundos(ti.tiempoInicio);
+        const a = nivelAlerta(s, configVisual.tiempoAmarillo, configVisual.tiempoRojo);
+        max = Math.max(max, a === 'rojo' ? 2 : a === 'amarillo' ? 1 : 0);
+      }
+      return max;
+    };
+    bloques.sort((a, b) => peso(b) - peso(a) || b.totalPlatos - a.totalPlatos);
+    return bloques;
+  }, [platosPendientes, modoCocineros, configVisual.tiempoAmarillo, configVisual.tiempoRojo]);
+
   return (
     <div
       style={{
@@ -316,6 +399,65 @@ const CocinaMonitorLayout = ({
         )}
       </AnimatePresence>
 
+      {/* Selector de cocineros (solo Ver Cocina Completo, no fijo) */}
+      {cocineros && !modoFijo && onCambiarCocinero && (
+        <div
+          style={{
+            padding: '8px 24px',
+            borderBottom: `1px solid ${colorAcento}11`,
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: '13px', color: colorTextoSecundario, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Cocinero:
+          </span>
+          <button
+            onClick={() => onCambiarCocinero(null)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: '999px',
+              fontSize: '14px',
+              fontWeight: 600,
+              border: `2px solid ${!cocineroActivoId ? colorAcento : `${colorAcento}33`}`,
+              background: !cocineroActivoId ? colorAcento : 'transparent',
+              color: !cocineroActivoId ? colorFondo : colorTextoPrincipal,
+              cursor: 'pointer',
+            }}
+          >
+            General
+          </button>
+          {cocineros.map((c, i) => {
+            const activo = cocineroActivoId && String(c._id) === String(cocineroActivoId);
+            const label = c.alias || c.name || c.nombre || `Cocinero ${i + 1}`;
+            return (
+              <button
+                key={c._id || i}
+                onClick={() => onCambiarCocinero(c._id)}
+                style={{
+                  padding: '7px 16px',
+                  borderRadius: '999px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  border: `2px solid ${activo ? colorAcento : `${colorAcento}33`}`,
+                  background: activo ? colorAcento : 'transparent',
+                  color: activo ? colorFondo : colorTextoPrincipal,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Selector de vistas (solo modo personalizado, no fijo) */}
       {vistasCocina && !modoFijo && (
         <div
@@ -405,7 +547,57 @@ const CocinaMonitorLayout = ({
       {/* Lista de platos */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {totalPendientes === 0 ? (
-          <MonitorEmptyState nombreVista={nombreVista} />
+          <MonitorEmptyState nombreVista={nombreVista} nombreCocinero={nombreCocineroActivo} />
+        ) : modoBloques ? (
+          <div style={{ padding: '0 0 16px 0' }}>
+            <AnimatePresence initial={false}>
+              {bloquesCocinero.map((bloque) => (
+                <BloqueCocinero
+                  key={bloque.cocinero.id}
+                  bloque={bloque}
+                  configVisual={configVisual}
+                  tick={tick}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : modoCocineros ? (
+          <div
+            key={`monitor-cols-${layoutColumnas}`}
+            style={esGrid ? {
+              display: 'grid',
+              gridTemplateColumns: `repeat(${layoutColumnas}, minmax(0, 1fr))`,
+              gap: gapGrid,
+              padding: gapGrid,
+              alignContent: 'start',
+            } : undefined}
+          >
+            {esGrid ? (
+              platosPendientes.map(item => (
+                <CocineroPlatoCard
+                  key={item.grupoId || item.key}
+                  item={item}
+                  configVisual={configVisual}
+                  mostrarCocinero
+                  modoTarjeta
+                  tick={tick}
+                />
+              ))
+            ) : (
+              <AnimatePresence initial={false}>
+                {platosPendientes.map(item => (
+                  <CocineroPlatoCard
+                    key={item.grupoId || item.key}
+                    item={item}
+                    configVisual={configVisual}
+                    mostrarCocinero
+                    modoTarjeta={false}
+                    tick={tick}
+                  />
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
         ) : (
           <div
             key={`monitor-cols-${layoutColumnas}`}
@@ -461,6 +653,57 @@ const CocinaMonitorLayout = ({
         </div>
       )}
     </div>
+  );
+};
+
+/**
+ * BloqueCocinero - Cabecera colapsable de cocinero + lista de tarjetas (modo bloques).
+ */
+const BloqueCocinero = ({ bloque, configVisual, tick }) => {
+  const [expandido, setExpandido] = useState(true);
+
+  return (
+    <motion.div
+      layout={false}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, height: 0, transition: { duration: 0.18 } }}
+      transition={{ duration: 0.2 }}
+      style={{ marginBottom: '8px' }}
+    >
+      {configVisual.mostrarCabeceraCocinero !== false && (
+        <CocineroBlockHeader
+          cocinero={bloque.cocinero}
+          tarjetas={bloque.tarjetas}
+          totalPlatos={bloque.totalPlatos}
+          configVisual={configVisual}
+          inicialExpandido={expandido}
+          onToggle={() => setExpandido(v => !v)}
+        />
+      )}
+      <AnimatePresence initial={false}>
+        {expandido && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            {bloque.tarjetas.map(item => (
+              <CocineroPlatoCard
+                key={item.grupoId || item.key}
+                item={item}
+                configVisual={configVisual}
+                mostrarCocinero={false}
+                modoTarjeta={false}
+                tick={tick}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 

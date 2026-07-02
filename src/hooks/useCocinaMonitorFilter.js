@@ -1,6 +1,10 @@
 /**
  * useCocinaMonitorFilter - Aplana y AGRUPA comandas en lista de platos pendientes
  *
+ * v2.5: Soporta agrupación por cocinero + plato (opción `agruparPorCocinero`).
+ *       Cada grupo expone `cocinero` y `platos` individuales con `tiempoInicio`
+ *       para que la UI renderice N temporizadores individuales (no uno agregado).
+ *       Soporta filtro por cocinero (`cocineroIdFiltrado`) para el selector de cocineros.
  * v2.4: Agrupa por nombre + complementos idénticos (complementos distintos = filas separadas).
  *       Cronómetro desde procesandoPor.timestamp (cuando el cocinero toma el plato).
  *       Solo platos TOMADOS por un cocinero. Al finalizar (recoger) se reduce cantidad hasta 0.
@@ -115,26 +119,65 @@ function platoTomadoPorCocinero(plato) {
 }
 
 /**
- * Hook: transforma el array de comandas en una lista AGRUPADA por nombre de plato.
+ * Datos normalizados del cocinero que tomó el plato.
+ */
+function obtenerCocineroDePlato(plato) {
+  const pp = plato.procesandoPor;
+  if (!pp || !pp.cocineroId) return null;
+  return {
+    id: String(pp.cocineroId),
+    alias: pp.alias || pp.nombre || 'Cocinero',
+    nombre: pp.nombre || pp.alias || '',
+  };
+}
+
+/**
+ * Filtro por cocinero seleccionado en el selector (null = General).
+ */
+function platoAsignadoACocinero(plato, cocineroIdFiltrado) {
+  if (!cocineroIdFiltrado) return true; // General
+  const id = plato.procesandoPor?.cocineroId;
+  if (id == null) return false;
+  return String(id) === String(cocineroIdFiltrado);
+}
+
+/**
+ * Clave de grupo incluyendo cocinero cuando agruparPorCocinero está activo.
+ */
+function claveGrupoPlatoConCocinero(plato, nombre, agruparPorCocinero) {
+  const base = claveGrupoPlato(plato, nombre);
+  if (!agruparPorCocinero) return base;
+  const cocinero = obtenerCocineroDePlato(plato);
+  const cid = cocinero ? cocinero.id : '';
+  return `${cid}::${base}`;
+}
+
+/**
+ * Hook: transforma el array de comandas en una lista AGRUPADA de platos pendientes.
  *
- * Cada item del resultado es:
- *  {
- *    nombre,           // "Lomo Saltado"
- *    cantidadTotal,    // 5 (suma de todas las comandas)
- *    platos,           // array de platos individuales (para info de mesas, cocineros)
- *    tiempoInicio,     // timestamp del plato más antiguo del grupo (cronómetro)
- *    key,              // clave nombre + complementos + observaciones
- *    complementosKey,  // clave de complementos (para UI)
- *  }
+ * Modo default (agruparPorCocinero=false): un grupo por nombre+complementos (igual que v2.4).
+ *   Cada item: { nombre, cantidadTotal, platos, tiempoInicio, key, complementosKey, grupoId }
  *
- * Platos con el mismo nombre pero complementos distintos quedan en filas separadas.
+ * Modo cocinero (agruparPorCocinero=true): un grupo por cocinero + nombre + complementos.
+ *   Cada item además incluye:
+ *     cocinero: { id, alias, nombre }
+ *     timers: [{ tiempoInicio, cantidad, mesa, comandaNumero }]  (uno por plato individual)
+ *   Los `timers` permiten a la UI renderizar N cronómetros individuales (antiguo→nuevo).
  *
  * @param {Array} comandas - Comandas del día
  * @param {Object|null} vistaCocina - Vista activa
  * @param {Object} ordenamiento - { criterio, direccion }
+ * @param {Object} opciones - { agruparPorCocinero, cocineroIdFiltrado }
  * @returns {Array} Lista AGRUPADA de platos pendientes
  */
-const useCocinaMonitorFilter = (comandas, vistaCocina = null, ordenamiento = null) => {
+const useCocinaMonitorFilter = (
+  comandas,
+  vistaCocina = null,
+  ordenamiento = null,
+  opciones = {},
+) => {
+  const { agruparPorCocinero = false, cocineroIdFiltrado = null } = opciones;
+
   const platosPendientes = useMemo(() => {
     // 1) Aplano todos los platos tomados y no listos
     const aplanados = [];
@@ -145,20 +188,22 @@ const useCocinaMonitorFilter = (comandas, vistaCocina = null, ordenamiento = nul
         if (plato.anulado || plato.eliminado || plato.eliminar) continue;
         if (!platoTomadoPorCocinero(plato)) continue;
         if (vistaCocina && !platoCumpleVista(plato, vistaCocina)) continue;
+        if (!platoAsignadoACocinero(plato, cocineroIdFiltrado)) continue;
 
         aplanados.push({
           plato,
           comanda,
           tiempoInicio: obtenerTiempoInicio(plato),
           nombre: obtenerNombrePlato(plato),
+          cocinero: obtenerCocineroDePlato(plato),
         });
       }
     }
 
-    // 2) Agrupar por nombre + complementos idénticos (+ observaciones)
+    // 2) Agrupar por (cocinero +) nombre + complementos idénticos (+ observaciones)
     const gruposMap = new Map();
     for (const item of aplanados) {
-      const key = claveGrupoPlato(item.plato, item.nombre);
+      const key = claveGrupoPlatoConCocinero(item.plato, item.nombre, agruparPorCocinero);
       const grupoId = grupoIdEstable(key);
       if (!gruposMap.has(key)) {
         gruposMap.set(key, {
@@ -169,11 +214,23 @@ const useCocinaMonitorFilter = (comandas, vistaCocina = null, ordenamiento = nul
           complementosKey: claveComplementos(item.plato),
           key,
           grupoId,
+          cocinero: agruparPorCocinero ? item.cocinero : null,
+          timers: [],
         });
       }
       const grupo = gruposMap.get(key);
       grupo.cantidadTotal += item.plato.cantidad || 1;
       grupo.platos.push(item);
+
+      // Entrada individual de timer (una por plato tomado, no por unidad de cantidad)
+      const mesaNum = obtenerMesaDeComanda(item.comanda);
+      grupo.timers.push({
+        tiempoInicio: item.tiempoInicio,
+        cantidad: item.plato.cantidad || 1,
+        mesa: mesaNum,
+        comandaNumero: item.comanda.numero || item.comanda.numeroMesa || null,
+      });
+
       // El tiempo inicio del grupo es el más antiguo (menor timestamp)
       const t = item.tiempoInicio ? new Date(item.tiempoInicio).getTime() : null;
       if (t !== null) {
@@ -219,19 +276,44 @@ const useCocinaMonitorFilter = (comandas, vistaCocina = null, ordenamiento = nul
     });
 
     return gruposValidos;
-  }, [comandas, vistaCocina, ordenamiento?.criterio, ordenamiento?.direccion]);
+  }, [
+    comandas,
+    vistaCocina,
+    ordenamiento?.criterio,
+    ordenamiento?.direccion,
+    agruparPorCocinero,
+    cocineroIdFiltrado,
+  ]);
 
   return platosPendientes;
 };
+
+/**
+ * Extrae el número de mesa de una comanda de forma defensiva.
+ */
+function obtenerMesaDeComanda(comanda) {
+  return (
+    comanda.mesaNumero ??
+    comanda.mesas?.nummesa ??
+    comanda.mesas?.numero ??
+    comanda.mesa?.numero ??
+    comanda.mesa ??
+    null
+  );
+}
 
 export default useCocinaMonitorFilter;
 export {
   obtenerTiempoInicio,
   platoCumpleVista,
   platoTomadoPorCocinero,
+  obtenerCocineroDePlato,
+  platoAsignadoACocinero,
+  obtenerMesaDeComanda,
   obtenerNombrePlato,
   claveComplementos,
   claveGrupoPlato,
+  claveGrupoPlatoConCocinero,
   grupoIdEstable,
   obtenerPlatoTipoId,
   ESTADOS_NO_LISTOS,

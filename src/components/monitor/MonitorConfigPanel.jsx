@@ -295,6 +295,151 @@ const MonitorConfigPanel = ({
           ))}
         </Section>
 
+        {/* Ver por cocinero (nueva sección) */}
+        <Section title="Ver por cocinero" colorAcento={colorAcento}>
+          <label style={lbl}>
+            Agrupación
+            <select
+              value={configVisual.modoAgrupacion || 'bloques'}
+              onChange={e => guardar({ modoAgrupacion: e.target.value })}
+              style={{ ...inp, minWidth: '150px' }}
+            >
+              <option value="bloques">Bloques por cocinero (col-1)</option>
+              <option value="tarjetas">Tarjetas independientes</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Temporizadores
+            <select
+              value={configVisual.modoTimers || 'completos'}
+              onChange={e => guardar({ modoTimers: e.target.value })}
+              style={{ ...inp, minWidth: '140px' }}
+            >
+              <option value="completos">Completos (todos)</option>
+              <option value="resumidos">Resumidos (solo el más antiguo)</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Estilo temporizador
+            <select
+              value={configVisual.estiloTemporizador || 'vertical'}
+              onChange={e => guardar({ estiloTemporizador: e.target.value })}
+              style={{ ...inp, minWidth: '150px' }}
+            >
+              <option value="vertical">Vertical (columna derecha)</option>
+              <option value="horizontal">Horizontal (línea)</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Intensidad de alerta
+            <select
+              value={configVisual.intensidadAlerta || 'normal'}
+              onChange={e => guardar({ intensidadAlerta: e.target.value })}
+              style={{ ...inp, minWidth: '130px' }}
+            >
+              <option value="suave">Suave</option>
+              <option value="normal">Normal</option>
+              <option value="alta">Alta (más glow)</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Máx temporizadores visibles
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <BtnStep
+                onClick={() => guardar({ maxTimersVisibles: Math.max(2, (configVisual.maxTimersVisibles || 6) - 1) })}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number" min="2" max="20"
+                value={configVisual.maxTimersVisibles ?? 6}
+                onChange={e => guardar({ maxTimersVisibles: Number(e.target.value) })}
+                style={{ ...inp, width: '64px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => guardar({ maxTimersVisibles: Math.min(20, (configVisual.maxTimersVisibles || 6) + 1) })}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+          <label style={lbl}>
+            Tamaño fuente cocinero (px)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <BtnStep
+                onClick={() => guardar({ tamanioFuenteCocinero: Math.max(18, (configVisual.tamanioFuenteCocinero || 28) - 2) })}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number" min="18" max="40"
+                value={configVisual.tamanioFuenteCocinero ?? 28}
+                onChange={e => guardar({ tamanioFuenteCocinero: Number(e.target.value) })}
+                style={{ ...inp, width: '64px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => guardar({ tamanioFuenteCocinero: Math.min(40, (configVisual.tamanioFuenteCocinero || 28) + 2) })}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+          <label style={lbl}>
+            Umbral carga alta (platos)
+            <input
+              type="number" min="3" max="30"
+              value={configVisual.umbralCargaAlta ?? 8}
+              onChange={e => guardar({ umbralCargaAlta: Number(e.target.value) })}
+              style={{ ...inp, width: '64px' }}
+            />
+          </label>
+          <label style={lbl}>
+            Umbral sobrecargado (platos)
+            <input
+              type="number" min="5" max="40"
+              value={configVisual.umbralSobrecarga ?? 12}
+              onChange={e => guardar({ umbralSobrecarga: Number(e.target.value) })}
+              style={{ ...inp, width: '64px' }}
+            />
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.mostrarMesas !== false}
+              onChange={e => guardar({ mostrarMesas: e.target.checked })}
+            />
+            Mostrar mesas
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.mostrarCabeceraCocinero !== false}
+              onChange={e => guardar({ mostrarCabeceraCocinero: e.target.checked })}
+            />
+            Cabecera de cocinero
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.colorPorCocinero !== false}
+              onChange={e => guardar({ colorPorCocinero: e.target.checked })}
+            />
+            Color por cocinero
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.mostrarEtiquetaPlato === true}
+              onChange={e => guardar({ mostrarEtiquetaPlato: e.target.checked })}
+            />
+            Etiqueta "Plato:"
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.mostrarIconoCocinero !== false}
+              onChange={e => guardar({ mostrarIconoCocinero: e.target.checked })}
+            />
+            Icono de cocinero
+          </label>
+        </Section>
+
         {/* Alertas y contenido */}
         <Section title="Alertas y contenido" colorAcento={colorAcento}>
           <label style={lbl}>
@@ -369,30 +514,103 @@ const MonitorConfigPanel = ({
           border: `1px solid ${colorAcento}33`,
           background: configVisual.colorFilaPlato,
           fontFamily: configVisual.fuenteFamilia,
-          display: (configVisual.layoutColumnas || 1) > 1 ? 'flex' : 'block',
-          gap: '12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
         }}
       >
-        <div style={{ flex: 1 }}>
-          <div style={{
-            fontSize: `${Math.min(configVisual.tamanioFuentePlato, 32)}px`,
+        {configVisual.mostrarCabeceraCocinero !== false && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: `${configVisual.colorAcento}22`,
+                border: `2px solid ${configVisual.colorAcento}`,
+                color: configVisual.colorAcento,
+                fontSize: '12px',
+                fontWeight: 800,
+              }}
+            >
+              JU
+            </span>
+            <span style={{ fontSize: `${Math.min(configVisual.tamanioFuenteCocinero || 28, 20)}px`, fontWeight: 800, color: configVisual.colorAcento }}>
+              Juan
+            </span>
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: `${Math.min(configVisual.tamanioFuentePlato, 28)}px`,
             fontWeight: configVisual.pesoFuentePlato || 800,
             color: configVisual.colorTextoPrincipal,
           }}>
-            Lomo Saltado <span style={{ color: configVisual.colorAcento }}>×3</span>
-          </div>
-          <div style={{ fontSize: `${Math.min(configVisual.tamanioFuenteDetalle, 16)}px`, color: configVisual.colorTextoSecundario, marginTop: '4px' }}>
-            Proteína: Pollo · 👨‍🍳 Juan
-          </div>
+            Pachamanca
+          </span>
+          <span style={{
+            color: configVisual.colorAcento,
+            fontSize: `${Math.min(configVisual.tamanioFuentePlato * 0.7, 20)}px`,
+            fontWeight: 900,
+            background: `${configVisual.colorAcento}18`,
+            padding: '0 8px',
+            borderRadius: '6px',
+          }}>
+            ×4
+          </span>
         </div>
-        <div style={{
-          fontSize: `${Math.min(configVisual.tamanioFuenteCronometro, 24)}px`,
-          fontWeight: 800,
-          color: configVisual.colorAlertaAmarilla,
-          fontVariantNumeric: 'tabular-nums',
-        }}>
-          05:42
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: `${Math.min(configVisual.tamanioFuenteCronometro * 1.15, 22)}px`, fontWeight: 900, color: configVisual.colorAcento }}>
+            ⏱(
+          </span>
+          {['18:20', '15:40', '09:10', '03:25'].map((t, i) => (
+            <span
+              key={i}
+              style={{
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: `${Math.min(configVisual.tamanioFuenteCronometro, 18)}px`,
+                fontWeight: 800,
+                fontFamily: 'ui-monospace, monospace',
+                fontVariantNumeric: 'tabular-nums',
+                color: i === 0 ? '#fff' : i < 2 ? configVisual.colorAlertaAmarilla : configVisual.colorAcento,
+                background: i === 0 ? configVisual.colorAlertaRoja : `${i < 2 ? configVisual.colorAlertaAmarilla : configVisual.colorAcento}22`,
+                border: `1px solid ${i === 0 ? configVisual.colorAlertaRoja : i < 2 ? configVisual.colorAlertaAmarilla : configVisual.colorAcento}88`,
+              }}
+            >
+              {t}
+            </span>
+          ))}
+          <span style={{ fontSize: `${Math.min(configVisual.tamanioFuenteCronometro * 1.15, 22)}px`, fontWeight: 900, color: configVisual.colorAcento }}>
+            )
+          </span>
         </div>
+        {configVisual.mostrarMesas !== false && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', color: configVisual.colorTextoSecundario, fontWeight: 600, textTransform: 'uppercase' }}>
+              Mesas
+            </span>
+            {['M12', 'M14', 'M18', 'M20'].map((m, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: configVisual.colorTextoSecundario,
+                  background: 'transparent',
+                  border: `1px solid ${configVisual.colorAcento}33`,
+                }}
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
