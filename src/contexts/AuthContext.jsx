@@ -23,6 +23,10 @@ const AUTH_STORAGE_KEY = 'cocinaAuth';
 const REMEMBERED_USER_KEY = 'cocinaRememberedUser';
 const KDS_CONFIG_KEY = 'cocinaKdsConfig';
 const VIEW_MODE_KEY = 'cocinaViewMode';
+// Clave separada para sesiones de monitor (TVs kiosko). No choca con login humano.
+const MONITOR_AUTH_STORAGE_KEY = 'cocinaMonitorAuth';
+// Token de dispositivo emparejado por TV (persiste entre reinicios).
+const MONITOR_DEVICE_TOKEN_KEY = 'cocinaMonitorDeviceToken';
 
 // Configuración de seguridad
 // v2.0: App Cocina usa sesion persistente - sin logout por inactividad
@@ -132,6 +136,9 @@ export const AuthProvider = ({ children }) => {
     const saved = localStorage.getItem(VIEW_MODE_KEY);
     return saved === 'general' || saved === 'personalizada' ? saved : 'personalizada';
   });
+  // Estado de sesion monitor (TVs kiosko). Independiente del login humano.
+  const [monitorData, setMonitorData] = useState(null);
+  const isMonitorMode = !!monitorData?.token;
   
   // Refs para timers
   const expiryCheckIntervalRef = useRef(null);
@@ -285,10 +292,35 @@ export const AuthProvider = ({ children }) => {
   // v2.0: Listener de actividad eliminado - no se tracking de inactividad
   // (eliminado el useEffect que reseteaba timers)
 
-  // Cargar sesión desde localStorage al iniciar
+  // Cargar sesión desde localStorage al iniciar (humana y/o monitor)
   useEffect(() => {
     const loadStoredAuth = () => {
       try {
+        // Sesion monitor (TVs kiosko) - se carga primero para no mostrar login
+        const storedMonitor = localStorage.getItem(MONITOR_AUTH_STORAGE_KEY);
+        if (storedMonitor) {
+          const monitorAuth = JSON.parse(storedMonitor);
+          if (monitorAuth.token) {
+            const expiryStatus = checkTokenExpiry(monitorAuth.token);
+            if (expiryStatus.isExpired) {
+              console.warn('[AuthContext] Token monitor expirado, limpiando (se re-bootstrap)');
+              localStorage.removeItem(MONITOR_AUTH_STORAGE_KEY);
+            } else {
+              setMonitorData(monitorAuth);
+              // El monitor usa los mismos campos de token/user/permisos para que
+              //.isAuthenticated funcione, pero marcando modo monitor.
+              setToken(monitorAuth.token);
+              setUser({
+                id: monitorAuth.numeroPantalla,
+                name: monitorAuth.nombre || `TV ${monitorAuth.numeroPantalla}`,
+                rol: 'cocinero'
+              });
+              setPermisos(monitorAuth.permisos || ['ver-cocina-completo']);
+              console.log('[AuthContext] Sesion monitor restaurada: TV', monitorAuth.numeroPantalla);
+            }
+          }
+        }
+
         const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
         if (storedAuth) {
           const authData = JSON.parse(storedAuth);
@@ -727,9 +759,9 @@ export const AuthProvider = ({ children }) => {
     return cocineroConfig.zonasAsignadas.filter(z => z.activo !== false);
   }, [cocineroConfig]);
 
-  // Cargar configuración KDS cuando hay usuario autenticado
+  // Cargar configuración KDS cuando hay usuario autenticado (no en modo monitor)
   useEffect(() => {
-    if (user?.id && token) {
+    if (user?.id && token && !isMonitorMode) {
       loadCocineroConfig();
     } else {
       setCocineroConfig(null);
@@ -738,7 +770,82 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem(KDS_CONFIG_KEY);
       localStorage.removeItem('cocinaZonaActiva');
     }
-  }, [user?.id, token, loadCocineroConfig]);
+  }, [user?.id, token, loadCocineroConfig, isMonitorMode]);
+
+  /**
+   * Inicia sesion monitor (TV kiosko) via device token, sin usuario/contraseña.
+   * @param {number} numeroPantalla - Numero de TV (1-8)
+   * @returns {Promise<{success: boolean, error?: string, data?: Object}>}
+   */
+  const bootstrapMonitor = useCallback(async (numeroPantalla) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const serverUrl = getServerBaseUrl();
+      // Recuperar token de dispositivo emparejado previamente
+      const deviceToken = localStorage.getItem(MONITOR_DEVICE_TOKEN_KEY);
+      if (!deviceToken) {
+        throw new Error('TV no emparejada');
+      }
+
+      const response = await axios.post(
+        `${serverUrl}/api/pantallas-cocina/${numeroPantalla}/bootstrap`,
+        { deviceToken },
+        { timeout: 10000, headers: { 'Content-Type': 'application/json' } }
+      );
+
+      const data = response.data?.data;
+      if (!data?.token) throw new Error('Respuesta inválida del servidor');
+
+      const monitorAuth = {
+        token: data.token,
+        numeroPantalla: data.numeroPantalla,
+        nombre: data.nombre,
+        modoVista: data.modoVista,
+        cocineroId: data.cocineroId || null,
+        permisos: ['ver-cocina-completo'],
+        expiresAt: data.expiresAt
+      };
+      localStorage.setItem(MONITOR_AUTH_STORAGE_KEY, JSON.stringify(monitorAuth));
+
+      setMonitorData(monitorAuth);
+      setToken(monitorAuth.token);
+      setUser({
+        id: monitorAuth.numeroPantalla,
+        name: monitorAuth.nombre || `TV ${monitorAuth.numeroPantalla}`,
+        rol: 'cocinero'
+      });
+      setPermisos(['ver-cocina-completo']);
+
+      console.log('[AuthContext] Monitor bootstrap OK: TV', numeroPantalla,
+        monitorAuth.cocineroId ? `(cocinero ${monitorAuth.cocineroId})` : '(sin cocinero)');
+      return { success: true, data: monitorAuth };
+    } catch (err) {
+      console.error('[AuthContext] Error bootstrap monitor:', err);
+      let msg = 'No se pudo conectar la TV';
+      if (err.response?.status === 401) msg = 'TV no emparejada o token inválido';
+      else if (err.response?.status === 404) msg = 'Pantalla no configurada en el admin';
+      else if (err.message === 'TV no emparejada') msg = err.message;
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Cierra sesion monitor (TV). Opcional: borrar device token emparejado.
+   */
+  const logoutMonitor = useCallback(() => {
+    localStorage.removeItem(MONITOR_AUTH_STORAGE_KEY);
+    localStorage.removeItem(MONITOR_DEVICE_TOKEN_KEY);
+    setMonitorData(null);
+    setToken(null);
+    setUser(null);
+    setPermisos([]);
+    setReglas([]);
+    console.log('[AuthContext] Sesion monitor cerrada');
+  }, []);
 
   const value = {
     user,
@@ -759,6 +866,13 @@ export const AuthProvider = ({ children }) => {
     extendSession,
     refreshToken, // v2.0: renovación silenciosa de sesión persistente
     getRememberedUser,
+    // Modo monitor (TVs kiosko)
+    isMonitorMode,
+    monitorData,
+    bootstrapMonitor,
+    logoutMonitor,
+    MONITOR_DEVICE_TOKEN_KEY,
+    MONITOR_AUTH_STORAGE_KEY,
     // Configuración del cocinero
     cocineroConfig,
     configLoading,

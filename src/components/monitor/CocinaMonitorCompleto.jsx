@@ -15,7 +15,7 @@ const STORAGE_COCINERO_KEY = 'cocinaMonitorCocineroId';
  *       Compatible con el selector de cocineros (PLAN_SELECTOR_COCINEROS).
  *       Solo lectura. No aplica filtros de Vista de Cocina.
  */
-const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false }) => {
+const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = null }) => {
   const { getToken, user } = useAuth();
   const { comandas, loading, error, refrescar } = useCocinaMonitorData({
     getToken,
@@ -23,7 +23,9 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false }) => {
   });
 
   // Filtro por cocinero del selector (null = General). Persiste en localStorage.
+  // En modo kiosk (cocineroIdFijo), se respeta el cocinero asignado y NO se toca localStorage.
   const [cocineroActivoId, setCocineroActivoId] = useState(() => {
+    if (cocineroIdFijo) return cocineroIdFijo;
     if (modoFijo) return null;
     try {
       const saved = localStorage.getItem(STORAGE_COCINERO_KEY);
@@ -37,6 +39,7 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false }) => {
   });
 
   const cambiarCocinero = (id) => {
+    if (cocineroIdFijo) return; // bloqueado en modo kiosk
     setCocineroActivoId(id);
     try { localStorage.setItem(STORAGE_COCINERO_KEY, id ?? 'general'); } catch { /* noop */ }
   };
@@ -80,14 +83,17 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false }) => {
     return 'Cocinero';
   }, [cocineroActivoId, cocineros, comandas]);
 
-  // Si el cocinero seleccionado desaparece de la lista (desactivado), volver a General
+  // Si el cocinero seleccionado desaparece de la lista (desactivado), volver a General.
+  // No aplica en modo kiosk: el cocineroIdFijo se mantiene aunque se desactive en admin
+  // (el admin debe reasignar o regenerar token si quiere cambiar el TV).
   useEffect(() => {
+    if (cocineroIdFijo) return;
     if (cocineroActivoId && !loadingCocineros && cocineros.length > 0 &&
         !cocineros.some(c => String(c._id) === String(cocineroActivoId))) {
       setCocineroActivoId(null);
       try { localStorage.setItem(STORAGE_COCINERO_KEY, 'general'); } catch { /* noop */ }
     }
-  }, [cocineroActivoId, loadingCocineros, cocineros]);
+  }, [cocineroActivoId, loadingCocineros, cocineros, cocineroIdFijo]);
 
   const configVisual = {
     tamanioFuentePlato: 36,

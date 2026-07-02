@@ -24,21 +24,69 @@ import { FaSpinner } from 'react-icons/fa';
 const AppRouter = () => {
   const [currentView, setCurrentView] = useState('LOADING');
   const [cocinaOptions, setCocinaOptions] = useState(null);
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor } = useAuth();
 
   // Determinar la vista inicial basada en el estado de autenticación
   useEffect(() => {
     if (loading) {
       setCurrentView('LOADING');
-    } else if (isAuthenticated) {
+      return;
+    }
+
+    // Modo kiosko (TV): ?modo=kiosk&pantalla=N  ->  Ver Cocina Completo filtrado fijo
+    const params = new URLSearchParams(window.location.search);
+    const modo = params.get('modo');
+    const monitorParam = params.get('pantalla') || params.get('monitor');
+
+    if (modo === 'kiosk' && monitorParam) {
+      const numeroPantalla = Number(monitorParam);
+      // Token de emparejamiento inicial (query ?setup=TOKEN) se guarda solo una vez
+      const setupToken = params.get('setup');
+      if (setupToken) {
+        localStorage.setItem('cocinaMonitorDeviceToken', setupToken);
+        // Limpiar la URL para no exponer el token en el historial del TV
+        try {
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch (e) { /* noop */ }
+      }
+
+      if (isMonitorMode && monitorData?.numeroPantalla === numeroPantalla) {
+        // Ya autenticado como monitor -> directo a Ver Cocina Completo
+        setCocinaOptions({
+          modoFijo: true,
+          modoKiosk: true,
+          numeroPantalla,
+          cocineroIdFijo: monitorData.cocineroId || null
+        });
+        setCurrentView('VER_COCINA_COMPLETO');
+      } else {
+        // Intentar bootstrap automatico con device token guardado
+        bootstrapMonitor(numeroPantalla).then((res) => {
+          if (res?.success) {
+            setCocinaOptions({
+              modoFijo: true,
+              modoKiosk: true,
+              numeroPantalla,
+              cocineroIdFijo: res.data?.cocineroId || null
+            });
+            setCurrentView('VER_COCINA_COMPLETO');
+          } else {
+            // No emparejado o token invalido -> mostrar pantalla de error
+            setCurrentView('KIOSK_ERROR');
+          }
+        });
+      }
+      return;
+    }
+
+    if (isAuthenticated) {
       // Deep link modo fijo: ?monitor=N&vistaId=X&modo=fijo
       // Permite abrir directamente Ver Cocina Personalizado en una TV
-      const params = new URLSearchParams(window.location.search);
-      const modo = params.get('modo');
+      const modoFijo = params.get('modo');
       const monitor = params.get('monitor');
       const vistaIdParam = params.get('vistaId');
 
-      if (modo === 'fijo' && monitor) {
+      if (modoFijo === 'fijo' && monitor) {
         // Modo fijo para TV - va directo al monitor personalizado
         setCocinaOptions({ modoFijo: true, monitor, vistaId: vistaIdParam });
         setCurrentView('VER_COCINA_PERSONALIZADO');
@@ -58,7 +106,7 @@ const AppRouter = () => {
     } else {
       setCurrentView('LOGIN');
     }
-  }, [isAuthenticated, loading]);
+  }, [isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor]);
 
   // Función de navegación centralizada
   const navigateTo = useCallback((view, options = null) => {
@@ -171,8 +219,28 @@ const AppRouter = () => {
         <CocinaMonitorCompleto
           onGoToMenu={goToMenu}
           modoFijo={cocinaOptions?.modoFijo || false}
+          cocineroIdFijo={cocinaOptions?.cocineroIdFijo || null}
         />
       </ProtectedRoute>
+    );
+  }
+
+  // Error de emparejamiento TV (modo kiosk sin token valido)
+  if (currentView === 'KIOSK_ERROR') {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">
+        <div className="text-center max-w-md p-8">
+          <div className="text-6xl mb-4">📺</div>
+          <h1 className="text-2xl font-bold mb-3 text-orange-400">TV no emparejada</h1>
+          <p className="text-gray-400 mb-6">
+            Esta pantalla no está configurada o su token de dispositivo es inválido.
+            Contacte al encargado para emparejarla desde el panel de administración.
+          </p>
+          <p className="text-sm text-gray-600">
+            Reintentar: recargue esta página después de que el encargado genere un nuevo token.
+          </p>
+        </div>
+      </div>
     );
   }
 
