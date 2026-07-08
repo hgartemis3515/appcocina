@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
+import { escalaDetalle, MONITOR_TIPOGRAFIA } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
 
@@ -49,6 +50,7 @@ const CocineroPlatoCard = ({
   const tamanioFuenteDetalle = configVisual.tamanioFuenteDetalle || 18;
   const tamanioFuenteCocinero = configVisual.tamanioFuenteCocinero || 24;
   const tamanioFuenteCronometro = configVisual.tamanioFuenteCronometro || 28;
+  const pesoFuentePlato = configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT;
   const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#b8a8c8';
   const espaciado = configVisual.espaciadoFilas || 'normal';
@@ -104,7 +106,10 @@ const CocineroPlatoCard = ({
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
   const hayParaLlevar = platos.some(p => p.comanda.tipoServicio === 'para_llevar');
 
-  // Estilos base
+  const fsUrgente = escalaDetalle(tamanioFuenteDetalle, 0.85);
+  const fsAtencion = escalaDetalle(tamanioFuenteDetalle, 0.75);
+  const fsEtiquetaMesa = escalaDetalle(tamanioFuenteDetalle, 0.65);
+  const fsIniciales = escalaDetalle(tamanioFuenteDetalle, 0.65);
   const paddingY = espaciado === 'compacto' ? '12px' : espaciado === 'amplio' ? '22px' : '16px';
   const paddingX = espaciado === 'compacto' ? '14px' : '18px';
 
@@ -159,7 +164,7 @@ const CocineroPlatoCard = ({
                   background: `${colorCocinero}22`,
                   border: `2px solid ${colorCocinero}`,
                   color: colorCocinero,
-                  fontSize: '13px',
+                  fontSize: `${fsIniciales}px`,
                   fontWeight: 800,
                   flexShrink: 0,
                 }}
@@ -192,7 +197,7 @@ const CocineroPlatoCard = ({
         <div
           style={{
             fontSize: `${tamanioFuentePlato}px`,
-            fontWeight: 900,
+            fontWeight: pesoFuentePlato,
             lineHeight: 1.05,
             color: colorTextoPrincipal,
             textShadow: '0 2px 8px rgba(0,0,0,0.45)',
@@ -251,7 +256,7 @@ const CocineroPlatoCard = ({
               gap: '4px',
               padding: '5px 14px',
               borderRadius: '8px',
-              fontSize: '16px',
+              fontSize: `${fsUrgente}px`,
               fontWeight: 900,
               color: '#fff',
               background: colorAlertaRoja,
@@ -271,7 +276,7 @@ const CocineroPlatoCard = ({
             style={{
               padding: '4px 12px',
               borderRadius: '8px',
-              fontSize: '14px',
+              fontSize: `${fsAtencion}px`,
               fontWeight: 800,
               color: '#1a0f1f',
               background: colorAlertaAmarilla,
@@ -286,7 +291,7 @@ const CocineroPlatoCard = ({
             style={{
               padding: '4px 10px',
               borderRadius: '8px',
-              fontSize: '13px',
+              fontSize: `${fsAtencion}px`,
               fontWeight: 700,
               color: colorAcento,
               background: `${colorAcento}1f`,
@@ -298,7 +303,7 @@ const CocineroPlatoCard = ({
         )}
         {configVisual.mostrarMesas !== false && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', color: colorTextoSecundario, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <span style={{ fontSize: `${fsEtiquetaMesa}px`, color: colorTextoSecundario, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {timers.length > 1 ? 'Mesas:' : 'Mesa:'}
             </span>
             <MesaChips timers={timers} configVisual={{ ...configVisual, colorTextoSecundario, colorAcento }} />

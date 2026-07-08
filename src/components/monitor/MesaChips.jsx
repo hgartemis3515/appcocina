@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { escalaDetalle } from '../../config/monitorVisualConstants';
 
 /**
  * MesaChips - Muestra las mesas de un plato como chips compactos.
@@ -11,13 +12,15 @@ import React, { useState } from 'react';
  *
  * Props:
  * - timers: [{ mesa, comandaNumero, ... }] (usa timer.mesa)
- * - configVisual: { colorAcento, colorTextoSecundario }
+ * - configVisual: { colorAcento, colorTextoSecundario, tamanioFuenteDetalle }
  */
 const MesaChips = ({ timers = [], configVisual = {} }) => {
   const [mostrarTodas, setMostrarTodas] = useState(false);
 
   const colorAcento = configVisual.colorAcento || '#d4af37';
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#9ca3af';
+  const fsChip = escalaDetalle(configVisual.tamanioFuenteDetalle, 0.65);
+  const fsBadge = escalaDetalle(configVisual.tamanioFuenteDetalle, 0.55);
   const maxVisibles = 5;
 
   // Construir mapa mesa -> count (preserva orden de aparición)
@@ -42,7 +45,7 @@ const MesaChips = ({ timers = [], configVisual = {} }) => {
         style={{
           padding: '2px 8px',
           borderRadius: '6px',
-          fontSize: '13px',
+          fontSize: `${fsChip}px`,
           fontWeight: 600,
           color: colorTextoSecundario,
           background: 'rgba(120,120,120,0.15)',
@@ -57,7 +60,7 @@ const MesaChips = ({ timers = [], configVisual = {} }) => {
   const chipStyle = (repetida) => ({
     padding: '2px 8px',
     borderRadius: '6px',
-    fontSize: '13px',
+    fontSize: `${fsChip}px`,
     fontWeight: 600,
     color: repetida ? colorAcento : colorTextoSecundario,
     background: repetida ? `${colorAcento}14` : 'transparent',
@@ -74,7 +77,7 @@ const MesaChips = ({ timers = [], configVisual = {} }) => {
       {count > 1 && (
         <span
           style={{
-            fontSize: '11px',
+            fontSize: `${fsBadge}px`,
             fontWeight: 800,
             color: colorAcento,
             background: `${colorAcento}22`,
@@ -107,7 +110,7 @@ const MesaChips = ({ timers = [], configVisual = {} }) => {
           style={{
             padding: '2px 8px',
             borderRadius: '6px',
-            fontSize: '13px',
+            fontSize: `${fsChip}px`,
             fontWeight: 600,
             color: colorTextoSecundario,
             background: `${colorAcento}0a`,

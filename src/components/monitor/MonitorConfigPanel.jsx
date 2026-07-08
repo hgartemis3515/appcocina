@@ -1,4 +1,9 @@
 import React from 'react';
+import {
+  MONITOR_LAYOUT,
+  MONITOR_TIPOGRAFIA,
+  clampColumnas,
+} from '../../config/monitorVisualConstants';
 
 const FUENTES_DISPONIBLES = [
   { id: 'inter', label: 'Inter (default)', value: 'Inter, system-ui, sans-serif' },
@@ -86,33 +91,47 @@ const MonitorConfigPanel = ({
 }) => {
   const guardar = (patch) => onChange({ ...localDesign, ...patch });
 
-  const ajustarTamanio = (campo, delta) => {
+  const ajustarTamanio = (campo, delta, min, max) => {
     const actual = configVisual[campo] || 20;
-    const nuevo = Math.min(96, Math.max(10, actual + delta));
+    const nuevo = Math.min(max, Math.max(min, actual + delta));
     guardar({ [campo]: nuevo });
   };
 
   const ajustarTodosTamanios = (delta) => {
     guardar({
-      tamanioFuentePlato: Math.min(96, Math.max(14, (configVisual.tamanioFuentePlato || 36) + delta)),
-      tamanioFuenteDetalle: Math.min(48, Math.max(10, (configVisual.tamanioFuenteDetalle || 20) + delta)),
-      tamanioFuenteCronometro: Math.min(80, Math.max(12, (configVisual.tamanioFuenteCronometro || 28) + delta)),
+      tamanioFuentePlato: Math.min(
+        MONITOR_TIPOGRAFIA.PLATO_MAX,
+        Math.max(MONITOR_TIPOGRAFIA.PLATO_MIN, (configVisual.tamanioFuentePlato || 36) + delta)
+      ),
+      tamanioFuenteDetalle: Math.min(
+        MONITOR_TIPOGRAFIA.DETALLE_MAX,
+        Math.max(MONITOR_TIPOGRAFIA.DETALLE_MIN, (configVisual.tamanioFuenteDetalle || 20) + delta)
+      ),
+      tamanioFuenteCronometro: Math.min(
+        MONITOR_TIPOGRAFIA.CRONO_MAX,
+        Math.max(MONITOR_TIPOGRAFIA.CRONO_MIN, (configVisual.tamanioFuenteCronometro || 28) + delta)
+      ),
     });
   };
 
-  const fuenteActual = FUENTES_DISPONIBLES.find(f => f.value === configVisual.fuenteFamilia)?.id
-    || (configVisual.fuenteFamilia?.includes('Arial') ? 'arial' : 'inter');
+  const presetFuente = FUENTES_DISPONIBLES.find(f => f.value === configVisual.fuenteFamilia);
+  const fuenteActual = presetFuente?.id
+    || (localDesign.fuenteFamiliaCustom ? 'custom' : 'inter');
+
+  const columnasActuales = clampColumnas(configVisual.layoutColumnas || 1);
+
+  const setColumnas = (n) => guardar({ layoutColumnas: clampColumnas(n) });
 
   const inp = inputStyle(colorFondo, colorTextoPrincipal, colorAcento);
   const lbl = labelStyle(colorTextoSecundario);
 
   const layoutBtn = (cols, label) => {
-    const activo = (configVisual.layoutColumnas || 1) === cols;
+    const activo = columnasActuales === cols;
     return (
       <button
         key={cols}
         type="button"
-        onClick={() => guardar({ layoutColumnas: cols })}
+        onClick={() => setColumnas(cols)}
         title={label}
         style={{
           padding: '8px 14px',
@@ -131,7 +150,7 @@ const MonitorConfigPanel = ({
         }}
       >
         <span style={{ fontSize: '18px', letterSpacing: cols === 1 ? 0 : '2px' }}>
-          {cols === 1 ? '▬' : cols === 2 ? '▬▬' : cols === 3 ? '▬▬▬' : '▬▬▬▬'}
+          {cols === 1 ? '▬' : '▬'.repeat(Math.min(cols, 4))}
         </span>
         {label}
       </button>
@@ -143,12 +162,44 @@ const MonitorConfigPanel = ({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px 32px' }}>
         {/* Diseño de lista */}
         <Section title="Diseño de lista" colorAcento={colorAcento}>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             {layoutBtn(1, '1 columna')}
             {layoutBtn(2, '2 columnas')}
             {layoutBtn(3, '3 columnas')}
             {layoutBtn(4, '4 columnas')}
+            <label style={{ ...lbl, minWidth: '140px' }}>
+              Columnas (1–{MONITOR_LAYOUT.COLUMNAS_MAX})
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <BtnStep
+                  onClick={() => setColumnas(columnasActuales - 1)}
+                  colorAcento={colorAcento}
+                  colorTexto={colorTextoPrincipal}
+                >
+                  −
+                </BtnStep>
+                <input
+                  type="number"
+                  min={MONITOR_LAYOUT.COLUMNAS_MIN}
+                  max={MONITOR_LAYOUT.COLUMNAS_MAX}
+                  value={columnasActuales}
+                  onChange={e => setColumnas(e.target.value)}
+                  style={{ ...inp, width: '56px', textAlign: 'center' }}
+                />
+                <BtnStep
+                  onClick={() => setColumnas(columnasActuales + 1)}
+                  colorAcento={colorAcento}
+                  colorTexto={colorTextoPrincipal}
+                >
+                  +
+                </BtnStep>
+              </div>
+            </label>
           </div>
+          {columnasActuales > 1 && (
+            <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
+              Con 2+ columnas se muestran tarjetas en cuadrícula (no bloques por cocinero).
+            </p>
+          )}
           <label style={lbl}>
             Espaciado entre filas
             <select
@@ -161,7 +212,7 @@ const MonitorConfigPanel = ({
               <option value="amplio">Amplio</option>
             </select>
           </label>
-          {(configVisual.layoutColumnas || 1) > 1 && (
+          {(columnasActuales > 1) && (
             <label style={lbl}>
               Disposición en tarjeta
               <select
@@ -183,11 +234,18 @@ const MonitorConfigPanel = ({
             <select
               value={fuenteActual}
               onChange={e => {
+                if (e.target.value === 'custom') return;
                 const f = FUENTES_DISPONIBLES.find(x => x.id === e.target.value);
-                if (f) guardar({ fuenteFamilia: f.value });
+                if (f) {
+                  const { fuenteFamiliaCustom, ...rest } = localDesign;
+                  onChange({ ...rest, fuenteFamilia: f.value });
+                }
               }}
               style={{ ...inp, minWidth: '180px', fontFamily: configVisual.fuenteFamilia }}
             >
+              {fuenteActual === 'custom' && (
+                <option value="custom">Personalizada</option>
+              )}
               {FUENTES_DISPONIBLES.map(f => (
                 <option key={f.id} value={f.id} style={{ fontFamily: f.value }}>{f.label}</option>
               ))}
@@ -198,14 +256,14 @@ const MonitorConfigPanel = ({
             <input
               type="text"
               placeholder="Ej: Arial, sans-serif"
-              value={localDesign.fuenteFamiliaCustom || ''}
+              value={localDesign.fuenteFamiliaCustom ?? (presetFuente ? '' : (configVisual.fuenteFamilia || ''))}
               onChange={e => {
                 const custom = e.target.value;
                 if (custom.trim()) {
                   guardar({ fuenteFamiliaCustom: custom, fuenteFamilia: custom });
                 } else {
                   const { fuenteFamiliaCustom, ...rest } = localDesign;
-                  const f = FUENTES_DISPONIBLES.find(x => x.id === fuenteActual);
+                  const f = FUENTES_DISPONIBLES.find(x => x.id === 'inter');
                   onChange({ ...rest, fuenteFamilia: f?.value || FUENTES_DISPONIBLES[0].value });
                 }
               }}
@@ -220,40 +278,79 @@ const MonitorConfigPanel = ({
           <label style={lbl}>
             Nombre plato (px)
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <BtnStep onClick={() => ajustarTamanio('tamanioFuentePlato', -2)} colorAcento={colorAcento} colorTexto={colorTextoPrincipal}>−</BtnStep>
+              <BtnStep
+                onClick={() => ajustarTamanio('tamanioFuentePlato', -2, MONITOR_TIPOGRAFIA.PLATO_MIN, MONITOR_TIPOGRAFIA.PLATO_MAX)}
+                colorAcento={colorAcento} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
               <input
-                type="number" min="14" max="96"
+                type="number"
+                min={MONITOR_TIPOGRAFIA.PLATO_MIN}
+                max={MONITOR_TIPOGRAFIA.PLATO_MAX}
                 value={configVisual.tamanioFuentePlato}
-                onChange={e => guardar({ tamanioFuentePlato: Number(e.target.value) })}
+                onChange={e => guardar({
+                  tamanioFuentePlato: Math.min(
+                    MONITOR_TIPOGRAFIA.PLATO_MAX,
+                    Math.max(MONITOR_TIPOGRAFIA.PLATO_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.PLATO_MIN)
+                  ),
+                })}
                 style={{ ...inp, width: '64px', textAlign: 'center' }}
               />
-              <BtnStep onClick={() => ajustarTamanio('tamanioFuentePlato', 2)} colorAcento={colorAcento} colorTexto={colorTextoPrincipal}>+</BtnStep>
+              <BtnStep
+                onClick={() => ajustarTamanio('tamanioFuentePlato', 2, MONITOR_TIPOGRAFIA.PLATO_MIN, MONITOR_TIPOGRAFIA.PLATO_MAX)}
+                colorAcento={colorAcento} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
             </div>
           </label>
           <label style={lbl}>
             Detalle (px)
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <BtnStep onClick={() => ajustarTamanio('tamanioFuenteDetalle', -1)} colorAcento={colorAcento} colorTexto={colorTextoPrincipal}>−</BtnStep>
+              <BtnStep
+                onClick={() => ajustarTamanio('tamanioFuenteDetalle', -1, MONITOR_TIPOGRAFIA.DETALLE_MIN, MONITOR_TIPOGRAFIA.DETALLE_MAX)}
+                colorAcento={colorAcento} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
               <input
-                type="number" min="10" max="48"
+                type="number"
+                min={MONITOR_TIPOGRAFIA.DETALLE_MIN}
+                max={MONITOR_TIPOGRAFIA.DETALLE_MAX}
                 value={configVisual.tamanioFuenteDetalle}
-                onChange={e => guardar({ tamanioFuenteDetalle: Number(e.target.value) })}
+                onChange={e => guardar({
+                  tamanioFuenteDetalle: Math.min(
+                    MONITOR_TIPOGRAFIA.DETALLE_MAX,
+                    Math.max(MONITOR_TIPOGRAFIA.DETALLE_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.DETALLE_MIN)
+                  ),
+                })}
                 style={{ ...inp, width: '64px', textAlign: 'center' }}
               />
-              <BtnStep onClick={() => ajustarTamanio('tamanioFuenteDetalle', 1)} colorAcento={colorAcento} colorTexto={colorTextoPrincipal}>+</BtnStep>
+              <BtnStep
+                onClick={() => ajustarTamanio('tamanioFuenteDetalle', 1, MONITOR_TIPOGRAFIA.DETALLE_MIN, MONITOR_TIPOGRAFIA.DETALLE_MAX)}
+                colorAcento={colorAcento} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
             </div>
           </label>
           <label style={lbl}>
             Cronómetro (px)
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <BtnStep onClick={() => ajustarTamanio('tamanioFuenteCronometro', -2)} colorAcento={colorAcento} colorTexto={colorTextoPrincipal}>−</BtnStep>
+              <BtnStep
+                onClick={() => ajustarTamanio('tamanioFuenteCronometro', -2, MONITOR_TIPOGRAFIA.CRONO_MIN, MONITOR_TIPOGRAFIA.CRONO_MAX)}
+                colorAcento={colorAcento} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
               <input
-                type="number" min="12" max="80"
+                type="number"
+                min={MONITOR_TIPOGRAFIA.CRONO_MIN}
+                max={MONITOR_TIPOGRAFIA.CRONO_MAX}
                 value={configVisual.tamanioFuenteCronometro}
-                onChange={e => guardar({ tamanioFuenteCronometro: Number(e.target.value) })}
+                onChange={e => guardar({
+                  tamanioFuenteCronometro: Math.min(
+                    MONITOR_TIPOGRAFIA.CRONO_MAX,
+                    Math.max(MONITOR_TIPOGRAFIA.CRONO_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.CRONO_MIN)
+                  ),
+                })}
                 style={{ ...inp, width: '64px', textAlign: 'center' }}
               />
-              <BtnStep onClick={() => ajustarTamanio('tamanioFuenteCronometro', 2)} colorAcento={colorAcento} colorTexto={colorTextoPrincipal}>+</BtnStep>
+              <BtnStep
+                onClick={() => ajustarTamanio('tamanioFuenteCronometro', 2, MONITOR_TIPOGRAFIA.CRONO_MIN, MONITOR_TIPOGRAFIA.CRONO_MAX)}
+                colorAcento={colorAcento} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
             </div>
           </label>
           <label style={lbl}>
@@ -365,17 +462,34 @@ const MonitorConfigPanel = ({
             Tamaño fuente cocinero (px)
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <BtnStep
-                onClick={() => guardar({ tamanioFuenteCocinero: Math.max(18, (configVisual.tamanioFuenteCocinero || 28) - 2) })}
+                onClick={() => guardar({
+                tamanioFuenteCocinero: Math.max(
+                  MONITOR_TIPOGRAFIA.COCINERO_MIN,
+                  (configVisual.tamanioFuenteCocinero || 28) - 2
+                ),
+              })}
                 colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
               >−</BtnStep>
               <input
-                type="number" min="18" max="40"
+                type="number"
+                min={MONITOR_TIPOGRAFIA.COCINERO_MIN}
+                max={MONITOR_TIPOGRAFIA.COCINERO_MAX}
                 value={configVisual.tamanioFuenteCocinero ?? 28}
-                onChange={e => guardar({ tamanioFuenteCocinero: Number(e.target.value) })}
+                onChange={e => guardar({
+                  tamanioFuenteCocinero: Math.min(
+                    MONITOR_TIPOGRAFIA.COCINERO_MAX,
+                    Math.max(MONITOR_TIPOGRAFIA.COCINERO_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.COCINERO_MIN)
+                  ),
+                })}
                 style={{ ...inp, width: '64px', textAlign: 'center' }}
               />
               <BtnStep
-                onClick={() => guardar({ tamanioFuenteCocinero: Math.min(40, (configVisual.tamanioFuenteCocinero || 28) + 2) })}
+                onClick={() => guardar({
+                tamanioFuenteCocinero: Math.min(
+                  MONITOR_TIPOGRAFIA.COCINERO_MAX,
+                  (configVisual.tamanioFuenteCocinero || 28) + 2
+                ),
+              })}
                 colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
               >+</BtnStep>
             </div>
@@ -546,7 +660,7 @@ const MonitorConfigPanel = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span style={{
             fontSize: `${Math.min(configVisual.tamanioFuentePlato, 28)}px`,
-            fontWeight: configVisual.pesoFuentePlato || 800,
+            fontWeight: configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT,
             color: configVisual.colorTextoPrincipal,
           }}>
             Pachamanca

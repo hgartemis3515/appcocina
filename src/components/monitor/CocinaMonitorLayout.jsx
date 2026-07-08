@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import moment from 'moment-timezone';
+import { clampColumnas } from '../../config/monitorVisualConstants';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
 import CocineroBlockHeader from './CocineroBlockHeader';
@@ -238,7 +239,7 @@ const CocinaMonitorLayout = ({
 
   const icono = configVisual.icono || '🍳';
   const iconoEmoji = ICONO_MAP[icono] || icono || '🍳';
-  const layoutColumnas = Math.min(4, Math.max(1, configVisual.layoutColumnas || 1));
+  const layoutColumnas = clampColumnas(configVisual.layoutColumnas || 1);
   const esGrid = layoutColumnas > 1;
   const gapGrid = configVisual.espaciadoFilas === 'compacto' ? '8px' : configVisual.espaciadoFilas === 'amplio' ? '20px' : '12px';
 
@@ -251,7 +252,7 @@ const CocinaMonitorLayout = ({
   // - tarjetas independientes si multi-columna O config.modoAgrupacion === 'tarjetas'
   // - bloques por cocinero en columna única (default)
   const modoBloques = modoCocineros
-    && !esGrid
+    && layoutColumnas === 1
     && (configVisual.modoAgrupacion || 'bloques') === 'bloques'
     && configVisual.mostrarCabeceraCocinero !== false;
 

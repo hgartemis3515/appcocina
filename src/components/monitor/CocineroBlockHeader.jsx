@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
+import { escalaDetalle } from '../../config/monitorVisualConstants';
 
 /**
  * CocineroBlockHeader - Cabecera de bloque de cocinero para el modo "bloques".
@@ -47,6 +48,10 @@ const CocineroBlockHeader = ({
   const rojoMin = configVisual.tiempoRojo ?? 20;
   const umbralCargaAlta = configVisual.umbralCargaAlta ?? 8;
   const umbralSobrecarga = configVisual.umbralSobrecarga ?? 12;
+  const fsLabel = escalaDetalle(tamanioFuenteDetalle, 0.6);
+  const fsStat = escalaDetalle(tamanioFuenteCocinero, 0.85);
+  const fsBadge = escalaDetalle(tamanioFuenteDetalle, 0.75);
+  const fsIniciales = escalaDetalle(tamanioFuenteCocinero, 0.7);
 
   // Determinar alerta máxima y timer más antiguo del cocinero
   let alertaMaxima = 'normal';
@@ -126,7 +131,7 @@ const CocineroBlockHeader = ({
             background: `${colorCocinero}22`,
             border: `3px solid ${colorCocinero}`,
             color: colorCocinero,
-            fontSize: '20px',
+            fontSize: `${fsIniciales}px`,
             fontWeight: 800,
             flexShrink: 0,
           }}
@@ -160,18 +165,18 @@ const CocineroBlockHeader = ({
       {/* Estadísticas compactas */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '12px', color: colorTextoSecundario, textTransform: 'uppercase' }}>Platos</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: colorCocinero }}>
+          <div style={{ fontSize: `${fsLabel}px`, color: colorTextoSecundario, textTransform: 'uppercase' }}>Platos</div>
+          <div style={{ fontSize: `${fsStat}px`, fontWeight: 800, color: colorCocinero }}>
             {totalPlatos}
           </div>
         </div>
 
         {timerMasAntiguo && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '12px', color: colorTextoSecundario, textTransform: 'uppercase' }}>Más antiguo</div>
+            <div style={{ fontSize: `${fsLabel}px`, color: colorTextoSecundario, textTransform: 'uppercase' }}>Más antiguo</div>
             <div
               style={{
-                fontSize: '24px',
+                fontSize: `${fsStat}px`,
                 fontWeight: 800,
                 color: colorAlerta,
                 fontVariantNumeric: 'tabular-nums',
@@ -189,7 +194,7 @@ const CocineroBlockHeader = ({
             style={{
               padding: '4px 12px',
               borderRadius: '8px',
-              fontSize: '15px',
+              fontSize: `${fsBadge}px`,
               fontWeight: 800,
               color: '#fff',
               background: colorAlertaRoja,
@@ -205,7 +210,7 @@ const CocineroBlockHeader = ({
             style={{
               padding: '4px 12px',
               borderRadius: '8px',
-              fontSize: '15px',
+              fontSize: `${fsBadge}px`,
               fontWeight: 700,
               color: estadoCarga.color,
               background: `${estadoCarga.color}22`,
