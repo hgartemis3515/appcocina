@@ -55,6 +55,12 @@ export default function useTablaAprobacion() {
   const [connectionStatus, setConnectionStatus] = useState('desconectado');
   const [authError, setAuthError] = useState(null);
   const socketRef = useRef(null);
+  const approvingRef = useRef(new Set());
+
+  const isAlreadyApprovedError = (err) => {
+    const backendMsg = String(err?.response?.data?.message || '').toLowerCase();
+    return err?.response?.status === 400 && backendMsg.includes('ya fue aprobado');
+  };
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -248,6 +254,12 @@ export default function useTablaAprobacion() {
 
   // Aprobar item (comanda o PPA)
   const aprobarItem = useCallback(async (ticketId, tipo, usuarioId, usuarioNombre) => {
+    const id = String(ticketId);
+    if (approvingRef.current.has(id)) {
+      return { success: true, skipped: true };
+    }
+
+    approvingRef.current.add(id);
     try {
       const data = await apiPut(`/api/aprobacion/${ticketId}/aprobar`, {
         tipo: tipo || 'COMANDA',
@@ -255,13 +267,19 @@ export default function useTablaAprobacion() {
         usuarioNombre,
       });
       if (data?.success) {
-        setItems(prev => prev.filter(t => t._id !== ticketId));
+        setItems(prev => prev.filter(t => String(t._id) !== id));
         return data;
       }
       throw new Error(data?.error || data?.message || 'Error al aprobar');
     } catch (err) {
+      if (isAlreadyApprovedError(err)) {
+        setItems(prev => prev.filter(t => String(t._id) !== id));
+        return { success: true, alreadyApproved: true };
+      }
       console.error('Error al aprobar item:', err.message);
       throw err;
+    } finally {
+      approvingRef.current.delete(id);
     }
   }, []);
 

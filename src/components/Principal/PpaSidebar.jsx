@@ -43,12 +43,14 @@ export default function PpaSidebar({ socket, onClose }) {
 
   const handleAprobar = async (ticket) => {
     const ticketId = ticket._id;
+    if (aprobarLoading[ticketId]) return;
     setAprobarLoading(prev => ({ ...prev, [ticketId]: true }));
     try {
       const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
       const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
       const ticketTipo = ticket.tipo === 'pago_adelantado' ? 'ADELANTADO' : 'COMANDA';
-      await aprobarItem(ticketId, ticketTipo, userId, userName);
+      const result = await aprobarItem(ticketId, ticketTipo, userId, userName);
+      if (result?.alreadyApproved || result?.skipped) return;
     } catch (err) {
       console.error('Error al aprobar:', err);
       alert('Error al aprobar el ticket: ' + (err.userMessage || err.message));

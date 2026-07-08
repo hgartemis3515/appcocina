@@ -110,10 +110,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [filtroMozo, setFiltroMozo] = useState(null);
 
   const handleAprobar = async (ticket) => {
+    if (aprobarLoading[ticket._id]) return;
     setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
     try {
       const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.tipo === 'ADELANTADO') ? 'ADELANTADO' : 'COMANDA';
-      await aprobarItem(ticket._id, ticketTipo, user?._id || user?.id, user?.name || 'Cocina');
+      const result = await aprobarItem(ticket._id, ticketTipo, user?._id || user?.id, user?.name || 'Cocina');
+      if (result?.alreadyApproved || result?.skipped) return;
     } catch (err) {
       alert('Error al aprobar: ' + (err.userMessage || err.message));
     } finally {
