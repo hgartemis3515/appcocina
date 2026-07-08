@@ -492,7 +492,9 @@ export const AuthProvider = ({ children }) => {
           errorMessage = 'Error al procesar la solicitud';
         }
       } else if (err.request) {
-        errorMessage = 'No se pudo conectar al servidor. Verifique la conexión.';
+        const serverUrl = getServerBaseUrl();
+        errorMessage = `No se pudo conectar al servidor (${serverUrl}). Verifique que el backend esté encendido y que la IP sea correcta.`;
+        console.warn('[AuthContext] Servidor configurado:', serverUrl, '- Si la IP es incorrecta, borre localStorage: localStorage.removeItem("kdsConfig")');
       }
 
       setError(errorMessage);
