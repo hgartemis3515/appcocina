@@ -32,7 +32,10 @@ const labelPagoTicket = (ticket) => {
 };
 
 export default function PpaSidebar({ socket, onClose }) {
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
+  // PLAN_BUG_CONEXION_APROBACION_TICKETS_COCINA:
+  // Reutilizar el socket del KDS (vía prop) para evitar una SEGUNDA conexión
+  // /cocina simultánea que provocaba desconexiones y tormenta de eventos.
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({ socket });
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});

@@ -17,6 +17,13 @@
  *   ticket-reportado         → actualizar lista
  *   ticket-ppa-nuevo         → refrescar PPA
  *   ticket-ppa-actualizado   → actualizar PPA
+ *
+ * PLAN_BUG_CONEXION_APROBACION_TICKETS_COCINA:
+ * El hook ahora admite un `socket` externo (ej. el de useSocketCocina cuando el KDS
+ * está abierto) para EVITAR abrir una segunda conexión /cocina. Si no se provee,
+ * crea su propio socket (caso TicketsPpaPage standalone).
+ * Además se aplica debounce a fetchItems para evitar la tormenta de peticiones HTTP
+ * cuando llegan varios eventos de socket en ráfaga.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import moment from 'moment-timezone';
@@ -26,6 +33,8 @@ import { io } from 'socket.io-client';
 import { imprimirComandaDesdeTicket } from '../utils/comandaPrint/comandaPrintWeb';
 
 const TICKETS_REFRESH_INTERVAL = 30000;
+const TICKETS_FAST_POLLING_INTERVAL = 10000; // cuando socket cae, refrescar más seguido
+const FETCH_DEBOUNCE_MS = 400;
 const ZONA = 'America/Lima';
 
 /** Fecha operativa del restaurante (misma lógica que KDS y backend). */
@@ -47,7 +56,12 @@ const normalizeTicket = (ticket) => {
   return ticket;
 };
 
-export default function useTablaAprobacion() {
+/**
+ * @param {Object} [options]
+ * @param {import('socket.io-client').Socket} [options.socket] Socket /cocina externo.
+ *        Si se provee, se reutiliza y NO se crea una segunda conexión (evita duplicados).
+ */
+export default function useTablaAprobacion({ socket: externalSocket } = {}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -55,7 +69,11 @@ export default function useTablaAprobacion() {
   const [connectionStatus, setConnectionStatus] = useState('desconectado');
   const [authError, setAuthError] = useState(null);
   const socketRef = useRef(null);
+  const ownsSocketRef = useRef(true); // true si el hook creó el socket y debe destruirlo
   const approvingRef = useRef(new Set());
+  const fetchDebounceRef = useRef(null);
+  const lastFetchAtRef = useRef(0);
+  const pollingAdjustRef = useRef(null);
 
   const isAlreadyApprovedError = (err) => {
     const backendMsg = String(err?.response?.data?.message || '').toLowerCase();
@@ -64,6 +82,7 @@ export default function useTablaAprobacion() {
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
+    lastFetchAtRef.current = Date.now();
     try {
       // Fetch aprobación tickets pendientes (comandas + adelantados unificados)
       const fechaHoy = getFechaOperativa();
@@ -127,56 +146,73 @@ export default function useTablaAprobacion() {
     }
   }, []);
 
-  // Initial load + polling
-  useEffect(() => {
-    fetchItems();
-    const interval = setInterval(fetchItems, TICKETS_REFRESH_INTERVAL);
-    return () => clearInterval(interval);
+  /**
+   * fetchItems con debounce: agrupa múltiples disparos de socket en una sola petición.
+   * Si la última petición fue hace menos de FETCH_DEBOUNCE_MS, reprograma.
+   */
+  const fetchItemsDebounced = useCallback(() => {
+    if (fetchDebounceRef.current) {
+      clearTimeout(fetchDebounceRef.current);
+    }
+    fetchDebounceRef.current = setTimeout(() => {
+      fetchDebounceRef.current = null;
+      fetchItems();
+    }, FETCH_DEBOUNCE_MS);
   }, [fetchItems]);
 
-  // Socket.io connection for real-time updates
+  // Limpieza del debounce al desmontar
   useEffect(() => {
-    const getStoredToken = () => {
-      try {
-        const storedAuth = localStorage.getItem('cocinaAuth');
-        if (storedAuth) {
-          const authData = JSON.parse(storedAuth);
-          return authData.token || null;
-        }
-      } catch (e) {
-        console.warn('[TablaAprobacion] Error parsing auth token:', e);
+    return () => {
+      if (fetchDebounceRef.current) {
+        clearTimeout(fetchDebounceRef.current);
+        fetchDebounceRef.current = null;
       }
-      return null;
+    };
+  }, []);
+
+  // Initial load + polling. El intervalo depende del estado de conexión:
+  // si el socket está caído, refresca más rápido (fallback).
+  useEffect(() => {
+    fetchItems();
+    let intervalId = setInterval(fetchItems, TICKETS_REFRESH_INTERVAL);
+
+    // Reaccionar al estado de conexión para ajustar el polling
+    const adjustPolling = (conectado) => {
+      clearInterval(intervalId);
+      const intervalMs = conectado ? TICKETS_REFRESH_INTERVAL : TICKETS_FAST_POLLING_INTERVAL;
+      intervalId = setInterval(fetchItems, intervalMs);
     };
 
-    const authToken = getStoredToken();
-    if (!authToken) return;
+    // Exponer para que el effect de socket lo use (bind directo)
+    pollingAdjustRef.current = adjustPolling;
 
-    const serverUrl = getServerBaseUrl();
-    const newSocket = io(`${serverUrl}/cocina`, {
-      auth: { token: authToken },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-    });
+    return () => clearInterval(intervalId);
+  }, [fetchItems]);
 
-    newSocket.on('connect', () => {
+  // ---------------------------------------------------------------------------
+  // Socket setup: usa externalSocket si se proveyó; si no, crea el propio.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let activeSocket = null;
+
+    const handleConnect = () => {
       console.log('[TablaAprobacion] Socket conectado');
       setSocketConnected(true);
       setConnectionStatus('conectado');
       setAuthError(null);
       const fechaHoy = getFechaOperativa();
-      newSocket.emit('join-fecha', fechaHoy);
-    });
+      activeSocket.emit('join-fecha', fechaHoy);
+      if (pollingAdjustRef.current) pollingAdjustRef.current(true);
+    };
 
-    newSocket.on('disconnect', () => {
+    const handleDisconnect = () => {
       console.log('[TablaAprobacion] Socket desconectado');
       setSocketConnected(false);
       setConnectionStatus('desconectado');
-    });
+      if (pollingAdjustRef.current) pollingAdjustRef.current(false);
+    };
 
-    newSocket.on('connect_error', (err) => {
+    const handleConnectError = (err) => {
       const msg = String(err?.message || '').toLowerCase();
       console.warn('[TablaAprobacion] Socket error:', err?.message);
       setSocketConnected(false);
@@ -186,71 +222,159 @@ export default function useTablaAprobacion() {
       } else {
         setConnectionStatus('desconectado');
       }
-    });
+      if (pollingAdjustRef.current) pollingAdjustRef.current(false);
+    };
 
-    // Aprobación events
-    newSocket.on('ticket-aprobacion-nuevo', () => {
+    // Handlers de eventos — todos usan fetchItemsDebounced para evitar ráfagas
+    const handleNuevoTicket = () => {
       console.log('[TablaAprobacion] Nuevo ticket de aprobación');
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    newSocket.on('comanda-aprobada', (data) => {
+    const handleComandaAprobada = (data) => {
       console.log('[TablaAprobacion] Comanda aprobada:', data?.ticketNumber);
-      // PLAN: Instead of removing the ticket, update its state to 'aprobado'
-      // so it appears in the "Aprobados" filter tab immediately.
       setItems(prev => prev.map(t =>
-        t._id === data?.ticketId ? { ...t, estado: 'aprobado', aprobadoPorNombre: data?.aprobadoPorNombre, fechaAprobacion: data?.fechaAprobacion || new Date().toISOString() } : t
+        t._id === data?.ticketId
+          ? { ...t, estado: 'aprobado', aprobadoPorNombre: data?.aprobadoPorNombre, fechaAprobacion: data?.fechaAprobacion || new Date().toISOString() }
+          : t
       ));
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    newSocket.on('mesa-reportada', () => {
+    const handleMesaReportada = () => {
       console.log('[TablaAprobacion] Mesa reportada');
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    newSocket.on('ticket-reportado', (data) => {
+    const handleTicketReportado = (data) => {
       console.log('[TablaAprobacion] Ticket reportado:', data?.ticketId);
       setItems(prev => prev.map(t =>
         t._id === data?.ticketId ? { ...t, estado: 'reportado', motivoReporte: data?.motivo } : t
       ));
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    // PPA events (backwards compatibility)
-    newSocket.on('ticket-ppa-nuevo', () => {
+    const handlePpaNuevo = () => {
       console.log('[TablaAprobacion] Nuevo ticket PPA');
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    newSocket.on('ticket-ppa-actualizado', (data) => {
+    const handlePpaActualizado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA actualizado:', data?.ticketId, data?.estado);
       if (data?.estado === 'aprobado' || data?.estado === 'rechazado') {
         setItems(prev => prev.filter(t => t._id !== data?.ticketId));
       }
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    newSocket.on('ticket-ppa-aprobado', (data) => {
+    const handlePpaAprobado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA aprobado:', data?.ticketNumber);
       setItems(prev => prev.filter(t => t._id !== data?.ticketId));
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    newSocket.on('ticket-ppa-rechazado', (data) => {
+    const handlePpaRechazado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA rechazado:', data?.ticketNumber);
       setItems(prev => prev.filter(t => t._id !== data?.ticketId));
-      fetchItems();
-    });
+      fetchItemsDebounced();
+    };
 
-    socketRef.current = newSocket;
+    if (externalSocket) {
+      // Reutilizar socket externo (ej. del KDS). No lo creamos ni lo destruimos.
+      activeSocket = externalSocket;
+      ownsSocketRef.current = false;
+
+      // Si ya estaba conectado, sincronizar estado inicial
+      if (activeSocket.connected) {
+        setSocketConnected(true);
+        setConnectionStatus('conectado');
+      } else {
+        setSocketConnected(false);
+        setConnectionStatus('desconectado');
+      }
+
+      activeSocket.on('connect', handleConnect);
+      activeSocket.on('disconnect', handleDisconnect);
+      activeSocket.on('connect_error', handleConnectError);
+      activeSocket.on('ticket-aprobacion-nuevo', handleNuevoTicket);
+      activeSocket.on('comanda-aprobada', handleComandaAprobada);
+      activeSocket.on('mesa-reportada', handleMesaReportada);
+      activeSocket.on('ticket-reportado', handleTicketReportado);
+      activeSocket.on('ticket-ppa-nuevo', handlePpaNuevo);
+      activeSocket.on('ticket-ppa-actualizado', handlePpaActualizado);
+      activeSocket.on('ticket-ppa-aprobado', handlePpaAprobado);
+      activeSocket.on('ticket-ppa-rechazado', handlePpaRechazado);
+    } else {
+      // Sin socket externo: crear uno propio (caso TicketsPpaPage standalone)
+      const getStoredToken = () => {
+        try {
+          const storedAuth = localStorage.getItem('cocinaAuth');
+          if (storedAuth) {
+            const authData = JSON.parse(storedAuth);
+            return authData.token || null;
+          }
+        } catch (e) {
+          console.warn('[TablaAprobacion] Error parsing auth token:', e);
+        }
+        return null;
+      };
+
+      const authToken = getStoredToken();
+      if (!authToken) {
+        // Sin token: no podemos conectar; el polling sigue como fallback.
+        return;
+      }
+
+      const serverUrl = getServerBaseUrl();
+      const newSocket = io(`${serverUrl}/cocina`, {
+        auth: { token: authToken },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 15,
+        reconnectionDelay: 2000,
+      });
+
+      activeSocket = newSocket;
+      ownsSocketRef.current = true;
+
+      newSocket.on('connect', handleConnect);
+      newSocket.on('disconnect', handleDisconnect);
+      newSocket.on('connect_error', handleConnectError);
+      newSocket.on('ticket-aprobacion-nuevo', handleNuevoTicket);
+      newSocket.on('comanda-aprobada', handleComandaAprobada);
+      newSocket.on('mesa-reportada', handleMesaReportada);
+      newSocket.on('ticket-reportado', handleTicketReportado);
+      newSocket.on('ticket-ppa-nuevo', handlePpaNuevo);
+      newSocket.on('ticket-ppa-actualizado', handlePpaActualizado);
+      newSocket.on('ticket-ppa-aprobado', handlePpaAprobado);
+      newSocket.on('ticket-ppa-rechazado', handlePpaRechazado);
+    }
+
+    socketRef.current = activeSocket;
 
     return () => {
-      console.log('[TablaAprobacion] Desconectando socket');
-      newSocket.disconnect();
+      const s = socketRef.current;
+      if (!s) return;
+      s.off('connect', handleConnect);
+      s.off('disconnect', handleDisconnect);
+      s.off('connect_error', handleConnectError);
+      s.off('ticket-aprobacion-nuevo', handleNuevoTicket);
+      s.off('comanda-aprobada', handleComandaAprobada);
+      s.off('mesa-reportada', handleMesaReportada);
+      s.off('ticket-reportado', handleTicketReportado);
+      s.off('ticket-ppa-nuevo', handlePpaNuevo);
+      s.off('ticket-ppa-actualizado', handlePpaActualizado);
+      s.off('ticket-ppa-aprobado', handlePpaAprobado);
+      s.off('ticket-ppa-rechazado', handlePpaRechazado);
+
+      if (ownsSocketRef.current) {
+        console.log('[TablaAprobacion] Desconectando socket propio');
+        s.disconnect();
+      }
       socketRef.current = null;
+      ownsSocketRef.current = false;
     };
-  }, [fetchItems]);
+  }, [externalSocket, fetchItems, fetchItemsDebounced]);
 
   // Aprobar item (comanda o PPA)
   const aprobarItem = useCallback(async (ticketId, tipo, usuarioId, usuarioNombre) => {
@@ -267,6 +391,7 @@ export default function useTablaAprobacion() {
         usuarioNombre,
       });
       if (data?.success) {
+        // Optimista: quitar de pendientes. El socket confirmará.
         setItems(prev => prev.filter(t => String(t._id) !== id));
         return data;
       }
