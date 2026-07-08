@@ -4,8 +4,10 @@ import moment from 'moment-timezone';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
 import CocineroBlockHeader from './CocineroBlockHeader';
+import CocineroSelectorDropdown from './CocineroSelectorDropdown';
 import MonitorEmptyState from './MonitorEmptyState';
 import MonitorConfigPanel from './MonitorConfigPanel';
+import SearchBar from '../additionals/SearchBar';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 
@@ -99,6 +101,14 @@ const CocinaMonitorLayout = ({
   cocineroActivoId = null,
   onCambiarCocinero = null,
   nombreCocineroActivo = null,
+  // Búsqueda de platos (variante monitor)
+  searchTerm = '',
+  onSearchChange = null,
+  totalPlatosEncontrados = 0,
+  totalComandasEncontradas = 0,
+  hayFiltroBusqueda = false,
+  sugerenciasBusqueda = [],
+  onSugerenciaClick = null,
   modoCocineros: modoCocinerosProp = null,
 }) => {
   const tick = useCocinaMonitorTimer();
@@ -399,62 +409,74 @@ const CocinaMonitorLayout = ({
         )}
       </AnimatePresence>
 
-      {/* Selector de cocineros (solo Ver Cocina Completo, no fijo) */}
+      {/* Barra unificada: selector compacto de cocinero + buscador de platos
+          (solo Ver Cocina Completo, no fijo) */}
       {cocineros && !modoFijo && onCambiarCocinero && (
         <div
           style={{
             padding: '8px 24px',
             borderBottom: `1px solid ${colorAcento}11`,
             display: 'flex',
-            gap: '10px',
-            flexWrap: 'wrap',
+            gap: '12px',
             alignItems: 'center',
             flexShrink: 0,
+            flexWrap: 'nowrap',
+            minHeight: '48px',
           }}
         >
-          <span style={{ fontSize: '13px', color: colorTextoSecundario, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Cocinero:
-          </span>
-          <button
-            onClick={() => onCambiarCocinero(null)}
+          <span
             style={{
-              padding: '7px 16px',
-              borderRadius: '999px',
-              fontSize: '14px',
+              fontSize: '12px',
+              color: colorTextoSecundario,
               fontWeight: 600,
-              border: `2px solid ${!cocineroActivoId ? colorAcento : `${colorAcento}33`}`,
-              background: !cocineroActivoId ? colorAcento : 'transparent',
-              color: !cocineroActivoId ? colorFondo : colorTextoPrincipal,
-              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              flexShrink: 0,
             }}
           >
-            General
-          </button>
-          {cocineros.map((c, i) => {
-            const activo = cocineroActivoId && String(c._id) === String(cocineroActivoId);
-            const label = c.alias || c.name || c.nombre || `Cocinero ${i + 1}`;
-            return (
-              <button
-                key={c._id || i}
-                onClick={() => onCambiarCocinero(c._id)}
+            Cocinero
+          </span>
+          <CocineroSelectorDropdown
+            cocineros={cocineros}
+            valor={cocineroActivoId}
+            onChange={onCambiarCocinero}
+            colorFondo={colorFondo}
+            colorTextoPrincipal={colorTextoPrincipal}
+            colorTextoSecundario={colorTextoSecundario}
+            colorAcento={colorAcento}
+            ancho={220}
+          />
+          {onSearchChange && (
+            <>
+              <div
                 style={{
-                  padding: '7px 16px',
-                  borderRadius: '999px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  border: `2px solid ${activo ? colorAcento : `${colorAcento}33`}`,
-                  background: activo ? colorAcento : 'transparent',
-                  color: activo ? colorFondo : colorTextoPrincipal,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
+                  width: '1px',
+                  alignSelf: 'stretch',
+                  background: `${colorAcento}22`,
+                  margin: '0 4px',
+                  flexShrink: 0,
                 }}
-              >
-                {label}
-              </button>
-            );
-          })}
+              />
+              <SearchBar
+                variant="monitor"
+                compact
+                placeholder="Buscar plato por nombre o código (L1, M23...)..."
+                onSearch={onSearchChange}
+                totalPlatosEncontrados={totalPlatosEncontrados}
+                totalComandasEncontradas={totalComandasEncontradas}
+                hayFiltroActivo={hayFiltroBusqueda}
+                sugerencias={sugerenciasBusqueda}
+                onSugerenciaClick={onSugerenciaClick}
+                monitorTheme={{
+                  colorFondo,
+                  colorTextoPrincipal,
+                  colorTextoSecundario,
+                  colorAcento,
+                  colorAlertaAmarilla,
+                }}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -547,7 +569,11 @@ const CocinaMonitorLayout = ({
       {/* Lista de platos */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {totalPendientes === 0 ? (
-          <MonitorEmptyState nombreVista={nombreVista} nombreCocinero={nombreCocineroActivo} />
+          <MonitorEmptyState
+            nombreVista={nombreVista}
+            nombreCocinero={nombreCocineroActivo}
+            terminoBusqueda={hayFiltroBusqueda ? searchTerm : null}
+          />
         ) : modoBloques ? (
           <div style={{ padding: '0 0 16px 0' }}>
             <AnimatePresence initial={false}>

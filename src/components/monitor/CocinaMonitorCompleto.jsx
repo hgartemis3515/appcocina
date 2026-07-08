@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import useCocinaMonitorData from '../../hooks/useCocinaMonitorData';
 import useCocinaMonitorFilter from '../../hooks/useCocinaMonitorFilter';
 import useCocinerosLista from '../../hooks/useCocinerosLista';
+import useBuscadorPlatos from '../../hooks/useBuscadorPlatos';
 import CocinaMonitorLayout from './CocinaMonitorLayout';
 
 const STORAGE_COCINERO_KEY = 'cocinaMonitorCocineroId';
@@ -44,8 +45,33 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
     try { localStorage.setItem(STORAGE_COCINERO_KEY, id ?? 'general'); } catch { /* noop */ }
   };
 
+  // Búsqueda de platos (igual lógica que el KDS de comandas).
+  // No persiste en localStorage: la búsqueda es efímera de sesión.
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const {
+    comandasFiltradas,
+    totalPlatosEncontrados,
+    totalComandasEncontradas,
+    hayFiltroActivo,
+    sugerencias,
+  } = useBuscadorPlatos(comandas, searchTerm, {
+    soloUltimaComanda: false,
+  });
+
+  // Cuando hay búsqueda activa, reemplazamos los platos de cada comanda por los
+  // coincidentes (platosFiltrados) antes de pasarlos al filtro del monitor.
+  // Si no hay búsqueda, pasamos las comandas sin tocar.
+  const comandasParaMonitor = useMemo(() => {
+    if (!hayFiltroActivo) return comandas;
+    return comandasFiltradas.map(c => ({
+      ...c,
+      platos: Array.isArray(c.platosFiltrados) ? c.platosFiltrados : c.platos,
+    }));
+  }, [comandas, comandasFiltradas, hayFiltroActivo]);
+
   // Agrupar por cocinero + plato: cada grupo trae `cocinero` y `timers[]` individuales
-  const platosPendientesRaw = useCocinaMonitorFilter(comandas, null, {
+  const platosPendientesRaw = useCocinaMonitorFilter(comandasParaMonitor, null, {
     criterio: 'prioridad',
     direccion: 'desc',
   }, {
@@ -158,6 +184,13 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
       cocineroActivoId={cocineroActivoId}
       onCambiarCocinero={modoFijo ? null : cambiarCocinero}
       nombreCocineroActivo={nombreCocineroActivo}
+      searchTerm={searchTerm}
+      onSearchChange={setSearchTerm}
+      totalPlatosEncontrados={totalPlatosEncontrados}
+      totalComandasEncontradas={totalComandasEncontradas}
+      hayFiltroBusqueda={hayFiltroActivo}
+      sugerenciasBusqueda={sugerencias}
+      onSugerenciaClick={setSearchTerm}
     />
   );
 };

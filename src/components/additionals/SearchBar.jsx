@@ -8,6 +8,7 @@ import { FaSearch, FaTimes, FaLightbulb, FaUtensils, FaFont, FaSpinner } from 'r
  * - Indicador animado mientras está buscando (spinner + borde pulsante)
  * - Lupa presionable opcional (dispara búsqueda manual sin Esperar debounce)
  * - Sugerencias por nombre y código
+ * - Variante "monitor" con estilos inline (tema oscuro del monitor Ver Cocina)
  *
  * Props:
  * - onSearch: función llamada con el término de búsqueda
@@ -16,6 +17,13 @@ import { FaSearch, FaTimes, FaLightbulb, FaUtensils, FaFont, FaSpinner } from 'r
  * - hayFiltroActivo: booleano indicando si hay búsqueda activa
  * - sugerencias: array de sugerencias [{ texto, tipo, relevancia }]
  * - onSugerenciaClick: función llamada al seleccionar sugerencia
+ *
+ * Variante monitor (props opcionales):
+ * - variant: 'kds' (default, Tailwind) | 'monitor' (inline styles)
+ * - monitorTheme: { colorFondo, colorTextoPrincipal, colorTextoSecundario,
+ *                   colorAcento, colorAlertaAmarilla }
+ * - placeholder: string (default por variante)
+ * - compact: boolean (monitor: padding reducido, sin borde grueso)
  */
 const SearchBar = ({
   onSearch,
@@ -23,7 +31,11 @@ const SearchBar = ({
   totalComandasEncontradas = 0,
   hayFiltroActivo = false,
   sugerencias = [],
-  onSugerenciaClick
+  onSugerenciaClick,
+  variant = 'kds',
+  monitorTheme = null,
+  placeholder,
+  compact = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -180,6 +192,235 @@ const SearchBar = ({
     }
   };
 
+  // ===== Variante MONITOR: estilos inline, tema oscuro del monitor Ver Cocina =====
+  if (variant === 'monitor') {
+    const t = monitorTheme || {};
+    const colorFondo = t.colorFondo || '#0a0a0f';
+    const colorTextoPrincipal = t.colorTextoPrincipal || '#ffffff';
+    const colorTextoSecundario = t.colorTextoSecundario || '#9ca3af';
+    const colorAcento = t.colorAcento || '#d4af37';
+    const colorAlertaAmarilla = t.colorAlertaAmarilla || '#fbbf24';
+
+    const phText = placeholder || 'Buscar plato...';
+    const inputHeight = compact ? '38px' : '42px';
+
+    return (
+      <div
+        ref={containerRef}
+        style={{
+          position: 'relative',
+          width: '100%',
+          minWidth: 0,
+          flex: '1 1 auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flex: '1 1 auto',
+              minWidth: 0,
+              height: inputHeight,
+              padding: '0 10px',
+              borderRadius: '8px',
+              border: `1.5px solid ${isSearching ? colorAcento : `${colorAcento}55`}`,
+              background: `${colorFondo}ee`,
+              boxShadow: isSearching ? `0 0 0 1px ${colorAcento}55` : 'none',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+          >
+            <button
+              type="button"
+              onClick={handleSearchClick}
+              title="Buscar"
+              aria-label="Buscar"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0 6px 0 0',
+                color: isSearching ? colorAcento : colorTextoSecundario,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {isSearching ? <FaSpinner className="animate-spin" /> : <FaSearch size={13} />}
+            </button>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder={phText}
+              value={searchTerm}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onFocus={() => {
+                if (searchTerm.length >= 1 && sugerencias.length > 0) setShowSuggestions(true);
+              }}
+              style={{
+                flex: '1 1 auto',
+                minWidth: 0,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: colorTextoPrincipal,
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                padding: '0 4px',
+                height: '100%',
+              }}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={handleClear}
+                title="Limpiar búsqueda"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '0 0 0 6px',
+                  color: colorTextoSecundario,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <FaTimes size={13} />
+              </button>
+            )}
+          </div>
+
+          {hayFiltroActivo && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                flexShrink: 0,
+                minWidth: '90px',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  background: totalPlatosEncontrados > 0 ? `${colorAcento}22` : `${colorAlertaAmarilla}22`,
+                  color: totalPlatosEncontrados > 0 ? colorAcento : colorAlertaAmarilla,
+                  border: `1px solid ${totalPlatosEncontrados > 0 ? colorAcento : colorAlertaAmarilla}55`,
+                }}
+              >
+                {totalPlatosEncontrados > 0
+                  ? `${totalPlatosEncontrados} plato${totalPlatosEncontrados !== 1 ? 's' : ''}`
+                  : (isSearching ? 'Buscando...' : 'Sin resultados')}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Sugerencias (igual lógica que KDS, tema monitor) */}
+        {showSuggestions && sugerencias.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              right: 0,
+              background: colorFondo,
+              border: `1.5px solid ${colorAcento}55`,
+              borderRadius: '8px',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+              zIndex: 100,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '8px 12px',
+                fontSize: '12px',
+                color: colorTextoSecundario,
+                borderBottom: `1px solid ${colorAcento}22`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: `${colorFondo}cc`,
+              }}
+            >
+              <FaLightbulb style={{ color: colorAlertaAmarilla }} />
+              <span>
+                {totalPlatosEncontrados === 0 ? '¿Quisiste decir?' : 'Sugerencias:'}
+              </span>
+              <span style={{ marginLeft: 'auto', color: colorTextoSecundario, fontSize: '11px' }}>
+                ↑↓ navegar • Enter seleccionar • Esc cerrar
+              </span>
+            </div>
+            <ul ref={suggestionsRef} style={{ maxHeight: '256px', overflowY: 'auto', margin: 0, padding: '4px', listStyle: 'none' }}>
+              {sugerencias.map((sugerencia, idx) => {
+                const resaltadoItem = idx === selectedIndex;
+                const activo = idx === selectedIndex;
+                const colorIcono =
+                  sugerencia.tipo === 'nombre_completo' ? colorAcento :
+                  sugerencia.tipo === 'similar' ? colorAlertaAmarilla :
+                  colorTextoSecundario;
+                return (
+                  <li key={idx}>
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestionClick(sugerencia)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        background: activo ? `${colorAcento}22` : 'transparent',
+                        color: activo ? colorAcento : colorTextoPrincipal,
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <FaSearch size={11} style={{ color: colorIcono, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {sugerencia.texto}
+                        </span>
+                      </span>
+                      {getSuggestionBadge(sugerencia.tipo) && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: `${colorIcono}22`,
+                            color: colorIcono,
+                            fontWeight: 600,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {sugerencia.tipo === 'nombre_completo' ? 'Plato' :
+                           sugerencia.tipo === 'similar' ? 'Similar' : 'Palabra'}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ===== Variante KDS (default): Tailwind, sin cambios =====
   return (
     <div className="flex justify-center w-full" ref={containerRef}>
       <div className="flex flex-col items-center w-full max-w-2xl gap-2 relative">
