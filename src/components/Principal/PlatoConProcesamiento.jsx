@@ -86,11 +86,23 @@ const PlatoConProcesamiento = ({
             >
               👨‍🍳
             </motion.span>
-            
+
             {/* Nombre del cocinero */}
             <span className="max-w-[80px] truncate">
               {esMiProceso ? 'Tú' : (procesandoPor?.alias || procesandoPor?.nombre || 'Cocinero')}
             </span>
+
+            {/* Badge de origen de asignación (auto/overflow) */}
+            {plato?.asignacionMeta?.origen === 'auto' && (
+              <span className="ml-0.5 px-1 py-0 rounded text-[9px] font-bold bg-purple-500/30 text-purple-200 border border-purple-400/40" title="Asignado automáticamente">
+                ⚡
+              </span>
+            )}
+            {plato?.asignacionMeta?.origen === 'overflow' && (
+              <span className="ml-0.5 px-1 py-0 rounded text-[9px] font-bold bg-orange-500/30 text-orange-200 border border-orange-400/40" title={`Overflow (regla ${plato.asignacionMeta?.regla || ''})`}>
+                ↻
+              </span>
+            )}
             
             {/* Botón liberar - Solo para quien tomó el plato */}
             {esMiProceso && onLiberar && (
@@ -256,6 +268,8 @@ export const ProcesamientoBadgeCompact = ({ plato, usuarioActualId }) => {
         className={`inline-flex items-center gap-1 text-xs ${esMio ? 'text-green-400' : 'text-yellow-400'}`}
       >
         👨‍🍳 {esMio ? 'Tú' : (procesandoPor?.alias || '...')}
+        {plato?.asignacionMeta?.origen === 'auto' && <span className="text-purple-300" title="Auto">⚡</span>}
+        {plato?.asignacionMeta?.origen === 'overflow' && <span className="text-orange-300" title="Overflow">↻</span>}
       </motion.span>
     );
   }

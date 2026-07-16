@@ -45,6 +45,10 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
   // Texto a mostrar: alias o nombre de cada cocinero único
   const cocinerosTexto = cocineros.map(c => c.alias).join(', ');
 
+  // Origen de asignación en el grupo (auto / overflow) para badge en monitor
+  const tieneAuto = platos.some(p => p.plato?.asignacionMeta?.origen === 'auto');
+  const tieneOverflow = platos.some(p => p.plato?.asignacionMeta?.origen === 'overflow');
+
   // Mesas / comandas (resumido)
   const mesasSet = new Set();
   const comandasSet = new Set();
@@ -166,6 +170,8 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
         {mostrarCocinero && cocinerosTexto && (
           <span style={{ color: colorAcento, fontWeight: 600 }}>
             👨‍🍳 {cocinerosTexto}
+            {tieneAuto && <span title="Auto" style={{ marginLeft: 4 }}>⚡</span>}
+            {tieneOverflow && <span title="Overflow" style={{ marginLeft: 4 }}>↻</span>}
           </span>
         )}
       </div>
