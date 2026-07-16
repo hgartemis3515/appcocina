@@ -12,6 +12,7 @@ import CocinaMonitorPersonalizado from './monitor/CocinaMonitorPersonalizado';
 import DesplegarMonitoresPage from './pages/DesplegarMonitoresPage';
 import ProtectedRoute from './common/ProtectedRoute';
 import { FaSpinner } from 'react-icons/fa';
+import ChatFabCocina from './Chat/ChatFabCocina';
 
 /**
  * Router interno de la App de Cocina
@@ -161,6 +162,7 @@ const AppRouter = () => {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <MenuPage onNavigate={navigateTo} />
+        <ChatFabCocina />
       </ProtectedRoute>
     );
   }
@@ -173,6 +175,7 @@ const AppRouter = () => {
           onGoToMenu={goToMenu} 
           initialOptions={cocinaOptions}
         />
+        <ChatFabCocina />
       </ProtectedRoute>
     );
   }
@@ -186,6 +189,7 @@ const AppRouter = () => {
           onGoToMenu={goToMenu} 
           initialOptions={cocinaOptions}
         />
+        <ChatFabCocina />
       </ProtectedRoute>
     );
   }
@@ -199,6 +203,7 @@ const AppRouter = () => {
           onGoToMenu={goToMenu} 
           initialOptions={cocinaOptions}
         />
+        <ChatFabCocina />
       </ProtectedRoute>
     );
   }
