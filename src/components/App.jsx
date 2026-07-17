@@ -13,6 +13,7 @@ import DesplegarMonitoresPage from './pages/DesplegarMonitoresPage';
 import ProtectedRoute from './common/ProtectedRoute';
 import { FaSpinner } from 'react-icons/fa';
 import ChatFabCocina from './Chat/ChatFabCocina';
+import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
 
 /**
  * Router interno de la App de Cocina
@@ -157,12 +158,17 @@ const AppRouter = () => {
     return <LoginPage />;
   }
 
+  // En cualquier vista autenticada (incluido monitor TV) montamos el overlay de alertas
+  // para que las alertas lleguen a las pantallas de cocina aunque el FAB de chat esté oculto.
+  const alertasOverlay = <AlertaOverlayCocina />;
+
   // Vista de Menú (requiere autenticación)
   if (currentView === 'MENU') {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <MenuPage onNavigate={navigateTo} />
         <ChatFabCocina />
+        {alertasOverlay}
       </ProtectedRoute>
     );
   }
@@ -171,11 +177,12 @@ const AppRouter = () => {
   if (currentView === 'COCINA') {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
-        <ComandaStyle 
-          onGoToMenu={goToMenu} 
+        <ComandaStyle
+          onGoToMenu={goToMenu}
           initialOptions={cocinaOptions}
         />
         <ChatFabCocina />
+        {alertasOverlay}
       </ProtectedRoute>
     );
   }
@@ -185,11 +192,12 @@ const AppRouter = () => {
   if (currentView === 'COCINA_PERSONALIZADA') {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
-        <ComandaStylePerso 
-          onGoToMenu={goToMenu} 
+        <ComandaStylePerso
+          onGoToMenu={goToMenu}
           initialOptions={cocinaOptions}
         />
         <ChatFabCocina />
+        {alertasOverlay}
       </ProtectedRoute>
     );
   }
@@ -199,11 +207,12 @@ const AppRouter = () => {
   if (currentView === 'COCINA_SUPERVISOR') {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
-        <ComandaStyleSupervi 
-          onGoToMenu={goToMenu} 
+        <ComandaStyleSupervi
+          onGoToMenu={goToMenu}
           initialOptions={cocinaOptions}
         />
         <ChatFabCocina />
+        {alertasOverlay}
       </ProtectedRoute>
     );
   }
@@ -226,6 +235,7 @@ const AppRouter = () => {
           modoFijo={cocinaOptions?.modoFijo || false}
           cocineroIdFijo={cocinaOptions?.cocineroIdFijo || null}
         />
+        {alertasOverlay}
       </ProtectedRoute>
     );
   }
@@ -258,6 +268,7 @@ const AppRouter = () => {
           modoFijo={cocinaOptions?.modoFijo || false}
           vistaIdInicial={cocinaOptions?.vistaId || null}
         />
+        {alertasOverlay}
       </ProtectedRoute>
     );
   }

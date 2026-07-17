@@ -272,7 +272,46 @@ export default function ChatFabCocina() {
         await cargarInbox();
         abrirConversacion(resp.data);
       }
-    } catch (_) {}
+    } catch (e) { alert('No se pudo iniciar conversación'); }
+  };
+
+  const [modalGrupo, setModalGrupo] = useState(false);
+  const [grupoNombre, setGrupoNombre] = useState('');
+  const [grupoSeleccion, setGrupoSeleccion] = useState([]);
+
+  const abrirModalGrupo = () => {
+    setGrupoNombre('');
+    setGrupoSeleccion([]);
+    setModalGrupo(true);
+  };
+
+  const toggleMiembroGrupo = (id) => {
+    setGrupoSeleccion((curr) =>
+      curr.includes(id) ? curr.filter(x => x !== id) : [...curr, id]
+    );
+  };
+
+  const crearGrupo = async () => {
+    if (!grupoNombre.trim()) { alert('Ponle un nombre al grupo'); return; }
+    if (grupoSeleccion.length === 0) { alert('Elige al menos a un miembro'); return; }
+    const token = getToken();
+    try {
+      const resp = await apiFetch('/api/mensajes/conversaciones', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          tipo: 'grupo',
+          nombreGrupo: grupoNombre.trim(),
+          participanteIds: grupoSeleccion
+        })
+      });
+      if (resp?.success) {
+        setModalGrupo(false);
+        await cargarInbox();
+        abrirConversacion(resp.data);
+      } else {
+        alert(resp?.error || 'No se pudo crear el grupo');
+      }
+    } catch (e) { alert('Error: ' + e.message); }
   };
 
   // === Enviar texto ===
@@ -439,6 +478,7 @@ export default function ChatFabCocina() {
             <div className="chat-tabs">
               <TabBtn label="Recientes" active={vista === 'conversaciones'} onClick={() => setVista('conversaciones')} />
               <TabBtn label="Personas" active={vista === 'usuarios'} onClick={() => setVista('usuarios')} />
+              <button type="button" title="Nuevo grupo" onClick={abrirModalGrupo} style={btnNuevoGrupoStyle}>👥</button>
               <button type="button" onClick={cerrarPanel} style={btnCloseStyle}>✕</button>
             </div>
           </div>
@@ -473,7 +513,7 @@ export default function ChatFabCocina() {
               <button type="button" className="chat-btn-atras" onClick={volverLista} aria-label="Volver">‹</button>
             )}
             <div className="chat-hilo-titulo">
-              {convActiva ? `${convActiva.tipo === 'anuncio' ? '📢 ' : (convActiva.tipo === 'canal' ? '# ' : '')}${convActiva.titulo || 'Conversación'}` : 'Selecciona una conversación'}
+              {convActiva ? `${convActiva.tipo === 'anuncio' ? '📢 ' : (convActiva.tipo === 'canal' ? '# ' : (convActiva.tipo === 'grupo' ? '👥 ' : ''))}${convActiva.titulo || 'Conversación'}` : 'Selecciona una conversación'}
             </div>
             {!isMobile && <button type="button" onClick={cerrarPanel} style={btnCloseStyle}>✕</button>}
           </div>
@@ -551,6 +591,68 @@ export default function ChatFabCocina() {
             </div>
           )}
         </div>
+      )}
+      )}
+      {modalGrupo && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10060,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.6)'
+        }} onClick={() => setModalGrupo(false)}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#14141a', color: '#f4f4f5', borderRadius: 12,
+              width: 'min(440px, 92vw)', maxHeight: '86vh',
+              display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif'
+            }}>
+            <div style={{
+              padding: '14px 18px', borderBottom: '1px solid #2a2a3a',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <strong style={{ fontSize: 15 }}>👥 Nuevo grupo</strong>
+              <button type="button" onClick={() => setModalGrupo(false)} style={{ background: 'transparent', border: 0, color: '#a1a1aa', fontSize: 22, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '14px 18px', overflowY: 'auto', flex: 1 }}>
+              <label style={{ fontSize: 11, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: 0.5 }}>Nombre del grupo</label>
+              <input
+                type="text" maxLength={80} value={grupoNombre}
+                onChange={e => setGrupoNombre(e.target.value)}
+                placeholder="Ej: Turno noche"
+                style={{
+                  width: '100%', background: '#1f1f29', color: '#f4f4f5',
+                  border: '1px solid #2f2f3a', borderRadius: 8, padding: '8px 10px',
+                  marginTop: 4, boxSizing: 'border-box'
+                }}
+              />
+              <label style={{ display: 'block', fontSize: 11, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14 }}>Miembros</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {usuarios.map(u => {
+                  const sel = grupoSeleccion.includes(u._id);
+                  return (
+                    <button
+                      key={u._id} type="button"
+                      onClick={() => toggleMiembroGrupo(u._id)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: sel ? 'rgba(212,175,55,0.25)' : '#1f1f29',
+                        border: `1px solid ${sel ? '#d4af37' : '#2f2f3a'}`,
+                        borderRadius: 16, padding: '4px 10px',
+                        fontSize: 12, cursor: 'pointer', color: '#f4f4f5'
+                      }}>
+                      {u.name} <small style={{ color: '#a1a1aa' }}>{u.rol}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #2a2a3a', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setModalGrupo(false)} style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #2f2f3a', color: '#a1a1aa', borderRadius: 8, cursor: 'pointer' }}>Cancelar</button>
+              <button type="button" onClick={crearGrupo} style={{ padding: '8px 18px', background: 'linear-gradient(135deg,#d4af37,#b8860b)', color: '#0a0a0f', border: 0, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Crear grupo</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -716,7 +818,7 @@ function TabBtn({ label, active, onClick }) {
 function ConvRow({ c, active, onClick }) {
   const prioColor = c.prioridadMinima >= 9 ? '#e74c3c' : (c.prioridadMinima >= 7 ? '#f39c12' : null);
   const inicial = (c.titulo || '?').replace('#', '').charAt(0).toUpperCase();
-  const icono = c.tipo === 'anuncio' ? '📢' : (c.tipo === 'canal' ? '#' : '●');
+  const icono = c.tipo === 'anuncio' ? '📢' : (c.tipo === 'canal' ? '#' : (c.tipo === 'grupo' ? '👥' : '●'));
   return (
     <div onClick={onClick} style={{
       padding: '10px 10px', borderRadius: 10, cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center',
@@ -751,4 +853,5 @@ function UserRow({ u, onClick }) {
 }
 
 const btnCloseStyle = { background: 'transparent', border: 'none', color: '#a0a0b8', cursor: 'pointer', fontSize: 20 };
+const btnNuevoGrupoStyle = { background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', fontSize: 18, padding: '0 4px' };
 const selectStyle = { background: 'transparent', color: '#d4af37', border: 'none', fontSize: 11, outline: 'none' };
