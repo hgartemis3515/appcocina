@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import useAlertasCocina from '../hooks/useAlertasCocina';
-import { getServerBaseUrl } from '../config/apiConfig';
+import useAlertasCocina from '../../hooks/useAlertasCocina';
+import { getServerBaseUrl } from '../../config/apiConfig';
 
 /**
  * AlertaOverlayCocina
