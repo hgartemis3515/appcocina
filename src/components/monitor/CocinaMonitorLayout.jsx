@@ -11,6 +11,7 @@ import MonitorConfigPanel from './MonitorConfigPanel';
 import SearchBar from '../additionals/SearchBar';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
+import { asignarNumeroGlobal } from '../../utils/numeracionTimersMonitor';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -290,8 +291,18 @@ const CocinaMonitorLayout = ({
       return max;
     };
     bloques.sort((a, b) => peso(b) - peso(a) || b.totalPlatos - a.totalPlatos);
-    return bloques;
+    // Numeración global de timers por bloque de cocinero (1 = más viejo)
+    return bloques.map((b) => ({
+      ...b,
+      tarjetas: asignarNumeroGlobal(b.tarjetas),
+    }));
   }, [platosPendientes, modoCocineros, configVisual.tiempoAmarillo, configVisual.tiempoRojo]);
+
+  // Lista plana: numeración global de timers en toda la vista
+  const platosConTimersNumerados = useMemo(
+    () => (modoCocineros ? asignarNumeroGlobal(platosPendientes) : platosPendientes),
+    [platosPendientes, modoCocineros],
+  );
 
   return (
     <div
@@ -603,7 +614,7 @@ const CocinaMonitorLayout = ({
             } : undefined}
           >
             {esGrid ? (
-              platosPendientes.map((item, index) => (
+              platosConTimersNumerados.map((item) => (
                 <CocineroPlatoCard
                   key={item.grupoId || item.key}
                   item={item}
@@ -611,12 +622,11 @@ const CocinaMonitorLayout = ({
                   mostrarCocinero
                   modoTarjeta
                   tick={tick}
-                  numeroOrden={index + 1}
                 />
               ))
             ) : (
               <AnimatePresence initial={false}>
-                {platosPendientes.map((item, index) => (
+                {platosConTimersNumerados.map((item) => (
                   <CocineroPlatoCard
                     key={item.grupoId || item.key}
                     item={item}
@@ -624,7 +634,6 @@ const CocinaMonitorLayout = ({
                     mostrarCocinero
                     modoTarjeta={false}
                     tick={tick}
-                    numeroOrden={index + 1}
                   />
                 ))}
               </AnimatePresence>
@@ -642,26 +651,24 @@ const CocinaMonitorLayout = ({
             } : undefined}
           >
             {esGrid ? (
-              platosPendientes.map((item, index) => (
+              platosPendientes.map((item) => (
                 <PlatoMonitorRow
                   key={item.grupoId || item.key}
                   item={item}
                   configVisual={configVisual}
                   tick={tick}
                   modoTarjeta
-                  numeroOrden={index + 1}
                 />
               ))
             ) : (
               <AnimatePresence initial={false}>
-                {platosPendientes.map((item, index) => (
+                {platosPendientes.map((item) => (
                   <PlatoMonitorRow
                     key={item.grupoId || item.key}
                     item={item}
                     configVisual={configVisual}
                     tick={tick}
                     modoTarjeta={false}
-                    numeroOrden={index + 1}
                   />
                 ))}
               </AnimatePresence>
@@ -724,7 +731,7 @@ const BloqueCocinero = ({ bloque, configVisual, tick }) => {
             transition={{ duration: 0.2 }}
             style={{ overflow: 'hidden' }}
           >
-            {bloque.tarjetas.map((item, index) => (
+            {bloque.tarjetas.map((item) => (
               <CocineroPlatoCard
                 key={item.grupoId || item.key}
                 item={item}
@@ -732,7 +739,6 @@ const BloqueCocinero = ({ bloque, configVisual, tick }) => {
                 mostrarCocinero={false}
                 modoTarjeta={false}
                 tick={tick}
-                numeroOrden={index + 1}
               />
             ))}
           </motion.div>

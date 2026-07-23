@@ -2,23 +2,19 @@ import React, { useMemo } from 'react';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 
 /**
- * TemporizadorChips - Renderiza TODOS los temporizadores individuales de un plato.
+ * TemporizadorChips - Temporizadores individuales con numeración GLOBAL (#1 = más viejo).
  *
- * Modo vertical (default, estilo referencia KDS): bloques rectangulares grandes
- *   apilados en columna, numerados (1-, 2-, 3-...), ordenados antiguo → nuevo.
- *   Cada bloque: cronómetro grande, color por alerta, glow + pulso en crítico.
- * Modo horizontal: zona "( )" con chips numerados en línea.
- *
- * Sin colapso: siempre muestra todos los temporizadores (numerados).
- * Modo "resumido": solo el timer más antiguo + chip `+N timers`.
+ * El badge #N usa el mismo modelo visual que tenía el número de la tarjeta de plato
+ * (tamaño tipográfico del plato, borde acento, peso 900).
+ * Contorno del chip: colorLinea (misma comanda = mismo color); fill/glow por alerta.
  *
  * Props:
- * - timers: [{ tiempoInicio, cantidad, mesa, comandaNumero }]
- * - tick: number (forzar re-render cada segundo para refrescar cronómetros)
- * - configVisual: ver campos abajo
+ * - timers: [{ tiempoInicio, numeroGlobal, colorLinea, lineaId, unidadIndex, ... }]
+ * - tick, configVisual
  */
 const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const tamanioCronometro = configVisual.tamanioFuenteCronometro || 28;
+  const tamanioFuentePlato = configVisual.tamanioFuentePlato || 38;
   const amarilloMin = configVisual.tiempoAmarillo ?? 5;
   const rojoMin = configVisual.tiempoRojo ?? 20;
   const colorAcento = configVisual.colorAcento || '#d4af37';
@@ -29,16 +25,19 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const espaciado = configVisual.espaciadoFilas || 'normal';
   const modoResumido = configVisual.modoTimers === 'resumidos';
   const orientacion = configVisual.estiloTemporizador === 'horizontal' ? 'horizontal' : 'vertical';
-  const intensidad = configVisual.intensidadAlerta || 'normal'; // 'suave' | 'normal' | 'alta'
-  const gap = espaciado === 'compacto' || espaciado === 'unido'
+  const intensidad = configVisual.intensidadAlerta || 'normal';
+  const esUnido = espaciado === 'unido';
+  const gap = espaciado === 'compacto' || esUnido
     ? '4px'
     : (orientacion === 'vertical' ? '8px' : '6px');
 
-  // Multiplicador de intensidad para glow/sombra
   const glowMult = intensidad === 'alta' ? 1.6 : intensidad === 'suave' ? 0.5 : 1;
-
-  // tick se usa solo para forzar recálculo cada segundo
   const _ = tick;
+
+  // Mismo modelo que el badge #N de la tarjeta de plato
+  const badgeMinW = Math.max(36, tamanioFuentePlato * 0.75);
+  const badgeH = Math.max(36, tamanioFuentePlato * 0.75);
+  const badgeFs = Math.max(18, tamanioFuentePlato * 0.55);
 
   const calculados = useMemo(() => {
     return timers
@@ -51,7 +50,13 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
           alerta: nivelAlerta(segundos, amarilloMin, rojoMin),
         };
       })
-      .sort((a, b) => b.segundos - a.segundos); // antiguo primero
+      .sort((a, b) => {
+        // Preferir numeroGlobal si existe; si no, por edad
+        if (a.numeroGlobal != null && b.numeroGlobal != null) {
+          return a.numeroGlobal - b.numeroGlobal;
+        }
+        return b.segundos - a.segundos;
+      });
   }, [timers, amarilloMin, rojoMin, tick]);
 
   if (calculados.length === 0) return null;
@@ -59,52 +64,66 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const colorPorAlerta = (a) =>
     a === 'rojo' ? colorAlertaRoja : a === 'amarillo' ? colorAlertaAmarilla : colorAcento;
 
+  const renderBadgeNumero = (numero, esCritico) => (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: `${badgeMinW}px`,
+        height: `${badgeH}px`,
+        padding: '2px 8px',
+        borderRadius: esUnido ? '4px' : '10px',
+        background: esCritico ? 'rgba(0,0,0,0.25)' : `${colorAcento}22`,
+        border: `2px solid ${esCritico ? '#fff' : colorAcento}`,
+        color: esCritico ? '#fff' : colorAcento,
+        fontSize: `${badgeFs}px`,
+        fontWeight: 900,
+        fontVariantNumeric: 'tabular-nums',
+        flexShrink: 0,
+        lineHeight: 1,
+        boxShadow: esCritico ? 'none' : `0 0 6px ${colorAcento}44`,
+      }}
+      title={`Orden global ${numero} (más viejo = 1)`}
+    >
+      #{numero}
+    </span>
+  );
+
   const renderBloqueVertical = (t, idx) => {
-    const color = colorPorAlerta(t.alerta);
+    const colorAlerta = colorPorAlerta(t.alerta);
+    const colorBorde = t.colorLinea || colorAlerta;
     const esCritico = t.alerta === 'rojo';
     const esAlerta = t.alerta === 'amarillo';
-    const glow = esCritico ? `0 0 ${14 * glowMult}px ${color}` : esAlerta ? `0 0 ${8 * glowMult}px ${color}aa` : 'none';
-    const numero = idx + 1;
+    const glow = esCritico ? `0 0 ${14 * glowMult}px ${colorAlerta}` : esAlerta ? `0 0 ${8 * glowMult}px ${colorAlerta}aa` : 'none';
+    const numero = t.numeroGlobal != null ? t.numeroGlobal : idx + 1;
     return (
       <div
-        key={`${numero}-${t.tiempoInicio || ''}`}
+        key={`${t.lineaId || 't'}-${t.unidadIndex ?? idx}-${numero}`}
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          padding: espaciado === 'compacto' ? '4px 12px' : '8px 14px',
-          borderRadius: '10px',
-          border: `2px solid ${esCritico ? color : `${color}88`}`,
-          background: esCritico ? color : `${color}1f`,
+          justifyContent: 'flex-start',
+          gap: '10px',
+          padding: espaciado === 'compacto' ? '4px 10px' : '8px 12px',
+          borderRadius: esUnido ? '0' : '10px',
+          border: `2px solid ${colorBorde}`,
+          background: esCritico ? colorAlerta : `${colorAlerta}1f`,
           boxShadow: glow,
           whiteSpace: 'nowrap',
           width: '100%',
           boxSizing: 'border-box',
         }}
       >
-        <span
-          style={{
-            fontSize: `${Math.max(12, tamanioCronometro * 0.5)}px`,
-            fontWeight: 800,
-            color: esCritico ? '#fffc' : `${color}cc`,
-            fontFamily: 'ui-monospace, "Courier New", monospace',
-            fontVariantNumeric: 'tabular-nums',
-            flexShrink: 0,
-            minWidth: '20px',
-            textAlign: 'right',
-          }}
-        >
-          {numero}-
-        </span>
+        {renderBadgeNumero(numero, esCritico)}
         <span
           style={{
             fontSize: `${tamanioCronometro}px`,
             fontWeight: 800,
             fontFamily: 'ui-monospace, "Courier New", monospace',
             fontVariantNumeric: 'tabular-nums',
-            color: esCritico ? '#fff' : color,
-            textShadow: esCritico ? '0 0 10px #fff' : `0 0 ${8 * glowMult}px ${color}66`,
+            color: esCritico ? '#fff' : colorAlerta,
+            textShadow: esCritico ? '0 0 10px #fff' : `0 0 ${8 * glowMult}px ${colorAlerta}66`,
             animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
           }}
         >
@@ -115,37 +134,37 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   };
 
   const renderChipHorizontal = (t, idx) => {
-    const color = colorPorAlerta(t.alerta);
+    const colorAlerta = colorPorAlerta(t.alerta);
+    const colorBorde = t.colorLinea || colorAlerta;
     const esCritico = t.alerta === 'rojo';
-    const numero = idx + 1;
+    const numero = t.numeroGlobal != null ? t.numeroGlobal : idx + 1;
     return (
       <span
-        key={`${numero}-${t.tiempoInicio || ''}`}
+        key={`${t.lineaId || 't'}-${t.unidadIndex ?? idx}-${numero}`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '6px',
-          padding: '2px 10px',
-          borderRadius: '6px',
+          gap: '8px',
+          padding: '4px 10px',
+          borderRadius: esUnido ? '0' : '8px',
           fontSize: `${tamanioCronometro}px`,
           fontWeight: 800,
           fontFamily: 'ui-monospace, "Courier New", monospace',
           fontVariantNumeric: 'tabular-nums',
-          color: esCritico ? colorFondo : color,
-          background: esCritico ? color : `${color}22`,
-          border: `1px solid ${color}88`,
-          textShadow: esCritico ? 'none' : `0 0 10px ${color}55`,
+          color: esCritico ? colorFondo : colorAlerta,
+          background: esCritico ? colorAlerta : `${colorAlerta}22`,
+          border: `2px solid ${colorBorde}`,
+          textShadow: esCritico ? 'none' : `0 0 10px ${colorAlerta}55`,
           animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ fontSize: `${Math.max(11, tamanioCronometro * 0.55)}px`, opacity: 0.8 }}>{numero}-</span>
+        {renderBadgeNumero(numero, esCritico)}
         {t.cronometro}
       </span>
     );
   };
 
-  // Modo resumido: solo el más antiguo + indicador de cuántos más
   let visibles = calculados;
   let ocultos = 0;
   if (modoResumido && calculados.length > 1) {
@@ -155,7 +174,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
 
   if (orientacion === 'vertical') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap, width: '100%', minWidth: '120px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap, width: '100%', minWidth: '140px' }}>
         {visibles.map((t, i) => renderBloqueVertical(t, i))}
         {ocultos > 0 && (
           <span
@@ -174,7 +193,6 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     );
   }
 
-  // Horizontal con numeración (sin paréntesis, estilo compacto)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap, flexWrap: 'wrap' }}>
       {visibles.map((t, i) => renderChipHorizontal(t, i))}

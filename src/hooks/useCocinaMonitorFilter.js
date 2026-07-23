@@ -13,6 +13,10 @@
  */
 
 import { useMemo } from 'react';
+import {
+  colorLineaDesdeId,
+  obtenerCantidadLinea,
+} from '../utils/numeracionTimersMonitor';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
 // pero tienen procesandoPor set. Los que pasan a recoger/salio/entregado desaparecen.
@@ -161,7 +165,8 @@ function claveGrupoPlatoConCocinero(plato, nombre, agruparPorCocinero) {
  * Modo cocinero (agruparPorCocinero=true): un grupo por cocinero + nombre + complementos.
  *   Cada item además incluye:
  *     cocinero: { id, alias, nombre }
- *     timers: [{ tiempoInicio, cantidad, mesa, comandaNumero }]  (uno por plato individual)
+ *     timers: [{ tiempoInicio, mesa, comandaNumero, lineaId, colorLinea, unidadIndex, ... }]
+ *       (una entrada por unidad de cantidad; misma lineaId = mismo contorno)
  *   Los `timers` permiten a la UI renderizar N cronómetros individuales (antiguo→nuevo).
  *
  * @param {Array} comandas - Comandas del día
@@ -219,17 +224,33 @@ const useCocinaMonitorFilter = (
         });
       }
       const grupo = gruposMap.get(key);
-      grupo.cantidadTotal += item.plato.cantidad || 1;
+      const platoIndex = Array.isArray(item.comanda.platos)
+        ? item.comanda.platos.indexOf(item.plato)
+        : -1;
+      const qty = obtenerCantidadLinea(item.comanda, item.plato, platoIndex);
+      grupo.cantidadTotal += qty;
       grupo.platos.push(item);
 
-      // Entrada individual de timer (una por plato tomado, no por unidad de cantidad)
+      // N timers por unidad de cantidad; misma línea → mismo contorno (lineaId)
       const mesaNum = obtenerMesaDeComanda(item.comanda);
-      grupo.timers.push({
-        tiempoInicio: item.tiempoInicio,
-        cantidad: item.plato.cantidad || 1,
-        mesa: mesaNum,
-        comandaNumero: item.comanda.numero || item.comanda.numeroMesa || null,
-      });
+      const comandaId = String(item.comanda._id || item.comanda.id || item.comanda.numero || '');
+      const lineaId = `${comandaId}:${platoIndex >= 0 ? platoIndex : item.nombre}`;
+      const colorLinea = colorLineaDesdeId(lineaId);
+      const comandaNumero = item.comanda.numero || item.comanda.numeroMesa || null;
+
+      for (let u = 0; u < qty; u++) {
+        grupo.timers.push({
+          tiempoInicio: item.tiempoInicio,
+          cantidad: 1,
+          mesa: mesaNum,
+          comandaNumero,
+          comandaId,
+          platoIndex,
+          unidadIndex: u,
+          lineaId,
+          colorLinea,
+        });
+      }
 
       // El tiempo inicio del grupo es el más antiguo (menor timestamp)
       const t = item.tiempoInicio ? new Date(item.tiempoInicio).getTime() : null;

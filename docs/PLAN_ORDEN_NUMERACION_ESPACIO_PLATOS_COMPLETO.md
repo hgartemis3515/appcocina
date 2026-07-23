@@ -3,11 +3,13 @@
 **Versión:** 1.0  
 **Fecha:** Julio 2026  
 **Proyecto:** App Cocina (`appcocina`)  
-**Estado:** Implementado (Julio 2026)  
+**Estado:** Implementado (Julio 2026) — numeración de **tarjeta** supersedida por  
+`PLAN_NUMERACION_GLOBAL_TEMPORIZADORES.md` (números globales solo en temporizadores).  
 **Relacionado con:**
 - `PLAN_VISTA_VER_COCINA.md`
 - `PLAN_PERSONALIZAR_VISTA_COCINA_TIPOGRAFIA_COLUMNAS.md`
 - `PLAN_SELECTOR_COCINEROS_VER_COCINA_COMPLETO.md`
+- `PLAN_NUMERACION_GLOBAL_TEMPORIZADORES.md` *(evolución: un solo sistema de números)*
 
 ---
 

@@ -22,7 +22,7 @@ import MesaChips from './MesaChips';
  * - configVisual: apariencia + umbrales + flags de personalización
  * - mostrarCocinero: si true renderiza línea de cocinero arriba (modo tarjetas)
  * - modoTarjeta: layout grid (true) vs lista (false)
- * - numeroOrden: índice 1-based en la lista (más viejo = 1)
+ * - Numeración: solo en temporizadores (numeroGlobal), no en la tarjeta
  */
 const colorAcentoPorCocinero = (alias) => {
   if (!alias) return '#ff4fa3';
@@ -38,7 +38,6 @@ const CocineroPlatoCard = ({
   mostrarCocinero = false,
   modoTarjeta = false,
   tick = 0,
-  numeroOrden = null,
 }) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
 
@@ -140,67 +139,40 @@ const CocineroPlatoCard = ({
       {/* Cocinero arriba (fucsia, siempre visible si mostrarCocinero) */}
       {mostrarCocinero && cocinero && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {/* En modo tarjeta (2+ columnas): el icono/foto se sustituye por el nº de orden */}
-          {modoTarjeta && numeroOrden != null && numeroOrden > 0 ? (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: '38px',
-                height: '38px',
-                padding: '0 6px',
-                borderRadius: esUnido ? '4px' : '50%',
-                background: `${colorAcento}22`,
-                border: `2px solid ${colorAcento}`,
-                color: colorAcento,
-                fontSize: `${Math.max(14, Math.min(fsIniciales + 4, 22))}px`,
-                fontWeight: 900,
-                fontVariantNumeric: 'tabular-nums',
-                flexShrink: 0,
-                lineHeight: 1,
-                boxShadow: `0 0 6px ${colorAcento}55`,
-              }}
-              title={`Orden ${numeroOrden} (más viejo = 1)`}
-            >
-              #{numeroOrden}
-            </span>
-          ) : (
-            mostrarIconoCocinero && (
-              cocinero.fotoUrl ? (
-                <img
-                  src={cocinero.fotoUrl}
-                  alt={cocinero.alias || cocinero.nombre || 'Cocinero'}
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: `2px solid ${colorCocinero}`,
-                    boxShadow: `0 0 6px ${colorCocinero}55`,
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    background: `${colorCocinero}22`,
-                    border: `2px solid ${colorCocinero}`,
-                    color: colorCocinero,
-                    fontSize: `${fsIniciales}px`,
-                    fontWeight: 800,
-                    flexShrink: 0,
-                  }}
-                >
-                  {(cocinero.alias || cocinero.nombre || '?').slice(0, 2).toUpperCase()}
-                </span>
-              )
+          {mostrarIconoCocinero && (
+            cocinero.fotoUrl ? (
+              <img
+                src={cocinero.fotoUrl}
+                alt={cocinero.alias || cocinero.nombre || 'Cocinero'}
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: `2px solid ${colorCocinero}`,
+                  boxShadow: `0 0 6px ${colorCocinero}55`,
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  background: `${colorCocinero}22`,
+                  border: `2px solid ${colorCocinero}`,
+                  color: colorCocinero,
+                  fontSize: `${fsIniciales}px`,
+                  fontWeight: 800,
+                  flexShrink: 0,
+                }}
+              >
+                {(cocinero.alias || cocinero.nombre || '?').slice(0, 2).toUpperCase()}
+              </span>
             )
           )}
           <span
@@ -217,32 +189,8 @@ const CocineroPlatoCard = ({
         </div>
       )}
 
-      {/* Plato + cantidad — badge #N solo en lista/bloques (en tarjetas ya va en el icono) */}
+      {/* Plato + cantidad (numeración solo en temporizadores) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        {!(modoTarjeta && mostrarCocinero) && numeroOrden != null && numeroOrden > 0 && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: `${Math.max(36, tamanioFuentePlato * 0.75)}px`,
-              height: `${Math.max(36, tamanioFuentePlato * 0.75)}px`,
-              padding: '2px 8px',
-              borderRadius: esUnido ? '4px' : '10px',
-              background: `${colorAcento}22`,
-              border: `2px solid ${colorAcento}`,
-              color: colorAcento,
-              fontSize: `${Math.max(18, tamanioFuentePlato * 0.55)}px`,
-              fontWeight: 900,
-              fontVariantNumeric: 'tabular-nums',
-              flexShrink: 0,
-              lineHeight: 1,
-            }}
-            title={`Orden ${numeroOrden} (más viejo = 1)`}
-          >
-            #{numeroOrden}
-          </span>
-        )}
         {mostrarEtiquetaPlato && (
           <span style={{ fontSize: `${tamanioFuenteDetalle}px`, color: colorTextoSecundario, fontWeight: 600, textTransform: 'uppercase' }}>
             Plato:

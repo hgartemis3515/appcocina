@@ -23,12 +23,17 @@ const MesaChips = ({ timers = [], configVisual = {} }) => {
   const fsBadge = escalaDetalle(configVisual.tamanioFuenteDetalle, 0.55);
   const maxVisibles = 5;
 
-  // Construir mapa mesa -> count (preserva orden de aparición)
+  // Contar mesas por línea de comanda (lineaId), no por unidad expandida
   const ordenadas = [];
   const counts = new Map();
+  const lineasVistas = new Set();
   for (const t of timers) {
     const m = t.mesa;
     if (m == null || m === '') continue;
+    const lineaKey = t.lineaId
+      || `solo:${m}:${t.comandaNumero ?? ''}:${t.tiempoInicio ?? ''}:${t.unidadIndex ?? 0}`;
+    if (lineasVistas.has(lineaKey)) continue;
+    lineasVistas.add(lineaKey);
     const key = String(m);
     if (!counts.has(key)) {
       counts.set(key, 0);

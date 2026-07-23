@@ -15,9 +15,8 @@ import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/
  * - item: { nombre, cantidadTotal, platos, tiempoInicio, key }
  * - configVisual: apariencia + umbrales de alerta
  * - modoTarjeta: true cuando la lista usa varias columnas (estilo tarjeta)
- * - numeroOrden: índice 1-based en la lista (más viejo = 1)
  */
-const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = false, numeroOrden = null }) => {
+const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = false }) => {
   const { nombre, cantidadTotal, platos = [], tiempoInicio } = item;
 
   // Cronómetro (del plato más antiguo del grupo)
@@ -131,29 +130,6 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
           gap: '8px',
         }}
       >
-        {numeroOrden != null && numeroOrden > 0 && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: `${Math.max(32, tamanioFuentePlato * 0.7)}px`,
-              padding: '2px 8px',
-              borderRadius: esUnido ? '4px' : '8px',
-              background: `${colorAcento}22`,
-              border: `2px solid ${colorAcento}`,
-              color: colorAcento,
-              fontSize: `${Math.max(16, tamanioFuentePlato * 0.5)}px`,
-              fontWeight: 900,
-              fontVariantNumeric: 'tabular-nums',
-              flexShrink: 0,
-              lineHeight: 1.2,
-            }}
-            title={`Orden ${numeroOrden} (más viejo = 1)`}
-          >
-            #{numeroOrden}
-          </span>
-        )}
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
         <span
           style={{
