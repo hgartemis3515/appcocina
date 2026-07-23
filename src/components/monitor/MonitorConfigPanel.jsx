@@ -4,6 +4,11 @@ import {
   MONITOR_TIPOGRAFIA,
   clampColumnas,
 } from '../../config/monitorVisualConstants';
+import {
+  estiloNumeroSecuencial,
+  textoNumeroSecuencial,
+  estiloCantidadBadge,
+} from '../../utils/monitorBadgeStyles';
 
 const FUENTES_DISPONIBLES = [
   { id: 'inter', label: 'Inter (default)', value: 'Inter, system-ui, sans-serif' },
@@ -376,6 +381,226 @@ const MonitorConfigPanel = ({
               <option value="900">Máximo</option>
             </select>
           </label>
+        </Section>
+
+        {/* Número secuencial (#N en timers) */}
+        <Section title="Número secuencial (timers)" colorAcento={colorAcento}>
+          {[
+            ['numeroSecColor', 'Color texto'],
+            ['numeroSecContorno', 'Color contorno'],
+            ['numeroSecFondo', 'Color fondo'],
+          ].map(([key, text]) => (
+            <label key={key} style={lbl}>
+              {text}
+              <input
+                type="color"
+                value={(configVisual[key] || '#22c55e').toString().slice(0, 7)}
+                onChange={e => guardar({ [key]: e.target.value })}
+                style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              />
+            </label>
+          ))}
+          <label style={lbl}>
+            Forma
+            <select
+              value={configVisual.numeroSecForma || 'redondeado'}
+              onChange={e => guardar({ numeroSecForma: e.target.value })}
+              style={{ ...inp, minWidth: '130px' }}
+            >
+              <option value="circulo">Círculo</option>
+              <option value="redondeado">Redondeado</option>
+              <option value="cuadrado">Cuadrado</option>
+              <option value="pildora">Píldora</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Tamaño letra
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => guardar({ numeroSecTamanio: 'auto' })}
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  background: (configVisual.numeroSecTamanio === 'auto' || configVisual.numeroSecTamanio == null)
+                    ? `${colorAcento}33` : 'transparent',
+                }}
+              >
+                Auto
+              </button>
+              <BtnStep
+                onClick={() => {
+                  const cur = configVisual.numeroSecTamanio === 'auto' || configVisual.numeroSecTamanio == null
+                    ? Math.max(18, (configVisual.tamanioFuentePlato || 36) * 0.55)
+                    : Number(configVisual.numeroSecTamanio) || 18;
+                  guardar({ numeroSecTamanio: Math.max(10, Math.round(cur) - 2) });
+                }}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={10}
+                max={72}
+                value={
+                  configVisual.numeroSecTamanio === 'auto' || configVisual.numeroSecTamanio == null
+                    ? ''
+                    : configVisual.numeroSecTamanio
+                }
+                placeholder="auto"
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '') guardar({ numeroSecTamanio: 'auto' });
+                  else guardar({ numeroSecTamanio: Math.min(72, Math.max(10, Number(v) || 10)) });
+                }}
+                style={{ ...inp, width: '64px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => {
+                  const cur = configVisual.numeroSecTamanio === 'auto' || configVisual.numeroSecTamanio == null
+                    ? Math.max(18, (configVisual.tamanioFuentePlato || 36) * 0.55)
+                    : Number(configVisual.numeroSecTamanio) || 18;
+                  guardar({ numeroSecTamanio: Math.min(72, Math.round(cur) + 2) });
+                }}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+          <label style={lbl}>
+            Peso
+            <select
+              value={String(configVisual.numeroSecPeso || '900')}
+              onChange={e => guardar({ numeroSecPeso: e.target.value })}
+              style={{ ...inp, minWidth: '120px' }}
+            >
+              <option value="600">Semi-negrita</option>
+              <option value="700">Negrita</option>
+              <option value="800">Extra</option>
+              <option value="900">Máximo</option>
+            </select>
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.numeroSecPrefijo !== false}
+              onChange={e => guardar({ numeroSecPrefijo: e.target.checked })}
+            />
+            Prefijo #
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.numeroSecGlow !== false}
+              onChange={e => guardar({ numeroSecGlow: e.target.checked })}
+            />
+            Glow
+          </label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginTop: '4px' }}>
+            {[1, 2, 12].map(n => (
+              <span key={n} style={estiloNumeroSecuencial(configVisual)}>
+                {textoNumeroSecuencial(n, configVisual)}
+              </span>
+            ))}
+          </div>
+        </Section>
+
+        {/* Cantidad ×N */}
+        <Section title="Cantidad (×N)" colorAcento={colorAcento}>
+          {[
+            ['cantidadColor', 'Color texto'],
+            ['cantidadContorno', 'Color contorno'],
+            ['cantidadFondo', 'Color fondo'],
+          ].map(([key, text]) => (
+            <label key={key} style={lbl}>
+              {text}
+              <input
+                type="color"
+                value={(configVisual[key] || (key === 'cantidadFondo' ? '#0d0612' : '#ffffff')).toString().slice(0, 7)}
+                onChange={e => guardar({ [key]: e.target.value })}
+                style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              />
+            </label>
+          ))}
+          <label style={lbl}>
+            Tamaño
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => guardar({ cantidadTamanio: 'auto' })}
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  background: (configVisual.cantidadTamanio === 'auto' || configVisual.cantidadTamanio == null)
+                    ? `${colorAcento}33` : 'transparent',
+                }}
+              >
+                Auto
+              </button>
+              <BtnStep
+                onClick={() => {
+                  const cur = configVisual.cantidadTamanio === 'auto' || configVisual.cantidadTamanio == null
+                    ? Math.max(14, (configVisual.tamanioFuentePlato || 36) * 0.6)
+                    : Number(configVisual.cantidadTamanio) || 14;
+                  guardar({ cantidadTamanio: Math.max(10, Math.round(cur) - 2) });
+                }}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={10}
+                max={72}
+                value={
+                  configVisual.cantidadTamanio === 'auto' || configVisual.cantidadTamanio == null
+                    ? ''
+                    : configVisual.cantidadTamanio
+                }
+                placeholder="auto"
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '') guardar({ cantidadTamanio: 'auto' });
+                  else guardar({ cantidadTamanio: Math.min(72, Math.max(10, Number(v) || 10)) });
+                }}
+                style={{ ...inp, width: '64px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => {
+                  const cur = configVisual.cantidadTamanio === 'auto' || configVisual.cantidadTamanio == null
+                    ? Math.max(14, (configVisual.tamanioFuentePlato || 36) * 0.6)
+                    : Number(configVisual.cantidadTamanio) || 14;
+                  guardar({ cantidadTamanio: Math.min(72, Math.round(cur) + 2) });
+                }}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+          <label style={lbl}>
+            Grosor contorno
+            <input
+              type="number"
+              min={1}
+              max={4}
+              value={configVisual.cantidadGrosorContorno ?? 2}
+              onChange={e => guardar({ cantidadGrosorContorno: Math.min(4, Math.max(1, Number(e.target.value) || 2)) })}
+              style={{ ...inp, width: '64px', textAlign: 'center' }}
+            />
+          </label>
+          <label style={lbl}>
+            Radio cuadro
+            <input
+              type="number"
+              min={0}
+              max={20}
+              value={configVisual.cantidadRadio ?? 10}
+              onChange={e => guardar({ cantidadRadio: Math.min(20, Math.max(0, Number(e.target.value) || 0)) })}
+              style={{ ...inp, width: '64px', textAlign: 'center' }}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginTop: '4px' }}>
+            {[1, 2, 4].map(n => (
+              <span key={n} style={estiloCantidadBadge(configVisual)}>
+                ×{n}
+              </span>
+            ))}
+          </div>
         </Section>
 
         {/* Colores */}

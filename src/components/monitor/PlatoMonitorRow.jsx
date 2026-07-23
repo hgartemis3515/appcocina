@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
+import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
 
 /**
  * PlatoMonitorRow - Fila AGRUPADA de un plato en el monitor Ver Cocina
@@ -131,14 +132,7 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
         }}
       >
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
-        <span
-          style={{
-            color: colorAcento,
-            fontSize: `${tamanioFuentePlato * 0.7}px`,
-            fontWeight: 900,
-            flexShrink: 0,
-          }}
-        >
+        <span style={estiloCantidadBadge(configVisual)}>
           ×{cantidadTotal}
         </span>
       </div>

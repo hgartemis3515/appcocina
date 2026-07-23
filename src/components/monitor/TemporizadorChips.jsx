@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
+import { estiloNumeroSecuencial, textoNumeroSecuencial } from '../../utils/monitorBadgeStyles';
 
 /**
  * TemporizadorChips - Temporizadores individuales con numeración GLOBAL (#1 = más viejo).
@@ -15,7 +16,6 @@ import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/
  */
 const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const tamanioCronometro = configVisual.tamanioFuenteCronometro || 28;
-  const tamanioFuentePlato = configVisual.tamanioFuentePlato || 38;
   const amarilloMin = configVisual.tiempoAmarillo ?? 5;
   const rojoMin = configVisual.tiempoRojo ?? 20;
   const colorAcento = configVisual.colorAcento || '#d4af37';
@@ -34,11 +34,6 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
 
   const glowMult = intensidad === 'alta' ? 1.6 : intensidad === 'suave' ? 0.5 : 1;
   const _ = tick;
-
-  // Mismo modelo que el badge #N de la tarjeta de plato
-  const badgeMinW = Math.max(36, tamanioFuentePlato * 0.75);
-  const badgeH = Math.max(36, tamanioFuentePlato * 0.75);
-  const badgeFs = Math.max(18, tamanioFuentePlato * 0.55);
 
   const calculados = useMemo(() => {
     return timers
@@ -65,29 +60,12 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const colorPorAlerta = (a) =>
     a === 'rojo' ? colorAlertaRoja : a === 'amarillo' ? colorAlertaAmarilla : colorAcento;
 
-  const renderBadgeNumero = (numero, esCritico) => (
+  const renderBadgeNumero = (numero) => (
     <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: `${badgeMinW}px`,
-        height: `${badgeH}px`,
-        padding: '2px 8px',
-        borderRadius: esUnido ? '4px' : '10px',
-        background: esCritico ? 'rgba(0,0,0,0.25)' : `${colorAcento}22`,
-        border: `2px solid ${esCritico ? '#fff' : colorAcento}`,
-        color: esCritico ? '#fff' : colorAcento,
-        fontSize: `${badgeFs}px`,
-        fontWeight: 900,
-        fontVariantNumeric: 'tabular-nums',
-        flexShrink: 0,
-        lineHeight: 1,
-        boxShadow: esCritico ? 'none' : `0 0 6px ${colorAcento}44`,
-      }}
+      style={estiloNumeroSecuencial(configVisual)}
       title={`Orden global ${numero} (más viejo = 1)`}
     >
-      #{numero}
+      {textoNumeroSecuencial(numero, configVisual)}
     </span>
   );
 
@@ -119,7 +97,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     };
     const inner = (
       <>
-        {renderBadgeNumero(numero, esCritico)}
+        {renderBadgeNumero(numero)}
         <span
           style={{
             fontSize: `${tamanioCronometro}px`,
@@ -177,7 +155,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     };
     const inner = (
       <>
-        {renderBadgeNumero(numero, esCritico)}
+        {renderBadgeNumero(numero)}
         {t.cronometro}
       </>
     );

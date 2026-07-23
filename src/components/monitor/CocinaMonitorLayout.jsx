@@ -12,6 +12,7 @@ import SearchBar from '../additionals/SearchBar';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { asignarNumeroGlobal } from '../../utils/numeracionTimersMonitor';
+import { BADGE_DEFAULTS } from '../../utils/monitorBadgeStyles';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -33,6 +34,7 @@ const DEFAULT_CONFIG = {
   disposicionTarjeta: 'vertical',
   pesoFuentePlato: '800',
   animacionesTarjetas: true,
+  ...BADGE_DEFAULTS,
   mostrarCocineroTomado: true,
   mostrarComplementos: true,
   tiempoAmarillo: 5,

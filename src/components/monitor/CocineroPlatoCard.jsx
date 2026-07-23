@@ -4,6 +4,7 @@ import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer
 import { escalaDetalle, MONITOR_TIPOGRAFIA } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
+import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -207,24 +208,8 @@ const CocineroPlatoCard = ({
         >
           {nombre}
         </div>
-        {/* Badge cantidad - bloque oscuro resaltado */}
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: '46px',
-            padding: '4px 12px',
-            borderRadius: '10px',
-            background: '#0d0612',
-            border: `2px solid ${esCritico ? colorAlertaRoja : colorAcento}`,
-            color: esCritico ? colorAlertaRoja : colorAcento,
-            fontSize: `${tamanioFuentePlato * 0.6}px`,
-            fontWeight: 900,
-            boxShadow: esCritico ? `0 0 12px ${colorAlertaRoja}88` : `0 0 8px ${colorAcento}44`,
-            flexShrink: 0,
-          }}
-        >
+        {/* Badge cantidad - personalizable (default blanco) */}
+        <span style={estiloCantidadBadge(configVisual)}>
           ×{cantidadTotal}
         </span>
       </div>
