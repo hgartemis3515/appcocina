@@ -31,11 +31,14 @@ import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import PpaSidebar from "./PpaSidebar";
+// PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
+import { calcularNumerosColaPorCocinero } from "../../utils/ordenColaCocinero";
+import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
 import useProcesamiento from "../../hooks/useProcesamiento";
 import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
-import { getApiUrl } from "../../config/apiConfig";
+import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
@@ -95,6 +98,11 @@ const ComandaStyle = ({
   // Regla: solo mostrar la comanda más antigua al usar el buscador de platos
   const reglaSoloUltimaComandaBuscador = hasRegla('solo-ultima-comanda-buscador');
   
+  // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola } = useConfiguracionCocina(getToken);
+  // Bypass de orden: admin o quien tenga permiso de Panel de Gestión (roles)
+  const puedeOmitirOrden = userRole === 'admin' || hasPermission('ver-panel-gestion-mozos');
+
   // Hook de configuración centralizada (v7.1)
   const { config, updateConfig } = useConfig();
   
@@ -153,7 +161,58 @@ const ComandaStyle = ({
   const [comandasAutoCompletadas, setComandasAutoCompletadas] = useState(new Set());
   // Estado para toast notifications simples
   const [toastMessage, setToastMessage] = useState(null);
-  
+
+  // PLAN OBLIGAR_ORDEN: overrides aprobados por admin (clave comandaId-platoId / comandaId-idx)
+  // Persistidos en estado React para que el botón pase a Finalizar aunque el plato en memoria no tenga aún el flag.
+  const [overridesAprobados, setOverridesAprobados] = useState(() => new Set());
+
+  const marcarOverrideLocal = useCallback((comandaId, platoId, platoIndex, mostrarToast = true) => {
+    const keys = [];
+    if (comandaId != null && platoId != null) keys.push(`${comandaId}-${platoId}`);
+    if (comandaId != null && platoIndex != null) keys.push(`${comandaId}-${platoIndex}`);
+    if (keys.length === 0) return;
+
+    setOverridesAprobados((prev) => {
+      const next = new Set(prev);
+      keys.forEach((k) => next.add(String(k)));
+      return next;
+    });
+
+    setComandas((prev) => prev.map((c) => {
+      if (String(c._id) !== String(comandaId)) return c;
+      const platos = (c.platos || []).map((p, idx) => {
+        const matchById = platoId != null && String(p._id) === String(platoId);
+        const matchByIdx = platoIndex != null && idx === Number(platoIndex);
+        if (matchById || matchByIdx) return { ...p, overrideOrdenCola: true };
+        return p;
+      });
+      return { ...c, platos };
+    }));
+
+    if (mostrarToast) {
+      setToastMessage({
+        type: 'success',
+        message: '✅ Orden autorizada por admin. Ya puede finalizar el plato.',
+        duration: 4000
+      });
+    }
+  }, []);
+
+  const platoTieneOverride = useCallback((comandaId, platoIndex, plato) => {
+    if (plato?.overrideOrdenCola === true) return true;
+    const id = plato?._id;
+    if (comandaId != null && id != null && overridesAprobados.has(`${comandaId}-${id}`)) return true;
+    if (comandaId != null && platoIndex != null && overridesAprobados.has(`${comandaId}-${platoIndex}`)) return true;
+    return false;
+  }, [overridesAprobados]);
+
+  // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR
+  // Mapa de número de cola (#1..#N) por cocinero. Se calcula en el padre (aquí hay `comandas`)
+  // y se pasa a cada SicarComandaCard → PlatoPreparacion.
+  const mapaColaCocineros = React.useMemo(() => {
+    return calcularNumerosColaPorCocinero(comandas);
+  }, [comandas]);
+
   // 🔥 PPA Sidebar state
   const [ppaSidebarOpen, setPpaSidebarOpen] = useState(false);
   
@@ -1022,6 +1081,73 @@ const ComandaStyle = ({
     token: getToken() // Token JWT para autenticación
   });
 
+  // PLAN OBLIGAR_ORDEN: cuando el admin aprueba, marcar override local
+  // (socket plato-override-orden + solicitud-gestion-actualizada) y hidratar desde API.
+  useEffect(() => {
+    if (!cocinaSocket) return undefined;
+
+    const aplicarDesdePayload = (data, toast = true) => {
+      const solicitud = data?.solicitud || data;
+      const comandaId = data?.comandaId || solicitud?.comandaId;
+      const platoId = data?.platoId || solicitud?.platoId;
+      const platoIndex = data?.platoIndex ?? solicitud?.platoIndex;
+      if (!comandaId) {
+        obtenerComandas();
+        return;
+      }
+      console.log('[OrdenCola] Override / solicitud actualizada', { comandaId, platoId, platoIndex, estado: solicitud?.estado });
+      if (solicitud?.estado && solicitud.estado !== 'aprobada' && data?.overrideOrdenCola !== true) {
+        return; // solo aplicar si es aprobación / override
+      }
+      marcarOverrideLocal(comandaId, platoId, platoIndex, toast);
+    };
+
+    const onOverride = (data) => aplicarDesdePayload(data, true);
+    const onSolicitud = (data) => {
+      const s = data?.solicitud || data;
+      if (s?.estado === 'aprobada' || data?.overrideOrdenCola === true) {
+        aplicarDesdePayload(data, true);
+      }
+    };
+
+    cocinaSocket.on('plato-override-orden', onOverride);
+    cocinaSocket.on('solicitud-gestion-actualizada', onSolicitud);
+
+    return () => {
+      cocinaSocket.off('plato-override-orden', onOverride);
+      cocinaSocket.off('solicitud-gestion-actualizada', onSolicitud);
+    };
+  }, [cocinaSocket, obtenerComandas, marcarOverrideLocal]);
+
+  // Hidratar overrides aprobados vigentes desde API (por si el socket se perdió)
+  useEffect(() => {
+    let cancelled = false;
+    const hidratar = async () => {
+      try {
+        const token = typeof getToken === 'function' ? await getToken() : null;
+        const base = getServerBaseUrl();
+        const res = await fetch(`${base}/api/solicitudes-gestion?estado=aprobada`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.success) return;
+        const vigentes = (data.solicitudes || []).filter((s) => s.overrideUsado !== true);
+        vigentes.forEach((s) => {
+          marcarOverrideLocal(s.comandaId, s.platoId, s.platoIndex, false);
+        });
+      } catch (e) {
+        console.warn('[OrdenCola] No se pudieron hidratar overrides', e.message);
+      }
+    };
+    hidratar();
+    const id = setInterval(hidratar, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [getToken, marcarOverrideLocal]);
+
   // ============================================================
   // SISTEMA MULTI-COCINERO v7.2: Hook de procesamiento
   // Permite tomar/liberar/finalizar platos con identificación de cocinero
@@ -1695,7 +1821,11 @@ const ComandaStyle = ({
     const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
     // En modo supervisor, cualquier plato tomado puede ser manejado
     const platoTomado = isSupervisorView ? (plato?.procesandoPor?.cocineroId != null) : tomadoPorMi;
-    
+
+    // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
+    // Se permite marcar #2+ en verde. El botón contextual (izquierda) cambia a
+    // "Solicitar Orden" cuando el lote incluye platos fuera de secuencia.
+
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
       const estadoActual = nuevo.get(key) || 'normal';
@@ -1706,7 +1836,7 @@ const ComandaStyle = ({
         if (estadoActual === 'normal') {
           nuevoEstado = 'dejar'; // → Rojo ↩️ (para liberar)
         } else if (estadoActual === 'dejar') {
-          nuevoEstado = 'seleccionado'; // → Verde ✓ (para finalizar)
+          nuevoEstado = 'seleccionado'; // → Verde ✓ (para finalizar / solicitar orden)
         } else {
           nuevoEstado = 'normal'; // Reset
         }
@@ -2209,12 +2339,44 @@ const ComandaStyle = ({
       };
     }
     
-    // CASO 3: Platos en estado 'seleccionado' (verde) -> FINALIZAR
+    // CASO 3: Platos en estado 'seleccionado' (verde) -> FINALIZAR o SOLICITAR_ORDEN
     // En modo supervisor, puede finalizar platos tomados por otros
     const platosAFinalizar = analisis.filter(p => 
       p.quiereFinalizar && (p.tomadoPorMi || (isSupervisorView && p.tomadoPorOtro))
     );
     if (platosAFinalizar.length > 0) {
+      // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
+      // Si obligar orden ON + solicitud ON + actor sin bypass (admin/permiso),
+      // y hay al menos un #2+ en el lote → el botón izquierdo pasa a SOLICITAR_ORDEN.
+      // Si solicitud OFF (supervisor bypass) o puedeOmitirOrden → FINALIZAR normal.
+      const requiereSolicitud =
+        obligarOrdenAsignacion &&
+        solicitudOrdenFueraDeCola &&
+        !puedeOmitirOrden;
+
+      if (requiereSolicitud) {
+        const mapaCola = calcularNumerosColaPorCocinero(comandas);
+        const fueraDeOrden = platosAFinalizar.filter(p => {
+          // Override one-shot aprobado por admin → se puede finalizar
+          if (platoTieneOverride(p.comandaId, p.platoIndex, p.plato)) return false;
+          const n = mapaCola.get(`${p.comandaId}-${p.platoIndex}`);
+          return n != null && n > 1;
+        });
+        if (fueraDeOrden.length > 0) {
+          return {
+            modo: 'SOLICITAR_ORDEN',
+            platos: fueraDeOrden,
+            platosFinalizables: platosAFinalizar.filter(p => {
+              if (platoTieneOverride(p.comandaId, p.platoIndex, p.plato)) return true;
+              const n = mapaCola.get(`${p.comandaId}-${p.platoIndex}`);
+              return n == null || n === 1;
+            }),
+            mensaje: `Solicitar Orden (${fueraDeOrden.length})`,
+            subMensaje: 'Pedir autorización al admin (fuera de secuencia)'
+          };
+        }
+      }
+
       return {
         modo: 'FINALIZAR_PLATO',
         platos: platosAFinalizar,
@@ -2240,7 +2402,7 @@ const ComandaStyle = ({
       mensaje: 'Sin accion disponible',
       subMensaje: ''
     };
-  }, [userId, obtenerPlatosSeleccionadosInfo, isSupervisorView]);
+  }, [userId, obtenerPlatosSeleccionadosInfo, isSupervisorView, obligarOrdenAsignacion, solicitudOrdenFueraDeCola, puedeOmitirOrden, comandas, platoTieneOverride]);
 
   /**
    * Handler para TOMAR platos seleccionados
@@ -2548,8 +2710,46 @@ const ComandaStyle = ({
 
       console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`, platosProcesados);
 
+      // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR
+      // Política B: solo finalizar líneas que son #1 de su cocinero.
+      // Admin => finaliza todo. Supervisor + solicitud OFF => finaliza #2+ (bypass).
+      // Supervisor + solicitud ON => #2+ se omiten del lote (se gestionan con "Solicitar Orden").
+      let loteAFinalizar = platosProcesados;
+      const omitidos = [];
+      if (obligarOrdenAsignacion && !puedeOmitirOrden) {
+        const mapaCola = calcularNumerosColaPorCocinero(comandas);
+        const supervisorConBypass = isSupervisorView && !solicitudOrdenFueraDeCola;
+        loteAFinalizar = platosProcesados.filter((p) => {
+          if (platoTieneOverride(p.comandaId, p.platoIndex, p.plato)) return true; // override aprobado
+          const numero = mapaCola.get(`${p.comandaId}-${p.platoIndex}`);
+          const fueraDeOrden = numero != null && numero > 1;
+          if (!fueraDeOrden) return true; // #1 o no en cola => finalizar
+          if (supervisorConBypass) return true; // bypass de supervisor
+          // Bloqueado: omitir del lote
+          omitidos.push({ ...p, numeroColaActual: numero });
+          return false;
+        });
+
+        if (omitidos.length > 0) {
+          const nombres = omitidos.map(o => {
+            const alias = o.plato?.procesandoPor?.alias || o.plato?.procesandoPor?.nombre || 'cocinero';
+            const nombre = obtenerNombrePlato(o.plato) || 'plato';
+            return `• ${nombre} (#${o.numeroColaActual} de ${alias})`;
+          }).join('\n');
+          const msg = (solicitudOrdenFueraDeCola)
+            ? `${omitidos.length} plato(s) fuera de secuencia omitidos. Use "Solicitar Orden" en el botón izquierdo.`
+            : `Omitido(s) por orden de asignación (${omitidos.length}):\n${nombres}\n\nDebe finalizar primero el #1 de cada cocinero.`;
+          setToastMessage({ type: 'warning', message: msg, duration: 5000 });
+        }
+
+        if (loteAFinalizar.length === 0) {
+          setIsFinalizandoPlatos(false);
+          return;
+        }
+      }
+
       // Usar función genérica batch
-      const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(platosProcesados);
+      const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(loteAFinalizar);
 
       // Resetear estados de platos exitosos a 'normal' (post-success) + limpiar checks
       setPlatoStates(prev => {
@@ -2620,7 +2820,7 @@ const ComandaStyle = ({
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId, isSupervisorView, onSupervisorFinalizarPlato]);
+  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId, isSupervisorView, onSupervisorFinalizarPlato, obligarOrdenAsignacion, puedeOmitirOrden, solicitudOrdenFueraDeCola, platoTieneOverride]);
 
   /**
    * SALIO: Handler para entregar platos del pass (recoger → salio)
@@ -2707,12 +2907,112 @@ const ComandaStyle = ({
   }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId, isSupervisorView, onSupervisorEntregarPlato]);
 
   /**
+   * PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR
+   * Handler del botón izquierdo cuando el modo es SOLICITAR_ORDEN.
+   * Envía una petición por cada plato #2+ al Panel de Gestión / Dashboard.
+   * Si el lote también trae #1 (platosFinalizables), los finaliza (política B).
+   */
+  const handleSolicitarOrden = useCallback(async (platosFueraDeOrden, platosFinalizables = []) => {
+    if (!platosFueraDeOrden || platosFueraDeOrden.length === 0) return;
+
+    setIsFinalizandoPlatos(true);
+    try {
+      const token = typeof getToken === 'function' ? await getToken() : null;
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const base = getServerBaseUrl();
+      const mapaCola = calcularNumerosColaPorCocinero(comandas);
+
+      const resultados = await Promise.allSettled(
+        platosFueraDeOrden.map(async (p) => {
+          const numero = mapaCola.get(`${p.comandaId}-${p.platoIndex}`)
+            ?? p.numeroColaActual
+            ?? null;
+          const body = {
+            comandaId: p.comandaId,
+            platoId: p.platoId || p.plato?._id,
+            platoIndex: p.platoIndex,
+            platoNombre: obtenerNombrePlato(p.plato) || p.nombre || 'Plato',
+            cantidad: p.plato?.cantidad || p.plato?.cantidades?.length || 1,
+            cocineroId: p.plato?.procesandoPor?.cocineroId || null,
+            cocineroAlias: p.plato?.procesandoPor?.alias || p.plato?.procesandoPor?.nombre || '',
+            numeroColaActual: numero,
+            motivo: null
+          };
+          const res = await fetch(`${base}/api/solicitudes-gestion`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || data.error || `HTTP ${res.status}`);
+          }
+          return data;
+        })
+      );
+
+      const ok = resultados.filter(r => r.status === 'fulfilled').length;
+      const fail = resultados.length - ok;
+
+      // Política B: finalizar los #1 del mismo lote (si los hay)
+      if (platosFinalizables && platosFinalizables.length > 0) {
+        try {
+          await batchFinalizarPlatos(platosFinalizables);
+        } catch (eFin) {
+          console.warn('[SolicitarOrden] Error finalizando #1 del lote mixto', eFin);
+        }
+      }
+
+      // Limpiar selección visual de los platos solicitados
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        platosFueraDeOrden.forEach(p => nuevo.set(`${p.comandaId}-${p.platoIndex}`, 'normal'));
+        (platosFinalizables || []).forEach(p => nuevo.set(`${p.comandaId}-${p.platoIndex}`, 'normal'));
+        return nuevo;
+      });
+      setPlatosChecked(prev => {
+        const nuevo = new Map(prev);
+        platosFueraDeOrden.forEach(p => nuevo.delete(`${p.comandaId}-${p.platoIndex}`));
+        (platosFinalizables || []).forEach(p => nuevo.delete(`${p.comandaId}-${p.platoIndex}`));
+        return nuevo;
+      });
+
+      if (ok > 0) {
+        setToastMessage({
+          type: 'success',
+          message: `✅ Solicitud enviada (${ok}). El admin debe aprobarla en el Panel de Gestión.`,
+          duration: 4500
+        });
+      }
+      if (fail > 0) {
+        setToastMessage({
+          type: 'error',
+          message: `⚠️ ${fail} solicitud(es) no se pudieron enviar.`,
+          duration: 4500
+        });
+      }
+    } catch (e) {
+      console.error('[SolicitarOrden] Error', e);
+      setToastMessage({
+        type: 'error',
+        message: `Error al solicitar orden: ${e.message}`,
+        duration: 4000
+      });
+    } finally {
+      setIsFinalizandoPlatos(false);
+    }
+  }, [getToken, comandas, batchFinalizarPlatos]);
+
+  /**
    * Handler unificado para el boton contextual de la barra inferior
    * Decide la accion basandose en el modo calculado
    * IMPORTANTE: Este handler debe definirse DESPUES de handleFinalizarPlatosGlobal
    */
   const handleBotonContextual = useCallback(async () => {
-    const { modo, platos } = determinarAccionBoton();
+    const { modo, platos, platosFinalizables } = determinarAccionBoton();
     
     switch (modo) {
       case 'ENTREGAR_PLATO':
@@ -2727,12 +3027,15 @@ const ComandaStyle = ({
       case 'FINALIZAR_PLATO':
         await handleFinalizarPlatosGlobal();
         break;
+      case 'SOLICITAR_ORDEN':
+        await handleSolicitarOrden(platos, platosFinalizables || []);
+        break;
       case 'SIN_ACCION':
       default:
         console.log('[BotonContextual] Sin accion disponible');
         break;
     }
-  }, [determinarAccionBoton, handleEntregarPlatosGlobal, handleTomarPlatos, handleDejarPlatos, handleFinalizarPlatosGlobal]);
+  }, [determinarAccionBoton, handleEntregarPlatosGlobal, handleTomarPlatos, handleDejarPlatos, handleFinalizarPlatosGlobal, handleSolicitarOrden]);
 
   // Handler para finalizar comanda completa - REGLA: Solo batch platos a 'recoger', nunca 'entregado'
   const handleFinalizarComandaCompletaGlobal = useCallback(async () => {
@@ -3632,6 +3935,8 @@ const ComandaStyle = ({
                     obtenerNombreMesa={obtenerNombreMesa}
                     hayBusquedaActiva={hayFiltroActivo}
                     platosVisiblesBusqueda={getPlatosVisibles(comanda)}
+                    // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: mapa #N por cocinero
+                    mapaColaCocineros={mapaColaCocineros}
                   />
                   );
                 })}
@@ -3672,6 +3977,8 @@ const ComandaStyle = ({
                         return 'bg-red-500 text-white hover:bg-red-600 cursor-pointer';
                       case 'FINALIZAR_PLATO':
                         return 'bg-green-600 text-white hover:bg-green-700 cursor-pointer';
+                      case 'SOLICITAR_ORDEN':
+                        return 'bg-amber-600 text-white hover:bg-amber-700 cursor-pointer';
                       default:
                         return nightMode 
                           ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
@@ -3686,7 +3993,8 @@ const ComandaStyle = ({
                       'ENTREGAR_PLATO': 'rgba(6, 95, 70, 0.7)',
                       'TOMAR_PLATO': 'rgba(59, 130, 246, 0.7)',
                       'DEJAR_PLATO': 'rgba(239, 68, 68, 0.7)',
-                      'FINALIZAR_PLATO': 'rgba(34, 197, 94, 0.7)'
+                      'FINALIZAR_PLATO': 'rgba(34, 197, 94, 0.7)',
+                      'SOLICITAR_ORDEN': 'rgba(217, 119, 6, 0.7)'
                     };
                     return { 
                       scale: 1.05, 
@@ -3729,6 +4037,8 @@ const ComandaStyle = ({
                             ✓
                           </motion.span>
                         );
+                      case 'SOLICITAR_ORDEN':
+                        return <span>📩</span>;
                       default:
                         return null;
                     }
@@ -4579,6 +4889,8 @@ const SicarComandaCard = ({
   // comanda.platosFiltrados (que puede perderse en re-renders / sockets)
   hayBusquedaActiva = false,
   platosVisiblesBusqueda = null,
+  // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: mapa #N precalculado en el padre
+  mapaColaCocineros = null,
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -5138,6 +5450,8 @@ const SicarComandaCard = ({
                       // v3.0: flags de resumen de complementos
                       mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
                       resumenComplementosImpresion={plato.resumenComplementosImpresion || null}
+                      // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero
+                      numeroColaCocinero={mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null}
                     />
                   );
                 })}

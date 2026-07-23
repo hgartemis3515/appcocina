@@ -31,6 +31,9 @@ const PlatoPreparacion = ({
   // v3.0: flags para mostrar resumen de complementos en cocina
   mostrarResumenComplementos = false,
   resumenComplementosImpresion = null,
+  // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: número de cola del plato (#1, #2, ...)
+  // Precalculado por el padre con ordenColaCocinero.js. Si null, no se muestra el badge.
+  numeroColaCocinero = null,
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -279,6 +282,15 @@ const PlatoPreparacion = ({
                   ? 'Tú'
                   : (procesandoPor.alias || procesandoPor.nombre || 'Cocinero')}
               </span>
+              {/* PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero (FIFO por timestamp) */}
+              {numeroColaCocinero != null && (
+                <span
+                  className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/25 text-emerald-200 border border-emerald-400/40"
+                  title={`Orden de asignación: #${numeroColaCocinero} (1 = más antiguo)`}
+                >
+                  #{numeroColaCocinero}
+                </span>
+              )}
             </motion.span>
           )}
         </div>
