@@ -338,18 +338,33 @@ const CocineroPlatoCard = ({
     </>
   );
 
-  if (modoTarjeta) {
+  const animOn = configVisual.animacionesTarjetas !== false;
+  const cardKey = item.grupoId || item.key;
+
+  if (!animOn) {
     return <div style={estiloTarjeta}>{contenido}</div>;
   }
 
   return (
     <motion.div
-      layout={false}
-      initial={{ opacity: 0, y: -8, scale: 0.99 }}
+      layout
+      key={cardKey}
+      initial={{ opacity: 0, y: -14, scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.18 } }}
-      transition={{ duration: 0.22 }}
-      style={estiloTarjeta}
+      exit={{
+        opacity: 0,
+        scale: 0.88,
+        x: 48,
+        filter: 'blur(3px)',
+        transition: { duration: 0.3, ease: [0.4, 0, 1, 1] },
+      }}
+      transition={{
+        layout: { type: 'spring', stiffness: 360, damping: 34, mass: 0.85 },
+        opacity: { duration: 0.22 },
+        scale: { duration: 0.24 },
+        y: { type: 'spring', stiffness: 400, damping: 30 },
+      }}
+      style={{ ...estiloTarjeta, willChange: 'transform, opacity' }}
     >
       {contenido}
     </motion.div>

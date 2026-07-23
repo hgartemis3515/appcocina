@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 
 /**
@@ -90,6 +91,11 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     </span>
   );
 
+  const animOn = configVisual.animacionesTarjetas !== false;
+
+  const timerKey = (t, idx) =>
+    `${t.lineaId || 't'}-${t.unidadIndex ?? idx}-${t.tiempoInicio || ''}`;
+
   const renderBloqueVertical = (t, idx) => {
     const colorAlerta = colorPorAlerta(t.alerta);
     const colorBorde = t.colorLinea || colorAlerta;
@@ -97,24 +103,22 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     const esAlerta = t.alerta === 'amarillo';
     const glow = esCritico ? `0 0 ${14 * glowMult}px ${colorAlerta}` : esAlerta ? `0 0 ${8 * glowMult}px ${colorAlerta}aa` : 'none';
     const numero = t.numeroGlobal != null ? t.numeroGlobal : idx + 1;
-    return (
-      <div
-        key={`${t.lineaId || 't'}-${t.unidadIndex ?? idx}-${numero}`}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-start',
-          gap: '10px',
-          padding: espaciado === 'compacto' ? '4px 10px' : '8px 12px',
-          borderRadius: esUnido ? '0' : '10px',
-          border: `2px solid ${colorBorde}`,
-          background: esCritico ? colorAlerta : `${colorAlerta}1f`,
-          boxShadow: glow,
-          whiteSpace: 'nowrap',
-          width: '100%',
-          boxSizing: 'border-box',
-        }}
-      >
+    const estilo = {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      gap: '10px',
+      padding: espaciado === 'compacto' ? '4px 10px' : '8px 12px',
+      borderRadius: esUnido ? '0' : '10px',
+      border: `2px solid ${colorBorde}`,
+      background: esCritico ? colorAlerta : `${colorAlerta}1f`,
+      boxShadow: glow,
+      whiteSpace: 'nowrap',
+      width: '100%',
+      boxSizing: 'border-box',
+    };
+    const inner = (
+      <>
         {renderBadgeNumero(numero, esCritico)}
         <span
           style={{
@@ -129,7 +133,23 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
         >
           {t.cronometro}
         </span>
-      </div>
+      </>
+    );
+    if (!animOn) {
+      return <div key={timerKey(t, idx)} style={estilo}>{inner}</div>;
+    }
+    return (
+      <motion.div
+        key={timerKey(t, idx)}
+        layout
+        initial={{ opacity: 0, x: 12, scale: 0.95 }}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={{ opacity: 0, x: 28, scale: 0.9, filter: 'blur(2px)', transition: { duration: 0.22 } }}
+        transition={{ layout: { type: 'spring', stiffness: 400, damping: 32 }, duration: 0.2 }}
+        style={estilo}
+      >
+        {inner}
+      </motion.div>
     );
   };
 
@@ -138,30 +158,44 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     const colorBorde = t.colorLinea || colorAlerta;
     const esCritico = t.alerta === 'rojo';
     const numero = t.numeroGlobal != null ? t.numeroGlobal : idx + 1;
-    return (
-      <span
-        key={`${t.lineaId || 't'}-${t.unidadIndex ?? idx}-${numero}`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '4px 10px',
-          borderRadius: esUnido ? '0' : '8px',
-          fontSize: `${tamanioCronometro}px`,
-          fontWeight: 800,
-          fontFamily: 'ui-monospace, "Courier New", monospace',
-          fontVariantNumeric: 'tabular-nums',
-          color: esCritico ? colorFondo : colorAlerta,
-          background: esCritico ? colorAlerta : `${colorAlerta}22`,
-          border: `2px solid ${colorBorde}`,
-          textShadow: esCritico ? 'none' : `0 0 10px ${colorAlerta}55`,
-          animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
-          whiteSpace: 'nowrap',
-        }}
-      >
+    const estilo = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '4px 10px',
+      borderRadius: esUnido ? '0' : '8px',
+      fontSize: `${tamanioCronometro}px`,
+      fontWeight: 800,
+      fontFamily: 'ui-monospace, "Courier New", monospace',
+      fontVariantNumeric: 'tabular-nums',
+      color: esCritico ? colorFondo : colorAlerta,
+      background: esCritico ? colorAlerta : `${colorAlerta}22`,
+      border: `2px solid ${colorBorde}`,
+      textShadow: esCritico ? 'none' : `0 0 10px ${colorAlerta}55`,
+      animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
+      whiteSpace: 'nowrap',
+    };
+    const inner = (
+      <>
         {renderBadgeNumero(numero, esCritico)}
         {t.cronometro}
-      </span>
+      </>
+    );
+    if (!animOn) {
+      return <span key={timerKey(t, idx)} style={estilo}>{inner}</span>;
+    }
+    return (
+      <motion.span
+        key={timerKey(t, idx)}
+        layout
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.85, x: 16, transition: { duration: 0.2 } }}
+        transition={{ layout: { type: 'spring', stiffness: 400, damping: 32 }, duration: 0.18 }}
+        style={estilo}
+      >
+        {inner}
+      </motion.span>
     );
   };
 
@@ -175,7 +209,9 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   if (orientacion === 'vertical') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap, width: '100%', minWidth: '140px' }}>
-        {visibles.map((t, i) => renderBloqueVertical(t, i))}
+        <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>
+          {visibles.map((t, i) => renderBloqueVertical(t, i))}
+        </AnimatePresence>
         {ocultos > 0 && (
           <span
             style={{
@@ -195,7 +231,9 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap, flexWrap: 'wrap' }}>
-      {visibles.map((t, i) => renderChipHorizontal(t, i))}
+      <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>
+        {visibles.map((t, i) => renderChipHorizontal(t, i))}
+      </AnimatePresence>
       {ocultos > 0 && (
         <span style={{ fontSize: `${Math.max(12, tamanioCronometro * 0.6)}px`, fontWeight: 700, color: colorTextoSecundario }}>
           +{ocultos} más

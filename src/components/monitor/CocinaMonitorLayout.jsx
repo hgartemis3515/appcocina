@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import moment from 'moment-timezone';
 import { clampColumnas } from '../../config/monitorVisualConstants';
 import PlatoMonitorRow from './PlatoMonitorRow';
@@ -32,6 +32,7 @@ const DEFAULT_CONFIG = {
   layoutColumnas: 1,
   disposicionTarjeta: 'vertical',
   pesoFuentePlato: '800',
+  animacionesTarjetas: true,
   mostrarCocineroTomado: true,
   mostrarComplementos: true,
   tiempoAmarillo: 5,
@@ -303,6 +304,9 @@ const CocinaMonitorLayout = ({
     () => (modoCocineros ? asignarNumeroGlobal(platosPendientes) : platosPendientes),
     [platosPendientes, modoCocineros],
   );
+
+  const animOn = configVisual.animacionesTarjetas !== false;
+  const presenceMode = animOn ? 'popLayout' : undefined;
 
   return (
     <div
@@ -591,16 +595,18 @@ const CocinaMonitorLayout = ({
           />
         ) : modoBloques ? (
           <div style={{ padding: '0 0 16px 0' }}>
-            <AnimatePresence initial={false}>
-              {bloquesCocinero.map((bloque) => (
-                <BloqueCocinero
-                  key={bloque.cocinero.id}
-                  bloque={bloque}
-                  configVisual={configVisual}
-                  tick={tick}
-                />
-              ))}
-            </AnimatePresence>
+            <LayoutGroup>
+              <AnimatePresence initial={false} mode={presenceMode}>
+                {bloquesCocinero.map((bloque) => (
+                  <BloqueCocinero
+                    key={bloque.cocinero.id}
+                    bloque={bloque}
+                    configVisual={configVisual}
+                    tick={tick}
+                  />
+                ))}
+              </AnimatePresence>
+            </LayoutGroup>
           </div>
         ) : modoCocineros ? (
           <div
@@ -613,31 +619,20 @@ const CocinaMonitorLayout = ({
               alignContent: 'start',
             } : undefined}
           >
-            {esGrid ? (
-              platosConTimersNumerados.map((item) => (
-                <CocineroPlatoCard
-                  key={item.grupoId || item.key}
-                  item={item}
-                  configVisual={configVisual}
-                  mostrarCocinero
-                  modoTarjeta
-                  tick={tick}
-                />
-              ))
-            ) : (
-              <AnimatePresence initial={false}>
+            <LayoutGroup>
+              <AnimatePresence initial={false} mode={presenceMode}>
                 {platosConTimersNumerados.map((item) => (
                   <CocineroPlatoCard
                     key={item.grupoId || item.key}
                     item={item}
                     configVisual={configVisual}
                     mostrarCocinero
-                    modoTarjeta={false}
+                    modoTarjeta={esGrid}
                     tick={tick}
                   />
                 ))}
               </AnimatePresence>
-            )}
+            </LayoutGroup>
           </div>
         ) : (
           <div
@@ -650,29 +645,19 @@ const CocinaMonitorLayout = ({
               alignContent: 'start',
             } : undefined}
           >
-            {esGrid ? (
-              platosPendientes.map((item) => (
-                <PlatoMonitorRow
-                  key={item.grupoId || item.key}
-                  item={item}
-                  configVisual={configVisual}
-                  tick={tick}
-                  modoTarjeta
-                />
-              ))
-            ) : (
-              <AnimatePresence initial={false}>
+            <LayoutGroup>
+              <AnimatePresence initial={false} mode={presenceMode}>
                 {platosPendientes.map((item) => (
                   <PlatoMonitorRow
                     key={item.grupoId || item.key}
                     item={item}
                     configVisual={configVisual}
                     tick={tick}
-                    modoTarjeta={false}
+                    modoTarjeta={esGrid}
                   />
                 ))}
               </AnimatePresence>
-            )}
+            </LayoutGroup>
           </div>
         )}
       </div>
@@ -702,14 +687,19 @@ const CocinaMonitorLayout = ({
  */
 const BloqueCocinero = ({ bloque, configVisual, tick }) => {
   const [expandido, setExpandido] = useState(true);
+  const animOn = configVisual.animacionesTarjetas !== false;
 
   return (
     <motion.div
-      layout={false}
-      initial={{ opacity: 0, y: -6 }}
+      layout={animOn}
+      initial={animOn ? { opacity: 0, y: -6 } : false}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, height: 0, transition: { duration: 0.18 } }}
-      transition={{ duration: 0.2 }}
+      exit={animOn
+        ? { opacity: 0, height: 0, transition: { duration: 0.22 } }
+        : { opacity: 0, transition: { duration: 0 } }}
+      transition={animOn
+        ? { layout: { type: 'spring', stiffness: 360, damping: 34 }, duration: 0.22 }
+        : { duration: 0 }}
       style={{ marginBottom: '8px' }}
     >
       {configVisual.mostrarCabeceraCocinero !== false && (
@@ -722,25 +712,29 @@ const BloqueCocinero = ({ bloque, configVisual, tick }) => {
           onToggle={() => setExpandido(v => !v)}
         />
       )}
-      <AnimatePresence initial={false}>
+      <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>
         {expandido && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
+            initial={animOn ? { height: 0, opacity: 0 } : false}
             animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            exit={animOn ? { height: 0, opacity: 0 } : { opacity: 0, transition: { duration: 0 } }}
+            transition={{ duration: animOn ? 0.22 : 0 }}
             style={{ overflow: 'hidden' }}
           >
-            {bloque.tarjetas.map((item) => (
-              <CocineroPlatoCard
-                key={item.grupoId || item.key}
-                item={item}
-                configVisual={configVisual}
-                mostrarCocinero={false}
-                modoTarjeta={false}
-                tick={tick}
-              />
-            ))}
+            <LayoutGroup>
+              <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>
+                {bloque.tarjetas.map((item) => (
+                  <CocineroPlatoCard
+                    key={item.grupoId || item.key}
+                    item={item}
+                    configVisual={configVisual}
+                    mostrarCocinero={false}
+                    modoTarjeta={false}
+                    tick={tick}
+                  />
+                ))}
+              </AnimatePresence>
+            </LayoutGroup>
           </motion.div>
         )}
       </AnimatePresence>

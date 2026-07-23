@@ -239,8 +239,10 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
     minWidth: 0,
   };
 
-  // En modo tarjeta/grid: sin animaciones layout (evita duplicados visuales al cambiar columnas)
-  if (modoTarjeta) {
+  // Animaciones (Personalizar → Animaciones de tarjetas; default ON)
+  const animOn = configVisual.animacionesTarjetas !== false;
+
+  if (!animOn) {
     return (
       <div style={estiloFila}>
         {contenidoNombre}
@@ -251,12 +253,22 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
 
   return (
     <motion.div
-      layout={false}
-      initial={{ opacity: 0, y: -10, scale: 0.98 }}
+      layout
+      initial={{ opacity: 0, y: -12, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
-      transition={{ duration: 0.25 }}
-      style={estiloFila}
+      exit={{
+        opacity: 0,
+        scale: 0.9,
+        x: 40,
+        filter: 'blur(3px)',
+        transition: { duration: 0.28, ease: [0.4, 0, 1, 1] },
+      }}
+      transition={{
+        layout: { type: 'spring', stiffness: 360, damping: 34 },
+        opacity: { duration: 0.2 },
+        scale: { duration: 0.22 },
+      }}
+      style={{ ...estiloFila, willChange: 'transform, opacity' }}
     >
       {contenidoNombre}
       {contenidoCronometro}

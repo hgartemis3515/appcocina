@@ -226,6 +226,14 @@ const MonitorConfigPanel = ({
               </select>
             </label>
           )}
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', minWidth: '180px' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.animacionesTarjetas !== false}
+              onChange={e => guardar({ animacionesTarjetas: e.target.checked })}
+            />
+            Animaciones de tarjetas
+          </label>
         </Section>
 
         {/* Tipografía */}
