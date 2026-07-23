@@ -7,7 +7,8 @@
 const DEFAULT_NUMERO_SEC = {
   color: '#22c55e',
   contorno: '#22c55e',
-  fondo: '#22c55e',
+  // Fondo sólido oscuro-verde (legible con texto verde; no transparente)
+  fondo: '#14532d',
   forma: 'redondeado',
   tamanio: 'auto',
   peso: '900',
@@ -54,12 +55,12 @@ export function estiloNumeroSecuencial(configVisual = {}, opts = {}) {
   const forma = configVisual.numeroSecForma || DEFAULT_NUMERO_SEC.forma;
   const color = configVisual.numeroSecColor || DEFAULT_NUMERO_SEC.color;
   const contorno = configVisual.numeroSecContorno || DEFAULT_NUMERO_SEC.contorno;
+  // Usar el color elegido tal cual (sólido). Si viene con alpha 8 dígitos, respetarlo.
   const fondoRaw = configVisual.numeroSecFondo || DEFAULT_NUMERO_SEC.fondo;
-  // Color picker da #rrggbb; añadimos alpha suave si no viene
   const fondo =
-    typeof fondoRaw === 'string' && fondoRaw.length === 7
-      ? `${fondoRaw}22`
-      : fondoRaw;
+    typeof fondoRaw === 'string' && fondoRaw.length >= 7
+      ? fondoRaw.slice(0, 7)
+      : (fondoRaw || DEFAULT_NUMERO_SEC.fondo);
   const peso = configVisual.numeroSecPeso || DEFAULT_NUMERO_SEC.peso;
   const glow = configVisual.numeroSecGlow !== false;
   const tamanioCfg = configVisual.numeroSecTamanio;
@@ -79,6 +80,7 @@ export function estiloNumeroSecuencial(configVisual = {}, opts = {}) {
     height: `${box}px`,
     padding: '2px 8px',
     borderRadius: borderRadiusNumeroSec(forma, esUnido),
+    backgroundColor: fondo,
     background: fondo,
     border: `2px solid ${contorno}`,
     color,
@@ -88,6 +90,10 @@ export function estiloNumeroSecuencial(configVisual = {}, opts = {}) {
     flexShrink: 0,
     lineHeight: 1,
     boxShadow: glow ? `0 0 6px ${contorno}55` : 'none',
+    // Por encima del fondo del chip del temporizador
+    position: 'relative',
+    zIndex: 2,
+    isolation: 'isolate',
   };
 }
 
