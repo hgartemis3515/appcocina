@@ -15,8 +15,9 @@ import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/
  * - item: { nombre, cantidadTotal, platos, tiempoInicio, key }
  * - configVisual: apariencia + umbrales de alerta
  * - modoTarjeta: true cuando la lista usa varias columnas (estilo tarjeta)
+ * - numeroOrden: índice 1-based en la lista (más viejo = 1)
  */
-const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = false }) => {
+const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = false, numeroOrden = null }) => {
   const { nombre, cantidadTotal, platos = [], tiempoInicio } = item;
 
   // Cronómetro (del plato más antiguo del grupo)
@@ -99,9 +100,10 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
   const espaciado = configVisual.espaciadoFilas || 'normal';
   const pesoFuentePlato = configVisual.pesoFuentePlato || '800';
   const disposicionVertical = modoTarjeta && (configVisual.disposicionTarjeta || 'vertical') === 'vertical';
+  const esUnido = espaciado === 'unido';
 
-  const paddingY = espaciado === 'compacto' ? '12px' : espaciado === 'amplio' ? '28px' : '18px';
-  const paddingX = modoTarjeta ? '16px' : '24px';
+  const paddingY = esUnido ? '14px' : espaciado === 'compacto' ? '12px' : espaciado === 'amplio' ? '28px' : '18px';
+  const paddingX = modoTarjeta || esUnido ? '16px' : '24px';
 
   const colorAlerta = alerta === 'rojo' ? colorAlertaRoja : alerta === 'amarillo' ? colorAlertaAmarilla : colorAcento;
   const bordeAlerta = alerta !== 'normal' ? `3px solid ${colorAlerta}` : `3px solid ${colorAcento}44`;
@@ -123,15 +125,42 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           wordBreak: disposicionVertical ? 'break-word' : undefined,
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
         }}
       >
-        {nombre}
+        {numeroOrden != null && numeroOrden > 0 && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: `${Math.max(32, tamanioFuentePlato * 0.7)}px`,
+              padding: '2px 8px',
+              borderRadius: esUnido ? '4px' : '8px',
+              background: `${colorAcento}22`,
+              border: `2px solid ${colorAcento}`,
+              color: colorAcento,
+              fontSize: `${Math.max(16, tamanioFuentePlato * 0.5)}px`,
+              fontWeight: 900,
+              fontVariantNumeric: 'tabular-nums',
+              flexShrink: 0,
+              lineHeight: 1.2,
+            }}
+            title={`Orden ${numeroOrden} (más viejo = 1)`}
+          >
+            #{numeroOrden}
+          </span>
+        )}
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
         <span
           style={{
             color: colorAcento,
-            marginLeft: disposicionVertical ? '8px' : '12px',
             fontSize: `${tamanioFuentePlato * 0.7}px`,
             fontWeight: 900,
+            flexShrink: 0,
           }}
         >
           ×{cantidadTotal}
@@ -216,10 +245,12 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
   const estiloFila = {
     background: fondoFila,
     color: colorTextoPrincipal,
-    borderBottom: modoTarjeta ? 'none' : `1px solid ${colorAcento}15`,
-    borderLeft: bordeIzquierdo,
-    border: modoTarjeta ? bordeAlerta : undefined,
-    borderRadius: modoTarjeta ? '12px' : 0,
+    borderBottom: modoTarjeta || esUnido ? 'none' : `1px solid ${colorAcento}15`,
+    borderLeft: esUnido ? (alerta !== 'normal' ? `3px solid ${colorAlerta}` : `1px solid ${colorAcento}44`) : bordeIzquierdo,
+    border: modoTarjeta
+      ? (esUnido ? `1px solid ${alerta !== 'normal' ? colorAlerta : `${colorAcento}44`}` : bordeAlerta)
+      : (esUnido ? `1px solid ${colorAcento}33` : undefined),
+    borderRadius: esUnido ? 0 : (modoTarjeta ? '12px' : 0),
     padding: `${paddingY} ${paddingX}`,
     fontFamily: fuenteFamilia,
     display: 'flex',
@@ -228,7 +259,7 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
     justifyContent: disposicionVertical ? 'flex-start' : 'space-between',
     minHeight: modoTarjeta ? '120px' : '72px',
     height: modoTarjeta ? '100%' : undefined,
-    boxShadow: modoTarjeta ? `0 2px 12px ${colorAcento}11` : 'none',
+    boxShadow: esUnido ? 'none' : (modoTarjeta ? `0 2px 12px ${colorAcento}11` : 'none'),
     minWidth: 0,
   };
 

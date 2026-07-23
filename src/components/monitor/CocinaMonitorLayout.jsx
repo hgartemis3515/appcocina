@@ -241,7 +241,10 @@ const CocinaMonitorLayout = ({
   const iconoEmoji = ICONO_MAP[icono] || icono || '🍳';
   const layoutColumnas = clampColumnas(configVisual.layoutColumnas || 1);
   const esGrid = layoutColumnas > 1;
-  const gapGrid = configVisual.espaciadoFilas === 'compacto' ? '8px' : configVisual.espaciadoFilas === 'amplio' ? '20px' : '12px';
+  const gapGrid =
+    configVisual.espaciadoFilas === 'unido' ? '0px' :
+    configVisual.espaciadoFilas === 'compacto' ? '8px' :
+    configVisual.espaciadoFilas === 'amplio' ? '20px' : '12px';
 
   // Detección automática del modo "por cocinero": si los items tienen `cocinero` y `timers`
   const modoCocineros = modoCocinerosProp != null
@@ -600,7 +603,7 @@ const CocinaMonitorLayout = ({
             } : undefined}
           >
             {esGrid ? (
-              platosPendientes.map(item => (
+              platosPendientes.map((item, index) => (
                 <CocineroPlatoCard
                   key={item.grupoId || item.key}
                   item={item}
@@ -608,11 +611,12 @@ const CocinaMonitorLayout = ({
                   mostrarCocinero
                   modoTarjeta
                   tick={tick}
+                  numeroOrden={index + 1}
                 />
               ))
             ) : (
               <AnimatePresence initial={false}>
-                {platosPendientes.map(item => (
+                {platosPendientes.map((item, index) => (
                   <CocineroPlatoCard
                     key={item.grupoId || item.key}
                     item={item}
@@ -620,6 +624,7 @@ const CocinaMonitorLayout = ({
                     mostrarCocinero
                     modoTarjeta={false}
                     tick={tick}
+                    numeroOrden={index + 1}
                   />
                 ))}
               </AnimatePresence>
@@ -637,24 +642,26 @@ const CocinaMonitorLayout = ({
             } : undefined}
           >
             {esGrid ? (
-              platosPendientes.map(item => (
+              platosPendientes.map((item, index) => (
                 <PlatoMonitorRow
                   key={item.grupoId || item.key}
                   item={item}
                   configVisual={configVisual}
                   tick={tick}
                   modoTarjeta
+                  numeroOrden={index + 1}
                 />
               ))
             ) : (
               <AnimatePresence initial={false}>
-                {platosPendientes.map(item => (
+                {platosPendientes.map((item, index) => (
                   <PlatoMonitorRow
                     key={item.grupoId || item.key}
                     item={item}
                     configVisual={configVisual}
                     tick={tick}
                     modoTarjeta={false}
+                    numeroOrden={index + 1}
                   />
                 ))}
               </AnimatePresence>
@@ -717,7 +724,7 @@ const BloqueCocinero = ({ bloque, configVisual, tick }) => {
             transition={{ duration: 0.2 }}
             style={{ overflow: 'hidden' }}
           >
-            {bloque.tarjetas.map(item => (
+            {bloque.tarjetas.map((item, index) => (
               <CocineroPlatoCard
                 key={item.grupoId || item.key}
                 item={item}
@@ -725,6 +732,7 @@ const BloqueCocinero = ({ bloque, configVisual, tick }) => {
                 mostrarCocinero={false}
                 modoTarjeta={false}
                 tick={tick}
+                numeroOrden={index + 1}
               />
             ))}
           </motion.div>

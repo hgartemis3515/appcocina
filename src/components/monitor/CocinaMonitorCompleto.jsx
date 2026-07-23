@@ -71,9 +71,10 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
   }, [comandas, comandasFiltradas, hayFiltroActivo]);
 
   // Agrupar por cocinero + plato: cada grupo trae `cocinero` y `timers[]` individuales
+  // Más viejo → más nuevo (izquierda→derecha, arriba→abajo en el grid)
   const platosPendientesRaw = useCocinaMonitorFilter(comandasParaMonitor, null, {
-    criterio: 'prioridad',
-    direccion: 'desc',
+    criterio: 'tiempo',
+    direccion: 'asc',
   }, {
     agruparPorCocinero: true,
     cocineroIdFiltrado: cocineroActivoId,

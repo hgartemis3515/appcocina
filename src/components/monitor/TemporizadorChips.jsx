@@ -30,7 +30,9 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const modoResumido = configVisual.modoTimers === 'resumidos';
   const orientacion = configVisual.estiloTemporizador === 'horizontal' ? 'horizontal' : 'vertical';
   const intensidad = configVisual.intensidadAlerta || 'normal'; // 'suave' | 'normal' | 'alta'
-  const gap = espaciado === 'compacto' ? '4px' : (orientacion === 'vertical' ? '8px' : '6px');
+  const gap = espaciado === 'compacto' || espaciado === 'unido'
+    ? '4px'
+    : (orientacion === 'vertical' ? '8px' : '6px');
 
   // Multiplicador de intensidad para glow/sombra
   const glowMult = intensidad === 'alta' ? 1.6 : intensidad === 'suave' ? 0.5 : 1;

@@ -207,6 +207,7 @@ const MonitorConfigPanel = ({
               onChange={e => guardar({ espaciadoFilas: e.target.value })}
               style={{ ...inp, minWidth: '120px' }}
             >
+              <option value="unido">Unido (sin espacio)</option>
               <option value="compacto">Compacto</option>
               <option value="normal">Normal</option>
               <option value="amplio">Amplio</option>
