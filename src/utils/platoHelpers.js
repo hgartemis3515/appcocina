@@ -62,6 +62,25 @@ export const obtenerPlatoSubdocId = (plato) => {
 };
 
 /**
+ * Resuelve el índice real del plato en `comanda.platos`.
+ * Necesario cuando el buscador entrega copias `{ ...plato, _puntuacion }`:
+ * `indexOf(plato)` falla (-1) y rompe selección / Tomar / Finalizar.
+ * @param {Object} comanda
+ * @param {Object} plato
+ * @returns {number} índice >= 0, o -1 si no se encuentra
+ */
+export const resolverIndicePlato = (comanda, plato) => {
+  if (!comanda?.platos || !Array.isArray(comanda.platos) || !plato) return -1;
+  const subdocId = obtenerPlatoSubdocId(plato);
+  if (subdocId) {
+    const byId = comanda.platos.findIndex((p) => obtenerPlatoSubdocId(p) === subdocId);
+    if (byId !== -1) return byId;
+  }
+  const byRef = comanda.platos.indexOf(plato);
+  return byRef;
+};
+
+/**
  * Indica si un plato de comanda tiene nombre válido cargado.
  * Útil para filtrar platos pendientes de sincronización.
  * @param {Object} plato - Plato de comanda

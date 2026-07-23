@@ -41,10 +41,12 @@ const SearchBar = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isSearching, setIsSearching] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const suggestionsRef = useRef(null);
   const searchTimerRef = useRef(null);
+  const blurTimerRef = useRef(null);
 
   const handleChange = (event) => {
     const value = event.target.value;
@@ -79,7 +81,8 @@ const SearchBar = ({
     setShowSuggestions(false);
     setSelectedIndex(-1);
     setIsSearching(false);
-    inputRef.current?.focus();
+    setIsInputFocused(false);
+    inputRef.current?.blur();
   };
 
   // Lupa presionable opcional: re-dispara la búsqueda con el término actual
@@ -127,12 +130,13 @@ const SearchBar = ({
     }
   };
 
-  // Cerrar sugerencias al hacer click fuera
+  // Cerrar sugerencias al hacer click fuera (libera la tabla KDS debajo)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setShowSuggestions(false);
         setSelectedIndex(-1);
+        setIsInputFocused(false);
       }
     };
 
@@ -140,12 +144,17 @@ const SearchBar = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Mostrar sugerencias cuando cambian
+  // Mostrar sugerencias solo con el input enfocado (no forzar reopen:
+  // si quedan abiertas tapan la tabla KDS y bloquean Tomar/Finalizar).
   useEffect(() => {
-    if (searchTerm.length >= 1 && sugerencias.length > 0) {
+    if (
+      isInputFocused &&
+      searchTerm.length >= 1 &&
+      sugerencias.length > 0
+    ) {
       setShowSuggestions(true);
     }
-  }, [sugerencias, searchTerm.length]);
+  }, [sugerencias, searchTerm.length, isInputFocused]);
 
   // Scroll a sugerencia seleccionada
   useEffect(() => {
@@ -157,12 +166,34 @@ const SearchBar = ({
     }
   }, [selectedIndex]);
 
-  // Limpiar timer al desmontar
+  // Limpiar timers al desmontar
   useEffect(() => {
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
     };
   }, []);
+
+  const handleInputFocus = () => {
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+    setIsInputFocused(true);
+    if (searchTerm.length >= 1 && sugerencias.length > 0) {
+      setShowSuggestions(true);
+    }
+  };
+
+  const handleInputBlur = () => {
+    // Delay: permitir click en sugerencia antes de cerrar
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+    blurTimerRef.current = setTimeout(() => {
+      setIsInputFocused(false);
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
+    }, 180);
+  };
+
+  // Solo mostrar dropdown si el input está activo (evita overlay permanente)
+  const visibleSuggestions = showSuggestions && isInputFocused && sugerencias.length > 0;
 
   // Icono según tipo de sugerencia
   const getSuggestionIcon = (tipo) => {
@@ -254,9 +285,8 @@ const SearchBar = ({
               value={searchTerm}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onFocus={() => {
-                if (searchTerm.length >= 1 && sugerencias.length > 0) setShowSuggestions(true);
-              }}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
               style={{
                 flex: '1 1 auto',
                 minWidth: 0,
@@ -322,7 +352,7 @@ const SearchBar = ({
         </div>
 
         {/* Sugerencias (igual lógica que KDS, tema monitor) */}
-        {showSuggestions && sugerencias.length > 0 && (
+        {visibleSuggestions && (
           <div
             style={{
               position: 'absolute',
@@ -369,6 +399,7 @@ const SearchBar = ({
                   <li key={idx}>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => handleSuggestionClick(sugerencia)}
                       style={{
                         width: '100%',
@@ -458,11 +489,8 @@ const SearchBar = ({
               value={searchTerm}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onFocus={() => {
-                if (searchTerm.length >= 1 && sugerencias.length > 0) {
-                  setShowSuggestions(true);
-                }
-              }}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
             />
             {searchTerm && (
               <button
@@ -510,7 +538,7 @@ const SearchBar = ({
         )}
 
         {/* Sugerencias de búsqueda */}
-        {showSuggestions && sugerencias.length > 0 && (
+        {visibleSuggestions && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
             <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-700 flex items-center gap-2 bg-gray-900">
               <FaLightbulb className="text-yellow-500" />
@@ -527,6 +555,8 @@ const SearchBar = ({
               {sugerencias.map((sugerencia, idx) => (
                 <li key={idx}>
                   <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSuggestionClick(sugerencia)}
                     className={`w-full px-4 py-2.5 text-left transition-colors flex items-center justify-between gap-3 ${
                       idx === selectedIndex

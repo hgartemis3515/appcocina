@@ -42,7 +42,7 @@ import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
-import { obtenerNombrePlato, obtenerPlatoSubdocId } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, resolverIndicePlato } from "../../utils/platoHelpers";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -2166,7 +2166,7 @@ const ComandaStyle = ({
       
       if (isNaN(platoIndex)) return;
       
-      const comanda = comandas.find(c => c._id === comandaId);
+      const comanda = comandas.find(c => String(c._id) === String(comandaId));
       if (!comanda) return;
       
       const plato = comanda.platos?.[platoIndex];
@@ -5402,17 +5402,15 @@ const SicarComandaCard = ({
               <div className="px-2 py-2 space-y-1">
                 {platosPreparacion.map((plato, index) => {
                   const platoObj = plato.plato || plato;
-                  // 🔥 FIX: Usar helper para obtener el subdoc id y comparar como string.
-                  // Las copias spread del buscador ({ ...plato, _puntuacion }) mantienen
-                  // el _id, pero ObjectId vs string puede fallar en findIndex.
-                  const platoSubdocId = obtenerPlatoSubdocId(plato);
-                  const platoIndex = platoSubdocId
-                    ? comanda.platos.findIndex(p => obtenerPlatoSubdocId(p) === platoSubdocId)
-                    : comanda.platos.indexOf(plato);
-                  const platoIndexFinal = platoIndex !== -1 ? platoIndex : index;
-                  const cantidad = comanda.cantidades?.[platoIndexFinal] || 1;
-                  const platoId = platoObj?._id || plato._id || platoIndexFinal;
-                  const platoKey = `${comandaId}-${platoIndexFinal}`;
+                  // 🔥 FIX buscador: no usar indexOf sobre copias { ...plato, _puntuacion }
+                  const platoIndex = resolverIndicePlato(comanda, plato);
+                  if (platoIndex < 0) {
+                    console.warn(`[KDS] No se pudo resolver índice del plato en comanda #${comanda.comandaNumber}`);
+                    return null;
+                  }
+                  const cantidad = comanda.cantidades?.[platoIndex] || 1;
+                  const platoId = platoObj?._id || plato._id || platoIndex;
+                  const platoKey = `${comandaId}-${platoIndex}`;
                   const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
                   
                   // v7.2: Si el plato tiene procesandoPor y está en estado local normal/procesando,
@@ -5535,10 +5533,12 @@ const SicarComandaCard = ({
                 <AnimatePresence>
                   {platosListos.map((plato, index) => {
                     const platoObj = plato.plato || plato;
-                    const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
+                    // 🔥 FIX buscador: resolver índice real (no indexOf sobre copia filtrada)
+                    const platoIndex = resolverIndicePlato(comanda, plato);
+                    if (platoIndex < 0) return null;
+                    const cantidad = comanda.cantidades?.[platoIndex] || 1;
                     // FIX: revertir multi-plato similar - Priorizar plato._id (subdocumento único)
-                    const platoIdUnico = plato._id?.toString() || platoObj?._id || index;
-                    const platoIndex = comanda.platos.indexOf(plato);
+                    const platoIdUnico = plato._id?.toString() || platoObj?._id || platoIndex;
                     const estadoRealPlato = plato.estado || 'recoger';
                     // SALIO: Estado visual de selección para entregar del pass
                     const platoKeyListo = `${comandaId}-${platoIndex}`;

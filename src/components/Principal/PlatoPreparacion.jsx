@@ -46,7 +46,7 @@ const PlatoPreparacion = ({
     e.preventDefault();
     // 🔥 FIX: No permitir interacción si está tomado por otro cocinero (excepto supervisor)
     if (!puedeInteractuar || isEliminado) return;
-    if (onToggle && platoIndex !== undefined) {
+    if (onToggle && platoIndex !== undefined && platoIndex !== null && platoIndex >= 0) {
       onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
     }
   };
