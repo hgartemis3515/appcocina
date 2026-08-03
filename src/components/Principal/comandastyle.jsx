@@ -1107,6 +1107,31 @@ const ComandaStyle = ({
       const s = data?.solicitud || data;
       if (s?.estado === 'aprobada' || data?.overrideOrdenCola === true) {
         aplicarDesdePayload(data, true);
+        return;
+      }
+      // Rechazo: toast KDS supervisor con la nota/observación del admin (Panel mozos)
+      if (s?.estado === 'rechazada') {
+        const plato = s.platoNombre || data?.platoNombre || 'plato';
+        const notaRaw =
+          s.notaResolucion ??
+          data?.notaResolucion ??
+          s.nota ??
+          data?.nota ??
+          s.mensaje ??
+          data?.mensaje ??
+          null;
+        const nota = notaRaw != null && String(notaRaw).trim()
+          ? String(notaRaw).trim()
+          : null;
+        setToastMessage({
+          type: 'error',
+          message: `❌ Orden rechazada por admin: "${plato}"`,
+          nota: nota,
+          detail: nota
+            ? null
+            : 'No se puede finalizar fuera de secuencia.',
+          duration: nota ? 10000 : 6000
+        });
       }
     };
 
@@ -4817,7 +4842,7 @@ const ComandaStyle = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.8 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl ${
+            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl max-w-[min(92vw,520px)] ${
               toastMessage.type === 'success' 
                 ? 'bg-green-500 text-white' 
                 : toastMessage.type === 'error'
@@ -4826,18 +4851,35 @@ const ComandaStyle = ({
             }`}
             style={{ fontFamily: 'Arial, sans-serif' }}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               {toastMessage.type === 'success' && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                  className="text-2xl"
+                  className="text-2xl flex-shrink-0"
                 >
                   ✓
                 </motion.span>
               )}
-              <span className="font-bold text-lg">{toastMessage.message}</span>
+              {toastMessage.type === 'error' && (
+                <span className="text-2xl flex-shrink-0" aria-hidden>!</span>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-lg leading-snug whitespace-normal break-words">
+                  {toastMessage.message}
+                </div>
+                {toastMessage.detail ? (
+                  <div className="mt-1 text-sm font-medium opacity-95 whitespace-normal break-words">
+                    {toastMessage.detail}
+                  </div>
+                ) : null}
+                {toastMessage.nota ? (
+                  <div className="mt-2 pt-2 border-t border-white/30 text-sm font-semibold whitespace-pre-wrap break-words">
+                    Observación: {toastMessage.nota}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </motion.div>
         )}
