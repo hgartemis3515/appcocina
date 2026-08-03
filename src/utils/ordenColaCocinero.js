@@ -11,8 +11,10 @@
  *
  * Reglas de negocio (ver plan):
  * - Cada cocinero tiene su propia cola (varios cocineros pueden tener su #1 a la vez).
- * - De un cocinero SOLO se puede finalizar el #1 (salvo admin / solicitud OFF / override).
+ * - Se puede finalizar el prefijo contiguo desde #1 (ej. #1+#2) sin Solicitar Orden.
+ * - Si se salta el orden (solo #2, o #4 sin #1..#3) → Solicitar Orden / bloqueo.
  * - La cantidad viaja con la línea: marcar el #1 con ×N finaliza las N unidades.
+ * - Al complementar con platos de otros cocineros, la regla aplica por cola de cada cocinero.
  */
 
 /**
@@ -120,42 +122,89 @@ export function esPrimeroEnCola(plato, comandas) {
 }
 
 /**
- * Filtra un lote de platos marcados para finalizar, respetando el orden #1 por cocinero.
+ * ¿El número `n` forma parte de un prefijo contiguo 1..n dentro del set seleccionado?
+ * Ej: seleccionados {1,2,3} → 1,2,3 OK. {1,2,4} → 4 NO (falta 3). {2,3} → ninguno (falta 1).
+ */
+export function esPrefijoContiguoDesdeUno(numero, numerosSeleccionadosSet) {
+    if (numero == null || numero < 1) return false;
+    if (!numerosSeleccionadosSet || typeof numerosSeleccionadosSet.has !== 'function') return false;
+    for (let i = 1; i <= numero; i++) {
+        if (!numerosSeleccionadosSet.has(i)) return false;
+    }
+    return true;
+}
+
+/**
+ * Filtra un lote de platos marcados para finalizar, respetando el orden de cola por cocinero.
  *
- * Devuelve:
- *   {
- *     finalizables: [...],   // líneas que son #1 de su cocinero (o del admin)
- *     bloqueados:   [...]    // líneas #2+ que requieren Solicitar Orden o no se pueden cerrar
- *   }
- *
- * El llamador (handleFinalizarPlatosGlobal) decide qué hacer con `bloqueados`:
- * - Si admin => finalizar todo (no usar esta función, o ignorar bloqueados).
- * - Si supervisor + solicitud ON => crear Solicitar Orden para cada bloqueado.
- * - Si supervisor + solicitud OFF => incluir bloqueados en finalizables (bypass).
+ * Regla:
+ * - Por cada cocinero (incluida selección de platos ajenos / supervisor), se puede
+ *   finalizar el prefijo contiguo desde #1 (ej. #1+#2+#3) sin Solicitar Orden.
+ * - Si se salta el orden (ej. solo #2, o #1+#2+#4 sin #3), esos platos van a `bloqueados`.
  *
  * @param {Array} platosMarcados - [{ comandaId, platoId, platoIndex, plato }]
  * @param {Array} comandas
+ * @param {Object} [opts]
+ * @param {Function} [opts.tieneOverride] - (item) => boolean — override one-shot aprobado
  * @returns {{ finalizables: Array, bloqueados: Array }}
  */
-export function filtrarLoteRespetandoOrden(platosMarcados, comandas) {
+export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) {
     const mapa = calcularNumerosColaPorCocinero(comandas);
     const finalizables = [];
     const bloqueados = [];
+    const tieneOverride = typeof opts.tieneOverride === 'function' ? opts.tieneOverride : () => false;
 
-    if (!Array.isArray(platosMarcados)) return { finalizables, bloqueados };
+    if (!Array.isArray(platosMarcados) || platosMarcados.length === 0) {
+        return { finalizables, bloqueados };
+    }
+
+    // Agrupar selección por cocinero dueño de la cola (procesandoPor), no por quien pulsa.
+    const porCocinero = new Map(); // cocineroId -> [{ item, numero, key }]
+    const sinCola = [];
 
     for (const item of platosMarcados) {
+        if (tieneOverride(item)) {
+            finalizables.push(item);
+            continue;
+        }
         const key = `${item.comandaId}-${item.platoIndex}`;
         const numero = mapa.get(key);
         if (numero == null) {
-            // No está en cola (no debería pasar si está marcado); incluir como finalizable
-            finalizables.push(item);
-        } else if (numero === 1) {
-            finalizables.push(item);
-        } else {
-            bloqueados.push({ ...item, numeroColaActual: numero });
+            sinCola.push(item);
+            continue;
+        }
+        const cocineroId = String(
+            item.plato?.procesandoPor?.cocineroId ||
+            item.cocineroId ||
+            '_sin_cocinero'
+        );
+        if (!porCocinero.has(cocineroId)) porCocinero.set(cocineroId, []);
+        porCocinero.get(cocineroId).push({ item, numero, key });
+    }
+
+    // Sin número de cola: no aplicar bloqueo de secuencia
+    for (const item of sinCola) {
+        finalizables.push(item);
+    }
+
+    for (const entradas of porCocinero.values()) {
+        const seleccionados = new Set(entradas.map((e) => e.numero));
+        for (const { item, numero } of entradas) {
+            if (esPrefijoContiguoDesdeUno(numero, seleccionados)) {
+                finalizables.push({ ...item, numeroColaActual: numero });
+            } else {
+                bloqueados.push({ ...item, numeroColaActual: numero });
+            }
         }
     }
+
+    // Estabilidad: finalizables en orden de cola ASC (luego batch secuencial respeta FIFO)
+    finalizables.sort((a, b) => {
+        const na = a.numeroColaActual ?? 0;
+        const nb = b.numeroColaActual ?? 0;
+        if (na !== nb) return na - nb;
+        return String(a.comandaId).localeCompare(String(b.comandaId));
+    });
 
     return { finalizables, bloqueados };
 }

@@ -31,9 +31,12 @@ import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import PpaSidebar from "./PpaSidebar";
+import KdsTopBar from "./KdsTopBar";
+import HistorialModal from "./HistorialModal";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useProcesamiento from "../../hooks/useProcesamiento";
 import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
+import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { 
@@ -111,6 +114,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const [showConfig, setShowConfig] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showRevertir, setShowRevertir] = useState(false);
+  // F1: Historial de comandas (entregadas / parciales)
+  const [showHistorial, setShowHistorial] = useState(false);
   const [ppaSidebarOpen, setPpaSidebarOpen] = useState(false);
   // 🔥 NUEVO: Estado para modal de anular plato
   const [showAnularModal, setShowAnularModal] = useState(false);
@@ -417,7 +422,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       if (!parsed.design) {
         parsed.design = { fontSize: 15, cols: 5, rows: 1 };
       }
-      setConfig(parsed);
+      // F2 (v7.3): mergear con defaults locales para no perder campos nuevos
+      // si la config guardada es de una versión anterior.
+      setConfig(prev => ({ ...prev, ...parsed }));
     }
   }, []);
 
@@ -467,6 +474,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     setShowSearch(false);
     setShowAnularModal(false);
     setShowDejarModal(false);
+    setShowHistorial(false);
     
     // Navegar al menú
     if (onGoToMenu) {
@@ -1359,6 +1367,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     token: getToken(), // Token JWT para autenticación
     cocineroId: cocineroConfig?.cocineroId || null // TEMA 1: Room personal para actualizaciones de config
   });
+
+  // Badge PPA en barra superior (misma fuente que la bandeja; reutiliza socket KDS)
+  const { cantidadPendientes: ppaCount } = useTablaAprobacion({ socket: cocinaSocket });
 
   // Actualizar estado de conexión
   useEffect(() => {
@@ -3317,115 +3328,26 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   return (
     <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col ${bgMain} ${textMain} overflow-hidden`}>
       {/* Header fijo estilo SICAR - Mejorado con indicadores de Vista */}
-      <header className={`h-16 ${bgHeader} border-b-2 ${borderMain} flex items-center justify-between px-6 flex-shrink-0 z-50 relative shadow-lg`}>
-        {/* Título centrado */}
-        <div className="absolute left-1/2 transform -translate-x-1/2">
-          <h1 className={`text-2xl font-bold ${textMain} tracking-wide`} style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '1px' }}>
-            COCINA LAS GAMBUSINAS
-          </h1>
-        </div>
-        
-        {/* Hora actual a la izquierda */}
-        <div className="flex flex-col items-start">
-          <div className={`text-2xl font-bold ${textMain}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-            {horaActual.format("HH:mm")}
-          </div>
-          <div className={`text-xs ${textSecondary}`}>{fechaActual.format("DD/MM/YYYY")}</div>
-        </div>
-
-        {/* Contador y botones a la derecha */}
-        <div className="flex items-center gap-4">
-          {/* Indicador de Vista Personalizada (fijo, sin toggle) */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-600 rounded text-white text-xs font-semibold">
-              <FaFilter className="text-xs" />
-              <span>Vista Personalizada</span>
-            </div>
-          </div>
-          
-          <div className="text-right">
-            <div className={`text-xs ${textSecondary}`}>Comandas Pendientes:</div>
-            <div className="text-2xl font-bold text-yellow-400" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {totalComandas}
-            </div>
-          </div>
-          
-          {/* Indicador de conexión Socket.io */}
-          <div className="flex items-center gap-2">
-            {socketConnectionStatus === 'conectado' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-green-600 rounded text-white text-xs font-semibold">
-                <span>●</span> Realtime
-              </div>
-            )}
-            {socketConnectionStatus === 'desconectado' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-red-600 rounded text-white text-xs font-semibold">
-                <span>●</span> Desconectado
-              </div>
-            )}
-            {socketConnectionStatus === 'auth_error' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-orange-600 rounded text-white text-xs font-semibold" title={socketAuthError}>
-                <span>●</span> Error Auth
-              </div>
-            )}
-          </div>
-          
-          {/* Botones pequeños arriba derecha - Orden: PPA → Regresar → Buscar → Reportes → Config → Revertir */}
-          <div className="flex gap-2">
-            {/* 🔥 Botón PPA - Tickets de Pagos Adelantados */}
-            <button
-              onClick={() => setPpaSidebarOpen(prev => !prev)}
-              className={`px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1`}
-              title="Tickets de Pagos Adelantados"
-            >
-              <FaShoppingBag className="text-xs" />
-              <span>PPA</span>
-            </button>
-            {/* Botón Regresar al Menú */}
-            <button
-              onClick={handleGoToMenu}
-              className={`px-3 py-1.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1`}
-              title="Volver al Menú Principal"
-            >
-              <FaArrowLeft /> Menú
-            </button>
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Buscar"
-            >
-              🔍 Buscar
-            </button>
-            <button
-              onClick={() => setShowReports(true)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Reportes"
-            >
-              📊 Reportes
-            </button>
-            <button
-              onClick={() => setShowConfig(true)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Configuración"
-            >
-              ⚙️ Config
-            </button>
-            <button
-              onClick={() => setShowRevertir(true)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Revertir"
-            >
-              ↩️ Revertir
-            </button>
-            <button
-              onClick={toggleFullscreen}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-            >
-              {isFullscreen ? <FaCompress /> : <FaExpand />}
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* F0: barra superior compartida via KdsTopBar (responsive + overflow móvil) */}
+      <KdsTopBar
+        vista="personalizada"
+        horaActual={horaActual}
+        fechaActual={fechaActual}
+        totalComandas={totalComandas}
+        socketConnectionStatus={socketConnectionStatus}
+        socketAuthError={socketAuthError}
+        isFullscreen={isFullscreen}
+        ppaCount={ppaCount}
+        nightMode={nightMode}
+        onToggleSearch={() => setShowSearch(!showSearch)}
+        onShowReports={() => setShowReports(true)}
+        onShowConfig={() => setShowConfig(true)}
+        onShowRevertir={() => setShowRevertir(true)}
+        onShowHistorial={() => setShowHistorial(true)}
+        onToggleFullscreen={toggleFullscreen}
+        onGoToMenu={handleGoToMenu}
+        onTogglePpa={() => setPpaSidebarOpen(prev => !prev)}
+      />
 
       {/* 🔥 PPA Sidebar - Tickets de Pagos Adelantados */}
       {ppaSidebarOpen && (
@@ -3517,6 +3439,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 className="grid gap-5"
                 style={{
                   display: 'grid',
+                  // Tamaño fijo 300px: al bajar el zoom del navegador caben más comandas
+                  // sin alterar el tamaño intrínseco de cada tarjeta.
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
                   gridAutoRows: '520px',
                   gap: '20px',
@@ -4006,6 +3930,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           nightMode={nightMode}
           onClose={() => setShowRevertir(false)}
           onRevertir={obtenerComandas}
+        />
+      )}
+
+      {/* F1: Historial de comandas (entregadas / parciales) */}
+      {showHistorial && (
+        <HistorialModal
+          nightMode={nightMode}
+          getToken={getToken}
+          socket={cocinaSocket}
+          onClose={() => setShowHistorial(false)}
         />
       )}
 

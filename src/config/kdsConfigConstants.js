@@ -1,119 +1,262 @@
 /**
  * Constantes de Configuración KDS - App de Cocina
- * 
- * Este archivo define todas las opciones de configuración disponibles,
- * sus valores por defecto y la lógica de negocio.
- * 
- * @version 7.2
- * @updated Marzo 2026
+ *
+ * @version 7.4.1
+ * @updated Agosto 2026
+ * @changelog
+ *  7.3.0 — F2: presets, densidad, espaciado (parcial).
+ *  7.4.0 — Vista ampliada (altura auto / gaps) — revertido por UX.
+ *  7.4.1 — Restaura tarjetas fijas 300×500 + grid auto-fit para zoom del navegador.
+ *          Config Vista solo tipografía + paginación; no altera tamaño de tarjeta.
  */
 
 // ============================================
 // VERSIÓN DE CONFIGURACIÓN
 // ============================================
-// Incrementar cuando cambie la estructura de datos para
-// forzar limpieza de configuraciones antiguas en localStorage
-export const KDS_CONFIG_VERSION = '7.2.0';
+export const KDS_CONFIG_VERSION = '7.4.1';
 
-// ============================================
-// OPCIONES DE CONFIGURACIÓN BASE
-// ============================================
-
-/**
- * Configuración de tiempos y alertas
- * Define los umbrales para alertas visuales y sonoras
- */
 export const TIEMPOS_ALERTA = {
-  // Tiempo en minutos para alerta amarilla (precaución)
   AMARILLA_DEFAULT: 15,
   AMARILLA_MIN: 5,
   AMARILLA_MAX: 60,
-  
-  // Tiempo en minutos para alerta roja (urgente)
   ROJA_DEFAULT: 20,
   ROJA_MIN: 10,
   ROJA_MAX: 120,
-  
-  // Tiempo en minutos para alerta crítica (sonido adicional)
   CRITICA_DEFAULT: 25,
   CRITICA_MIN: 15,
   CRITICA_MAX: 180,
 };
 
-/**
- * Configuración de diseño del grid
- */
 export const DISENO_GRID = {
   COLUMNAS_DEFAULT: 5,
   COLUMNAS_MIN: 1,
   COLUMNAS_MAX: 8,
-  
   FILAS_DEFAULT: 1,
   FILAS_MIN: 1,
   FILAS_MAX: 4,
-  
   FUENTE_DEFAULT: 15,
   FUENTE_MIN: 12,
   FUENTE_MAX: 24,
+  ANCHO_TARJETA_MIN_DEFAULT: 280,
+  ANCHO_TARJETA_MIN_MIN: 220,
+  ANCHO_TARJETA_MIN_MAX: 400,
 };
 
-/**
- * Configuración de modo de vista
- */
 export const MODO_VISTA = {
-  TARJETAS: 'tarjetas',    // Vista Kanban tradicional
-  TABLA: 'tabla',          // Vista compacta de tabla
+  TARJETAS: 'tarjetas',
+  TABLA: 'tabla',
 };
 
-/**
- * Tamaño de tarjetas
- */
 export const TAMANO_TARJETA = {
   COMPACTO: 'compacto',
   MEDIANO: 'mediano',
   EXPANDIDO: 'expandido',
 };
 
-/**
- * Criterios de ordenamiento
- */
-export const ORDENAMIENTO = {
-  TIEMPO: 'tiempo',           // Por tiempo en cocina (más antiguo primero)
-  MESA: 'mesa',               // Por número de mesa
-  PRIORIDAD: 'prioridad',     // Por prioridad (VIP primero)
-  CREACION: 'creacion',       // Por fecha de creación
+/** Cómo se aplica la altura de la tarjeta en el grid */
+export const ALTURA_TARJETA_MODO = {
+  AUTO: 'auto',
+  FIJA: 'fija',
+  MINIMA: 'minima',
 };
 
-// ============================================
-// PERFILES PREDEFINIDOS
-// ============================================
+/** Columnas del grid: fijas (usa columnasGrid) o auto-fill fluido */
+export const LAYOUT_COLUMNAS = {
+  FIJAS: 'fijas',
+  AUTO: 'auto',
+};
+
+export const DENSIDAD_PLATOS = {
+  COMPACTA: 'compacta',
+  NORMAL: 'normal',
+  HOLGADA: 'holgada',
+};
+
+export const ESPACIADO_GRID = {
+  XS: 'xs',
+  SM: 'sm',
+  MD: 'md',
+  LG: 'lg',
+  XL: 'xl',
+};
+
+export const PADDING_TARJETA = {
+  SM: 'sm',
+  MD: 'md',
+  LG: 'lg',
+};
+
+export const RADIO_TARJETA = {
+  SM: 'sm',
+  MD: 'md',
+  LG: 'lg',
+};
+
+export const ALINEACION_GRID = {
+  START: 'start',
+  CENTER: 'center',
+  STRETCH: 'stretch',
+};
+
+export const ALTURA_TARJETA_PX = {
+  [TAMANO_TARJETA.COMPACTO]: 380,
+  [TAMANO_TARJETA.MEDIANO]: 520,
+  [TAMANO_TARJETA.EXPANDIDO]: 640,
+};
+
+export const GAP_GRID_PX = {
+  [ESPACIADO_GRID.XS]: 8,
+  [ESPACIADO_GRID.SM]: 12,
+  [ESPACIADO_GRID.MD]: 20,
+  [ESPACIADO_GRID.LG]: 28,
+  [ESPACIADO_GRID.XL]: 40,
+};
+
+export const PADDING_TARJETA_PX = {
+  [PADDING_TARJETA.SM]: 8,
+  [PADDING_TARJETA.MD]: 12,
+  [PADDING_TARJETA.LG]: 16,
+};
+
+export const RADIO_TARJETA_PX = {
+  [RADIO_TARJETA.SM]: 8,
+  [RADIO_TARJETA.MD]: 12,
+  [RADIO_TARJETA.LG]: 16,
+};
+
+export const DENSIDAD_PLATOS_CSS = {
+  [DENSIDAD_PLATOS.COMPACTA]: { fontScale: 0.9, lineHeight: 1.1 },
+  [DENSIDAD_PLATOS.NORMAL]: { fontScale: 1.0, lineHeight: 1.3 },
+  [DENSIDAD_PLATOS.HOLGADA]: { fontScale: 1.05, lineHeight: 1.45 },
+};
+
+export const ORDENAMIENTO = {
+  TIEMPO: 'tiempo',
+  MESA: 'mesa',
+  PRIORIDAD: 'prioridad',
+  CREACION: 'creacion',
+};
+
+export const PERFILES_PREDEFINIDOS = {
+  monitor_cocina: {
+    id: 'monitor_cocina',
+    nombre: 'Monitor cocina',
+    descripcion: 'Pantalla grande: 5 cols fijas, altura auto, gap cómodo',
+    config: {
+      tamanoFuente: 15,
+      tamanoFuentePlatos: 15,
+      tamanoTarjeta: TAMANO_TARJETA.MEDIANO,
+      alturaTarjetaModo: ALTURA_TARJETA_MODO.AUTO,
+      layoutColumnas: LAYOUT_COLUMNAS.FIJAS,
+      columnasGrid: 5,
+      filasGrid: 1,
+      espaciadoGrid: ESPACIADO_GRID.MD,
+      gapVertical: ESPACIADO_GRID.MD,
+      gapHorizontal: ESPACIADO_GRID.MD,
+      anchoTarjetaMin: 280,
+      paddingTarjeta: PADDING_TARJETA.MD,
+      radioTarjeta: RADIO_TARJETA.MD,
+      densidadPlatos: DENSIDAD_PLATOS.NORMAL,
+      alineacionGrid: ALINEACION_GRID.START,
+      forzarUnaColumnaMovil: true,
+      compactarBarraSuperior: false,
+      mostrarTituloBarra: true,
+      scrollInternoTarjeta: false,
+    },
+  },
+  tablet: {
+    id: 'tablet',
+    nombre: 'Tablet',
+    descripcion: 'Tablet: 3 cols, altura auto, gap medio',
+    config: {
+      tamanoFuente: 16,
+      tamanoFuentePlatos: 16,
+      tamanoTarjeta: TAMANO_TARJETA.COMPACTO,
+      alturaTarjetaModo: ALTURA_TARJETA_MODO.AUTO,
+      layoutColumnas: LAYOUT_COLUMNAS.FIJAS,
+      columnasGrid: 3,
+      filasGrid: 1,
+      espaciadoGrid: ESPACIADO_GRID.MD,
+      gapVertical: ESPACIADO_GRID.MD,
+      gapHorizontal: ESPACIADO_GRID.SM,
+      anchoTarjetaMin: 260,
+      paddingTarjeta: PADDING_TARJETA.MD,
+      radioTarjeta: RADIO_TARJETA.MD,
+      densidadPlatos: DENSIDAD_PLATOS.NORMAL,
+      alineacionGrid: ALINEACION_GRID.START,
+      forzarUnaColumnaMovil: true,
+      compactarBarraSuperior: false,
+      mostrarTituloBarra: true,
+      scrollInternoTarjeta: false,
+    },
+  },
+  telefono: {
+    id: 'telefono',
+    nombre: 'Teléfono',
+    descripcion: 'Móvil: 1 col, altura auto, fuente legible',
+    config: {
+      tamanoFuente: 16,
+      tamanoFuentePlatos: 16,
+      tamanoTarjeta: TAMANO_TARJETA.COMPACTO,
+      alturaTarjetaModo: ALTURA_TARJETA_MODO.AUTO,
+      layoutColumnas: LAYOUT_COLUMNAS.FIJAS,
+      columnasGrid: 1,
+      filasGrid: 3,
+      espaciadoGrid: ESPACIADO_GRID.SM,
+      gapVertical: ESPACIADO_GRID.SM,
+      gapHorizontal: ESPACIADO_GRID.SM,
+      anchoTarjetaMin: 280,
+      paddingTarjeta: PADDING_TARJETA.SM,
+      radioTarjeta: RADIO_TARJETA.MD,
+      densidadPlatos: DENSIDAD_PLATOS.COMPACTA,
+      alineacionGrid: ALINEACION_GRID.STRETCH,
+      forzarUnaColumnaMovil: true,
+      compactarBarraSuperior: true,
+      mostrarTituloBarra: false,
+      scrollInternoTarjeta: false,
+    },
+  },
+  denso: {
+    id: 'denso',
+    nombre: 'Denso (muchas comandas)',
+    descripcion: 'Más columnas, altura fija con scroll interno, gap pequeño',
+    config: {
+      tamanoFuente: 13,
+      tamanoFuentePlatos: 13,
+      tamanoTarjeta: TAMANO_TARJETA.COMPACTO,
+      alturaTarjetaModo: ALTURA_TARJETA_MODO.FIJA,
+      layoutColumnas: LAYOUT_COLUMNAS.FIJAS,
+      columnasGrid: 6,
+      filasGrid: 2,
+      espaciadoGrid: ESPACIADO_GRID.SM,
+      gapVertical: ESPACIADO_GRID.SM,
+      gapHorizontal: ESPACIADO_GRID.SM,
+      anchoTarjetaMin: 240,
+      paddingTarjeta: PADDING_TARJETA.SM,
+      radioTarjeta: RADIO_TARJETA.SM,
+      densidadPlatos: DENSIDAD_PLATOS.COMPACTA,
+      alineacionGrid: ALINEACION_GRID.STRETCH,
+      forzarUnaColumnaMovil: true,
+      compactarBarraSuperior: true,
+      mostrarTituloBarra: false,
+      scrollInternoTarjeta: true,
+    },
+  },
+};
 
 /**
- * Perfiles de configuración predefinidos.
- * Espacio disponible para agregar perfiles personalizados.
- */
-export const PERFILES_PREDEFINIDOS = {};
-
-// ============================================
-// CONFIGURACIÓN POR DEFECTO
-// ============================================
-
-/**
- * Configuración por defecto del sistema KDS
- * Se usa cuando no hay configuración guardada o al resetear
+ * Default KDS: tarjetas fijas 300×500 en el grid (no controladas por estos campos).
+ * columnasGrid/filasGrid solo afectan paginación (comandas por página).
  */
 export const DEFAULT_KDS_CONFIG = {
-  // Metadatos
   version: KDS_CONFIG_VERSION,
   perfilActivo: null,
   ultimaModificacion: null,
-  
-  // Tiempos y alertas
+
   alertYellowMinutes: TIEMPOS_ALERTA.AMARILLA_DEFAULT,
   alertRedMinutes: TIEMPOS_ALERTA.ROJA_DEFAULT,
   alertCriticalMinutes: TIEMPOS_ALERTA.CRITICA_DEFAULT,
-  
-  // Vista
+
   modoVista: MODO_VISTA.TARJETAS,
   tamanoTarjeta: TAMANO_TARJETA.MEDIANO,
   tamanoFuente: DISENO_GRID.FUENTE_DEFAULT,
@@ -122,81 +265,132 @@ export const DEFAULT_KDS_CONFIG = {
   mostrarImagenes: false,
   agruparPorMesa: false,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
-  
-  // Rendimiento
+
+  // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500
+  tamanoFuentePlatos: DISENO_GRID.FUENTE_DEFAULT,
+  espaciadoGrid: ESPACIADO_GRID.MD,
+  densidadPlatos: DENSIDAD_PLATOS.NORMAL,
+  forzarUnaColumnaMovil: true,
+  compactarBarraSuperior: false,
+  mostrarTituloBarra: true,
+  mostrarMozoEnTarjeta: true,
+  mostrarCocineroEnTarjeta: true,
+
   cacheDatos: true,
   limiteComandasMemoria: 100,
-  
-  // Sonidos y notificaciones
   soundEnabled: true,
   repetirSonido: false,
-  
-  // Misc
   nightMode: true,
   autoPrint: false,
-  
-  // Design (compatibilidad con versión anterior)
+
   design: {
     fontSize: DISENO_GRID.FUENTE_DEFAULT,
     cols: DISENO_GRID.COLUMNAS_DEFAULT,
     rows: DISENO_GRID.FILAS_DEFAULT,
-  }
+  },
 };
 
-// ============================================
-// FUNCIONES DE UTILIDAD
-// ============================================
-
 /**
- * Valida que una configuración sea válida
- * @param {Object} config - Configuración a validar
- * @returns {Object} { valid: boolean, errors: string[] }
+ * Style del contenedor grid KDS.
  */
-export const validarConfiguracion = (config) => {
-  const errors = [];
-  
-  // Validar tiempos
-  if (config.alertYellowMinutes < TIEMPOS_ALERTA.AMARILLA_MIN || 
-      config.alertYellowMinutes > TIEMPOS_ALERTA.AMARILLA_MAX) {
-    errors.push(`Alerta amarilla debe estar entre ${TIEMPOS_ALERTA.AMARILLA_MIN} y ${TIEMPOS_ALERTA.AMARILLA_MAX} minutos`);
+export const buildKdsGridStyle = (config = {}) => {
+  const cols = Math.max(1, Math.min(8, config.columnasGrid || 5));
+  const minW = Math.max(
+    DISENO_GRID.ANCHO_TARJETA_MIN_MIN,
+    Math.min(DISENO_GRID.ANCHO_TARJETA_MIN_MAX, config.anchoTarjetaMin || 280)
+  );
+  const gapX = GAP_GRID_PX[config.gapHorizontal || config.espaciadoGrid] || 20;
+  const gapY = GAP_GRID_PX[config.gapVertical || config.espaciadoGrid] || 20;
+  const alturaModo = config.alturaTarjetaModo || ALTURA_TARJETA_MODO.AUTO;
+  const alturaPx = ALTURA_TARJETA_PX[config.tamanoTarjeta] || 520;
+  const layout = config.layoutColumnas || LAYOUT_COLUMNAS.FIJAS;
+  const align = config.alineacionGrid || ALINEACION_GRID.START;
+
+  let gridTemplateColumns;
+  if (layout === LAYOUT_COLUMNAS.AUTO) {
+    gridTemplateColumns = `repeat(auto-fill, minmax(min(100%, ${minW}px), 1fr))`;
+  } else {
+    gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   }
-  
-  if (config.alertRedMinutes < TIEMPOS_ALERTA.ROJA_MIN || 
-      config.alertRedMinutes > TIEMPOS_ALERTA.ROJA_MAX) {
-    errors.push(`Alerta roja debe estar entre ${TIEMPOS_ALERTA.ROJA_MIN} y ${TIEMPOS_ALERTA.ROJA_MAX} minutos`);
+
+  let gridAutoRows = 'auto';
+  if (alturaModo === ALTURA_TARJETA_MODO.FIJA) {
+    gridAutoRows = `${alturaPx}px`;
+  } else if (alturaModo === ALTURA_TARJETA_MODO.MINIMA) {
+    gridAutoRows = `minmax(${alturaPx}px, auto)`;
   }
-  
-  // Alerta roja debe ser mayor que amarilla
-  if (config.alertRedMinutes <= config.alertYellowMinutes) {
-    errors.push('Alerta roja debe ser mayor que alerta amarilla');
-  }
-  
-  // Validar diseño
-  if (config.columnasGrid < DISENO_GRID.COLUMNAS_MIN ||
-      config.columnasGrid > DISENO_GRID.COLUMNAS_MAX) {
-    errors.push(`Columnas debe estar entre ${DISENO_GRID.COLUMNAS_MIN} y ${DISENO_GRID.COLUMNAS_MAX}`);
-  }
-  
+
   return {
-    valid: errors.length === 0,
-    errors
+    display: 'grid',
+    gridTemplateColumns,
+    gridAutoRows,
+    columnGap: `${gapX}px`,
+    rowGap: `${gapY}px`,
+    justifyContent: align === ALINEACION_GRID.CENTER ? 'center' : 'start',
+    alignContent: 'start',
+    alignItems: align === ALINEACION_GRID.STRETCH ? 'stretch' : 'start',
   };
 };
 
 /**
- * Normaliza una configuración parcial con los valores por defecto
- * @param {Object} partialConfig - Configuración parcial
- * @returns {Object} Configuración completa
+ * Style de cada tarjeta (reemplaza hardcode 300×500).
  */
+export const buildKdsCardStyle = (config = {}) => {
+  const alturaModo = config.alturaTarjetaModo || ALTURA_TARJETA_MODO.AUTO;
+  const alturaPx = ALTURA_TARJETA_PX[config.tamanoTarjeta] || 520;
+  const radius = RADIO_TARJETA_PX[config.radioTarjeta] || 12;
+  const scroll = config.scrollInternoTarjeta === true || alturaModo === ALTURA_TARJETA_MODO.FIJA;
+
+  const style = {
+    fontFamily: 'Arial, sans-serif',
+    width: '100%',
+    maxWidth: '100%',
+    borderRadius: `${radius}px`,
+    minWidth: 0,
+  };
+
+  if (alturaModo === ALTURA_TARJETA_MODO.FIJA) {
+    style.height = `${alturaPx}px`;
+    style.maxHeight = `${alturaPx}px`;
+    style.overflowY = scroll ? 'auto' : 'hidden';
+  } else if (alturaModo === ALTURA_TARJETA_MODO.MINIMA) {
+    style.minHeight = `${alturaPx}px`;
+    style.height = 'auto';
+    style.overflowY = 'visible';
+  } else {
+    style.height = 'auto';
+    style.minHeight = `${Math.round(alturaPx * 0.55)}px`;
+    style.overflowY = 'visible';
+  }
+
+  return style;
+};
+
+export const validarConfiguracion = (config) => {
+  const errors = [];
+  if (config.alertYellowMinutes < TIEMPOS_ALERTA.AMARILLA_MIN ||
+      config.alertYellowMinutes > TIEMPOS_ALERTA.AMARILLA_MAX) {
+    errors.push(`Alerta amarilla debe estar entre ${TIEMPOS_ALERTA.AMARILLA_MIN} y ${TIEMPOS_ALERTA.AMARILLA_MAX} minutos`);
+  }
+  if (config.alertRedMinutes < TIEMPOS_ALERTA.ROJA_MIN ||
+      config.alertRedMinutes > TIEMPOS_ALERTA.ROJA_MAX) {
+    errors.push(`Alerta roja debe estar entre ${TIEMPOS_ALERTA.ROJA_MIN} y ${TIEMPOS_ALERTA.ROJA_MAX} minutos`);
+  }
+  if (config.alertRedMinutes <= config.alertYellowMinutes) {
+    errors.push('Alerta roja debe ser mayor que alerta amarilla');
+  }
+  if (config.columnasGrid < DISENO_GRID.COLUMNAS_MIN ||
+      config.columnasGrid > DISENO_GRID.COLUMNAS_MAX) {
+    errors.push(`Columnas debe estar entre ${DISENO_GRID.COLUMNAS_MIN} y ${DISENO_GRID.COLUMNAS_MAX}`);
+  }
+  return { valid: errors.length === 0, errors };
+};
+
 export const normalizarConfiguracion = (partialConfig = {}) => {
   const config = { ...DEFAULT_KDS_CONFIG };
-  
-  // Mergear valores proporcionados
   Object.keys(partialConfig).forEach(key => {
     if (key === 'design') {
-      // Compatibilidad con versión anterior
       config.design = { ...config.design, ...partialConfig.design };
-      // También actualizar los campos nuevos
       if (partialConfig.design.fontSize) config.tamanoFuente = partialConfig.design.fontSize;
       if (partialConfig.design.cols) config.columnasGrid = partialConfig.design.cols;
       if (partialConfig.design.rows) config.filasGrid = partialConfig.design.rows;
@@ -204,72 +398,47 @@ export const normalizarConfiguracion = (partialConfig = {}) => {
       config[key] = partialConfig[key];
     }
   });
-  
-  // Asegurar que design esté sincronizado
+
+  // Sync design con tipografía/paginación
+  if (!partialConfig.tamanoFuentePlatos) config.tamanoFuentePlatos = config.tamanoFuente;
+
   config.design = {
     fontSize: config.tamanoFuente,
     cols: config.columnasGrid,
     rows: config.filasGrid,
   };
-  
-  // Agregar timestamp de modificación
+  config.version = KDS_CONFIG_VERSION;
   config.ultimaModificacion = new Date().toISOString();
-  
   return config;
 };
 
-/**
- * Aplica un perfil predefinido a la configuración
- * @param {string} perfilId - ID del perfil a aplicar
- * @param {Object} currentConfig - Configuración actual (para mantener personalizaciones)
- * @returns {Object} Nueva configuración con el perfil aplicado
- */
 export const aplicarPerfil = (perfilId, currentConfig = {}) => {
   const perfil = Object.values(PERFILES_PREDEFINIDOS).find(p => p.id === perfilId);
-  
   if (!perfil) {
     console.warn(`Perfil no encontrado: ${perfilId}`);
     return normalizarConfiguracion(currentConfig);
   }
-  
   const newConfig = {
-    ...normalizarConfiguracion(perfil.config),
+    ...normalizarConfiguracion({ ...currentConfig, ...perfil.config }),
     perfilActivo: perfilId,
   };
-  
-  // Mantener algunas preferencias personales del usuario
-  if (currentConfig.soundEnabled !== undefined) {
-    newConfig.soundEnabled = currentConfig.soundEnabled;
-  }
-  if (currentConfig.nightMode !== undefined) {
-    newConfig.nightMode = currentConfig.nightMode;
-  }
-  
+  if (currentConfig.soundEnabled !== undefined) newConfig.soundEnabled = currentConfig.soundEnabled;
+  if (currentConfig.nightMode !== undefined) newConfig.nightMode = currentConfig.nightMode;
   return newConfig;
 };
 
-/**
- * Genera un resumen legible de la configuración
- * @param {Object} config - Configuración
- * @returns {string} Resumen en texto
- */
 export const getResumenConfiguracion = (config) => {
-  const perfil = config.perfilActivo 
+  const perfil = config.perfilActivo
     ? Object.values(PERFILES_PREDEFINIDOS).find(p => p.id === config.perfilActivo)
     : null;
-  
   return `
 Configuración KDS v${config.version || 'N/A'}
 ${perfil ? `Perfil: ${perfil.nombre}` : 'Perfil: Personalizado'}
 ---
 Tiempos: Amarillo ${config.alertYellowMinutes}min | Rojo ${config.alertRedMinutes}min
-Vista: ${config.modoVista} | ${config.columnasGrid}x${config.filasGrid} | Fuente ${config.tamanoFuente}px
+Vista: ${config.columnasGrid}x${config.filasGrid}/página | Fuente ${config.tamanoFuente}px | tarjetas fijas 300×500
   `.trim();
 };
-
-// ============================================
-// CLAVES DE LOCALSTORAGE
-// ============================================
 
 export const STORAGE_KEYS = {
   CONFIG: 'kdsConfig',
@@ -281,33 +450,9 @@ export const STORAGE_KEYS = {
   LAST_CLEANUP: 'kdsLastCleanup',
 };
 
-// ============================================
-// ESTRATEGIA DE LIMPIEZA
-// ============================================
-
-/**
- * Estrategia para limpieza de estados locales
- * 
- * Se ejecuta cuando:
- * 1. La versión de configuración cambia
- * 2. Cambia el día (fecha de servicio)
- * 3. El usuario cierra sesión
- * 4. Se detectan datos obsoletos
- */
 export const LIMPIEZA_CONFIG = {
-  // Keys a limpiar cuando cambia la versión
-  KEYS_POR_VERSION: [
-    STORAGE_KEYS.PLATO_STATES,
-    STORAGE_KEYS.PLATOS_CHECKED,
-  ],
-  
-  // Keys a limpiar cuando cambia el día
-  KEYS_POR_DIA: [
-    STORAGE_KEYS.PLATO_STATES,
-    STORAGE_KEYS.PLATOS_CHECKED,
-  ],
-  
-  // Keys a limpiar al cerrar sesión
+  KEYS_POR_VERSION: [STORAGE_KEYS.PLATO_STATES, STORAGE_KEYS.PLATOS_CHECKED],
+  KEYS_POR_DIA: [STORAGE_KEYS.PLATO_STATES, STORAGE_KEYS.PLATOS_CHECKED],
   KEYS_POR_LOGOUT: [
     STORAGE_KEYS.CONFIG,
     STORAGE_KEYS.PLATO_STATES,
@@ -315,42 +460,19 @@ export const LIMPIEZA_CONFIG = {
     STORAGE_KEYS.ZONA_ACTIVA,
     STORAGE_KEYS.LAST_CLEANUP,
   ],
-  
-  // Intervalo en horas para verificar limpieza automática
   INTERVALO_VERIFICACION_HORAS: 1,
 };
 
-/**
- * Ejecuta la limpieza de estados locales según corresponda
- * @param {string} tipo - 'version' | 'dia' | 'logout' | 'manual'
- * @returns {Object} Resultado de la limpieza
- */
 export const ejecutarLimpieza = (tipo = 'manual') => {
-  const resultado = {
-    tipo,
-    limpiado: [],
-    timestamp: new Date().toISOString(),
-  };
-  
+  const resultado = { tipo, limpiado: [], timestamp: new Date().toISOString() };
   let keysALimpiar = [];
-  
   switch (tipo) {
-    case 'version':
-      keysALimpiar = LIMPIEZA_CONFIG.KEYS_POR_VERSION;
-      break;
-    case 'dia':
-      keysALimpiar = LIMPIEZA_CONFIG.KEYS_POR_DIA;
-      break;
-    case 'logout':
-      keysALimpiar = LIMPIEZA_CONFIG.KEYS_POR_LOGOUT;
-      break;
-    case 'manual':
-      keysALimpiar = [...LIMPIEZA_CONFIG.KEYS_POR_VERSION, ...LIMPIEZA_CONFIG.KEYS_POR_DIA];
-      break;
-    default:
-      return resultado;
+    case 'version': keysALimpiar = LIMPIEZA_CONFIG.KEYS_POR_VERSION; break;
+    case 'dia': keysALimpiar = LIMPIEZA_CONFIG.KEYS_POR_DIA; break;
+    case 'logout': keysALimpiar = LIMPIEZA_CONFIG.KEYS_POR_LOGOUT; break;
+    case 'manual': keysALimpiar = [...LIMPIEZA_CONFIG.KEYS_POR_VERSION, ...LIMPIEZA_CONFIG.KEYS_POR_DIA]; break;
+    default: return resultado;
   }
-  
   keysALimpiar.forEach(key => {
     try {
       const existed = localStorage.getItem(key) !== null;
@@ -363,71 +485,37 @@ export const ejecutarLimpieza = (tipo = 'manual') => {
       console.warn(`[KDS Cleanup] Error eliminando ${key}:`, e);
     }
   });
-  
-  // Guardar timestamp de última limpieza
   localStorage.setItem(STORAGE_KEYS.LAST_CLEANUP, resultado.timestamp);
-  
   return resultado;
 };
 
-/**
- * Verifica si se necesita limpieza automática
- * @returns {Object} { necesitaLimpieza: boolean, razon: string }
- */
 export const verificarNecesidadLimpieza = () => {
   const storedVersion = localStorage.getItem(STORAGE_KEYS.CONFIG_VERSION);
   const storedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
   const lastCleanup = localStorage.getItem(STORAGE_KEYS.LAST_CLEANUP);
-  
-  // Verificar cambio de versión
+
   if (storedVersion && storedVersion !== KDS_CONFIG_VERSION) {
-    return {
-      necesitaLimpieza: true,
-      razon: `Versión cambió de ${storedVersion} a ${KDS_CONFIG_VERSION}`,
-      tipo: 'version',
-    };
+    return { necesitaLimpieza: true, razon: `Versión cambió de ${storedVersion} a ${KDS_CONFIG_VERSION}`, tipo: 'version' };
   }
-  
-  // Verificar si la configuración guardada tiene versión antigua
   if (storedConfig) {
     try {
       const config = JSON.parse(storedConfig);
       if (config.version && config.version !== KDS_CONFIG_VERSION) {
-        return {
-          necesitaLimpieza: true,
-          razon: `Config versión ${config.version} obsoleta`,
-          tipo: 'version',
-        };
+        return { necesitaLimpieza: true, razon: `Config versión ${config.version} obsoleta`, tipo: 'version' };
       }
     } catch (e) {
-      // Config corrupta, necesita limpieza
-      return {
-        necesitaLimpieza: true,
-        razon: 'Configuración corrupta',
-        tipo: 'version',
-      };
+      return { necesitaLimpieza: true, razon: 'Configuración corrupta', tipo: 'version' };
     }
   }
-  
-  // Verificar cambio de día (solo si hay datos de estados de platos)
   const platoStates = localStorage.getItem(STORAGE_KEYS.PLATO_STATES);
   if (platoStates && lastCleanup) {
     const cleanupDate = new Date(lastCleanup).toDateString();
     const today = new Date().toDateString();
     if (cleanupDate !== today) {
-      return {
-        necesitaLimpieza: true,
-        razon: 'Cambio de día detectado',
-        tipo: 'dia',
-      };
+      return { necesitaLimpieza: true, razon: 'Cambio de día detectado', tipo: 'dia' };
     }
   }
-  
-  return {
-    necesitaLimpieza: false,
-    razon: null,
-    tipo: null,
-  };
+  return { necesitaLimpieza: false, razon: null, tipo: null };
 };
 
 export default {
@@ -436,11 +524,25 @@ export default {
   DISENO_GRID,
   MODO_VISTA,
   TAMANO_TARJETA,
+  ALTURA_TARJETA_MODO,
+  LAYOUT_COLUMNAS,
+  DENSIDAD_PLATOS,
+  ESPACIADO_GRID,
+  PADDING_TARJETA,
+  RADIO_TARJETA,
+  ALINEACION_GRID,
+  ALTURA_TARJETA_PX,
+  GAP_GRID_PX,
+  PADDING_TARJETA_PX,
+  RADIO_TARJETA_PX,
+  DENSIDAD_PLATOS_CSS,
   ORDENAMIENTO,
   PERFILES_PREDEFINIDOS,
   DEFAULT_KDS_CONFIG,
   STORAGE_KEYS,
   LIMPIEZA_CONFIG,
+  buildKdsGridStyle,
+  buildKdsCardStyle,
   validarConfiguracion,
   normalizarConfiguracion,
   aplicarPerfil,

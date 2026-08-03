@@ -31,13 +31,16 @@ import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import PpaSidebar from "./PpaSidebar";
+import KdsTopBar from "./KdsTopBar";
+import HistorialModal from "./HistorialModal";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
-import { calcularNumerosColaPorCocinero } from "../../utils/ordenColaCocinero";
+import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden } from "../../utils/ordenColaCocinero";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
 import useProcesamiento from "../../hooks/useProcesamiento";
 import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
+import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
@@ -123,6 +126,8 @@ const ComandaStyle = ({
   const [showConfig, setShowConfig] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showRevertir, setShowRevertir] = useState(false);
+  // F1: Historial de comandas (entregadas / parciales)
+  const [showHistorial, setShowHistorial] = useState(false);
   // 🔥 NUEVO: Estado para modal de anular plato
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [anularMotivo, setAnularMotivo] = useState('');
@@ -328,6 +333,7 @@ const ComandaStyle = ({
     setShowSearch(false);
     setShowAnularModal(false);
     setShowDejarModal(false);
+    setShowHistorial(false);
     
     // Navegar al menú
     if (onGoToMenu) {
@@ -1080,6 +1086,9 @@ const ComandaStyle = ({
     obtenerComandas: obtenerComandas,
     token: getToken() // Token JWT para autenticación
   });
+
+  // Badge PPA en barra superior (misma fuente que la bandeja; reutiliza socket KDS)
+  const { cantidadPendientes: ppaCount } = useTablaAprobacion({ socket: cocinaSocket });
 
   // PLAN OBLIGAR_ORDEN: cuando el admin aprueba, marcar override local
   // (socket plato-override-orden + solicitud-gestion-actualizada) y hidratar desde API.
@@ -2053,30 +2062,37 @@ const ComandaStyle = ({
 
   // Función genérica para batch finalizar platos (unifica lógica FinalizarPlatos y FinalizarComanda)
   // REGLA COCINA: Siempre usa 'recoger', nunca 'entregado' (exclusivo de mozos)
+  // Prefijo de cola: se envía loteCola y se finaliza en orden ASC (#1→#N) para
+  // que backend/cola y sockets vean la secuencia correcta.
   const batchFinalizarPlatos = useCallback(async (platosParaProcesar) => {
     if (platosParaProcesar.length === 0) {
       return { exitosos: 0, fallidos: 0, resultados: [] };
     }
 
     const apiUrl = getApiUrl();
-    
-    // Procesar en paralelo - SOLO API de platos, NO tocar comanda.status directamente
-    // Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén en 'recoger'
-    const resultados = await Promise.allSettled(
-      platosParaProcesar.map(async ({ comandaId, platoId, platoIndex }) => {
-        try {
+    const mapaCola = calcularNumerosColaPorCocinero(comandas);
+    const ordenados = [...platosParaProcesar].sort((a, b) => {
+      const na = a.numeroColaActual ?? mapaCola.get(`${a.comandaId}-${a.platoIndex}`) ?? 0;
+      const nb = b.numeroColaActual ?? mapaCola.get(`${b.comandaId}-${b.platoIndex}`) ?? 0;
+      if (na !== nb) return na - nb;
+      return String(a.comandaId).localeCompare(String(b.comandaId));
+    });
+    const loteCola = ordenados.map((p) => `${p.comandaId}-${p.platoIndex}`);
+
+    const resultados = [];
+    for (const { comandaId, platoId, platoIndex } of ordenados) {
+      try {
           const comanda = comandas.find(c => c._id === comandaId);
           if (!comanda) {
             console.error(`❌ [batchFinalizarPlatos] Comanda ${comandaId} no encontrada`);
-            return { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' };
+            resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' } });
+            continue;
           }
           
-          // Si tenemos platoIndex, usarlo; si no, buscar por platoId
           let plato;
           if (platoIndex !== undefined && comanda.platos?.[platoIndex]) {
             plato = comanda.platos[platoIndex];
           } else {
-            // 🔥 FIX: Buscar PRIORITARIAMENTE por _id del subdocumento (único)
             plato = comanda.platos?.find(p => {
               const pId = p._id?.toString() || p.plato?._id?.toString() || p.platoId?.toString();
               return pId === platoId?.toString();
@@ -2085,81 +2101,72 @@ const ComandaStyle = ({
           
           if (!plato) {
             console.error(`❌ [batchFinalizarPlatos] Plato ${platoId} no encontrado en comanda ${comandaId}`);
-            console.error(`   Platos disponibles:`, comanda.platos?.map(p => ({
-              _id: p._id?.toString(),
-              platoId: p.platoId,
-              estado: p.estado
-            })));
-            return { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' };
+            resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' } });
+            continue;
           }
           
-          // 🔥 FIX CRÍTICO: Priorizar SIEMPRE plato._id (subdocumento único)
-          // Esto es crucial cuando hay 2+ platos del mismo tipo con complementos diferentes
           const platoIdFinal = plato._id?.toString() || plato.plato?._id?.toString() || platoId?.toString();
           
           if (!platoIdFinal) {
             console.error(`❌ [batchFinalizarPlatos] No se pudo obtener ID del plato`);
-            return { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' };
+            resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' } });
+            continue;
           }
           
           console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
           
-          // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
-          // v7.2: Pasar cocineroId para validacion multi-cocinero
-          const response = await axios.put(
+          await axios.put(
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
-            { nuevoEstado: "recoger", cocineroId: userId }
+            { nuevoEstado: "recoger", cocineroId: userId, loteCola }
           );
           
           console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
-          return { 
-            comandaId, 
-            platoId: platoIdFinal, 
-            platoIndex, 
-            exito: true,
-            nombre: plato.plato?.nombre || plato.nombre || 'Plato'
-          };
+          resultados.push({
+            status: 'fulfilled',
+            value: {
+              comandaId,
+              platoId: platoIdFinal,
+              platoIndex,
+              exito: true,
+              nombre: plato.plato?.nombre || plato.nombre || 'Plato'
+            }
+          });
         } catch (error) {
-          // 🔥 FIX: Log detallado y mensaje de error específico
           const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
           console.error(`❌ [batchFinalizarPlatos] Error finalizando plato ${platoId}:`);
           console.error(`   Error: ${errorMsg}`);
-          console.error(`   Status: ${error.response?.status}`);
-          console.error(`   Data:`, error.response?.data);
           
-          // Obtener nombre del plato para el mensaje de error
           const comanda = comandas.find(c => c._id === comandaId);
           const platoNombre = comanda?.platos?.[platoIndex]?.plato?.nombre || 
                               comanda?.platos?.find(p => p._id?.toString() === platoId?.toString())?.plato?.nombre ||
                               `Plato ${platoIndex !== undefined ? `#${platoIndex + 1}` : platoId}`;
           
-          return { 
-            comandaId, 
-            platoId, 
-            platoIndex, 
-            exito: false, 
-            error: errorMsg,
-            nombre: platoNombre
-          };
+          resultados.push({
+            status: 'fulfilled',
+            value: {
+              comandaId,
+              platoId,
+              platoIndex,
+              exito: false,
+              error: errorMsg,
+              nombre: platoNombre
+            }
+          });
         }
-      })
-    );
+    }
 
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
     const fallidos = resultados.length - exitosos;
     
-    // 🔥 FIX: Mostrar Toast específico por cada plato fallido
     resultados.forEach(result => {
       if (result.status === 'fulfilled' && !result.value.exito) {
         const { nombre, error } = result.value;
         console.error(`⚠️ Plato "${nombre}" falló: ${error}`);
-        // Aquí se podría agregar un toast.error si está disponible
-        // toast.error(`Plato "${nombre}": ${error}`);
       }
     });
 
     return { exitosos, fallidos, resultados };
-  }, [comandas]);
+  }, [comandas, userId]);
 
   // ============================================================
   // SISTEMA MULTI-COCINERO v7.2: Funciones de decision y handlers
@@ -2371,31 +2378,26 @@ const ComandaStyle = ({
     );
     if (platosAFinalizar.length > 0) {
       // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
-      // Si obligar orden ON + solicitud ON + actor sin bypass (admin/permiso),
-      // y hay al menos un #2+ en el lote → el botón izquierdo pasa a SOLICITAR_ORDEN.
-      // Si solicitud OFF (supervisor bypass) o puedeOmitirOrden → FINALIZAR normal.
+      // Prefijo contiguo #1..#N por cocinero → FINALIZAR.
+      // Salto de orden (falta un # intermedio o no está el #1) → SOLICITAR_ORDEN.
       const requiereSolicitud =
         obligarOrdenAsignacion &&
         solicitudOrdenFueraDeCola &&
         !puedeOmitirOrden;
 
       if (requiereSolicitud) {
-        const mapaCola = calcularNumerosColaPorCocinero(comandas);
-        const fueraDeOrden = platosAFinalizar.filter(p => {
-          // Override one-shot aprobado por admin → se puede finalizar
-          if (platoTieneOverride(p.comandaId, p.platoIndex, p.plato)) return false;
-          const n = mapaCola.get(`${p.comandaId}-${p.platoIndex}`);
-          return n != null && n > 1;
-        });
+        const { finalizables, bloqueados: fueraDeOrden } = filtrarLoteRespetandoOrden(
+          platosAFinalizar,
+          comandas,
+          {
+            tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato),
+          }
+        );
         if (fueraDeOrden.length > 0) {
           return {
             modo: 'SOLICITAR_ORDEN',
             platos: fueraDeOrden,
-            platosFinalizables: platosAFinalizar.filter(p => {
-              if (platoTieneOverride(p.comandaId, p.platoIndex, p.plato)) return true;
-              const n = mapaCola.get(`${p.comandaId}-${p.platoIndex}`);
-              return n == null || n === 1;
-            }),
+            platosFinalizables: finalizables,
             mensaje: `Solicitar Orden (${fueraDeOrden.length})`,
             subMensaje: 'Pedir autorización al admin (fuera de secuencia)'
           };
@@ -2736,24 +2738,23 @@ const ComandaStyle = ({
       console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`, platosProcesados);
 
       // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR
-      // Política B: solo finalizar líneas que son #1 de su cocinero.
-      // Admin => finaliza todo. Supervisor + solicitud OFF => finaliza #2+ (bypass).
-      // Supervisor + solicitud ON => #2+ se omiten del lote (se gestionan con "Solicitar Orden").
+      // Prefijo contiguo #1..#N por cocinero se puede finalizar.
+      // Saltos de cola → omitir / Solicitar Orden (salvo bypass admin/supervisor).
       let loteAFinalizar = platosProcesados;
       const omitidos = [];
       if (obligarOrdenAsignacion && !puedeOmitirOrden) {
-        const mapaCola = calcularNumerosColaPorCocinero(comandas);
         const supervisorConBypass = isSupervisorView && !solicitudOrdenFueraDeCola;
-        loteAFinalizar = platosProcesados.filter((p) => {
-          if (platoTieneOverride(p.comandaId, p.platoIndex, p.plato)) return true; // override aprobado
-          const numero = mapaCola.get(`${p.comandaId}-${p.platoIndex}`);
-          const fueraDeOrden = numero != null && numero > 1;
-          if (!fueraDeOrden) return true; // #1 o no en cola => finalizar
-          if (supervisorConBypass) return true; // bypass de supervisor
-          // Bloqueado: omitir del lote
-          omitidos.push({ ...p, numeroColaActual: numero });
-          return false;
-        });
+        if (!supervisorConBypass) {
+          const { finalizables, bloqueados } = filtrarLoteRespetandoOrden(
+            platosProcesados,
+            comandas,
+            {
+              tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato),
+            }
+          );
+          loteAFinalizar = finalizables;
+          omitidos.push(...bloqueados);
+        }
 
         if (omitidos.length > 0) {
           const nombres = omitidos.map(o => {
@@ -2763,7 +2764,7 @@ const ComandaStyle = ({
           }).join('\n');
           const msg = (solicitudOrdenFueraDeCola)
             ? `${omitidos.length} plato(s) fuera de secuencia omitidos. Use "Solicitar Orden" en el botón izquierdo.`
-            : `Omitido(s) por orden de asignación (${omitidos.length}):\n${nombres}\n\nDebe finalizar primero el #1 de cada cocinero.`;
+            : `Omitido(s) por orden de asignación (${omitidos.length}):\n${nombres}\n\nDebe incluir el #1 y los siguientes en orden, o solicitar orden.`;
           setToastMessage({ type: 'warning', message: msg, duration: 5000 });
         }
 
@@ -3728,115 +3729,26 @@ const ComandaStyle = ({
   return (
     <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col ${bgMain} ${textMain} overflow-hidden`}>
       {/* Header fijo estilo SICAR - Mejorado con indicadores de Vista */}
-      <header className={`h-16 ${bgHeader} border-b-2 ${borderMain} flex items-center justify-between px-6 flex-shrink-0 z-50 relative shadow-lg`}>
-        {/* Título centrado */}
-        <div className="absolute left-1/2 transform -translate-x-1/2">
-          <h1 className={`text-2xl font-bold ${textMain} tracking-wide`} style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '1px' }}>
-            COCINA LAS GAMBUSINAS
-          </h1>
-        </div>
-        
-        {/* Hora actual a la izquierda */}
-        <div className="flex flex-col items-start">
-          <div className={`text-2xl font-bold ${textMain}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-            {horaActual.format("HH:mm")}
-          </div>
-          <div className={`text-xs ${textSecondary}`}>{fechaActual.format("DD/MM/YYYY")}</div>
-        </div>
-
-        {/* Contador y botones a la derecha */}
-        <div className="flex items-center gap-4">
-          {/* Indicador de Vista General */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-600 rounded text-white text-xs font-semibold">
-              <FaEye className="text-xs" />
-              <span>Vista General</span>
-            </div>
-          </div>
-          
-          <div className="text-right">
-            <div className={`text-xs ${textSecondary}`}>Comandas Pendientes:</div>
-            <div className="text-2xl font-bold text-yellow-400" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {totalComandas}
-            </div>
-          </div>
-          
-          {/* Indicador de conexión Socket.io */}
-          <div className="flex items-center gap-2">
-            {socketConnectionStatus === 'conectado' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-green-600 rounded text-white text-xs font-semibold">
-                <span>●</span> Realtime
-              </div>
-            )}
-            {socketConnectionStatus === 'desconectado' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-red-600 rounded text-white text-xs font-semibold">
-                <span>●</span> Desconectado
-              </div>
-            )}
-            {socketConnectionStatus === 'auth_error' && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-orange-600 rounded text-white text-xs font-semibold" title={socketAuthError}>
-                <span>●</span> Error Auth
-              </div>
-            )}
-          </div>
-          
-          {/* Botones pequeños arriba derecha - Orden: PPA → Regresar → Buscar → Reportes → Config → Revertir */}
-          <div className="flex gap-2">
-            {/* 🔥 Botón PPA - Tickets de Pagos Adelantados */}
-            <button
-              onClick={() => setPpaSidebarOpen(prev => !prev)}
-              className={`px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1 relative`}
-              title="Tickets de Pagos Adelantados"
-            >
-              <FaShoppingBag className="text-xs" />
-              <span>PPA</span>
-            </button>
-            {/* Botón Regresar al Menú */}
-            <button
-              onClick={handleGoToMenu}
-              className={`px-3 py-1.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md flex items-center gap-1`}
-              title="Volver al Menú Principal"
-            >
-              <FaArrowLeft /> Menú
-            </button>
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Buscar"
-            >
-              🔍 Buscar
-            </button>
-            <button
-              onClick={() => setShowReports(true)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Reportes"
-            >
-              📊 Reportes
-            </button>
-            <button
-              onClick={() => setShowConfig(true)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Configuración"
-            >
-              ⚙️ Config
-            </button>
-            <button
-              onClick={() => setShowRevertir(true)}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title="Revertir"
-            >
-              ↩️ Revertir
-            </button>
-            <button
-              onClick={toggleFullscreen}
-              className={`px-3 py-1.5 ${bgButton} ${bgButtonHover} active:${nightMode ? 'bg-gray-600' : 'bg-gray-400'} rounded ${textButton} text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md`}
-              title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-            >
-              {isFullscreen ? <FaCompress /> : <FaExpand />}
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* F0: barra superior compartida via KdsTopBar (responsive + overflow móvil) */}
+      <KdsTopBar
+        vista={isSupervisorView ? "supervisor" : "general"}
+        horaActual={horaActual}
+        fechaActual={fechaActual}
+        totalComandas={totalComandas}
+        socketConnectionStatus={socketConnectionStatus}
+        socketAuthError={socketAuthError}
+        isFullscreen={isFullscreen}
+        ppaCount={ppaCount}
+        nightMode={nightMode}
+        onToggleSearch={() => setShowSearch(!showSearch)}
+        onShowReports={() => setShowReports(true)}
+        onShowConfig={() => setShowConfig(true)}
+        onShowRevertir={() => setShowRevertir(true)}
+        onShowHistorial={() => setShowHistorial(true)}
+        onToggleFullscreen={toggleFullscreen}
+        onGoToMenu={handleGoToMenu}
+        onTogglePpa={() => setPpaSidebarOpen(prev => !prev)}
+      />
 
       {/* Barra de búsqueda (opcional, se puede ocultar) */}
       {showSearch && (
@@ -3877,6 +3789,8 @@ const ComandaStyle = ({
                 className="grid gap-5"
                 style={{
                   display: 'grid',
+                  // Tamaño fijo 300px: al bajar el zoom del navegador caben más comandas
+                  // sin alterar el tamaño intrínseco de cada tarjeta.
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
                   gridAutoRows: '520px',
                   gap: '20px',
@@ -4414,6 +4328,16 @@ const ComandaStyle = ({
           nightMode={nightMode}
           onClose={() => setShowRevertir(false)}
           onRevertir={obtenerComandas}
+        />
+      )}
+
+      {/* F1: Historial de comandas (entregadas / parciales) */}
+      {showHistorial && (
+        <HistorialModal
+          nightMode={nightMode}
+          getToken={getToken}
+          socket={cocinaSocket}
+          onClose={() => setShowHistorial(false)}
         />
       )}
 

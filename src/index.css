@@ -92,3 +92,34 @@ body {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
   50% { box-shadow: 0 0 14px 3px rgba(239, 68, 68, 0.85); }
 }
+
+/* ===== F2: Responsive KDS — grid y barra ===== */
+
+/* Forzar 1 columna en teléfono cuando el preset/config lo activa */
+.kds-grid.kds-force-one-col-mobile {
+  /* en < 768px se sobreescribe abajo */
+}
+
+@media (max-width: 767px) {
+  .kds-grid.kds-force-one-col-mobile {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Safe-area inferior para barra sticky en móviles con gesto */
+.kds-bottom-bar {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Altura dinámica en móviles (evita corte por barra de URL) */
+@supports (height: 100dvh) {
+  .kds-fullscreen-mobile {
+    height: 100dvh !important;
+  }
+}
+
+/* Evitar zoom de fuente en MIUI/Huawei WebView */
+.kds-no-font-zoom {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}

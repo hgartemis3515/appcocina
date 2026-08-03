@@ -30,11 +30,10 @@ import {
 } from "../../config/kdsConfigConstants";
 
 /**
- * ConfigModal - Modal de configuración del sistema KDS v7.2
- * 
- * Características:
- * - Sistema de tabs para organizar opciones
- * - Gestión de limpieza de estados locales
+ * ConfigModal - Modal de configuración del sistema KDS
+ *
+ * Tab Vista: tipografía + paginación (cols×rows). El tamaño de tarjeta en pantalla
+ * es fijo (300×500) para que el zoom del navegador empaquete más comandas.
  */
 const ConfigModal = ({ onClose, nightMode = true }) => {
   // Usar ConfigContext
@@ -327,13 +326,15 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                 <FaPalette className="text-purple-500" />
                 Diseño de Comandas
               </h3>
+              <p className={`text-xs ${textSecondary} mb-4`}>
+                Las tarjetas mantienen tamaño fijo (300×500). Al bajar el zoom del navegador
+                caben más comandas en pantalla sin deformar cada tarjeta. Columnas/filas
+                solo controlan cuántas se muestran por página.
+              </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Tamaño de Fuente */}
                 <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    Tamaño de Fuente
-                  </label>
+                  <label className={`block ${textModal} font-semibold mb-2`}>Tamaño de Fuente</label>
                   <select
                     value={config.tamanoFuente}
                     onChange={(e) => updateConfig({ tamanoFuente: parseInt(e.target.value) })}
@@ -348,11 +349,8 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                   </select>
                 </div>
 
-                {/* Tamaño de Tarjeta */}
                 <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    Tamaño de Tarjeta
-                  </label>
+                  <label className={`block ${textModal} font-semibold mb-2`}>Referencia de densidad</label>
                   <select
                     value={config.tamanoTarjeta}
                     onChange={(e) => updateConfig({ tamanoTarjeta: e.target.value })}
@@ -362,47 +360,42 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                     <option value={TAMANO_TARJETA.MEDIANO}>Mediano</option>
                     <option value={TAMANO_TARJETA.EXPANDIDO}>Expandido</option>
                   </select>
+                  <p className={`text-xs ${textSecondary} mt-1`}>No altera el tamaño fijo 300×500 de la tarjeta.</p>
                 </div>
 
-                {/* Columnas */}
                 <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    Columnas del Grid
-                  </label>
+                  <label className={`block ${textModal} font-semibold mb-2`}>Columnas (paginación)</label>
                   <input
                     type="number"
                     min={DISENO_GRID.COLUMNAS_MIN}
                     max={DISENO_GRID.COLUMNAS_MAX}
                     value={config.columnasGrid}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       columnasGrid: Math.max(DISENO_GRID.COLUMNAS_MIN, Math.min(DISENO_GRID.COLUMNAS_MAX, parseInt(e.target.value) || DISENO_GRID.COLUMNAS_DEFAULT))
                     })}
                     className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
                   />
                 </div>
 
-                {/* Filas */}
                 <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    Filas del Grid
-                  </label>
+                  <label className={`block ${textModal} font-semibold mb-2`}>Filas (paginación)</label>
                   <input
                     type="number"
                     min={DISENO_GRID.FILAS_MIN}
                     max={DISENO_GRID.FILAS_MAX}
                     value={config.filasGrid}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       filasGrid: Math.max(DISENO_GRID.FILAS_MIN, Math.min(DISENO_GRID.FILAS_MAX, parseInt(e.target.value) || DISENO_GRID.FILAS_DEFAULT))
                     })}
                     className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
                   />
+                  <p className={`text-xs ${textSecondary} mt-1`}>
+                    Comandas por página: {config.columnasGrid * config.filasGrid}
+                  </p>
                 </div>
 
-                {/* Ordenamiento */}
                 <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    Ordenamiento por Defecto
-                  </label>
+                  <label className={`block ${textModal} font-semibold mb-2`}>Ordenamiento por Defecto</label>
                   <select
                     value={config.ordenamientoDefault}
                     onChange={(e) => updateConfig({ ordenamientoDefault: e.target.value })}
@@ -415,65 +408,41 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                   </select>
                 </div>
 
-                {/* Modo de Vista */}
                 <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    Modo de Vista
-                  </label>
+                  <label className={`block ${textModal} font-semibold mb-2`}>Modo de Vista</label>
                   <select
                     value={config.modoVista}
-                    onChange={(e) => updateConfig({ modoVista: e.target.value })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
+                    disabled
+                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal} opacity-70`}
                   >
                     <option value={MODO_VISTA.TARJETAS}>Tarjetas (Kanban)</option>
-                    <option value={MODO_VISTA.TABLA}>Tabla compacta</option>
+                    <option value={MODO_VISTA.TABLA}>Tabla (Próximamente)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Preview */}
               <div className="mt-6">
-                <label className={`block ${textModal} font-semibold mb-3`}>
-                  Preview en Vivo
-                </label>
-                <div 
+                <label className={`block ${textModal} font-semibold mb-3`}>Preview</label>
+                <div
                   className={`${nightMode ? 'bg-gray-900' : 'bg-gray-100'} p-4 rounded-lg border-2 ${borderModal}`}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${config.columnasGrid}, 1fr)`,
-                    gridTemplateRows: `repeat(${config.filasGrid}, auto)`,
-                    gap: '1rem',
-                    minHeight: '150px'
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 120px))',
+                    gap: '12px',
+                    justifyContent: 'center',
                   }}
                 >
-                  {/* Tarjeta de ejemplo */}
-                  <div className="bg-gray-800 border-4 border-gray-700 rounded-lg p-4 flex flex-col relative">
-                    <div className="bg-red-600 text-white font-black text-lg py-1 text-center mb-2">
-                      ESPERA
-                    </div>
-                    <div className="absolute top-2 right-2 z-10">
-                      <input type="checkbox" className="w-4 h-4" />
-                    </div>
-                    <div className="text-red-500 font-black text-xl mb-1" style={{ fontSize: `${config.tamanoFuente}px` }}>
-                      ORDEN #1
-                    </div>
-                    <div className="text-white font-bold mb-2">
-                      MESA #2
-                    </div>
-                    <div className="flex-1 mt-2">
-                      <div className="text-white font-black" style={{ fontSize: `${config.tamanoFuente}px` }}>
-                        3 Paella Huancaina
-                      </div>
-                    </div>
+                  <div className="bg-gray-800 border-2 border-gray-700 rounded-lg p-2" style={{ width: 120, height: 160 }}>
+                    <div className="bg-red-600 text-white text-center text-xs font-bold py-0.5 mb-1">ESPERA</div>
+                    <div className="text-red-400 font-bold text-xs" style={{ fontSize: `${Math.max(10, (config.tamanoFuente || 15) - 4)}px` }}>ORDEN #1</div>
+                    <div className="text-white text-xs">MESA #2</div>
                   </div>
-                  
-                  {/* Slots vacíos */}
-                  {Array.from({ length: (config.columnasGrid * config.filasGrid) - 1 }).map((_, idx) => (
-                    <div key={idx} className="bg-gray-900 border-2 border-gray-800 rounded-lg min-h-[80px]" />
+                  {Array.from({ length: Math.min(4, Math.max(0, (config.columnasGrid * config.filasGrid) - 1)) }).map((_, idx) => (
+                    <div key={idx} className="bg-gray-900 border border-gray-800 rounded-lg" style={{ width: 120, height: 160 }} />
                   ))}
                 </div>
                 <p className={`${textSecondary} text-sm mt-2`}>
-                  {config.columnasGrid} columnas x {config.filasGrid} filas = {config.columnasGrid * config.filasGrid} slots
+                  Tarjeta fija 300×500 · {config.columnasGrid}×{config.filasGrid} = {config.columnasGrid * config.filasGrid}/página · zoom del navegador = más comandas visibles
                 </p>
               </div>
             </div>
