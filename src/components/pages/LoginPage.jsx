@@ -3,6 +3,25 @@ import { motion } from 'framer-motion';
 import { FaUtensils, FaSignInAlt, FaExclamationTriangle, FaSpinner, FaUser, FaLock, FaCheckSquare, FaSquare, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
+const BG_ANIMATION_KEY = 'cocina_login_bg_animation';
+
+const readBgAnimationPref = () => {
+  try {
+    const saved = localStorage.getItem(BG_ANIMATION_KEY);
+    return saved === null ? true : saved === '1';
+  } catch {
+    return true;
+  }
+};
+
+const writeBgAnimationPref = (enabled) => {
+  try {
+    localStorage.setItem(BG_ANIMATION_KEY, enabled ? '1' : '0');
+  } catch {
+    // ignore quota / private mode
+  }
+};
+
 // ─────────────────────────────────────────────
 // Shifting Veils — WebGL Background Animation
 // Adapted with orange/red colors for the kitchen theme
@@ -293,6 +312,7 @@ const LoginPage = () => {
   const [localError, setLocalError] = useState('');
   const [recordar, setRecordar] = useState(false);
   const [rememberedName, setRememberedName] = useState('');
+  const [bgAnimationOn, setBgAnimationOn] = useState(readBgAnimationPref);
 
   const { login, error: authError, loading, isAuthenticated, user, getRememberedUser } = useAuth();
 
@@ -310,6 +330,14 @@ const LoginPage = () => {
       console.log('[LoginPage] Usuario autenticado:', user.name);
     }
   }, [isAuthenticated, user]);
+
+  const toggleBgAnimation = () => {
+    setBgAnimationOn((prev) => {
+      const next = !prev;
+      writeBgAnimationPref(next);
+      return next;
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -359,8 +387,28 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative">
-      {/* Animated WebGL Background */}
-      <ShiftingVeilsBackground />
+      {/* Animated WebGL Background (solo si está encendida en este dispositivo) */}
+      {bgAnimationOn && <ShiftingVeilsBackground />}
+
+      {/* Toggle animación de fondo — preferencia por dispositivo */}
+      <button
+        type="button"
+        onClick={toggleBgAnimation}
+        aria-pressed={bgAnimationOn}
+        aria-label={bgAnimationOn ? 'Apagar animacion de fondo' : 'Prender animacion de fondo'}
+        className={`absolute top-4 right-4 z-20 flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold tracking-wide transition-all select-none ${
+          bgAnimationOn
+            ? 'bg-orange-500/20 border-orange-500/50 text-orange-300 hover:bg-orange-500/30'
+            : 'bg-gray-800/80 border-gray-600 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200'
+        }`}
+      >
+        <span
+          className={`inline-block w-2 h-2 rounded-full ${
+            bgAnimationOn ? 'bg-orange-400' : 'bg-gray-500'
+          }`}
+        />
+        Animacion {bgAnimationOn ? 'ON' : 'OFF'}
+      </button>
 
       {/* Login Card - positioned above the background */}
       <motion.div
