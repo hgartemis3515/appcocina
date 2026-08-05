@@ -467,14 +467,18 @@ function pasaFiltrosZonaComanda(comanda, filtros) {
   if (usarFiltroAreas) {
     // Obtener información del área de forma segura
     const mesaInfo = comanda.mesas || {};
-    const areaInfo = mesaInfo.area || {};
+    const areaInfo = (mesaInfo.area && typeof mesaInfo.area === 'object') ? mesaInfo.area : {};
     
     // ID del área (puede ser string, ObjectId, o número)
-    const areaId = areaInfo._id ?? areaInfo.id ?? areaInfo.areaId ?? mesaInfo.area ?? null;
+    const areaId = areaInfo._id ?? areaInfo.id ?? areaInfo.areaId
+      ?? (typeof mesaInfo.area === 'string' || typeof mesaInfo.area === 'number' ? mesaInfo.area : null)
+      ?? null;
     const areaIdStr = areaId != null ? String(areaId) : null;
     
-    // Nombre del área
-    const areaNombre = (areaInfo.nombre ?? areaInfo.name ?? '').toString().trim().toLowerCase();
+    // Nombre del área (incluir desnormalizado areaNombre — crítico tras socket/dashboard)
+    const areaNombre = (
+      areaInfo.nombre ?? areaInfo.name ?? comanda.areaNombre ?? ''
+    ).toString().trim().toLowerCase();
 
     if (modoAreas === 'solo' || areasPermitidas.length > 0) {
       // Modo inclusión: solo mostrar si coincide con área permitida

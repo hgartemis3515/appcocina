@@ -95,6 +95,19 @@ const useSocketCocina = ({
   const lastTokenRef = useRef(null); // Trackear el token anterior para detectar cambios
   const isUnmountedRef = useRef(false); // Trackear si el componente se ha desmontado
   const currentTokenRef = useRef(token); // Token actual para verificar en callbacks
+  // Callbacks en ref: evita reconectar el socket cuando cambian identidades de handlers
+  const handlersRef = useRef({});
+  handlersRef.current = {
+    onNuevaComanda,
+    onComandaActualizada,
+    onPlatoActualizado,
+    onPlatoCanceladoUrgente,
+    onPlatoAnulado,
+    onComandaAnulada,
+    onConfigCocineroActualizada,
+    onPlatoMenuActualizado,
+    obtenerComandas
+  };
 
   /**
    * Maneja errores de autenticación
@@ -225,8 +238,8 @@ const useSocketCocina = ({
       }
 
       // Obtener comandas iniciales una vez conectado
-      if (obtenerComandas) {
-        obtenerComandas();
+      if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -301,8 +314,8 @@ const useSocketCocina = ({
       }
       
       // Refrescar comandas
-      if (obtenerComandas) {
-        obtenerComandas();
+      if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -321,8 +334,8 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Nueva comanda recibida:', data.comanda?.comandaNumber);
       ultimoPingRef.current = Date.now();
       
-      if (onNuevaComanda && data.comanda) {
-        onNuevaComanda(data.comanda);
+      if (handlersRef.current.onNuevaComanda && data.comanda) {
+        handlersRef.current.onNuevaComanda(data.comanda);
       }
     });
 
@@ -331,11 +344,11 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Comanda actualizada:', data.comandaId || data.comanda?._id);
       ultimoPingRef.current = Date.now();
       
-      if (onComandaActualizada) {
+      if (handlersRef.current.onComandaActualizada) {
         if (data.comanda) {
-          onComandaActualizada(data);
-        } else if (data.comandaId && obtenerComandas) {
-          obtenerComandas();
+          handlersRef.current.onComandaActualizada(data);
+        } else if (data.comandaId && handlersRef.current.obtenerComandas) {
+          handlersRef.current.obtenerComandas();
         }
       }
     });
@@ -345,8 +358,8 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato eliminado:', data.platoEliminado?.nombre);
       ultimoPingRef.current = Date.now();
       
-      if (onComandaActualizada && data.comanda) {
-        onComandaActualizada({
+      if (handlersRef.current.onComandaActualizada && data.comanda) {
+        handlersRef.current.onComandaActualizada({
           comanda: data.comanda,
           platosEliminados: data.comanda.historialPlatos?.filter(h => h.estado === 'eliminado') || [],
           auditoria: data.auditoria
@@ -359,10 +372,10 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato actualizado:', data.platoId, data.nuevoEstado);
       ultimoPingRef.current = Date.now();
       
-      if (onPlatoActualizado) {
-        onPlatoActualizado(data);
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado(data);
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -371,10 +384,10 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato actualizado (batch):', data.batchSize, 'platos');
       ultimoPingRef.current = Date.now();
 
-      if (onPlatoActualizado && data.comanda) {
-        onPlatoActualizado({ comandaId: data.comandaId, comanda: data.comanda });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      if (handlersRef.current.onPlatoActualizado && data.comanda) {
+        handlersRef.current.onPlatoActualizado({ comandaId: data.comandaId, comanda: data.comanda });
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -383,16 +396,16 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato entregado (mozo):', data.platoId);
       ultimoPingRef.current = Date.now();
       
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
+      if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
           nuevoEstado: 'entregado',
           estadoAnterior: data.estadoAnterior || 'recoger',
           timestamp: data.timestamp
         });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -401,11 +414,11 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato cancelado (urgente):', data.comandaNumber);
       ultimoPingRef.current = Date.now();
       
-      if (onPlatoCanceladoUrgente) {
-        onPlatoCanceladoUrgente(data);
+      if (handlersRef.current.onPlatoCanceladoUrgente) {
+        handlersRef.current.onPlatoCanceladoUrgente(data);
       }
-      if (obtenerComandas) {
-        obtenerComandas();
+      if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -414,15 +427,15 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Comanda eliminada:', data.comandaId || data.comanda?._id);
       ultimoPingRef.current = Date.now();
       
-      if (onComandaActualizada) {
-        onComandaActualizada({
+      if (handlersRef.current.onComandaActualizada) {
+        handlersRef.current.onComandaActualizada({
           comandaId: data.comandaId || data.comanda?._id,
           comanda: data.comanda,
           eliminada: true,
           timestamp: data.timestamp
         });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -431,17 +444,17 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato anulado:', data.platoAnulado?.nombre);
       ultimoPingRef.current = Date.now();
       
-      if (onPlatoAnulado && data.comanda) {
-        onPlatoAnulado(data);
-      } else if (onComandaActualizada && data.comanda) {
-        onComandaActualizada({
+      if (handlersRef.current.onPlatoAnulado && data.comanda) {
+        handlersRef.current.onPlatoAnulado(data);
+      } else if (handlersRef.current.onComandaActualizada && data.comanda) {
+        handlersRef.current.onComandaActualizada({
           comanda: data.comanda,
           platoAnulado: data.platoAnulado,
           auditoria: data.auditoria,
           timestamp: data.timestamp
         });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -450,10 +463,10 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Comanda anulada:', data.comandaNumber);
       ultimoPingRef.current = Date.now();
       
-      if (onComandaAnulada && data.comanda) {
-        onComandaAnulada(data);
-      } else if (onComandaActualizada && data.comanda) {
-        onComandaActualizada({
+      if (handlersRef.current.onComandaAnulada && data.comanda) {
+        handlersRef.current.onComandaAnulada(data);
+      } else if (handlersRef.current.onComandaActualizada && data.comanda) {
+        handlersRef.current.onComandaActualizada({
           comanda: data.comanda,
           anulada: true,
           platosAnulados: data.platosAnulados,
@@ -461,8 +474,8 @@ const useSocketCocina = ({
           motivoGeneral: data.motivoGeneral,
           timestamp: data.timestamp
         });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -476,8 +489,8 @@ const useSocketCocina = ({
       ultimoPingRef.current = Date.now();
       
       // Actualizar el estado de las comandas para reflejar quien esta procesando
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
+      if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
           tipo: 'PLATO_TOMADO',
@@ -492,8 +505,8 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato liberado:', data.platoId, 'por', data.cocineroId);
       ultimoPingRef.current = Date.now();
       
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
+      if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
           tipo: 'PLATO_LIBERADO',
@@ -508,8 +521,8 @@ const useSocketCocina = ({
       console.warn('[useSocketCocina] Conflicto de procesamiento:', data.mensaje);
       ultimoPingRef.current = Date.now();
       
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
+      if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
           tipo: 'CONFLICTO',
@@ -526,8 +539,8 @@ const useSocketCocina = ({
       ultimoPingRef.current = Date.now();
       
       // Refrescar comandas para obtener estado actualizado
-      if (obtenerComandas) {
-        obtenerComandas();
+      if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -546,8 +559,8 @@ const useSocketCocina = ({
         return;
       }
 
-      if (onConfigCocineroActualizada) {
-        onConfigCocineroActualizada(data);
+      if (handlersRef.current.onConfigCocineroActualizada) {
+        handlersRef.current.onConfigCocineroActualizada(data);
       }
     });
 
@@ -557,8 +570,8 @@ const useSocketCocina = ({
       ultimoPingRef.current = Date.now();
 
       // Recargar configuración completa
-      if (obtenerComandas && onConfigCocineroActualizada) {
-        onConfigCocineroActualizada({ refresh: true });
+      if (handlersRef.current.obtenerComandas && handlersRef.current.onConfigCocineroActualizada) {
+        handlersRef.current.onConfigCocineroActualizada({ refresh: true });
       }
     });
 
@@ -568,8 +581,8 @@ const useSocketCocina = ({
       ultimoPingRef.current = Date.now();
 
       // Recargar configuración completa
-      if (onConfigCocineroActualizada) {
-        onConfigCocineroActualizada({ refresh: true });
+      if (handlersRef.current.onConfigCocineroActualizada) {
+        handlersRef.current.onConfigCocineroActualizada({ refresh: true });
       }
     });
 
@@ -582,16 +595,20 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Comanda liberada:', data.comandaNumber || data.comandaId);
       ultimoPingRef.current = Date.now();
 
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
-          tipo: 'COMANDA_LIBERADA',
-          comandaId: data.comandaId,
-          comanda: data.comanda,
-          cocineroId: data.cocineroId,
-          timestamp: data.timestamp
-        });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      // Preferir handlersRef.current.onComandaActualizada: no es un plato (sin platoId)
+      const payload = {
+        tipo: 'COMANDA_LIBERADA',
+        comandaId: data.comandaId,
+        comanda: data.comanda,
+        cocineroId: data.cocineroId,
+        timestamp: data.timestamp
+      };
+      if (handlersRef.current.onComandaActualizada) {
+        handlersRef.current.onComandaActualizada(payload);
+      } else if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado(payload);
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -600,16 +617,19 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Comanda finalizada:', data.comandaNumber || data.comandaId);
       ultimoPingRef.current = Date.now();
 
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
-          tipo: 'COMANDA_FINALIZADA',
-          comandaId: data.comandaId,
-          comanda: data.comanda,
-          cocinero: data.cocinero,
-          timestamp: data.timestamp
-        });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      const payload = {
+        tipo: 'COMANDA_FINALIZADA',
+        comandaId: data.comandaId,
+        comanda: data.comanda,
+        cocinero: data.cocinero,
+        timestamp: data.timestamp
+      };
+      if (handlersRef.current.onComandaActualizada) {
+        handlersRef.current.onComandaActualizada(payload);
+      } else if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado(payload);
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -618,16 +638,19 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Comanda tomada:', data.comandaNumber || data.comandaId);
       ultimoPingRef.current = Date.now();
 
-      if (onPlatoActualizado) {
-        onPlatoActualizado({
-          tipo: 'COMANDA_TOMADA',
-          comandaId: data.comandaId,
-          comanda: data.comanda,
-          procesandoPor: data.cocinero,
-          timestamp: data.timestamp
-        });
-      } else if (obtenerComandas) {
-        obtenerComandas();
+      const payload = {
+        tipo: 'COMANDA_TOMADA',
+        comandaId: data.comandaId,
+        comanda: data.comanda,
+        procesandoPor: data.cocinero,
+        timestamp: data.timestamp
+      };
+      if (handlersRef.current.onComandaActualizada) {
+        handlersRef.current.onComandaActualizada(payload);
+      } else if (handlersRef.current.onPlatoActualizado) {
+        handlersRef.current.onPlatoActualizado(payload);
+      } else if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -640,11 +663,11 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato del menú actualizado:', data.plato?.id || data.plato?._id);
       ultimoPingRef.current = Date.now();
 
-      if (onPlatoMenuActualizado) {
-        onPlatoMenuActualizado(data.plato);
-      } else if (obtenerComandas) {
+      if (handlersRef.current.onPlatoMenuActualizado) {
+        handlersRef.current.onPlatoMenuActualizado(data.plato);
+      } else if (handlersRef.current.obtenerComandas) {
         // Fallback: recargar todas las comandas para traer el plato populado con datos nuevos
-        obtenerComandas();
+        handlersRef.current.obtenerComandas();
       }
     });
 
@@ -661,9 +684,9 @@ const useSocketCocina = ({
 
     // Polling fallback: si está desconectado, refrescar comandas cada 30s vía HTTP
     pollingFallbackIntervalRef.current = setInterval(() => {
-      if (!socket.connected && obtenerComandas && !authFailedRef.current) {
+      if (!socket.connected && handlersRef.current.obtenerComandas && !authFailedRef.current) {
         console.log('[useSocketCocina] Desconectado — polling fallback');
-        obtenerComandas();
+        handlersRef.current.obtenerComandas();
       }
     }, 30000);
 
@@ -690,7 +713,7 @@ const useSocketCocina = ({
         socketRef.current = null;
       }
     };
-  }, [token, handleAuthError, onNuevaComanda, onComandaActualizada, onPlatoActualizado, onPlatoCanceladoUrgente, onPlatoAnulado, onComandaAnulada, onConfigCocineroActualizada, onPlatoMenuActualizado, obtenerComandas, cocineroId]);
+  }, [token, handleAuthError, cocineroId]);
 
   return {
     socket: socketRef.current,

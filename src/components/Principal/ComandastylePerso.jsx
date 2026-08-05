@@ -23,7 +23,8 @@ import {
   FaArrowLeft,
   FaEye,
   FaFilter,
-  FaShoppingBag
+  FaShoppingBag,
+  FaDesktop
 } from "react-icons/fa";
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
@@ -180,10 +181,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     console.log('[Procesamiento] Cambio recibido:', data.type);
     
     switch (data.type) {
-      case 'PLATO_TOMADO':
-        // Actualizar estado local del plato
-        setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+      case 'PLATO_TOMADO': {
+        // Actualizar comandas visibles y originales (filtro personalizado lee de originales)
+        const patchTomado = (prev) => prev.map(comanda => {
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           return {
             ...comanda,
             platos: comanda.platos.map(p => {
@@ -194,13 +195,15 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               return p;
             })
           };
-        }));
+        });
+        setComandas(patchTomado);
+        setComandasOriginales(patchTomado);
         break;
+      }
         
-      case 'PLATO_LIBERADO':
-        // Limpiar procesandoPor del plato
-        setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+      case 'PLATO_LIBERADO': {
+        const patchLiberado = (prev) => prev.map(comanda => {
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           return {
             ...comanda,
             platos: comanda.platos.map(p => {
@@ -211,8 +214,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               return p;
             })
           };
-        }));
+        });
+        setComandas(patchLiberado);
+        setComandasOriginales(patchLiberado);
         break;
+      }
         
       case 'PLATO_FINALIZADO':
         // El socket ya actualiza el estado del plato via plato-actualizado
@@ -239,7 +245,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         });
         // Actualizar estado con el cocinero real
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           return {
             ...comanda,
             platos: comanda.platos.map(p => {
@@ -256,11 +262,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       case 'COMANDA_TOMADA':
         // Actualizar estado local de la comanda
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           
-          // Si viene la comanda completa con platos actualizados, usarla directamente
+          // Si viene la comanda completa con platos actualizados, merge (no reemplazar crudo)
           if (data.comanda && data.comanda.platos) {
-            return data.comanda;
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
           }
           
           // Si no, actualizar solo el procesandoPor del encabezado
@@ -268,6 +274,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             ...comanda,
             procesandoPor: data.procesandoPor
           };
+        }));
+        setComandasOriginales(prev => prev.map(comanda => {
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
+          if (data.comanda && data.comanda.platos) {
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
+          }
+          return { ...comanda, procesandoPor: data.procesandoPor };
         }));
         
         // Siempre actualizar platoStates para cada plato con procesandoPor
@@ -290,14 +303,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       case 'COMANDA_LIBERADA':
         // v7.4: Limpiar procesandoPor de la comanda y sus platos
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           
-          // Si viene la comanda actualizada, usarla directamente
           if (data.comanda) {
-            return data.comanda;
+            return { ...comanda, ...data.comanda, _id: String(comanda._id), procesandoPor: null };
           }
           
-          // Si no, limpiar procesandoPor manualmente
           return {
             ...comanda,
             procesandoPor: null,
@@ -305,6 +316,17 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               ...p,
               procesandoPor: null
             }))
+          };
+        }));
+        setComandasOriginales(prev => prev.map(comanda => {
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
+          if (data.comanda) {
+            return { ...comanda, ...data.comanda, _id: String(comanda._id), procesandoPor: null };
+          }
+          return {
+            ...comanda,
+            procesandoPor: null,
+            platos: (comanda.platos || []).map(p => ({ ...p, procesandoPor: null }))
           };
         }));
         
@@ -318,7 +340,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         // Resetear estados visuales de los platos
         setPlatoStates(prev => {
           const nuevo = new Map(prev);
-          const comanda = comandas.find(c => c._id === data.comandaId);
+          const comanda = comandas.find(c => String(c._id) === String(data.comandaId));
           if (comanda && comanda.platos) {
             comanda.platos.forEach((plato, index) => {
               const key = `${data.comandaId}-${index}`;
@@ -332,11 +354,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       case 'COMANDA_FINALIZADA':
         // v7.4: Actualizar comanda y todos sus platos a estado 'recoger'
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           
-          // Si viene la comanda actualizada, usarla directamente
           if (data.comanda) {
-            return data.comanda;
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
           }
           
           // Si no, actualizar manualmente
@@ -345,6 +366,22 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             procesandoPor: null,
             status: 'recoger',
             platos: comanda.platos.map(p => ({
+              ...p,
+              estado: 'recoger',
+              procesandoPor: null
+            }))
+          };
+        }));
+        setComandasOriginales(prev => prev.map(comanda => {
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
+          if (data.comanda) {
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
+          }
+          return {
+            ...comanda,
+            procesandoPor: null,
+            status: 'recoger',
+            platos: (comanda.platos || []).map(p => ({
               ...p,
               estado: 'recoger',
               procesandoPor: null
@@ -362,7 +399,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         // Resetear estados visuales de los platos
         setPlatoStates(prev => {
           const nuevo = new Map(prev);
-          const comanda = comandas.find(c => c._id === data.comandaId);
+          const comanda = comandas.find(c => String(c._id) === String(data.comandaId));
           if (comanda && comanda.platos) {
             comanda.platos.forEach((plato, index) => {
               const key = `${data.comandaId}-${index}`;
@@ -738,6 +775,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       console.warn('⚠️ handleNuevaComanda recibió comanda inválida:', nuevaComanda);
       return;
     }
+
+    const nuevaId = String(nuevaComanda._id);
+    nuevaComanda = { ...nuevaComanda, _id: nuevaId };
+    if (!nuevaComanda.areaNombre && nuevaComanda.mesas?.area?.nombre) {
+      nuevaComanda.areaNombre = nuevaComanda.mesas.area.nombre;
+    }
     
     // VALIDACIÓN: Verificar que todos los platos tengan nombre antes de agregar
     if (nuevaComanda.platos && Array.isArray(nuevaComanda.platos) && nuevaComanda.platos.length > 0) {
@@ -762,9 +805,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         ? cocineroConfig.zonasAsignadas 
         : [];
       
+      // Pasar config completa (debeMostrarComanda espera { filtrosComandas })
       const debeMostrar = debeMostrarComanda(
         nuevaComanda,
-        cocineroConfig.filtrosComandas,
+        cocineroConfig,
         zonasAsignadas,
         zonaActivaId
       );
@@ -772,7 +816,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       if (!debeMostrar) {
         console.log(`[VISTA PERSONALIZADA] Nueva comanda #${nuevaComanda.comandaNumber} oculta por filtros`);
         // Actualizar referencia pero no mostrar en UI
-        setComandasOriginales(prev => [...prev, nuevaComanda]);
+        setComandasOriginales(prev => {
+          const lista = Array.isArray(prev) ? prev : [];
+          if (lista.some(c => c && String(c._id) === nuevaId)) {
+            return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
+          }
+          return [...lista, nuevaComanda];
+        });
         previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
         return;
       }
@@ -783,7 +833,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           if (!plato || typeof plato !== 'object') return false;
           return debeMostrarPlato(
             plato,
-            cocineroConfig.filtrosPlatos,
+            cocineroConfig,
             zonasAsignadas,
             zonaActivaId
           );
@@ -791,7 +841,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         
         if (platosFiltrados.length === 0) {
           console.log(`[VISTA PERSONALIZADA] Nueva comanda #${nuevaComanda.comandaNumber} sin platos visibles después de filtrar`);
-          setComandasOriginales(prev => [...prev, nuevaComanda]);
+          setComandasOriginales(prev => {
+            const lista = Array.isArray(prev) ? prev : [];
+            if (lista.some(c => c && String(c._id) === nuevaId)) {
+              return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
+            }
+            return [...lista, nuevaComanda];
+          });
           previousComandasRef.current = [...previousComandasRef.current, nuevaComanda];
           return;
         }
@@ -811,30 +867,29 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
     
     // Marcar para animación
-    newComandasRef.current.add(nuevaComanda._id);
+    newComandasRef.current.add(nuevaId);
     setTimeout(() => {
-      newComandasRef.current.delete(nuevaComanda._id);
+      newComandasRef.current.delete(nuevaId);
     }, 2000);
     
     // Actualizar lista de comandas (agregar nueva o reemplazar si ya existe)
     setComandas(prev => {
-      const existe = prev.find(c => c && c._id === nuevaComanda._id);
+      const lista = Array.isArray(prev) ? prev : [];
+      const existe = lista.some(c => c && String(c._id) === nuevaId);
       if (existe) {
-        // Actualizar comanda existente
-        return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
-      } else {
-        // Agregar nueva comanda al inicio
-        return [nuevaComanda, ...prev];
+        return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
       }
+      return [nuevaComanda, ...lista];
     });
     
     // Actualizar también comandasOriginales
     setComandasOriginales(prev => {
-      const existe = prev.find(c => c && c._id === nuevaComanda._id);
+      const lista = Array.isArray(prev) ? prev : [];
+      const existe = lista.some(c => c && String(c._id) === nuevaId);
       if (existe) {
-        return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
+        return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
       }
-      return [nuevaComanda, ...prev];
+      return [nuevaComanda, ...lista];
     });
     
     // Actualizar referencia
@@ -845,6 +900,53 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // Validar que data existe
     if (!data) {
       console.warn('⚠️ handleComandaActualizada recibió data null/undefined');
+      return;
+    }
+
+    // Eventos de comanda completa (tomar/dejar/finalizar) — sin platoId.
+    // Antes caían en handlePlatoActualizado → !platoId → obtenerComandas() y se perdía la lista.
+    if (data.tipo === 'COMANDA_TOMADA' || data.tipo === 'COMANDA_LIBERADA' || data.tipo === 'COMANDA_FINALIZADA') {
+      const comandaId = data.comandaId || data.comanda?._id;
+      if (!comandaId) return;
+      const idStr = String(comandaId);
+
+      const mergeLista = (prev) => {
+        const lista = Array.isArray(prev) ? prev : [];
+        return lista.map(comanda => {
+          if (!comanda || String(comanda._id) !== idStr) return comanda;
+          if (data.comanda && Array.isArray(data.comanda.platos)) {
+            return { ...comanda, ...data.comanda, _id: idStr };
+          }
+          if (data.tipo === 'COMANDA_TOMADA') {
+            return { ...comanda, procesandoPor: data.procesandoPor || data.comanda?.procesandoPor || comanda.procesandoPor };
+          }
+          if (data.tipo === 'COMANDA_LIBERADA') {
+            return {
+              ...comanda,
+              procesandoPor: null,
+              platos: (comanda.platos || []).map(p => ({ ...p, procesandoPor: null }))
+            };
+          }
+          if (data.tipo === 'COMANDA_FINALIZADA') {
+            return {
+              ...comanda,
+              ...(data.comanda || {}),
+              _id: idStr,
+              procesandoPor: null,
+              status: data.comanda?.status || 'recoger',
+              platos: (data.comanda?.platos || comanda.platos || []).map(p => ({
+                ...p,
+                estado: p.estado === 'recoger' || p.anulado || p.eliminado ? p.estado : 'recoger',
+                procesandoPor: null
+              }))
+            };
+          }
+          return comanda;
+        });
+      };
+
+      setComandas(mergeLista);
+      setComandasOriginales(mergeLista);
       return;
     }
 
@@ -937,7 +1039,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // Detectar platos eliminados comparando la comanda anterior con la nueva
     setComandas(prev => {
       console.log('🔄 Actualizando comanda en estado. Total comandas antes:', prev.length);
-      const index = prev.findIndex(c => c._id === comandaActualizada._id);
+      const idActualizada = String(comandaActualizada._id);
+      const index = prev.findIndex(c => c && String(c._id) === idActualizada);
       if (index !== -1) {
         const comandaAnterior = prev[index];
         
@@ -1099,8 +1202,14 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       nuevoEstado: data.nuevoEstado,
       estadoAnterior: data.estadoAnterior,
       plato: data.plato,
-      comanda: data.comanda
+      comanda: data.comanda,
+      tipo: data.tipo
     });
+
+    // COMANDA_* sin platoId: no disparar obtenerComandas (rompe la lista KDS)
+    if (data.tipo === 'COMANDA_TOMADA' || data.tipo === 'COMANDA_LIBERADA' || data.tipo === 'COMANDA_FINALIZADA') {
+      return;
+    }
     
     // 🔥 AUDITORÍA: Detectar si el plato fue eliminado
     const platoEliminado = data.plato?.eliminado === true || data.eliminado === true;
@@ -1145,8 +1254,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     
     // Validar datos mínimos requeridos
     if (!data.comandaId || !data.platoId) {
-      console.warn('⚠️ FASE3: Datos incompletos en plato-actualizado, refrescando todas las comandas');
-      obtenerComandas();
+      // No hacer obtenerComandas(): reemplaza toda la lista y borra pendientes
+      // de días anteriores si la query/estado no las trae de forma consistente.
+      console.warn('⚠️ FASE3: plato-actualizado incompleto — se ignora (sin refresh total)', {
+        comandaId: data.comandaId,
+        platoId: data.platoId,
+        tipo: data.tipo
+      });
       return;
     }
     
@@ -4711,6 +4825,7 @@ const SicarComandaCard = ({
   // v7.4: Determinar el estado visual de la comanda para el contorno
   const tomadaPorMi = comanda.procesandoPor?.cocineroId?.toString() === usuarioActualId?.toString();
   const comandaState = comandaStates?.get(comandaId) || 'normal';
+  const esDesdeDashboard = comanda.origenCreacion === 'dashboard';
   
   // Determinar el color del contorno según el estado
   let borderStyle = '2px solid';
@@ -4729,6 +4844,10 @@ const SicarComandaCard = ({
       shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.5)';
       backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.3), rgba(34,197,94,0.1))`;
     }
+  } else if (esDesdeDashboard) {
+    borderStyle = '4px solid #16a34a';
+    shadowStyle = '0 8px 32px rgba(22, 163, 74, 0.45)';
+    backgroundStyle = `linear-gradient(135deg, rgba(22,163,74,0.18), rgba(22,163,74,0.05))`;
   } else if (isSelected) {
     // Comanda seleccionada (no tomada por mí)
     borderStyle = '4px solid #22c55e';
@@ -4826,6 +4945,19 @@ const SicarComandaCard = ({
             👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Badge: creada desde dashboard/backend */}
+            {comanda.origenCreacion === 'dashboard' && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-600 text-white flex items-center gap-1"
+                style={{ fontFamily: 'Arial, sans-serif' }}
+                title="Creada desde el backend (comandas.html)"
+              >
+                <FaDesktop className="text-[10px]" />
+                Backend{comanda.areaNombre || comanda.mesas?.area?.nombre ? ` · ${comanda.areaNombre || comanda.mesas?.area?.nombre}` : ''}
+              </motion.span>
+            )}
             {/* v7.4: Badge del cocinero que está procesando la comanda */}
             {comanda.procesandoPor?.cocineroId && (
               <motion.span

@@ -23,7 +23,8 @@ import {
   FaSearch,
   FaArrowLeft,
   FaEye,
-  FaShoppingBag
+  FaShoppingBag,
+  FaDesktop
 } from "react-icons/fa";
 import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
@@ -205,11 +206,13 @@ const ComandaStyle = ({
 
   const platoTieneOverride = useCallback((comandaId, platoIndex, plato) => {
     if (plato?.overrideOrdenCola === true) return true;
+    const comanda = (comandas || []).find(c => String(c._id) === String(comandaId));
+    if (comanda?.omitirOrdenEntrega === true) return true;
     const id = plato?._id;
     if (comandaId != null && id != null && overridesAprobados.has(`${comandaId}-${id}`)) return true;
     if (comandaId != null && platoIndex != null && overridesAprobados.has(`${comandaId}-${platoIndex}`)) return true;
     return false;
-  }, [overridesAprobados]);
+  }, [overridesAprobados, comandas]);
 
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR
   // Mapa de número de cola (#1..#N) por cocinero. Se calcula en el padre (aquí hay `comandas`)
@@ -488,6 +491,18 @@ const ComandaStyle = ({
   // Callbacks para eventos Socket.io
   const handleNuevaComanda = useCallback((nuevaComanda) => {
     console.log('📥 Nueva comanda recibida vía Socket.io:', nuevaComanda.comandaNumber);
+
+    if (!nuevaComanda || !nuevaComanda._id) {
+      console.warn('⚠️ handleNuevaComanda recibió comanda inválida:', nuevaComanda);
+      return;
+    }
+
+    // Normalizar _id a string (evita que === falle ObjectId vs string y rompa el merge)
+    const nuevaId = String(nuevaComanda._id);
+    nuevaComanda = { ...nuevaComanda, _id: nuevaId };
+    if (!nuevaComanda.areaNombre && nuevaComanda.mesas?.area?.nombre) {
+      nuevaComanda.areaNombre = nuevaComanda.mesas.area.nombre;
+    }
     
     // VALIDACIÓN: Verificar que todos los platos tengan nombre antes de agregar
     if (nuevaComanda.platos && nuevaComanda.platos.length > 0) {
@@ -510,21 +525,20 @@ const ComandaStyle = ({
     }
     
     // Marcar para animación
-    newComandasRef.current.add(nuevaComanda._id);
+    newComandasRef.current.add(nuevaId);
     setTimeout(() => {
-      newComandasRef.current.delete(nuevaComanda._id);
+      newComandasRef.current.delete(nuevaId);
     }, 2000);
     
     // Actualizar lista de comandas (agregar nueva o reemplazar si ya existe)
+    // CRÍTICO: usar prev funcional + comparar IDs como string (no reemplazar la lista)
     setComandas(prev => {
-      const existe = prev.find(c => c._id === nuevaComanda._id);
+      const lista = Array.isArray(prev) ? prev : [];
+      const existe = lista.some(c => c && String(c._id) === nuevaId);
       if (existe) {
-        // Actualizar comanda existente
-        return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
-      } else {
-        // Agregar nueva comanda al inicio
-        return [nuevaComanda, ...prev];
+        return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
       }
+      return [nuevaComanda, ...lista];
     });
     
     // Actualizar referencia
@@ -535,6 +549,50 @@ const ComandaStyle = ({
     // Validar que data existe
     if (!data) {
       console.warn('⚠️ handleComandaActualizada recibió data null/undefined');
+      return;
+    }
+
+    // Eventos de comanda completa (tomar/dejar/finalizar) — sin platoId.
+    // Antes caían en handlePlatoActualizado → !platoId → obtenerComandas() y se perdía la lista.
+    if (data.tipo === 'COMANDA_TOMADA' || data.tipo === 'COMANDA_LIBERADA' || data.tipo === 'COMANDA_FINALIZADA') {
+      const comandaId = data.comandaId || data.comanda?._id;
+      if (!comandaId) return;
+      const idStr = String(comandaId);
+
+      setComandas(prev => {
+        const lista = Array.isArray(prev) ? prev : [];
+        return lista.map(comanda => {
+          if (!comanda || String(comanda._id) !== idStr) return comanda;
+          if (data.comanda && Array.isArray(data.comanda.platos)) {
+            return { ...comanda, ...data.comanda, _id: idStr };
+          }
+          if (data.tipo === 'COMANDA_TOMADA') {
+            return { ...comanda, procesandoPor: data.procesandoPor || data.comanda?.procesandoPor || comanda.procesandoPor };
+          }
+          if (data.tipo === 'COMANDA_LIBERADA') {
+            return {
+              ...comanda,
+              procesandoPor: null,
+              platos: (comanda.platos || []).map(p => ({ ...p, procesandoPor: null }))
+            };
+          }
+          if (data.tipo === 'COMANDA_FINALIZADA') {
+            return {
+              ...comanda,
+              ...(data.comanda || {}),
+              _id: idStr,
+              procesandoPor: null,
+              status: data.comanda?.status || 'recoger',
+              platos: (data.comanda?.platos || comanda.platos || []).map(p => ({
+                ...p,
+                estado: p.estado === 'recoger' || p.anulado || p.eliminado ? p.estado : 'recoger',
+                procesandoPor: null
+              }))
+            };
+          }
+          return comanda;
+        });
+      });
       return;
     }
 
@@ -627,7 +685,8 @@ const ComandaStyle = ({
     // Detectar platos eliminados comparando la comanda anterior con la nueva
     setComandas(prev => {
       console.log('🔄 Actualizando comanda en estado. Total comandas antes:', prev.length);
-      const index = prev.findIndex(c => c._id === comandaActualizada._id);
+      const idActualizada = String(comandaActualizada._id);
+      const index = prev.findIndex(c => c && String(c._id) === idActualizada);
       if (index !== -1) {
         const comandaAnterior = prev[index];
         
@@ -795,6 +854,12 @@ const ComandaStyle = ({
     });
     
     // v7.2: Manejar eventos de procesamiento multi-cocinero
+    // COMANDA_* no traen platoId — no refrescar toda la lista
+    if (data.tipo === 'COMANDA_TOMADA' || data.tipo === 'COMANDA_LIBERADA' || data.tipo === 'COMANDA_FINALIZADA') {
+      // Redirigido también vía onComandaActualizada; aquí solo evitar el fallback obtenerComandas
+      return;
+    }
+
     if (data.tipo === 'PLATO_TOMADO') {
       // Un cocinero tomó el plato - actualizar procesandoPor
       console.log('👨‍🍳 [Multi-Cocinero] Plato tomado por:', data.procesandoPor?.alias || data.procesandoPor?.nombre);
@@ -900,8 +965,13 @@ const ComandaStyle = ({
     
     // Validar datos mínimos requeridos
     if (!data.comandaId || !data.platoId) {
-      console.warn('⚠️ FASE3: Datos incompletos en plato-actualizado, refrescando todas las comandas');
-      obtenerComandas();
+      // No hacer obtenerComandas(): reemplaza toda la lista y borra pendientes
+      // de días anteriores si la query/estado no las trae de forma consistente.
+      console.warn('⚠️ FASE3: plato-actualizado incompleto — se ignora (sin refresh total)', {
+        comandaId: data.comandaId,
+        platoId: data.platoId,
+        tipo: data.tipo
+      });
       return;
     }
     
@@ -1195,7 +1265,7 @@ const ComandaStyle = ({
       case 'PLATO_TOMADO':
         // Actualizar estado local del plato
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           return {
             ...comanda,
             platos: comanda.platos.map(p => {
@@ -1212,7 +1282,7 @@ const ComandaStyle = ({
       case 'PLATO_LIBERADO':
         // Limpiar procesandoPor del plato
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           return {
             ...comanda,
             platos: comanda.platos.map(p => {
@@ -1268,11 +1338,11 @@ const ComandaStyle = ({
       case 'COMANDA_TOMADA':
         // Actualizar estado local de la comanda
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           
           // Si viene la comanda completa con platos actualizados, usarla directamente
           if (data.comanda && data.comanda.platos) {
-            return data.comanda;
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
           }
           
           // Si no, actualizar solo el procesandoPor del encabezado
@@ -1302,11 +1372,11 @@ const ComandaStyle = ({
       case 'COMANDA_LIBERADA':
         // v7.4: Limpiar procesandoPor de la comanda y sus platos
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           
           // Si viene la comanda actualizada, usarla directamente
           if (data.comanda) {
-            return data.comanda;
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
           }
           
           // Si no, limpiar procesandoPor manualmente
@@ -1330,7 +1400,7 @@ const ComandaStyle = ({
         // Resetear estados visuales de los platos
         setPlatoStates(prev => {
           const nuevo = new Map(prev);
-          const comanda = comandas.find(c => c._id === data.comandaId);
+          const comanda = comandas.find(c => String(c._id) === String(data.comandaId));
           if (comanda && comanda.platos) {
             comanda.platos.forEach((plato, index) => {
               const key = `${data.comandaId}-${index}`;
@@ -1344,11 +1414,11 @@ const ComandaStyle = ({
       case 'COMANDA_FINALIZADA':
         // v7.4: Actualizar comanda y todos sus platos a estado 'recoger'
         setComandas(prev => prev.map(comanda => {
-          if (comanda._id !== data.comandaId) return comanda;
+          if (String(comanda._id) !== String(data.comandaId)) return comanda;
           
           // Si viene la comanda actualizada, usarla directamente
           if (data.comanda) {
-            return data.comanda;
+            return { ...comanda, ...data.comanda, _id: String(comanda._id) };
           }
           
           // Si no, actualizar manualmente
@@ -5126,6 +5196,7 @@ const SicarComandaCard = ({
   
   const estaTomada = comanda.procesandoPor?.cocineroId || tienePlatosTomados;
   const laTengoYo = tomadaPorMi || platosTomadosPorMi;
+  const esDesdeDashboard = comanda.origenCreacion === 'dashboard';
   
   // Determinar el color del contorno según el estado
   let borderStyle = '2px solid';
@@ -5149,6 +5220,11 @@ const SicarComandaCard = ({
       shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.5)';
       backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.3), rgba(34,197,94,0.1))`;
     }
+  } else if (esDesdeDashboard) {
+    // Creada desde dashboard (comandas.html): contorno verde distintivo
+    borderStyle = '4px solid #16a34a';
+    shadowStyle = '0 8px 32px rgba(22, 163, 74, 0.45)';
+    backgroundStyle = `linear-gradient(135deg, rgba(22,163,74,0.18), rgba(22,163,74,0.05))`;
   } else if (isSelected) {
     // Comanda seleccionada (no tomada)
     borderStyle = '4px solid #22c55e';
@@ -5246,6 +5322,19 @@ const SicarComandaCard = ({
             👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Badge: creada desde dashboard/backend */}
+            {comanda.origenCreacion === 'dashboard' && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-600 text-white flex items-center gap-1"
+                style={{ fontFamily: 'Arial, sans-serif' }}
+                title="Creada desde el backend (comandas.html)"
+              >
+                <FaDesktop className="text-[10px]" />
+                Backend{comanda.areaNombre || comanda.mesas?.area?.nombre ? ` · ${comanda.areaNombre || comanda.mesas?.area?.nombre}` : ''}
+              </motion.span>
+            )}
             {/* v7.4: Badge del cocinero que está procesando la comanda */}
             {comanda.procesandoPor?.cocineroId && (
               <motion.span
