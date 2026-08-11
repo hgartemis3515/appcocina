@@ -163,7 +163,10 @@ export const abrirMonitorCocinero = async (pantalla, opts = {}) => {
     || pantalla.cocineroId?._id
     || pantalla.cocineroId
     || '';
-  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo`;
+  // Flujo "Distribuir Cocina en monitores": perfil=auto aplica el perfil de
+  // personalización Ver Cocina guardado del cocinero (ver CocinaMonitorLayout).
+  const perfilParam = opts.aplicarPerfil ? '&perfil=auto' : '';
+  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}`;
 
   // Intentar usar Window Management API para obtener coords exactas del monitor
   let pos;
@@ -191,10 +194,11 @@ export const abrirMonitorCocinero = async (pantalla, opts = {}) => {
 /**
  * Reutiliza una ventana ya abierta cambiando solo la URL (sin popup nuevo).
  */
-export const redirigirVentanaMonitor = (win, pantalla, cocineroId = '') => {
+export const redirigirVentanaMonitor = (win, pantalla, cocineroId = '', opts = {}) => {
   if (!win || win.closed) return false;
   const numero = pantalla?.numeroPantalla ?? '';
-  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo`;
+  const perfilParam = opts.aplicarPerfil ? '&perfil=auto' : '';
+  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}`;
   try {
     win.location.href = url;
     const pos = calcularPosicion(pantalla?.configDespliegue, numero);

@@ -89,6 +89,9 @@ const MonitorConfigPanel = ({
   localDesign,
   onChange,
   onReset,
+  onSaveProfile,
+  guardandoPerfil = false,
+  perfilMensaje = null,
   colorFondo,
   colorTextoPrincipal,
   colorTextoSecundario,
@@ -961,22 +964,47 @@ const MonitorConfigPanel = ({
         )}
       </div>
 
-      <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          type="button"
-          onClick={onReset}
-          style={{
-            padding: '8px 18px',
-            fontSize: '13px',
-            background: 'transparent',
-            color: colorTextoSecundario,
-            border: `1px solid ${colorAcento}40`,
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          Restaurar valores por defecto
-        </button>
+      <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '12px', color: perfilMensaje?.tipo === 'error' ? '#ef4444' : (perfilMensaje?.tipo === 'ok' ? '#22c55e' : colorTextoSecundario) }}>
+          {perfilMensaje?.texto || ''}
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {onSaveProfile && (
+            <button
+              type="button"
+              onClick={onSaveProfile}
+              disabled={guardandoPerfil}
+              style={{
+                padding: '8px 18px',
+                fontSize: '13px',
+                fontWeight: 700,
+                background: colorAcento,
+                color: colorFondo,
+                border: 'none',
+                borderRadius: '8px',
+                cursor: guardandoPerfil ? 'wait' : 'pointer',
+                opacity: guardandoPerfil ? 0.6 : 1,
+              }}
+            >
+              {guardandoPerfil ? 'Guardando…' : 'Guardar Perfil'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onReset}
+            style={{
+              padding: '8px 18px',
+              fontSize: '13px',
+              background: 'transparent',
+              color: colorTextoSecundario,
+              border: `1px solid ${colorAcento}40`,
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            Restaurar valores por defecto
+          </button>
+        </div>
       </div>
     </div>
   );

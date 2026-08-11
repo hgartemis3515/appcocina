@@ -241,6 +241,7 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
         hayFiltroBusqueda={hayFiltroActivo}
         sugerenciasBusqueda={sugerencias}
         onSugerenciaClick={setSearchTerm}
+        getToken={getToken}
       />
     </>
   );

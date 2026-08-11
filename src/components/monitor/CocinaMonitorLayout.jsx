@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import moment from 'moment-timezone';
+import axios from 'axios';
+import { getServerBaseUrl } from '../../config/apiConfig';
 import { clampColumnas } from '../../config/monitorVisualConstants';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
@@ -115,6 +117,8 @@ const CocinaMonitorLayout = ({
   sugerenciasBusqueda = [],
   onSugerenciaClick = null,
   modoCocineros: modoCocinerosProp = null,
+  // Perfil de personalización Ver Cocina (flujo Distribuir Cocina en monitores)
+  getToken = null,
 }) => {
   const tick = useCocinaMonitorTimer();
   const [reloj, setReloj] = useState(moment().tz('America/Lima').format('HH:mm:ss'));
@@ -129,6 +133,10 @@ const CocinaMonitorLayout = ({
   });
 
   const [showConfigPanel, setShowConfigPanel] = useState(false);
+  // Perfil de personalización Ver Cocina (flujo Distribuir Cocina en monitores)
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+  const [perfilMensaje, setPerfilMensaje] = useState(null);
+  const [perfilAutoAplicado, setPerfilAutoAplicado] = useState(false);
   const [ultimoPlato, setUltimoPlato] = useState(null); // { nombre, cantidadTotal, ts, delta }
   const previousStateRef = useRef(new Map()); // key -> cantidadTotal
   const skipNotifInicialRef = useRef(true);
@@ -222,6 +230,69 @@ const CocinaMonitorLayout = ({
       console.warn('[CocinaMonitorLayout] Error guardando config local:', err.message);
     }
   }, []);
+
+  // Guardar el localDesign actual como perfil del cocinero activo en backend.
+  // Flujo "Distribuir Cocina en monitores" → botón "Guardar Perfil".
+  const guardarPerfilCocinero = useCallback(async () => {
+    if (!cocineroActivoId) {
+      setPerfilMensaje({ tipo: 'error', texto: 'Selecciona un cocinero para guardar su perfil' });
+      return;
+    }
+    if (!getToken) {
+      setPerfilMensaje({ tipo: 'error', texto: 'Sin token de auth' });
+      return;
+    }
+    try {
+      setGuardandoPerfil(true);
+      setPerfilMensaje(null);
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      await axios.put(
+        `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+        { config: localDesign || {} },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPerfilMensaje({ tipo: 'ok', texto: 'Perfil guardado ✓' });
+      setTimeout(() => setPerfilMensaje(null), 3000);
+    } catch (err) {
+      console.error('[CocinaMonitorLayout] Error guardando perfil:', err);
+      setPerfilMensaje({ tipo: 'error', texto: err?.response?.data?.error || 'Error al guardar perfil' });
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [cocineroActivoId, getToken, localDesign]);
+
+  // Cargar perfil del cocinero desde backend cuando la URL trae ?perfil=auto
+  // (ventanas hijas del flujo Distribuir Cocina en monitores).
+  useEffect(() => {
+    if (perfilAutoAplicado) return;
+    if (!modoFijo) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const perfil = params.get('perfil');
+      if (perfil !== 'auto') return;
+      if (!cocineroActivoId) return;
+    } catch { return; }
+    if (!getToken) return;
+    setPerfilAutoAplicado(true);
+    (async () => {
+      try {
+        const baseUrl = getServerBaseUrl();
+        const token = getToken();
+        const res = await axios.get(
+          `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const perfil = res.data?.data;
+        if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
+          // El perfil del backend tiene prioridad sobre el localStorage en modo fijo.
+          setLocalDesign(perfil);
+        }
+      } catch (err) {
+        console.warn('[CocinaMonitorLayout] No se pudo cargar perfil del cocinero:', err.message);
+      }
+    })();
+  }, [modoFijo, cocineroActivoId, getToken, perfilAutoAplicado]);
 
   // Config visual final
   const fuenteFamilia = configVisual.fuenteFamilia;
@@ -421,6 +492,9 @@ const CocinaMonitorLayout = ({
                 localStorage.removeItem(STORAGE_DESIGN_KEY);
                 setLocalDesign({});
               }}
+              onSaveProfile={guardarPerfilCocinero}
+              guardandoPerfil={guardandoPerfil}
+              perfilMensaje={perfilMensaje}
               colorFondo={colorFondo}
               colorTextoPrincipal={colorTextoPrincipal}
               colorTextoSecundario={colorTextoSecundario}

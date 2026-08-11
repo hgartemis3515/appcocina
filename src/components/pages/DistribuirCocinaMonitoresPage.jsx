@@ -35,6 +35,8 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const [monitoresDetectados, setMonitoresDetectados] = useState([]); // lista de monitores físicos
   const [showBatModal, setShowBatModal] = useState(false); // modal de configuración .bat
   const [batGenerando, setBatGenerando] = useState(false);
+  // Aplicar perfil de personalización del cocinero a cada monitor (flujo perfil=auto)
+  const [aplicarPerfil, setAplicarPerfil] = useState(true);
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -171,13 +173,13 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       return;
     }
     if (existente && !existente.closed) {
-      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId);
+      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, { aplicarPerfil });
       if (!ok) {
-        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId });
+        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, aplicarPerfil });
         if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
       }
     } else {
-      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId });
+      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, aplicarPerfil });
       if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
     }
   };
@@ -296,11 +298,14 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
 
     const psBase64 = toUtf16LEBase64(psScript);
 
+    // Sufijo de perfil de personalización (flujo Distribuir Cocina en monitores)
+    const perfilSuffix = aplicarPerfil ? '&perfil=auto' : '';
+
     // Bloques start: lanzar Chrome kiosk por cada monitor
     const bloquesStart = monsData.map((m) => (
 `if not "%COCINERO_${m.num}%"=="" (
   echo Abriendo Monitor ${m.num} - Cocinero: %COCINERO_${m.num}% - Pos: ${m.posX},${m.posY}
-  start "cocina-monitor-${m.num}" "%CHROME%" --kiosk --new-window "%BASE%/?monitor=${m.num}&cocineroId=%COCINERO_${m.num}%&modo=completo-fijo"
+  start "cocina-monitor-${m.num}" "%CHROME%" --kiosk --new-window "%BASE%/?monitor=${m.num}&cocineroId=%COCINERO_${m.num}%&modo=completo-fijo${perfilSuffix}"
 )`)).join('\n\n');
 
     const bat = `@echo off
@@ -475,6 +480,15 @@ pause
           >
             <FaFileDownload /> Generar .bat kiosk
           </button>
+          <label className="flex items-center gap-2 text-sm text-gray-300 ml-2 select-none" title="Aplica el perfil de personalización Ver Cocina guardado de cada cocinero a su monitor">
+            <input
+              type="checkbox"
+              checked={aplicarPerfil}
+              onChange={(e) => setAplicarPerfil(e.target.checked)}
+              className="w-4 h-4 accent-cyan-500"
+            />
+            Aplicar perfil de personalización
+          </label>
         </div>
       </div>
 
@@ -728,6 +742,16 @@ pause
                 );
               })}
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-300 mb-4 select-none" title="Incluye &perfil=auto en las URLs del .bat para que cada ventana aplique el perfil de personalización Ver Cocina guardado del cocinero">
+              <input
+                type="checkbox"
+                checked={aplicarPerfil}
+                onChange={(e) => setAplicarPerfil(e.target.checked)}
+                className="w-4 h-4 accent-cyan-500"
+              />
+              Aplicar perfil de personalización del cocinero a cada monitor
+            </label>
 
             <div className="flex gap-3">
               <button
