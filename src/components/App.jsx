@@ -10,6 +10,7 @@ import ComandaStyleSupervi from './Principal/ComandaStyleSupervi';
 import CocinaMonitorCompleto from './monitor/CocinaMonitorCompleto';
 import CocinaMonitorPersonalizado from './monitor/CocinaMonitorPersonalizado';
 import DesplegarMonitoresPage from './pages/DesplegarMonitoresPage';
+import DistribuirCocinaMonitoresPage from './pages/DistribuirCocinaMonitoresPage';
 import ProtectedRoute from './common/ProtectedRoute';
 import { FaSpinner } from 'react-icons/fa';
 import ChatFabCocina from './Chat/ChatFabCocina';
@@ -87,6 +88,19 @@ const AppRouter = () => {
       const modoFijo = params.get('modo');
       const monitor = params.get('monitor');
       const vistaIdParam = params.get('vistaId');
+      const cocineroIdParam = params.get('cocineroId');
+
+      // Flujo "Distribuir Cocina en monitores" (PC multi-monitor):
+      // ?monitor=N&cocineroId=ID&modo=completo-fijo -> Ver Cocina Completo filtrado fijo
+      if (modoFijo === 'completo-fijo' && monitor) {
+        setCocinaOptions({
+          modoFijo: true,
+          numeroPantalla: Number(monitor),
+          cocineroIdFijo: cocineroIdParam || null,
+        });
+        setCurrentView('VER_COCINA_COMPLETO');
+        return;
+      }
 
       if (modoFijo === 'fijo' && monitor) {
         // Modo fijo para TV - va directo al monitor personalizado
@@ -99,7 +113,8 @@ const AppRouter = () => {
       // Si venía de un refresh en cocina, podría restaurarse desde localStorage
       const lastView = localStorage.getItem('cocinaLastView');
       if (lastView === 'COCINA' || lastView === 'COCINA_PERSONALIZADA' || lastView === 'COCINA_SUPERVISOR'
-          || lastView === 'VER_COCINA_COMPLETO' || lastView === 'VER_COCINA_PERSONALIZADO') {
+          || lastView === 'VER_COCINA_COMPLETO' || lastView === 'VER_COCINA_PERSONALIZADO'
+          || lastView === 'DESPLEGAR_MONITORES' || lastView === 'DISTRIBUIR_COCINA_MONITORES') {
         setCurrentView(lastView);
         localStorage.removeItem('cocinaLastView');
       } else {
@@ -116,7 +131,8 @@ const AppRouter = () => {
     
     // Guardar última vista para restaurar en refresh
     if (['COCINA', 'COCINA_PERSONALIZADA', 'COCINA_SUPERVISOR',
-         'VER_COCINA_COMPLETO', 'VER_COCINA_PERSONALIZADO'].includes(view)) {
+         'VER_COCINA_COMPLETO', 'VER_COCINA_PERSONALIZADO',
+         'DESPLEGAR_MONITORES', 'DISTRIBUIR_COCINA_MONITORES'].includes(view)) {
       // No persistir si está en modo fijo (TVs no deben volver al monitor al refrescar)
       if (!cocinaOptions?.modoFijo) {
         localStorage.setItem('cocinaLastView', view);
@@ -274,10 +290,13 @@ const AppRouter = () => {
   }
 
   // Desplegar Monitores - consola para abrir las 8 TVs
-  if (currentView === 'DESPLEGAR_MONITORES') {
+  // Opción A del plan "Distribuir Cocina en monitores": ambas entradas del menú
+  // (Desplegar Monitores y Ver Cocina -> Distribuir Cocina en monitores) llevan
+  // a la misma consola de distribución por cocinero.
+  if (currentView === 'DESPLEGAR_MONITORES' || currentView === 'DISTRIBUIR_COCINA_MONITORES') {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
-        <DesplegarMonitoresPage onGoToMenu={goToMenu} />
+        <DistribuirCocinaMonitoresPage onGoToMenu={goToMenu} />
       </ProtectedRoute>
     );
   }

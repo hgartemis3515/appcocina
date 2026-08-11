@@ -57,11 +57,13 @@ const MenuPage = ({ onNavigate }) => {
     }
   };
 
-  // Función para navegar a Ver Cocina (monitor pasivo) con el modo seleccionado
+  // Función para navegar a Ver Cocina (monitor pasivo) con el modo seleccionado.
+  // "personalizado" ahora abre la consola "Distribuir Cocina en monitores"
+  // (flujo PC multi-monitor: 1 PC x 8 pantallas, filtro por cocinero).
   const handleNavigateToVerCocina = (selectedMode) => {
     setShowCocinaViewSelector(false);
     if (selectedMode === 'personalizado') {
-      onNavigate('VER_COCINA_PERSONALIZADO');
+      onNavigate('DISTRIBUIR_COCINA_MONITORES');
     } else {
       onNavigate('VER_COCINA_COMPLETO');
     }
@@ -146,13 +148,14 @@ const MenuPage = ({ onNavigate }) => {
     },
     {
       id: 'desplegar-monitores',
-      title: 'Desplegar Monitores',
-      subtitle: 'Abrir vistas en los televisores de cocina',
+      title: 'Distribuir Cocina en monitores',
+      subtitle: 'Asignar cocineros a los monitores 2–8',
       icon: FaDesktop,
       color: 'from-cyan-500 to-blue-600',
       shadowColor: 'shadow-cyan-500/30',
-      action: () => onNavigate('DESPLEGAR_MONITORES'),
-      enabled: hasPermission('desplegar-monitores-cocina'),
+      // Opción A del plan: misma consola que Ver Cocina -> Distribuir Cocina en monitores.
+      action: () => onNavigate('DISTRIBUIR_COCINA_MONITORES'),
+      enabled: hasPermission('desplegar-monitores-cocina') || hasPermission('ver-cocina-personalizado'),
     },
     {
       id: 'ppa',
@@ -567,7 +570,7 @@ const MenuPage = ({ onNavigate }) => {
                   </motion.button>
                 )}
 
-                {/* Ver Cocina Personalizado */}
+                {/* Distribuir Cocina en monitores (antes "Ver Cocina Personalizado") */}
                 {hasPermission('ver-cocina-personalizado') && (
                   <motion.button
                     whileHover={{ scale: 1.01 }}
@@ -577,13 +580,13 @@ const MenuPage = ({ onNavigate }) => {
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                        <FaFilter className="text-lg text-white" />
+                        <FaDesktop className="text-lg text-white" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-bold text-white">Ver Cocina Personalizado</h4>
-                        <p className="text-sm text-white/80">Solo platos de una Vista de Cocina específica</p>
+                        <h4 className="font-bold text-white">Distribuir Cocina en monitores</h4>
+                        <p className="text-sm text-white/80">Asigna qué cocinero se ve en cada monitor</p>
                         <p className="text-xs mt-1 text-white/60">
-                          Selecciona una vista (ej. "Criolla") y ve solo los platos de esa estación. Ideal para las TVs de cocina.
+                          Desde el monitor principal elige la vista Completo de cada cocinero en monitores 2–8.
                         </p>
                       </div>
                       <FaChevronRight className="text-white" />
