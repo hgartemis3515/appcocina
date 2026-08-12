@@ -230,26 +230,22 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     }
     setEnviandoHub(true);
     const hubUrl = `${getServerBaseUrl()}/api/hub/import`;
+    const token = getToken();
     try {
-      const res = await fetch(hubUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'appcocina',
-          profileName: `Cocina ${new Date().toLocaleString()}`,
-          slots,
-        }),
+      const res = await axios.post(hubUrl, {
+        source: 'appcocina',
+        profileName: `Cocina ${new Date().toLocaleString()}`,
+        slots,
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        timeout: 8000,
       });
-      if (!res.ok) {
-        let detalle = '';
-        try { detalle = (await res.json())?.error || ''; } catch { /* noop */ }
-        throw new Error(detalle || `Hub respondió ${res.status}`);
-      }
       setMensaje({ tipo: 'ok', texto: `Enviado al Monitor Hub (${slots.length} monitores). Abre el Hub y pulsa "Importar desde App Cocina".` });
     } catch (e) {
+      const detalle = e?.response?.data?.error || e.message;
       setMensaje({
         tipo: 'error',
-        texto: `No se pudo enviar al Monitor Hub. ¿Está corriendo el Hub en la PC de cocina? (${hubUrl})`,
+        texto: `No se pudo enviar al Monitor Hub. ${detalle}`,
       });
     } finally {
       setEnviandoHub(false);
@@ -536,10 +532,13 @@ pause
           </button>
           <button onClick={enviarAMonitorHub} disabled={enviandoHub || loading || pantallas.length === 0}
             className="px-3 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
-            title="Envia la asignacion al Gambusinas Monitor Hub (debe correr en esta PC)"
+            title="Envia la asignacion al Gambusinas Monitor Hub (debe correr en la PC de los monitores)"
           >
             <FaDesktop /> Enviar al Monitor Hub
           </button>
+          <span className="text-xs text-gray-400 ml-2" title="Esta URL debes configurar en el Monitor Hub (boton Configurar servidor)">
+            En el Hub pon: <b>{getServerBaseUrl()}</b>
+          </span>
           <label className="flex items-center gap-2 text-sm text-gray-300 ml-2 select-none" title="Aplica el perfil de personalización Ver Cocina guardado de cada cocinero a su monitor">
             <input
               type="checkbox"
