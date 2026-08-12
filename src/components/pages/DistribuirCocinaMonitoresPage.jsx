@@ -202,6 +202,55 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     setVentanas({});
   };
 
+  // Envia la asignacion actual al Gambusinas Monitor Hub (localhost) para que
+  // abra/posicione las ventanas en los monitores fisicos. Requiere que el
+  // Hub este corriendo en la misma PC (servidor http://127.0.0.1:7331/import).
+  const [enviandoHub, setEnviandoHub] = useState(false);
+  const enviarAMonitorHub = async () => {
+    const baseUrl = getServerBaseUrl();
+    let host = '192.168.50.155';
+    let puertoApp = '3001';
+    try {
+      const url = new URL(baseUrl);
+      host = url.hostname;
+      puertoApp = window.location.port || '3001';
+    } catch { /* noop */ }
+    const base = `http://${host}:${puertoApp}`;
+    const perfilSuffix = aplicarPerfil ? '&perfil=auto' : '';
+    const slots = MONITORES_PASIVOS
+      .filter((num) => asignacion[num])
+      .map((num) => ({
+        monitorIndex: num,
+        url: `${base}/?monitor=${num}&cocineroId=${asignacion[num]}&modo=completo-fijo${perfilSuffix}`,
+        mode: 'fullscreen',
+      }));
+    if (slots.length === 0) {
+      setMensaje({ tipo: 'error', texto: 'Asigna al menos un cocinero antes de enviar al Hub.' });
+      return;
+    }
+    setEnviandoHub(true);
+    try {
+      const res = await fetch('http://127.0.0.1:7331/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'appcocina',
+          profileName: `Cocina ${new Date().toLocaleString()}`,
+          slots,
+        }),
+      });
+      if (!res.ok) throw new Error(`Hub respondió ${res.status}`);
+      setMensaje({ tipo: 'ok', texto: `Enviado al Monitor Hub (${slots.length} monitores). Abre el Hub y pulsa "Importar desde App Cocina".` });
+    } catch (e) {
+      setMensaje({
+        tipo: 'error',
+        texto: 'No se pudo conectar al Monitor Hub. ¿Está instalado y corriendo en esta PC? (http://127.0.0.1:7331)',
+      });
+    } finally {
+      setEnviandoHub(false);
+    }
+  };
+
   // Generar y descargar un .bat que lanza Chrome en modo kiosk para cada
   // monitor asignado. Usa la IP del backend actual, los cocineros elegidos,
   // y las coords reales de cada monitor (via Window Management API si está autorizado).
@@ -479,6 +528,12 @@ pause
             title="Configura y genera un .bat que lanza Chrome en pantalla completa para cada monitor"
           >
             <FaFileDownload /> Generar .bat kiosk
+          </button>
+          <button onClick={enviarAMonitorHub} disabled={enviandoHub || loading || pantallas.length === 0}
+            className="px-3 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+            title="Envia la asignacion al Gambusinas Monitor Hub (debe correr en esta PC)"
+          >
+            <FaDesktop /> Enviar al Monitor Hub
           </button>
           <label className="flex items-center gap-2 text-sm text-gray-300 ml-2 select-none" title="Aplica el perfil de personalización Ver Cocina guardado de cada cocinero a su monitor">
             <input
