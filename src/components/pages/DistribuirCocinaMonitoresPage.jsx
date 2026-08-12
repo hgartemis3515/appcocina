@@ -229,8 +229,9 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       return;
     }
     setEnviandoHub(true);
+    const hubUrl = `${getServerBaseUrl()}/api/hub/import`;
     try {
-      const res = await fetch('http://127.0.0.1:7331/import', {
+      const res = await fetch(hubUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,12 +240,16 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
           slots,
         }),
       });
-      if (!res.ok) throw new Error(`Hub respondió ${res.status}`);
+      if (!res.ok) {
+        let detalle = '';
+        try { detalle = (await res.json())?.error || ''; } catch { /* noop */ }
+        throw new Error(detalle || `Hub respondió ${res.status}`);
+      }
       setMensaje({ tipo: 'ok', texto: `Enviado al Monitor Hub (${slots.length} monitores). Abre el Hub y pulsa "Importar desde App Cocina".` });
     } catch (e) {
       setMensaje({
         tipo: 'error',
-        texto: 'No se pudo conectar al Monitor Hub. ¿Está instalado y corriendo en esta PC? (http://127.0.0.1:7331)',
+        texto: `No se pudo enviar al Monitor Hub. ¿Está corriendo el Hub en la PC de cocina? (${hubUrl})`,
       });
     } finally {
       setEnviandoHub(false);
@@ -618,8 +623,20 @@ pause
       )}
 
       {mensaje && (
-        <div className="mb-4 p-3 bg-green-900/30 border border-green-700/40 rounded-lg text-green-300 text-sm flex items-center gap-2">
-          <FaCheck /> {mensaje}
+        <div
+          className={
+            'mb-4 p-3 rounded-lg text-sm flex items-center gap-2 ' +
+            (typeof mensaje === 'object' && mensaje.tipo === 'error'
+              ? 'bg-red-900/30 border border-red-700/40 text-red-300'
+              : 'bg-green-900/30 border border-green-700/40 text-green-300')
+          }
+        >
+          {typeof mensaje === 'object' && mensaje.tipo === 'error' ? (
+            <FaExclamationTriangle />
+          ) : (
+            <FaCheck />
+          )}{' '}
+          {typeof mensaje === 'object' ? mensaje.texto : mensaje}
         </div>
       )}
 
