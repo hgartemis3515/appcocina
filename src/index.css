@@ -93,6 +93,11 @@ body {
   50% { box-shadow: 0 0 14px 3px rgba(239, 68, 68, 0.85); }
 }
 
+/* Spinner para carga de perfil en panel Personalizar */
+@keyframes kdsconfigspin {
+  to { transform: rotate(360deg); }
+}
+
 /* ===== F2: Responsive KDS — grid y barra ===== */
 
 /* Forzar 1 columna en teléfono cuando el preset/config lo activa */

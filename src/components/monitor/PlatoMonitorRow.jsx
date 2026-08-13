@@ -17,7 +17,7 @@ import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
  * - configVisual: apariencia + umbrales de alerta
  * - modoTarjeta: true cuando la lista usa varias columnas (estilo tarjeta)
  */
-const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = false }) => {
+const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, modoTarjeta = false }, ref) => {
   const { nombre, cantidadTotal, platos = [], tiempoInicio } = item;
 
   // Cronómetro (del plato más antiguo del grupo)
@@ -247,6 +247,7 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: -12, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -268,6 +269,8 @@ const PlatoMonitorRow = ({ item, configVisual = {}, tick = 0, modoTarjeta = fals
       {contenidoCronometro}
     </motion.div>
   );
-};
+});
+
+PlatoMonitorRow.displayName = 'PlatoMonitorRow';
 
 export default PlatoMonitorRow;

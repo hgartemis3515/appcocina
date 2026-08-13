@@ -50,6 +50,9 @@ const CocineroBlockHeader = ({
   const umbralSobrecarga = configVisual.umbralSobrecarga ?? 12;
   const fsLabel = escalaDetalle(tamanioFuenteDetalle, 0.6);
   const fsStat = escalaDetalle(tamanioFuenteCocinero, 0.85);
+  const fsCronoCabecera = configVisual.tamanioCronometroCabecera == null
+    ? fsStat
+    : Math.max(10, Math.round(Number(configVisual.tamanioCronometroCabecera) || fsStat));
   const fsBadge = escalaDetalle(tamanioFuenteDetalle, 0.75);
   const fsIniciales = escalaDetalle(tamanioFuenteCocinero, 0.7);
 
@@ -176,7 +179,7 @@ const CocineroBlockHeader = ({
             <div style={{ fontSize: `${fsLabel}px`, color: colorTextoSecundario, textTransform: 'uppercase' }}>Más antiguo</div>
             <div
               style={{
-                fontSize: `${fsStat}px`,
+                fontSize: `${fsCronoCabecera}px`,
                 fontWeight: 800,
                 color: colorAlerta,
                 fontVariantNumeric: 'tabular-nums',

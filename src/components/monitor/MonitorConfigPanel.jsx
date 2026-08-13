@@ -96,6 +96,16 @@ const MonitorConfigPanel = ({
   colorTextoPrincipal,
   colorTextoSecundario,
   colorAcento,
+  // Perfiles de personalización con nombre
+  perfiles = [],
+  perfilSelId = null,
+  cargandoPerfiles = false,
+  cargandoPerfilId = null,
+  onSeleccionarPerfil = null,
+  onGuardarPerfilComo = null,
+  onSobrescribirPerfil = null,
+  onEliminarPerfil = null,
+  onRecargarPerfiles = null,
 }) => {
   const guardar = (patch) => onChange({ ...localDesign, ...patch });
 
@@ -731,6 +741,60 @@ const MonitorConfigPanel = ({
               >+</BtnStep>
             </div>
           </label>
+          <label style={lbl} title="Tamaño del cronómetro 'Más antiguo' que aparece en la cabecera de cada cocinero (junto al contador de platos). Vacío = automático.">
+            Cronómetro cabecera (px)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => guardar({ tamanioCronometroCabecera: null })}
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  background: (configVisual.tamanioCronometroCabecera == null)
+                    ? `${colorAcento}33` : 'transparent',
+                }}
+                title="Automático (deriva del tamaño de fuente del cocinero)"
+              >
+                Auto
+              </button>
+              <BtnStep
+                onClick={() => {
+                  const cur = configVisual.tamanioCronometroCabecera == null
+                    ? Math.max(MONITOR_TIPOGRAFIA.CRONO_CABECERA_MIN, Math.round((configVisual.tamanioFuenteCocinero || 28) * 0.85))
+                    : Number(configVisual.tamanioCronometroCabecera) || 18;
+                  guardar({ tamanioCronometroCabecera: Math.max(MONITOR_TIPOGRAFIA.CRONO_CABECERA_MIN, Math.round(cur) - 2) });
+                }}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={MONITOR_TIPOGRAFIA.CRONO_CABECERA_MIN}
+                max={MONITOR_TIPOGRAFIA.CRONO_CABECERA_MAX}
+                value={configVisual.tamanioCronometroCabecera == null ? '' : configVisual.tamanioCronometroCabecera}
+                placeholder="auto"
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '') guardar({ tamanioCronometroCabecera: null });
+                  else guardar({
+                    tamanioCronometroCabecera: Math.min(
+                      MONITOR_TIPOGRAFIA.CRONO_CABECERA_MAX,
+                      Math.max(MONITOR_TIPOGRAFIA.CRONO_CABECERA_MIN, Number(v) || MONITOR_TIPOGRAFIA.CRONO_CABECERA_MIN)
+                    ),
+                  });
+                }}
+                style={{ ...inp, width: '64px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => {
+                  const cur = configVisual.tamanioCronometroCabecera == null
+                    ? Math.max(MONITOR_TIPOGRAFIA.CRONO_CABECERA_MIN, Math.round((configVisual.tamanioFuenteCocinero || 28) * 0.85))
+                    : Number(configVisual.tamanioCronometroCabecera) || 18;
+                  guardar({ tamanioCronometroCabecera: Math.min(MONITOR_TIPOGRAFIA.CRONO_CABECERA_MAX, Math.round(cur) + 2) });
+                }}
+                colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
           <label style={lbl}>
             Umbral carga alta (platos)
             <input
@@ -854,6 +918,124 @@ const MonitorConfigPanel = ({
             />
           </label>
         </Section>
+
+        {/* Perfiles de personalización con nombre */}
+        <Section title="Perfiles guardados" colorAcento={colorAcento}>
+          <label style={{ ...lbl, minWidth: '240px', flex: '1 1 240px' }}>
+            Perfil
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <select
+                value={perfilSelId || ''}
+                onChange={e => onSeleccionarPerfil?.(e.target.value || null)}
+                disabled={cargandoPerfiles || cargandoPerfilId !== null || perfiles.length === 0}
+                style={{ ...inp, minWidth: '180px', flex: '1 1 180px' }}
+              >
+                <option value="">— Sin seleccionar —</option>
+                {perfiles.map(p => (
+                  <option key={p._id} value={p._id}>{p.nombre}</option>
+                ))}
+              </select>
+              {cargandoPerfilId !== null ? (
+                <span
+                  title="Cargando perfil…"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: '32px', height: '32px',
+                    border: `2px solid ${colorAcento}55`,
+                    borderTopColor: colorAcento,
+                    borderRadius: '50%',
+                    animation: 'kdsconfigspin 0.7s linear infinite',
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRecargarPerfiles}
+                  disabled={cargandoPerfiles}
+                  title="Recargar lista de perfiles"
+                  style={{ ...inp, cursor: cargandoPerfiles ? 'wait' : 'pointer', padding: '6px 10px' }}
+                >
+                  ↻
+                </button>
+              )}
+            </div>
+            {cargandoPerfilId !== null && (
+              <p style={{ fontSize: '11px', color: colorAcento, margin: '4px 0 0', width: '100%' }}>
+                Cargando perfil…
+              </p>
+            )}
+          </label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => {
+                const nombre = window.prompt('Nombre del nuevo perfil:');
+                if (nombre !== null) onGuardarPerfilComo?.(nombre);
+              }}
+              disabled={guardandoPerfil || !onGuardarPerfilComo}
+              style={{
+                padding: '8px 14px', fontSize: '13px', fontWeight: 700,
+                background: colorAcento, color: colorFondo, border: 'none',
+                borderRadius: '8px', cursor: guardandoPerfil ? 'wait' : 'pointer',
+                opacity: guardandoPerfil ? 0.6 : 1,
+              }}
+            >
+              Guardar como…
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!perfilSelId) return;
+                const p = perfiles.find(x => String(x._id) === String(perfilSelId));
+                if (!p) return;
+                if (window.confirm(`¿Sobrescribir el perfil "${p.nombre}" con la configuración actual?`)) {
+                  onSobrescribirPerfil?.(perfilSelId);
+                }
+              }}
+              disabled={guardandoPerfil || !perfilSelId || !onSobrescribirPerfil}
+              title="Sobrescribe el perfil seleccionado con la configuración actual"
+              style={{
+                padding: '8px 14px', fontSize: '13px', fontWeight: 600,
+                background: 'transparent', color: colorTextoPrincipal,
+                border: `1px solid ${colorAcento}66`, borderRadius: '8px',
+                cursor: guardandoPerfil ? 'wait' : 'pointer',
+                opacity: (!perfilSelId || guardandoPerfil) ? 0.5 : 1,
+              }}
+            >
+              Sobrescribir
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!perfilSelId) return;
+                const p = perfiles.find(x => String(x._id) === String(perfilSelId));
+                if (!p) return;
+                if (window.confirm(`¿Eliminar el perfil "${p.nombre}"?`)) {
+                  onEliminarPerfil?.(perfilSelId);
+                }
+              }}
+              disabled={guardandoPerfil || !perfilSelId || !onEliminarPerfil}
+              style={{
+                padding: '8px 14px', fontSize: '13px', fontWeight: 600,
+                background: 'transparent', color: '#ef4444',
+                border: '1px solid #ef444466', borderRadius: '8px',
+                cursor: guardandoPerfil ? 'wait' : 'pointer',
+                opacity: (!perfilSelId || guardandoPerfil) ? 0.5 : 1,
+              }}
+            >
+              Eliminar
+            </button>
+          </div>
+          {perfiles.length === 0 && !cargandoPerfiles && (
+            <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
+              No hay perfiles guardados. Personaliza la apariencia y pulsa "Guardar como…" para crear uno.
+            </p>
+          )}
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
+            Los perfiles guardan toda la configuración de personalización (tamaños, fuente, colores, etc.)
+            y pueden aplicarse a los monitores desde "Distribuir Cocina en monitores".
+          </p>
+        </Section>
       </div>
 
       {/* Vista previa */}
@@ -968,25 +1150,26 @@ const MonitorConfigPanel = ({
         <div style={{ fontSize: '12px', color: perfilMensaje?.tipo === 'error' ? '#ef4444' : (perfilMensaje?.tipo === 'ok' ? '#22c55e' : colorTextoSecundario) }}>
           {perfilMensaje?.texto || ''}
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {onSaveProfile && (
             <button
               type="button"
               onClick={onSaveProfile}
               disabled={guardandoPerfil}
+              title="Guarda la personalización como perfil automático del cocinero activo (flujo perfil=auto)"
               style={{
-                padding: '8px 18px',
-                fontSize: '13px',
-                fontWeight: 700,
-                background: colorAcento,
-                color: colorFondo,
-                border: 'none',
+                padding: '8px 14px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'transparent',
+                color: colorTextoSecundario,
+                border: `1px solid ${colorAcento}55`,
                 borderRadius: '8px',
                 cursor: guardandoPerfil ? 'wait' : 'pointer',
                 opacity: guardandoPerfil ? 0.6 : 1,
               }}
             >
-              {guardandoPerfil ? 'Guardando…' : 'Guardar Perfil'}
+              Guardar perfil del cocinero (auto)
             </button>
           )}
           <button

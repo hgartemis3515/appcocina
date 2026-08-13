@@ -33,13 +33,13 @@ const colorAcentoPorCocinero = (alias) => {
   return paleta[h % paleta.length];
 };
 
-const CocineroPlatoCard = ({
+const CocineroPlatoCard = React.forwardRef(({
   item,
   configVisual = {},
   mostrarCocinero = false,
   modoTarjeta = false,
   tick = 0,
-}) => {
+}, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
 
   // Config
@@ -332,6 +332,7 @@ const CocineroPlatoCard = ({
 
   return (
     <motion.div
+      ref={ref}
       layout
       key={cardKey}
       initial={{ opacity: 0, y: -14, scale: 0.94 }}
@@ -354,6 +355,8 @@ const CocineroPlatoCard = ({
       {contenido}
     </motion.div>
   );
-};
+});
+
+CocineroPlatoCard.displayName = 'CocineroPlatoCard';
 
 export default CocineroPlatoCard;

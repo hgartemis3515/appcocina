@@ -35,8 +35,45 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const [monitoresDetectados, setMonitoresDetectados] = useState([]); // lista de monitores físicos
   const [showBatModal, setShowBatModal] = useState(false); // modal de configuración .bat
   const [batGenerando, setBatGenerando] = useState(false);
-  // Aplicar perfil de personalización del cocinero a cada monitor (flujo perfil=auto)
-  const [aplicarPerfil, setAplicarPerfil] = useState(true);
+  // Aplicar perfil de personalización a cada monitor:
+  //  - 'none'  : sin perfil
+  //  - 'auto'  : perfil personal del cocinero (legacy ?perfil=auto)
+  //  - <id>    : perfil con nombre guardado (?perfilId=<id>)
+  const [perfilAplicar, setPerfilAplicar] = useState('auto');
+  const [perfiles, setPerfiles] = useState([]);
+  const [cargandoPerfiles, setCargandoPerfiles] = useState(false);
+
+  // Opciones de perfil para pasar a monitorWindowManager.
+  const getPerfilOpts = useCallback(() => {
+    if (perfilAplicar === 'none') return {};
+    if (perfilAplicar === 'auto') return { aplicarPerfil: true };
+    return { perfilId: perfilAplicar };
+  }, [perfilAplicar]);
+
+  // Sufijo de URL para .bat y Monitor Hub.
+  const getPerfilSuffix = useCallback(() => {
+    if (perfilAplicar === 'none') return '';
+    if (perfilAplicar === 'auto') return '&perfil=auto';
+    return `&perfilId=${encodeURIComponent(perfilAplicar)}`;
+  }, [perfilAplicar]);
+
+  const cargarPerfiles = useCallback(async () => {
+    if (!getToken) return;
+    try {
+      setCargandoPerfiles(true);
+      const token = getToken();
+      const res = await axios.get(`${getServerBaseUrl()}/api/perfiles-ver-cocina`, {
+        headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
+      });
+      setPerfiles(res.data?.data || []);
+    } catch (err) {
+      console.warn('[DistribuirCocina] Error cargando perfiles:', err.message);
+    } finally {
+      setCargandoPerfiles(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => { cargarPerfiles(); }, [cargarPerfiles]);
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -173,13 +210,13 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       return;
     }
     if (existente && !existente.closed) {
-      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, { aplicarPerfil });
+      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, getPerfilOpts());
       if (!ok) {
-        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, aplicarPerfil });
+        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOpts() });
         if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
       }
     } else {
-      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, aplicarPerfil });
+      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOpts() });
       if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
     }
   };
@@ -216,7 +253,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       puertoApp = window.location.port || '3001';
     } catch { /* noop */ }
     const base = `http://${host}:${puertoApp}`;
-    const perfilSuffix = aplicarPerfil ? '&perfil=auto' : '';
+    const perfilSuffix = getPerfilSuffix();
     const slots = MONITORES_PASIVOS
       .filter((num) => asignacion[num])
       .map((num) => ({
@@ -349,7 +386,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     const psBase64 = toUtf16LEBase64(psScript);
 
     // Sufijo de perfil de personalización (flujo Distribuir Cocina en monitores)
-    const perfilSuffix = aplicarPerfil ? '&perfil=auto' : '';
+    const perfilSuffix = getPerfilSuffix();
 
     // Bloques start: lanzar Chrome kiosk por cada monitor
     const bloquesStart = monsData.map((m) => (
@@ -539,14 +576,29 @@ pause
           <span className="text-xs text-gray-400 ml-2" title="Esta URL debes configurar en el Monitor Hub (boton Configurar servidor)">
             En el Hub pon: <b>{getServerBaseUrl()}</b>
           </span>
-          <label className="flex items-center gap-2 text-sm text-gray-300 ml-2 select-none" title="Aplica el perfil de personalización Ver Cocina guardado de cada cocinero a su monitor">
-            <input
-              type="checkbox"
-              checked={aplicarPerfil}
-              onChange={(e) => setAplicarPerfil(e.target.checked)}
-              className="w-4 h-4 accent-cyan-500"
-            />
-            Aplicar perfil de personalización
+          <label className="flex items-center gap-2 text-sm text-gray-300 ml-2 select-none" title="Elige qué perfil de personalización Ver Cocina aplicar a cada monitor">
+            Perfil:
+            <select
+              value={perfilAplicar}
+              onChange={(e) => setPerfilAplicar(e.target.value)}
+              disabled={cargandoPerfiles}
+              className="px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500"
+            >
+              <option value="none">Sin perfil</option>
+              <option value="auto">Perfil del cocinero (auto)</option>
+              {perfiles.map((p) => (
+                <option key={p._id} value={p._id}>{p.nombre}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={cargarPerfiles}
+              disabled={cargandoPerfiles}
+              title="Recargar perfiles"
+              className="px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm hover:bg-gray-700"
+            >
+              ↻
+            </button>
           </label>
         </div>
       </div>
@@ -814,14 +866,20 @@ pause
               })}
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-300 mb-4 select-none" title="Incluye &perfil=auto en las URLs del .bat para que cada ventana aplique el perfil de personalización Ver Cocina guardado del cocinero">
-              <input
-                type="checkbox"
-                checked={aplicarPerfil}
-                onChange={(e) => setAplicarPerfil(e.target.checked)}
-                className="w-4 h-4 accent-cyan-500"
-              />
-              Aplicar perfil de personalización del cocinero a cada monitor
+            <label className="flex items-center gap-2 text-sm text-gray-300 mb-4 select-none" title="Incluye el perfil de personalización elegido en las URLs del .bat para que cada ventana lo aplique">
+              Perfil de personalización:
+              <select
+                value={perfilAplicar}
+                onChange={(e) => setPerfilAplicar(e.target.value)}
+                disabled={cargandoPerfiles}
+                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
+              >
+                <option value="none">Sin perfil</option>
+                <option value="auto">Perfil del cocinero (auto)</option>
+                {perfiles.map((p) => (
+                  <option key={p._id} value={p._id}>{p.nombre}</option>
+                ))}
+              </select>
             </label>
 
             <div className="flex gap-3">

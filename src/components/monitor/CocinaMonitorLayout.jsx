@@ -23,6 +23,7 @@ const DEFAULT_CONFIG = {
   tamanioFuentePlato: 36,
   tamanioFuenteDetalle: 20,
   tamanioFuenteCronometro: 28,
+  tamanioCronometroCabecera: null,
   tamanioFuenteCocinero: 28,
   colorFondo: '#0a0a0f',
   colorTextoPrincipal: '#ffffff',
@@ -262,16 +263,176 @@ const CocinaMonitorLayout = ({
     }
   }, [cocineroActivoId, getToken, localDesign]);
 
+  // ===== Perfiles de personalización con nombre (flujo Distribuir Cocina) =====
+  const [perfiles, setPerfiles] = useState([]);
+  const [perfilSelId, setPerfilSelId] = useState(null);
+  const [cargandoPerfiles, setCargandoPerfiles] = useState(false);
+  const [cargandoPerfilId, setCargandoPerfilId] = useState(null);
+
+  const cargarPerfiles = useCallback(async () => {
+    if (!getToken) return;
+    try {
+      setCargandoPerfiles(true);
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      const res = await axios.get(`${baseUrl}/api/perfiles-ver-cocina`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000,
+      });
+      setPerfiles(res.data?.data || []);
+    } catch (err) {
+      console.warn('[CocinaMonitorLayout] Error cargando perfiles:', err.message);
+    } finally {
+      setCargandoPerfiles(false);
+    }
+  }, [getToken]);
+
+  // Cargar lista de perfiles al abrir el panel de personalización.
+  useEffect(() => {
+    if (showConfigPanel) cargarPerfiles();
+  }, [showConfigPanel, cargarPerfiles]);
+
+  const seleccionarPerfil = useCallback(async (perfilId) => {
+    if (!perfilId) { setPerfilSelId(null); return; }
+    if (!getToken) return;
+    setCargandoPerfilId(perfilId);
+    setPerfilMensaje(null);
+    try {
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      // Fetch fresco del perfil por ID (más robusto que usar la lista en cache).
+      const res = await axios.get(
+        `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 }
+      );
+      const perfil = res.data?.data;
+      const config = perfil?.config;
+      const nombre = perfil?.nombre || 'Perfil';
+      if (config && typeof config === 'object') {
+        setLocalDesign(config);
+        try { localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(config)); } catch { /* noop */ }
+        setPerfilSelId(perfilId);
+        setPerfilMensaje({ tipo: 'ok', texto: `Perfil "${nombre}" cargado ✓` });
+        setTimeout(() => setPerfilMensaje(null), 3000);
+      } else {
+        setPerfilMensaje({ tipo: 'error', texto: 'El perfil no tiene configuración válida' });
+        setTimeout(() => setPerfilMensaje(null), 4000);
+      }
+    } catch (err) {
+      console.warn('[CocinaMonitorLayout] Error cargando perfil:', err.message);
+      // Fallback: usar la lista en cache si el fetch falla
+      const p = perfiles.find((x) => String(x._id) === String(perfilId));
+      if (p && p.config) {
+        setLocalDesign(p.config);
+        try { localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(p.config)); } catch { /* noop */ }
+        setPerfilSelId(perfilId);
+        setPerfilMensaje({ tipo: 'ok', texto: `Perfil "${p.nombre}" cargado (cache) ✓` });
+        setTimeout(() => setPerfilMensaje(null), 3000);
+      } else {
+        setPerfilMensaje({ tipo: 'error', texto: err?.response?.data?.error || 'Error al cargar perfil' });
+        setTimeout(() => setPerfilMensaje(null), 4000);
+      }
+    } finally {
+      setCargandoPerfilId(null);
+    }
+  }, [getToken, perfiles]);
+
+  const guardarPerfilComo = useCallback(async (nombre) => {
+    if (!getToken) return;
+    const nom = (nombre || '').trim();
+    if (!nom) {
+      setPerfilMensaje({ tipo: 'error', texto: 'Ingresa un nombre para el perfil' });
+      return false;
+    }
+    try {
+      setGuardandoPerfil(true);
+      setPerfilMensaje(null);
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      const res = await axios.post(
+        `${baseUrl}/api/perfiles-ver-cocina`,
+        { nombre: nom, config: localDesign || {} },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const creado = res.data?.data;
+      setPerfilMensaje({ tipo: 'ok', texto: `Perfil "${nom}" guardado ✓` });
+      setTimeout(() => setPerfilMensaje(null), 3000);
+      await cargarPerfiles();
+      if (creado?._id) setPerfilSelId(creado._id);
+      return true;
+    } catch (err) {
+      console.error('[CocinaMonitorLayout] Error guardando perfil con nombre:', err);
+      setPerfilMensaje({ tipo: 'error', texto: err?.response?.data?.error || 'Error al guardar perfil' });
+      return false;
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [getToken, localDesign, cargarPerfiles]);
+
+  const sobrescribirPerfil = useCallback(async (perfilId) => {
+    if (!perfilId || !getToken) return;
+    const p = perfiles.find((x) => String(x._id) === String(perfilId));
+    if (!p) return;
+    try {
+      setGuardandoPerfil(true);
+      setPerfilMensaje(null);
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      await axios.put(
+        `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
+        { config: localDesign || {} },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPerfilMensaje({ tipo: 'ok', texto: `Perfil "${p.nombre}" actualizado ✓` });
+      setTimeout(() => setPerfilMensaje(null), 3000);
+      await cargarPerfiles();
+    } catch (err) {
+      console.error('[CocinaMonitorLayout] Error sobrescribiendo perfil:', err);
+      setPerfilMensaje({ tipo: 'error', texto: err?.response?.data?.error || 'Error al actualizar perfil' });
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [getToken, localDesign, perfiles, cargarPerfiles]);
+
+  const eliminarPerfil = useCallback(async (perfilId) => {
+    if (!perfilId || !getToken) return;
+    const p = perfiles.find((x) => String(x._id) === String(perfilId));
+    if (!p) return;
+    try {
+      setGuardandoPerfil(true);
+      setPerfilMensaje(null);
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      await axios.delete(
+        `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPerfilMensaje({ tipo: 'ok', texto: `Perfil "${p.nombre}" eliminado` });
+      setTimeout(() => setPerfilMensaje(null), 3000);
+      if (String(perfilSelId) === String(perfilId)) setPerfilSelId(null);
+      await cargarPerfiles();
+    } catch (err) {
+      console.error('[CocinaMonitorLayout] Error eliminando perfil:', err);
+      setPerfilMensaje({ tipo: 'error', texto: err?.response?.data?.error || 'Error al eliminar perfil' });
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [getToken, perfiles, perfilSelId, cargarPerfiles]);
+
   // Cargar perfil del cocinero desde backend cuando la URL trae ?perfil=auto
-  // (ventanas hijas del flujo Distribuir Cocina en monitores).
+  // o un perfil con nombre vía ?perfilId=<id> (ventanas hijas del flujo
+  // "Distribuir Cocina en monitores").
   useEffect(() => {
     if (perfilAutoAplicado) return;
     if (!modoFijo) return;
+    let perfilId = null;
+    let perfilAuto = false;
     try {
       const params = new URLSearchParams(window.location.search);
-      const perfil = params.get('perfil');
-      if (perfil !== 'auto') return;
-      if (!cocineroActivoId) return;
+      perfilId = params.get('perfilId');
+      perfilAuto = params.get('perfil') === 'auto';
+      if (!perfilId && !perfilAuto) return;
+      if (!perfilId && perfilAuto && !cocineroActivoId) return;
     } catch { return; }
     if (!getToken) return;
     setPerfilAutoAplicado(true);
@@ -279,17 +440,28 @@ const CocinaMonitorLayout = ({
       try {
         const baseUrl = getServerBaseUrl();
         const token = getToken();
-        const res = await axios.get(
-          `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const perfil = res.data?.data;
-        if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
-          // El perfil del backend tiene prioridad sobre el localStorage en modo fijo.
-          setLocalDesign(perfil);
+        if (perfilId) {
+          const res = await axios.get(
+            `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const perfil = res.data?.data?.config;
+          if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
+            setLocalDesign(perfil);
+          }
+        } else {
+          const res = await axios.get(
+            `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const perfil = res.data?.data;
+          if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
+            // El perfil del backend tiene prioridad sobre el localStorage en modo fijo.
+            setLocalDesign(perfil);
+          }
         }
       } catch (err) {
-        console.warn('[CocinaMonitorLayout] No se pudo cargar perfil del cocinero:', err.message);
+        console.warn('[CocinaMonitorLayout] No se pudo cargar perfil ver-cocina:', err.message);
       }
     })();
   }, [modoFijo, cocineroActivoId, getToken, perfilAutoAplicado]);
@@ -491,6 +663,7 @@ const CocinaMonitorLayout = ({
               onReset={() => {
                 localStorage.removeItem(STORAGE_DESIGN_KEY);
                 setLocalDesign({});
+                setPerfilSelId(null);
               }}
               onSaveProfile={guardarPerfilCocinero}
               guardandoPerfil={guardandoPerfil}
@@ -499,6 +672,15 @@ const CocinaMonitorLayout = ({
               colorTextoPrincipal={colorTextoPrincipal}
               colorTextoSecundario={colorTextoSecundario}
               colorAcento={colorAcento}
+              perfiles={perfiles}
+              perfilSelId={perfilSelId}
+              cargandoPerfiles={cargandoPerfiles}
+              cargandoPerfilId={cargandoPerfilId}
+              onSeleccionarPerfil={seleccionarPerfil}
+              onGuardarPerfilComo={guardarPerfilComo}
+              onSobrescribirPerfil={sobrescribirPerfil}
+              onEliminarPerfil={eliminarPerfil}
+              onRecargarPerfiles={cargarPerfiles}
             />
           </motion.div>
         )}
@@ -761,12 +943,13 @@ const CocinaMonitorLayout = ({
 /**
  * BloqueCocinero - Cabecera colapsable de cocinero + lista de tarjetas (modo bloques).
  */
-const BloqueCocinero = ({ bloque, configVisual, tick }) => {
+const BloqueCocinero = React.forwardRef(({ bloque, configVisual, tick }, ref) => {
   const [expandido, setExpandido] = useState(true);
   const animOn = configVisual.animacionesTarjetas !== false;
 
   return (
     <motion.div
+      ref={ref}
       layout={animOn}
       initial={animOn ? { opacity: 0, y: -6 } : false}
       animate={{ opacity: 1, y: 0 }}
@@ -816,6 +999,8 @@ const BloqueCocinero = ({ bloque, configVisual, tick }) => {
       </AnimatePresence>
     </motion.div>
   );
-};
+});
+
+BloqueCocinero.displayName = 'BloqueCocinero';
 
 export default CocinaMonitorLayout;

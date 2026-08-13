@@ -163,9 +163,15 @@ export const abrirMonitorCocinero = async (pantalla, opts = {}) => {
     || pantalla.cocineroId?._id
     || pantalla.cocineroId
     || '';
-  // Flujo "Distribuir Cocina en monitores": perfil=auto aplica el perfil de
-  // personalización Ver Cocina guardado del cocinero (ver CocinaMonitorLayout).
-  const perfilParam = opts.aplicarPerfil ? '&perfil=auto' : '';
+  // Flujo "Distribuir Cocina en monitores":
+  //  - perfilId=<id> aplica un perfil de personalización con nombre guardado.
+  //  - perfil=auto aplica el perfil personal del cocinero (legacy).
+  let perfilParam = '';
+  if (opts.perfilId) {
+    perfilParam = `&perfilId=${encodeURIComponent(opts.perfilId)}`;
+  } else if (opts.aplicarPerfil) {
+    perfilParam = '&perfil=auto';
+  }
   const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}`;
 
   // Intentar usar Window Management API para obtener coords exactas del monitor
@@ -197,7 +203,12 @@ export const abrirMonitorCocinero = async (pantalla, opts = {}) => {
 export const redirigirVentanaMonitor = (win, pantalla, cocineroId = '', opts = {}) => {
   if (!win || win.closed) return false;
   const numero = pantalla?.numeroPantalla ?? '';
-  const perfilParam = opts.aplicarPerfil ? '&perfil=auto' : '';
+  let perfilParam = '';
+  if (opts.perfilId) {
+    perfilParam = `&perfilId=${encodeURIComponent(opts.perfilId)}`;
+  } else if (opts.aplicarPerfil) {
+    perfilParam = '&perfil=auto';
+  }
   const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}`;
   try {
     win.location.href = url;
