@@ -163,7 +163,7 @@ const calcularPuntuacion = (nombrePlato, termino) => {
  */
 const extraerNombresPlatos = (comandas) => {
   const nombres = new Map(); // nombre normalizado -> nombre original
-  
+
   comandas.forEach(comanda => {
     comanda.platos?.forEach(plato => {
       const nombre = obtenerNombrePlato(plato);
@@ -173,9 +173,17 @@ const extraerNombresPlatos = (comandas) => {
           nombres.set(norm, nombre);
         }
       }
+      // PLAN NOMBRE_PLATO_COCINA: incluir alias corto como sugerencia.
+      const alias = String(plato?.plato?.nombreCocina || plato?.nombreCocina || '').trim();
+      if (alias.length >= 2) {
+        const norm = normalizarTexto(alias);
+        if (!nombres.has(norm)) {
+          nombres.set(norm, alias);
+        }
+      }
     });
   });
-  
+
   return nombres;
 };
 
@@ -186,7 +194,7 @@ const extraerNombresPlatos = (comandas) => {
  */
 const extraerPalabrasClave = (comandas) => {
   const palabras = new Set();
-  
+
   comandas.forEach(comanda => {
     comanda.platos?.forEach(plato => {
       const nombre = obtenerNombrePlato(plato);
@@ -194,6 +202,12 @@ const extraerPalabrasClave = (comandas) => {
         const p = normalizarTexto(palabra);
         if (p.length >= 2) palabras.add(p);
       });
+      // PLAN NOMBRE_PLATO_COCINA: palabras del alias corto también.
+      const alias = String(plato?.plato?.nombreCocina || plato?.nombreCocina || '').trim();
+      if (alias) {
+        const a = normalizarTexto(alias);
+        if (a.length >= 2) palabras.add(a);
+      }
     });
   });
   
@@ -357,11 +371,20 @@ const useBuscadorPlatos = (comandas, terminoExterno = null, options = {}) => {
         .map(plato => {
           const nombrePlato = obtenerNombrePlato(plato);
           const codigoPlato = obtenerCodigoPlato(plato);
+          // PLAN NOMBRE_PLATO_COCINA: permitir buscar también por alias corto.
+          const aliasPlato = String(
+            plato?.plato?.nombreCocina || plato?.nombreCocina || ''
+          ).trim();
           const puntNombre = calcularPuntuacion(nombrePlato, terminoNormalizado);
           const puntCodigo = calcularPuntuacionCodigo(codigoPlato, terminoNormalizado);
-          const { puntuacion, tipo } = puntCodigo.puntuacion >= puntNombre.puntuacion
-            ? puntCodigo
-            : puntNombre;
+          const puntAlias = aliasPlato
+            ? calcularPuntuacion(aliasPlato, terminoNormalizado)
+            : { puntuacion: 0, tipo: 'sin_coincidencia' };
+          const candidatos = [puntNombre, puntCodigo, puntAlias];
+          const { puntuacion, tipo } = candidatos.reduce(
+            (best, cur) => (cur.puntuacion > best.puntuacion ? cur : best),
+            candidatos[0]
+          );
           return { ...plato, _puntuacion: puntuacion, _tipoCoincidencia: tipo };
         })
         .filter(plato => plato._puntuacion > 0)

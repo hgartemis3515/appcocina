@@ -40,13 +40,14 @@ import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
 import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
+import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { 
   aplicarFiltrosAComandas, 
   debeMostrarComanda, 
   debeMostrarPlato,
   calcularEstadisticasFiltrado 
 } from "../../utils/kdsFilters";
-import { obtenerNombrePlato, resolverIndicePlato } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato } from "../../utils/platoHelpers";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 
 // Sonido de notificación
@@ -96,6 +97,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // Regla: solo mostrar la comanda más antigua al usar el buscador de platos
   const reglaSoloUltimaComandaBuscador = hasRegla('solo-ultima-comanda-buscador');
+
+  // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
+  // respeta la misma configuración que la Vista General).
+  const { usarNombreCocinaEnTablaKds } = useConfiguracionCocina(getToken);
   
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
@@ -4356,7 +4361,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   </label>
                   <div className={`rounded-lg border ${nightMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'} max-h-40 overflow-y-auto`}>
                     {platosTomados.map((plato, idx) => {
-                      const nombre = plato.plato?.nombre || plato.nombre || 'Plato sin nombre';
+                      const nombre = obtenerNombreDisplayCocina(plato, {
+                        habilitadoEnKds: usarNombreCocinaEnTablaKds
+                      }) || 'Plato sin nombre';
                       const cantidad = comanda?.cantidades?.[resolverIndicePlato(comanda, plato)] || 1;
                       return (
                         <div 
@@ -5100,7 +5107,10 @@ const SicarComandaCard = ({
                   }
                   
                   // 🔥 Usar helper de nombre para consistencia con el hook
-                  const nombrePlato = obtenerNombrePlato(plato) || 'Sin nombre';
+                  // PLAN NOMBRE_PLATO_COCINA: tabla KDS respeta flag de configuración.
+                  const nombrePlato = obtenerNombreDisplayCocina(plato, {
+                    habilitadoEnKds: usarNombreCocinaEnTablaKds
+                  }) || 'Sin nombre';
                   
                   return (
                     <PlatoPreparacion

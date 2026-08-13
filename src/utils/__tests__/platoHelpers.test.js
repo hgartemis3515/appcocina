@@ -1,0 +1,69 @@
+/**
+ * Tests unitarios para obtenerNombreDisplayCocina
+ *
+ * PLAN NOMBRE_PLATO_COCINA: el alias corto (nombreCocina) se muestra en
+ * pantallas de cocina. Ver Cocina siempre (forzar); tabla KDS según flag.
+ * Sin alias, debe caer al nombre comercial (obtenerNombrePlato).
+ */
+
+import {
+  obtenerNombrePlato,
+  obtenerNombreDisplayCocina,
+} from '../platoHelpers';
+
+describe('obtenerNombreDisplayCocina', () => {
+  test('devuelve nombre comercial si no hay alias (subdoc poblado)', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', precio: 30 } };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Ceviche Clásico');
+  });
+
+  test('devuelve alias si existe y forzar=true (Ver Cocina)', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('CEV');
+  });
+
+  test('devuelve alias si habilitadoEnKds=true (tabla KDS con flag on)', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
+    expect(obtenerNombreDisplayCocina(plato, { habilitadoEnKds: true })).toBe('CEV');
+  });
+
+  test('ignora alias si habilitadoEnKds=false y forzar no está (flag off)', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
+    expect(obtenerNombreDisplayCocina(plato, { habilitadoEnKds: false })).toBe('Ceviche Clásico');
+  });
+
+  test('forzar tiene prioridad sobre habilitadoEnKds=false', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true, habilitadoEnKds: false })).toBe('CEV');
+  });
+
+  test('sin opts, cae al nombre comercial (no aplica alias por defecto)', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
+    expect(obtenerNombreDisplayCocina(plato)).toBe('Ceviche Clásico');
+  });
+
+  test('soporta campo desnormalizado (sin subdoc plato)', () => {
+    const plato = { nombre: 'Lomo Saltado', nombreCocina: 'Lomo S/' };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Lomo S/');
+  });
+
+  test('alias vacío cae al nombre comercial', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: '' } };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Ceviche Clásico');
+  });
+
+  test('alias con solo espacios se trata como vacío', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: '   ' } };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Ceviche Clásico');
+  });
+
+  test('plato null/undefined no rompe', () => {
+    expect(obtenerNombreDisplayCocina(null, { forzar: true })).toBe('');
+    expect(obtenerNombreDisplayCocina(undefined, { forzar: true })).toBe('');
+  });
+
+  test('no modifica el comportamiento de obtenerNombrePlato', () => {
+    const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
+    expect(obtenerNombrePlato(plato)).toBe('Ceviche Clásico');
+  });
+});

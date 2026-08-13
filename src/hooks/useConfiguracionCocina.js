@@ -12,7 +12,9 @@ import { useState, useEffect } from 'react';
 
 const DEFAULT = {
     obligarOrdenAsignacion: true,
-    solicitudOrdenFueraDeCola: true
+    solicitudOrdenFueraDeCola: true,
+    // PLAN NOMBRE_PLATO_COCINA: alias corto en tabla KDS (escape hatch).
+    usarNombreCocinaEnTablaKds: true
 };
 
 let cache = null; // cache en módulo (misma sesión)
@@ -34,7 +36,8 @@ export async function fetchConfiguracionCocina(getToken) {
             const cfg = data?.configuracion?.cocina || {};
             cache = {
                 obligarOrdenAsignacion: cfg.obligarOrdenAsignacion !== false,
-                solicitudOrdenFueraDeCola: cfg.solicitudOrdenFueraDeCola !== false
+                solicitudOrdenFueraDeCola: cfg.solicitudOrdenFueraDeCola !== false,
+                usarNombreCocinaEnTablaKds: cfg.usarNombreCocinaEnTablaKds !== false
             };
             return cache;
         } catch (e) {

@@ -37,8 +37,15 @@ function obtenerTiempoInicio(plato) {
 /**
  * Nombre normalizado del plato para agrupar.
  * Usa plato populado, nombre desnormalizado o platoId como respaldo.
+ *
+ * PLAN NOMBRE_PLATO_COCINA: en Ver Cocina se prefiere `nombreCocina` (alias
+ * corto) si existe; si no, se cae al nombre comercial. Esto aplica a todas
+ * las variantes de Ver Cocina (completo, personalizado, TV kiosk) porque
+ * todas consumen este hook. La agrupación usa el mismo texto visible.
  */
 function obtenerNombrePlato(plato) {
+  const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
+  if (alias) return alias;
   const nombre =
     plato.plato?.nombre ||
     plato.nombre ||

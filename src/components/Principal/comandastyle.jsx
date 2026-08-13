@@ -46,7 +46,7 @@ import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
-import { obtenerNombrePlato, resolverIndicePlato } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato } from "../../utils/platoHelpers";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -103,7 +103,8 @@ const ComandaStyle = ({
   const reglaSoloUltimaComandaBuscador = hasRegla('solo-ultima-comanda-buscador');
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola } = useConfiguracionCocina(getToken);
+  // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds } = useConfiguracionCocina(getToken);
   // Bypass de orden: admin o quien tenga permiso de Panel de Gestión (roles)
   const puedeOmitirOrden = userRole === 'admin' || hasPermission('ver-panel-gestion-mozos');
 
@@ -4694,7 +4695,9 @@ const ComandaStyle = ({
                   </label>
                   <div className={`rounded-lg border ${nightMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'} max-h-40 overflow-y-auto`}>
                     {platosTomados.map((plato, idx) => {
-                      const nombre = plato.plato?.nombre || plato.nombre || 'Plato sin nombre';
+                      const nombre = obtenerNombreDisplayCocina(plato, {
+                        habilitadoEnKds: usarNombreCocinaEnTablaKds
+                      }) || 'Plato sin nombre';
                       const cantidad = comanda?.cantidades?.[comanda.platos.indexOf(plato)] || 1;
                       return (
                         <div 
@@ -5477,7 +5480,10 @@ const SicarComandaCard = ({
                   }
                   
                   // 🔥 Usar helper de nombre para consistencia con el hook
-                  const nombrePlato = obtenerNombrePlato(plato) || 'Sin nombre';
+                  // PLAN NOMBRE_PLATO_COCINA: tabla KDS respeta flag de configuración.
+                  const nombrePlato = obtenerNombreDisplayCocina(plato, {
+                    habilitadoEnKds: usarNombreCocinaEnTablaKds
+                  }) || 'Sin nombre';
                   
                   return (
                     <PlatoPreparacion

@@ -29,6 +29,29 @@ export const obtenerNombrePlato = (plato) => {
 };
 
 /**
+ * Nombre a pintar en pantallas de cocina (tabla KDS / Ver Cocina).
+ * Devuelve el alias corto (`nombreCocina`) si existe y corresponde mostrarlo,
+ * si no cae al nombre comercial (mismo resultado que `obtenerNombrePlato`).
+ *
+ * PLAN NOMBRE_PLATO_COCINA:
+ *  - Ver Cocina → llamar con `{ forzar: true}` (alias siempre que exista).
+ *  - Tabla KDS  → llamar con `{habilitadoEnKds: config.cocina.usarNombreCocinaEnTablaKds}`.
+ *
+ * @param {Object} plato - línea de comanda (subdoc poblado o desnormalizado)
+ * @param {{ forzar?: boolean, habilitadoEnKds?: boolean }} opts
+ * @returns {string}
+ */
+export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
+  const oficial = obtenerNombrePlato(plato);
+  const alias = String(
+    plato?.plato?.nombreCocina || plato?.nombreCocina || ''
+  ).trim();
+  if (!alias) return oficial;
+  if (opts.forzar === true || opts.habilitadoEnKds === true) return alias;
+  return oficial;
+};
+
+/**
  * Obtiene el código de un plato de comanda (ej: "L1", "M23").
  * @param {Object} plato - Plato de comanda
  * @returns {string} Código del plato o '' si no tiene
