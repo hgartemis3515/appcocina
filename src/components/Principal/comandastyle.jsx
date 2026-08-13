@@ -3947,6 +3947,8 @@ const ComandaStyle = ({
                     platosVisiblesBusqueda={getPlatosVisibles(comanda)}
                     // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: mapa #N por cocinero
                     mapaColaCocineros={mapaColaCocineros}
+                    // PLAN NOMBRE_PLATO_COCINA: flag de nombre de cocina en KDS
+                    usarNombreCocinaEnTablaKds={usarNombreCocinaEnTablaKds}
                   />
                   );
                 })}
@@ -4930,6 +4932,8 @@ const SicarComandaCard = ({
   platosVisiblesBusqueda = null,
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: mapa #N precalculado en el padre
   mapaColaCocineros = null,
+  // PLAN NOMBRE_PLATO_COCINA: flag de configuración para nombre de cocina en KDS
+  usarNombreCocinaEnTablaKds = false,
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)

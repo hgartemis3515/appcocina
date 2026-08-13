@@ -11,6 +11,7 @@ import {
   FaHistory,
   FaEllipsisV,
   FaChartBar,
+  FaCalendarAlt,
 } from "react-icons/fa";
 
 /**
@@ -50,6 +51,7 @@ const KdsTopBar = ({
   socketAuthError,
   isFullscreen = false,
   ppaCount = 0,
+  reservadasCount = 0,
   nightMode = true,
   onToggleSearch,
   onShowReports,
@@ -59,6 +61,7 @@ const KdsTopBar = ({
   onToggleFullscreen,
   onGoToMenu,
   onTogglePpa,
+  onShowReservadas,
 }) => {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef(null);
@@ -227,6 +230,24 @@ const KdsTopBar = ({
             </span>
           )}
         </button>
+
+        {/* PLAN_RESERVAS_MOZOS_CAJA_KDS v1.1: Reservadas (badge si hay programadas) */}
+        {typeof onShowReservadas === "function" && (
+          <button
+            onClick={onShowReservadas}
+            className="inline-flex items-center justify-center gap-1.5 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[44px] px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-800 relative"
+            title="Comandas reservadas programadas"
+            aria-label="Reservadas"
+          >
+            <FaCalendarAlt className="text-xs" />
+            <span className="hidden sm:inline">Reservadas</span>
+            {reservadasCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {reservadasCount > 99 ? "99+" : reservadasCount}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* --- Acciones SECUNDARIAS: visibles en md+, overflow en móvil --- */}
         <div className="hidden md:flex items-center gap-2">

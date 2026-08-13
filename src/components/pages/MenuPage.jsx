@@ -16,7 +16,8 @@ import {
   FaTimes,
   FaShoppingBag,
   FaTv,
-  FaDesktop
+  FaDesktop,
+  FaCalendarAlt
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -166,6 +167,16 @@ const MenuPage = ({ onNavigate }) => {
       shadowColor: 'shadow-violet-500/30',
       action: () => onNavigate('TICKETS_PPA'),
       enabled: true,
+    },
+    {
+      id: 'reservadas',
+      title: 'Reservadas',
+      subtitle: 'Comandas reservadas programadas (activación T−20)',
+      icon: FaCalendarAlt,
+      color: 'from-indigo-500 to-purple-600',
+      shadowColor: 'shadow-indigo-500/30',
+      action: () => onNavigate('RESERVADAS'),
+      enabled: hasPermission('ver-reservas-kds'),
     },
     {
       id: 'configuracion',

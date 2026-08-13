@@ -4,6 +4,7 @@ import { ConfigProvider } from '../contexts/ConfigContext';
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import TicketsPpaPage from './pages/TicketsPpaPage';
+import ReservadasPage from './pages/ReservadasPage';
 import ComandaStyle from './Principal/comandastyle';
 import ComandaStylePerso from './Principal/ComandastylePerso';
 import ComandaStyleSupervi from './Principal/ComandaStyleSupervi';
@@ -238,6 +239,15 @@ const AppRouter = () => {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <TicketsPpaPage onGoToMenu={goToMenu} />
+      </ProtectedRoute>
+    );
+  }
+
+  // PLAN_RESERVAS_MOZOS_CAJA_KDS v1.1: Vista de Reservadas (requiere autenticación)
+  if (currentView === 'RESERVADAS') {
+    return (
+      <ProtectedRoute onRedirect={handleNotAuthenticated}>
+        <ReservadasPage onGoToMenu={goToMenu} />
       </ProtectedRoute>
     );
   }
