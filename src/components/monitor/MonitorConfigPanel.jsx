@@ -3,6 +3,8 @@ import {
   MONITOR_LAYOUT,
   MONITOR_TIPOGRAFIA,
   clampColumnas,
+  ANIMACIONES_ALERTA,
+  DURACION_ANIMACION,
 } from '../../config/monitorVisualConstants';
 import {
   estiloNumeroSecuencial,
@@ -80,6 +82,73 @@ const BtnStep = ({ onClick, children, colorAcento, colorFondo, colorTexto }) => 
     {children}
   </button>
 );
+
+/**
+ * Vista previa de una animación de alerta. Renderiza una tarjeta miniatura
+ * que ejecuta la keyframe seleccionada con el color de alerta correspondiente.
+ */
+const PreviewAnimacion = ({ nombre, color, colorFondo, colorTexto, colorAcento, etiqueta, emojisCustom = null, sizeCustom = null, countCustom = null }) => {
+  const duracion = DURACION_ANIMACION(nombre);
+  // Emojis a mostrar en la vista previa
+  let iconos = [];
+  if (emojisCustom && emojisCustom.trim()) {
+    const lista = Array.from(emojisCustom.trim());
+    const count = Math.max(1, Math.min(4, countCustom || lista.length));
+    const size = sizeCustom || 22;
+    for (let i = 0; i < count; i++) {
+      iconos.push({
+        emoji: lista[i % lista.length],
+        pos: { top: `${20 + (i % 2) * 50}%`, left: `${20 + Math.floor(i / 2) * 50}%`, transform: 'translate(-50%,-50%)' },
+        size: `${size}px`,
+      });
+    }
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+      <span style={{ fontSize: '11px', color: colorAcento, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Vista previa · {etiqueta}
+      </span>
+      <div
+        style={{
+          '--kds-alerta-color': color,
+          '--kds-fondo-base': '#1a0f1f',
+          position: 'relative',
+          background: '#1a0f1f',
+          color: colorTexto,
+          border: `2px solid ${color}`,
+          borderRadius: '10px',
+          padding: '10px 14px',
+          fontSize: '13px',
+          fontWeight: 700,
+          width: 'fit-content',
+          minWidth: '200px',
+          overflow: 'hidden',
+          animation: nombre ? `${nombre} ${duracion} ease-in-out infinite` : 'none',
+        }}
+      >
+        {iconos.length > 0 && (
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+            {iconos.map((ic, i) => (
+              <span
+                key={i}
+                style={{
+                  position: 'absolute',
+                  fontSize: ic.size,
+                  ...ic.pos,
+                  animation: 'kdsIconPulse 1.4s ease-in-out infinite',
+                  opacity: 0.85,
+                }}
+              >
+                {ic.emoji}
+              </span>
+            ))}
+          </div>
+        )}
+        <span style={{ position: 'relative', zIndex: 1 }}>🍳 Pachamanca ×2</span>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Panel de personalización visual para Ver Cocina (Completo y Personalizado).
@@ -516,6 +585,60 @@ const MonitorConfigPanel = ({
           </div>
         </Section>
 
+        {/* Cronómetro (chip de temporizador) */}
+        <Section title="Cronómetro (chip)" colorAcento={colorAcento}>
+          {[
+            ['cronometroColor', 'Color texto', configVisual.cronometroColor, '#d4af37'],
+            ['cronometroContorno', 'Color contorno', configVisual.cronometroContorno, '#d4af37'],
+            ['cronometroFondo', 'Color fondo', configVisual.cronometroFondo, 'transparent'],
+            ['cronometroContornoLetra', 'Contorno de letra', configVisual.cronometroContornoLetra, '#000000'],
+            ['cronometroFondoTexto', 'Fondo de texto', configVisual.cronometroFondoTexto, '#fbbf24'],
+          ].map(([key, text, val, fallback]) => (
+            <label key={key} style={lbl}>
+              {text}
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <input
+                  type="color"
+                  value={(val || fallback) === 'transparent' ? '#000000' : (val || fallback).toString().slice(0, 7)}
+                  onChange={e => guardar({ [key]: e.target.value })}
+                  style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                />
+                {key === 'cronometroFondo' || key === 'cronometroFondoTexto' ? (
+                  <button
+                    type="button"
+                    onClick={() => guardar({ [key]: 'transparent' })}
+                    title="Transparente"
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: val === 'transparent' ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >
+                    ∅
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => guardar({ [key]: null })}
+                  title="Automático / sin fondo"
+                  style={{
+                    ...inp,
+                    cursor: 'pointer',
+                    padding: '6px 10px',
+                    background: val == null ? `${colorAcento}33` : 'transparent',
+                  }}
+                >
+                  Auto
+                </button>
+              </div>
+            </label>
+          ))}
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
+            "Fondo de texto" pinta un resaltado detrás de las cifras (como subrayado de texto en Word), independiente del fondo del cuadro.
+          </p>
+        </Section>
+
         {/* Cantidad ×N */}
         <Section title="Cantidad (×N)" colorAcento={colorAcento}>
           {[
@@ -637,6 +760,38 @@ const MonitorConfigPanel = ({
               />
             </label>
           ))}
+          <label style={lbl}>
+            Color degradado tarjeta
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="color"
+                value={(configVisual.colorDegradadoTarjeta || '#000000').toString().slice(0, 7)}
+                onChange={e => guardar({ colorDegradadoTarjeta: e.target.value })}
+                style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              />
+              <button
+                type="button"
+                onClick={() => guardar({ colorDegradadoTarjeta: null })}
+                title="Automático (según alerta)"
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                  background: configVisual.colorDegradadoTarjeta == null ? `${colorAcento}33` : 'transparent',
+                }}
+              >
+                Auto
+              </button>
+            </div>
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.degradadoTarjeta !== false}
+              onChange={e => guardar({ degradadoTarjeta: e.target.checked })}
+            />
+            Degradado de tarjeta (desactivar = color fijo)
+          </label>
         </Section>
 
         {/* Ver por cocinero (nueva sección) */}
@@ -853,6 +1008,287 @@ const MonitorConfigPanel = ({
             />
             Icono de cocinero
           </label>
+        </Section>
+
+        {/* Tarjetas (nuevas herramientas) */}
+        <Section title="Tarjetas" colorAcento={colorAcento}>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.quitarNombreCocineroTarjeta === true}
+              onChange={e => guardar({ quitarNombreCocineroTarjeta: e.target.checked })}
+            />
+            Quitar nombre de cocinera en la tarjeta
+          </label>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 6px', width: '100%' }}>
+            Saca el nombre del cuerpo de la tarjeta y lo mueve a una barra superior compacta dentro de la misma tarjeta.
+          </p>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.ocultarAtencionUrgente === true}
+              onChange={e => guardar({ ocultarAtencionUrgente: e.target.checked })}
+            />
+            Eliminar Atención y Urgente
+          </label>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.animacionesAlerta !== false}
+              onChange={e => guardar({ animacionesAlerta: e.target.checked })}
+            />
+            Animaciones de alerta (color)
+          </label>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 6px', width: '100%' }}>
+            Anima el borde/fondo de la tarjeta con colores cuando entra en Atención y Urgente.
+          </p>
+          {configVisual.animacionesAlerta !== false && (
+            <>
+              <label style={lbl}>
+                Animación Atención
+                <select
+                  value={configVisual.animacionAtencion || 'resplandorUrgente'}
+                  onChange={e => guardar({ animacionAtencion: e.target.value })}
+                  style={{ ...inp, minWidth: '220px' }}
+                >
+                  {ANIMACIONES_ALERTA.map(a => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={lbl}>
+                Animación Urgente
+                <select
+                  value={configVisual.animacionUrgente || 'urgentePulse'}
+                  onChange={e => guardar({ animacionUrgente: e.target.value })}
+                  style={{ ...inp, minWidth: '220px' }}
+                >
+                  {ANIMACIONES_ALERTA.map(a => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={lbl}>
+                Color anim. Atención
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={(configVisual.colorAnimacionAtencion || configVisual.colorAlertaAmarilla || '#fbbf24').toString().slice(0, 7)}
+                    onChange={e => guardar({ colorAnimacionAtencion: e.target.value })}
+                    style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => guardar({ colorAnimacionAtencion: null })}
+                    title="Usar color de alerta amarillo"
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: configVisual.colorAnimacionAtencion == null ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >
+                    Auto
+                  </button>
+                </div>
+              </label>
+              <label style={lbl}>
+                Color anim. Urgente
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={(configVisual.colorAnimacionUrgente || configVisual.colorAlertaRoja || '#ef4444').toString().slice(0, 7)}
+                    onChange={e => guardar({ colorAnimacionUrgente: e.target.value })}
+                    style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => guardar({ colorAnimacionUrgente: null })}
+                    title="Usar color de alerta rojo"
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: configVisual.colorAnimacionUrgente == null ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >
+                    Auto
+                  </button>
+                </div>
+              </label>
+              <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
+                Emojis personalizados (solo para animaciones con iconos 🔥⚠️💥…)
+              </p>
+              <label style={lbl}>
+                Emojis Atención
+                <input
+                  type="text"
+                  placeholder="Ej: ⚠️🔥 (vacío = auto)"
+                  value={configVisual.emojisAnimacionAtencion || ''}
+                  onChange={e => guardar({ emojisAnimacionAtencion: e.target.value || null })}
+                  style={{ ...inp, minWidth: '180px' }}
+                />
+              </label>
+              <label style={lbl}>
+                Tamaño emoji Atención (px)
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => guardar({ tamanioEmojiAtencion: null })}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: configVisual.tamanioEmojiAtencion == null ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >Auto</button>
+                  <input
+                    type="number" min="10" max="160"
+                    value={configVisual.tamanioEmojiAtencion ?? ''}
+                    placeholder="auto"
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === '') guardar({ tamanioEmojiAtencion: null });
+                      else guardar({ tamanioEmojiAtencion: Math.min(160, Math.max(10, Number(v) || 10)) });
+                    }}
+                    style={{ ...inp, width: '64px', textAlign: 'center' }}
+                  />
+                </div>
+              </label>
+              <label style={lbl}>
+                Cantidad emojis Atención
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => guardar({ cantidadEmojiAtencion: null })}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: configVisual.cantidadEmojiAtencion == null ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >Auto</button>
+                  <input
+                    type="number" min="1" max="12"
+                    value={configVisual.cantidadEmojiAtencion ?? ''}
+                    placeholder="auto"
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === '') guardar({ cantidadEmojiAtencion: null });
+                      else guardar({ cantidadEmojiAtencion: Math.min(12, Math.max(1, Number(v) || 1)) });
+                    }}
+                    style={{ ...inp, width: '64px', textAlign: 'center' }}
+                  />
+                </div>
+              </label>
+              <label style={lbl}>
+                Emojis Urgente
+                <input
+                  type="text"
+                  placeholder="Ej: 💥☢️🔥 (vacío = auto)"
+                  value={configVisual.emojisAnimacionUrgente || ''}
+                  onChange={e => guardar({ emojisAnimacionUrgente: e.target.value || null })}
+                  style={{ ...inp, minWidth: '180px' }}
+                />
+              </label>
+              <label style={lbl}>
+                Tamaño emoji Urgente (px)
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => guardar({ tamanioEmojiUrgente: null })}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: configVisual.tamanioEmojiUrgente == null ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >Auto</button>
+                  <input
+                    type="number" min="10" max="160"
+                    value={configVisual.tamanioEmojiUrgente ?? ''}
+                    placeholder="auto"
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === '') guardar({ tamanioEmojiUrgente: null });
+                      else guardar({ tamanioEmojiUrgente: Math.min(160, Math.max(10, Number(v) || 10)) });
+                    }}
+                    style={{ ...inp, width: '64px', textAlign: 'center' }}
+                  />
+                </div>
+              </label>
+              <label style={lbl}>
+                Cantidad emojis Urgente
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => guardar({ cantidadEmojiUrgente: null })}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: configVisual.cantidadEmojiUrgente == null ? `${colorAcento}33` : 'transparent',
+                    }}
+                  >Auto</button>
+                  <input
+                    type="number" min="1" max="12"
+                    value={configVisual.cantidadEmojiUrgente ?? ''}
+                    placeholder="auto"
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === '') guardar({ cantidadEmojiUrgente: null });
+                      else guardar({ cantidadEmojiUrgente: Math.min(12, Math.max(1, Number(v) || 1)) });
+                    }}
+                    style={{ ...inp, width: '64px', textAlign: 'center' }}
+                  />
+                </div>
+              </label>
+              <PreviewAnimacion
+                nombre={configVisual.animacionAtencion || 'resplandorUrgente'}
+                color={configVisual.colorAnimacionAtencion || configVisual.colorAlertaAmarilla || '#fbbf24'}
+                colorFondo={colorFondo}
+                colorTexto={colorTextoPrincipal}
+                colorAcento={colorAcento}
+                etiqueta="Atención"
+                emojisCustom={configVisual.emojisAnimacionAtencion}
+                sizeCustom={configVisual.tamanioEmojiAtencion}
+                countCustom={configVisual.cantidadEmojiAtencion}
+              />
+              <PreviewAnimacion
+                nombre={configVisual.animacionUrgente || 'urgentePulse'}
+                color={configVisual.colorAnimacionUrgente || configVisual.colorAlertaRoja || '#ef4444'}
+                colorFondo={colorFondo}
+                colorTexto={colorTextoPrincipal}
+                colorAcento={colorAcento}
+                etiqueta="Urgente"
+                emojisCustom={configVisual.emojisAnimacionUrgente}
+                sizeCustom={configVisual.tamanioEmojiUrgente}
+                countCustom={configVisual.cantidadEmojiUrgente}
+              />
+            </>
+          )}
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.autoAgrandamiento === true}
+              onChange={e => guardar({ autoAgrandamiento: e.target.checked })}
+            />
+            AutoAgrandamiento
+          </label>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 6px', width: '100%' }}>
+            Las tarjetas reducen o aumentan su tamaño según cuántos platos haya en pantalla.
+          </p>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.autoAcomodamiento === true}
+              onChange={e => guardar({ autoAcomodamiento: e.target.checked })}
+            />
+            AutoAcomodamiento
+          </label>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 0', width: '100%' }}>
+            Cada tarjeta escala su tamaño según el largo de su texto (más letras = más grande, menos = más pequeña), respetando el número de columnas y llenando el 100% del espacio.
+          </p>
         </Section>
 
         {/* Alertas y contenido */}

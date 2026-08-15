@@ -157,31 +157,6 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
     mostrarIconoCocinero: true,
   };
 
-  // Auto-fullscreen en modo fijo (ventana hija).
-  // Chrome bloquea requestFullscreen sin gesto del usuario. En lugar de intentar
-  // automaticamente (que llena la consola de errores), mostramos un overlay
-  // sutil "Click para pantalla completa" que al primer click entra en fullscreen.
-  // El .bat con --kiosk ya da fullscreen real; esto es para el caso de la consola web.
-  const [fullscreenPendiente, setFullscreenPendiente] = useState(modoFijo);
-  useEffect(() => {
-    if (!modoFijo) return;
-    const entrarFullscreen = () => {
-      try {
-        const el = document.documentElement;
-        if (el.requestFullscreen) el.requestFullscreen();
-        setFullscreenPendiente(false);
-      } catch (err) { /* noop */ }
-      document.removeEventListener('click', entrarFullscreen);
-      document.removeEventListener('keydown', entrarFullscreen);
-    };
-    document.addEventListener('click', entrarFullscreen);
-    document.addEventListener('keydown', entrarFullscreen);
-    return () => {
-      document.removeEventListener('click', entrarFullscreen);
-      document.removeEventListener('keydown', entrarFullscreen);
-    };
-  }, [modoFijo]);
-
   if (loading && comandas.length === 0) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -211,19 +186,6 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
 
   return (
     <>
-      {modoFijo && fullscreenPendiente && (
-        <div
-          onClick={() => { /* el listener global ya lo maneja */ }}
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center cursor-pointer"
-          style={{ pointerEvents: 'none' }}
-        >
-          <div className="text-center">
-            <div className="text-5xl mb-3 animate-pulse">🖥️</div>
-            <p className="text-white text-xl font-semibold">Click para pantalla completa</p>
-            <p className="text-gray-400 text-sm mt-1">O presioná cualquier tecla</p>
-          </div>
-        </div>
-      )}
       <CocinaMonitorLayout
         platosPendientes={platosPendientes}
         configVisual={configVisual}

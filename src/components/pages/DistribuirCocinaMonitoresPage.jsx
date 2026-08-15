@@ -25,6 +25,10 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const [pantallas, setPantallas] = useState([]);
   const [asignacion, setAsignacion] = useState({});
   const [asignacionInicial, setAsignacionInicial] = useState({});
+  // Perfil de personalización por monitor (flujo "Distribuir Cocina en monitores").
+  // Valores por monitor: 'none' | 'auto' | '<PerfilVerCocinaId>'.
+  const [asignacionPerfil, setAsignacionPerfil] = useState({});
+  const [asignacionPerfilInicial, setAsignacionPerfilInicial] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ventanas, setVentanas] = useState({});
@@ -35,27 +39,24 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const [monitoresDetectados, setMonitoresDetectados] = useState([]); // lista de monitores físicos
   const [showBatModal, setShowBatModal] = useState(false); // modal de configuración .bat
   const [batGenerando, setBatGenerando] = useState(false);
-  // Aplicar perfil de personalización a cada monitor:
-  //  - 'none'  : sin perfil
-  //  - 'auto'  : perfil personal del cocinero (legacy ?perfil=auto)
-  //  - <id>    : perfil con nombre guardado (?perfilId=<id>)
-  const [perfilAplicar, setPerfilAplicar] = useState('auto');
   const [perfiles, setPerfiles] = useState([]);
   const [cargandoPerfiles, setCargandoPerfiles] = useState(false);
 
-  // Opciones de perfil para pasar a monitorWindowManager.
-  const getPerfilOpts = useCallback(() => {
-    if (perfilAplicar === 'none') return {};
-    if (perfilAplicar === 'auto') return { aplicarPerfil: true };
-    return { perfilId: perfilAplicar };
-  }, [perfilAplicar]);
+  // Opciones de perfil para pasar a monitorWindowManager según el monitor.
+  const getPerfilOptsForMonitor = useCallback((numero) => {
+    const perfil = asignacionPerfil[numero] || 'none';
+    if (perfil === 'none') return {};
+    if (perfil === 'auto') return { aplicarPerfil: true };
+    return { perfilId: perfil };
+  }, [asignacionPerfil]);
 
-  // Sufijo de URL para .bat y Monitor Hub.
-  const getPerfilSuffix = useCallback(() => {
-    if (perfilAplicar === 'none') return '';
-    if (perfilAplicar === 'auto') return '&perfil=auto';
-    return `&perfilId=${encodeURIComponent(perfilAplicar)}`;
-  }, [perfilAplicar]);
+  // Sufijo de URL para .bat y Monitor Hub según el monitor.
+  const getPerfilSuffixForMonitor = useCallback((numero) => {
+    const perfil = asignacionPerfil[numero] || 'none';
+    if (perfil === 'none') return '';
+    if (perfil === 'auto') return '&perfil=auto';
+    return `&perfilId=${encodeURIComponent(perfil)}`;
+  }, [asignacionPerfil]);
 
   const cargarPerfiles = useCallback(async () => {
     if (!getToken) return;
@@ -87,13 +88,24 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       const data = res.data?.data || [];
       setPantallas(data);
       const map = {};
+      const mapPerfil = {};
       for (const p of data) {
         if (p.numeroPantalla === MONITOR_PRINCIPAL) continue;
         const cid = p.cocineroId?._id || p.cocineroId || null;
         map[p.numeroPantalla] = cid ? String(cid) : null;
+        // Perfil por monitor: 'auto' > 'id' > 'none'
+        if (p.perfilAuto) {
+          mapPerfil[p.numeroPantalla] = 'auto';
+        } else if (p.perfilVerCocinaId) {
+          mapPerfil[p.numeroPantalla] = String(p.perfilVerCocinaId._id || p.perfilVerCocinaId);
+        } else {
+          mapPerfil[p.numeroPantalla] = 'none';
+        }
       }
       setAsignacion(map);
       setAsignacionInicial(map);
+      setAsignacionPerfil(mapPerfil);
+      setAsignacionPerfilInicial(mapPerfil);
       setMensaje(null);
     } catch (err) {
       console.warn('[DistribuirCocina] Error:', err.message);
@@ -155,13 +167,21 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       const a = asignacion[num] || null;
       const b = asignacionInicial[num] || null;
       if ((a || null) !== (b || null)) return true;
+      const pa = asignacionPerfil[num] || 'none';
+      const pb = asignacionPerfilInicial[num] || 'none';
+      if (pa !== pb) return true;
     }
     return false;
-  }, [asignacion, asignacionInicial]);
+  }, [asignacion, asignacionInicial, asignacionPerfil, asignacionPerfilInicial]);
 
   const cambiarCocinero = (numero, valor) => {
     const cid = valor === SIN_ASIGNAR ? null : valor;
     setAsignacion((prev) => ({ ...prev, [numero]: cid }));
+    setMensaje(null);
+  };
+
+  const cambiarPerfilMonitor = (numero, valor) => {
+    setAsignacionPerfil((prev) => ({ ...prev, [numero]: valor || 'none' }));
     setMensaje(null);
   };
 
@@ -178,6 +198,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
           id: p._id,
           cocineroId: asignacion[num] || null,
           modoVista: asignacion[num] ? 'completo' : 'personalizado',
+          perfilAplicar: asignacionPerfil[num] || 'none',
         };
       }).filter(Boolean);
       if (items.length === 0) {
@@ -190,6 +211,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
         { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
       );
       setAsignacionInicial({ ...asignacion });
+      setAsignacionPerfilInicial({ ...asignacionPerfil });
       setMensaje('Distribución guardada correctamente.');
     } catch (err) {
       console.warn('[DistribuirCocina] Error guardando:', err.message);
@@ -210,13 +232,13 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       return;
     }
     if (existente && !existente.closed) {
-      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, getPerfilOpts());
+      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, getPerfilOptsForMonitor(numero));
       if (!ok) {
-        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOpts() });
+        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOptsForMonitor(numero) });
         if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
       }
     } else {
-      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOpts() });
+      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOptsForMonitor(numero) });
       if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
     }
   };
@@ -253,12 +275,11 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       puertoApp = window.location.port || '3001';
     } catch { /* noop */ }
     const base = `http://${host}:${puertoApp}`;
-    const perfilSuffix = getPerfilSuffix();
     const slots = MONITORES_PASIVOS
       .filter((num) => asignacion[num])
       .map((num) => ({
         monitorIndex: num,
-        url: `${base}/?monitor=${num}&cocineroId=${asignacion[num]}&modo=completo-fijo${perfilSuffix}`,
+        url: `${base}/?monitor=${num}&cocineroId=${asignacion[num]}&modo=completo-fijo${getPerfilSuffixForMonitor(num)}`,
         mode: 'fullscreen',
       }));
     if (slots.length === 0) {
@@ -385,14 +406,11 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
 
     const psBase64 = toUtf16LEBase64(psScript);
 
-    // Sufijo de perfil de personalización (flujo Distribuir Cocina en monitores)
-    const perfilSuffix = getPerfilSuffix();
-
-    // Bloques start: lanzar Chrome kiosk por cada monitor
+    // Bloques start: lanzar Chrome kiosk por cada monitor (con su perfil propio)
     const bloquesStart = monsData.map((m) => (
 `if not "%COCINERO_${m.num}%"=="" (
   echo Abriendo Monitor ${m.num} - Cocinero: %COCINERO_${m.num}% - Pos: ${m.posX},${m.posY}
-  start "cocina-monitor-${m.num}" "%CHROME%" --kiosk --new-window "%BASE%/?monitor=${m.num}&cocineroId=%COCINERO_${m.num}%&modo=completo-fijo${perfilSuffix}"
+  start "cocina-monitor-${m.num}" "%CHROME%" --kiosk --new-window "%BASE%/?monitor=${m.num}&cocineroId=%COCINERO_${m.num}%&modo=completo-fijo${getPerfilSuffixForMonitor(m.num)}"
 )`)).join('\n\n');
 
     const bat = `@echo off
@@ -576,38 +594,24 @@ pause
           <span className="text-xs text-gray-400 ml-2" title="Esta URL debes configurar en el Monitor Hub (boton Configurar servidor)">
             En el Hub pon: <b>{getServerBaseUrl()}</b>
           </span>
-          <label className="flex items-center gap-2 text-sm text-gray-300 ml-2 select-none" title="Elige qué perfil de personalización Ver Cocina aplicar a cada monitor">
-            Perfil:
-            <select
-              value={perfilAplicar}
-              onChange={(e) => setPerfilAplicar(e.target.value)}
-              disabled={cargandoPerfiles}
-              className="px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500"
-            >
-              <option value="none">Sin perfil</option>
-              <option value="auto">Perfil del cocinero (auto)</option>
-              {perfiles.map((p) => (
-                <option key={p._id} value={p._id}>{p.nombre}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={cargarPerfiles}
-              disabled={cargandoPerfiles}
-              title="Recargar perfiles"
-              className="px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm hover:bg-gray-700"
-            >
-              ↻
-            </button>
-          </label>
+          <button
+            type="button"
+            onClick={cargarPerfiles}
+            disabled={cargandoPerfiles}
+            title="Recargar lista de perfiles de personalización"
+            className="ml-2 px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm hover:bg-gray-700 disabled:opacity-50"
+          >
+            ↻ Perfiles
+          </button>
         </div>
       </div>
 
       <div className="mb-4 p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">
         <p className="text-cyan-300 text-sm">
           Desde el <strong>monitor 1</strong> (esta consola) eliges qué cocinero se ve en cada
-          monitor pasivo (2-8). Cada ventana abre Ver Cocina Completo filtrado por el cocinero
-          asignado. Pulsa <strong>Aplicar / Desplegar</strong> para guardar y abrir las ventanas.
+          monitor pasivo (2-8) y qué <strong>perfil de personalización</strong> aplica a cada uno.
+          Cada ventana abre Ver Cocina Completo filtrado por el cocinero asignado. Pulsa{' '}
+          <strong>Aplicar / Desplegar</strong> para guardar y abrir las ventanas.
         </p>
       </div>
 
@@ -758,6 +762,22 @@ pause
                     ))}
                   </select>
 
+                  <label className="block text-xs text-gray-400 mt-3 mb-1" title="Perfil de personalización Ver Cocina aplicado a este monitor">
+                    Perfil de personalización
+                  </label>
+                  <select
+                    value={asignacionPerfil[num] || 'none'}
+                    onChange={(e) => cambiarPerfilMonitor(num, e.target.value)}
+                    disabled={cargandoPerfiles || !cid}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50"
+                  >
+                    <option value="none">Sin perfil (default)</option>
+                    <option value="auto">Perfil del cocinero (auto)</option>
+                    {perfiles.map((p) => (
+                      <option key={p._id} value={p._id}>{p.nombre}</option>
+                    ))}
+                  </select>
+
                   <div className="mt-3 text-xs text-gray-400 flex items-center gap-1">
                     <FaUser className="text-gray-500" />
                     {cid ? (
@@ -835,52 +855,49 @@ pause
               )}
             </div>
 
-            {/* Asignación de cocineros por monitor */}
-            <p className="text-sm text-gray-300 mb-2"><strong>Asignación de cocineros:</strong></p>
+            {/* Asignación de cocineros y perfil por monitor */}
+            <p className="text-sm text-gray-300 mb-2"><strong>Asignación por monitor:</strong></p>
             <div className="space-y-2 mb-4">
               {MONITORES_PASIVOS.map((num) => {
                 const monitor = monitoresDetectados[num - 1];
                 const cid = asignacion[num] || null;
                 const nombre = cid ? nombreCocinero(cid) : '(Sin asignar)';
                 return (
-                  <div key={num} className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
-                    <span className="text-sm font-semibold w-20">Monitor {num}</span>
+                  <div key={num} className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg">
+                    <span className="text-sm font-semibold w-20 shrink-0">Monitor {num}</span>
                     {monitor && (
-                      <span className="text-xs text-gray-400 w-32">
+                      <span className="text-xs text-gray-400 w-28 shrink-0 hidden md:inline">
                         {monitor.width}×{monitor.height}
                       </span>
                     )}
                     <select
                       value={cid || SIN_ASIGNAR}
                       onChange={(e) => cambiarCocinero(num, e.target.value)}
-                      className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
+                      className="flex-1 min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
                     >
                       <option value={SIN_ASIGNAR}>Sin asignar</option>
                       {cocineros.map((c) => (
                         <option key={c._id} value={c._id}>{c.alias || c.name}</option>
                       ))}
                     </select>
-                    <span className="text-xs text-cyan-300 w-32 truncate">{nombre}</span>
+                    <select
+                      value={asignacionPerfil[num] || 'none'}
+                      onChange={(e) => cambiarPerfilMonitor(num, e.target.value)}
+                      disabled={!cid}
+                      title="Perfil de personalización Ver Cocina para este monitor"
+                      className="flex-1 min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm disabled:opacity-50"
+                    >
+                      <option value="none">Sin perfil</option>
+                      <option value="auto">Perfil auto</option>
+                      {perfiles.map((p) => (
+                        <option key={p._id} value={p._id}>{p.nombre}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-cyan-300 w-24 truncate shrink-0" title={nombre}>{nombre}</span>
                   </div>
                 );
               })}
             </div>
-
-            <label className="flex items-center gap-2 text-sm text-gray-300 mb-4 select-none" title="Incluye el perfil de personalización elegido en las URLs del .bat para que cada ventana lo aplique">
-              Perfil de personalización:
-              <select
-                value={perfilAplicar}
-                onChange={(e) => setPerfilAplicar(e.target.value)}
-                disabled={cargandoPerfiles}
-                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
-              >
-                <option value="none">Sin perfil</option>
-                <option value="auto">Perfil del cocinero (auto)</option>
-                {perfiles.map((p) => (
-                  <option key={p._id} value={p._id}>{p.nombre}</option>
-                ))}
-              </select>
-            </label>
 
             <div className="flex gap-3">
               <button

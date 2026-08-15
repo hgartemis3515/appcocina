@@ -30,3 +30,35 @@ export const clampColumnas = (n) =>
     MONITOR_LAYOUT.COLUMNAS_MAX,
     Math.max(MONITOR_LAYOUT.COLUMNAS_MIN, Number(n) || MONITOR_LAYOUT.COLUMNAS_DEFAULT)
   );
+
+/**
+ * Catálogo de animaciones de alerta para tarjetas del monitor Ver Cocina.
+ * `value` es el nombre de la keyframe CSS. `duracion` se usa en la propiedad `animation`.
+ */
+export const ANIMACIONES_ALERTA = [
+  { value: 'urgentePulse', label: 'Urgente Pulse (latido rápido)', duracion: '1s' },
+  { value: 'alertaShake', label: 'Alerta Shake (vibración lateral)', duracion: '0.6s' },
+  { value: 'flashBorde', label: 'Flash Borde (parpadea el borde)', duracion: '0.9s' },
+  { value: 'sacudidaFuerte', label: 'Sacudida Fuerte (crítico)', duracion: '0.7s' },
+  { value: 'latidoUrgente', label: 'Latido Urgente (corazón)', duracion: '0.9s' },
+  { value: 'parpadeoAlerta', label: 'Parpadeo Alerta (fade)', duracion: '0.7s' },
+  { value: 'reboteAlerta', label: 'Rebote Alerta (salto vertical)', duracion: '0.8s' },
+  { value: 'resplandorUrgente', label: 'Resplandor Urgente (glow)', duracion: '1.6s' },
+  { value: 'sirenaAlerta', label: 'Sirena Alerta (rojo/ámbar radial)', duracion: '1.2s' },
+  { value: 'rayoUrgente', label: 'Rayo Urgente (⚡ cruzan)', duracion: '1.4s' },
+  { value: 'explosionFuego', label: 'Explosión Fuego (🔥)', duracion: '1.6s' },
+  { value: 'ondaChoque', label: 'Onda de Choque (⚠️)', duracion: '1.2s' },
+  { value: 'tormentaAlerta', label: 'Tormenta Alerta (rayos)', duracion: '1.5s' },
+  { value: 'pulsoRadioactivo', label: 'Pulso Radioactivo (☢️)', duracion: '1.3s' },
+  { value: 'alarmaGiratoria', label: 'Alarma Giratoria (⚠️ rota)', duracion: '2.4s' },
+  { value: 'fuegoCruzado', label: 'Fuego Cruzado (🔥/⚠️)', duracion: '1.4s' },
+  { value: 'semaforoUrgente', label: 'Semáforo Urgente (rojo)', duracion: '1s' },
+  { value: 'barreraPeligro', label: 'Barrera Peligro (franjas)', duracion: '1s' },
+  { value: 'meteoritoAlerta', label: 'Meteorito Alerta (💥)', duracion: '1.8s' },
+  { value: 'nucleoSobrecarga', label: 'Núcleo Sobrecarga (pulso fuerte)', duracion: '1.2s' },
+  { value: 'pulsoNeon', label: 'Pulso Neón (borde neón)', duracion: '1.4s' },
+  { value: 'glitchAlerta', label: 'Glitch Alerta (temblor digital)', duracion: '0.5s' },
+];
+
+export const DURACION_ANIMACION = (nombre) =>
+  ANIMACIONES_ALERTA.find(a => a.value === nombre)?.duracion || '1s';

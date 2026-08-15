@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { escalaDetalle, MONITOR_TIPOGRAFIA } from '../../config/monitorVisualConstants';
+import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
 import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
@@ -33,11 +33,148 @@ const colorAcentoPorCocinero = (alias) => {
   return paleta[h % paleta.length];
 };
 
+// Iconos por animación de alerta (renderizados en un overlay absoluto dentro de la tarjeta).
+// Cada entrada: [{ emoji, pos, anim, dur, size }]
+const ICONOS_POR_ANIM = {
+  sirenaAlerta: [{ emoji: '🚨', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconSpin', dur: '2s', size: '42px' }],
+  rayoUrgente: [
+    { emoji: '⚡', pos: { top: '20%', left: 0 }, anim: 'kdsIconCross', dur: '1.4s', size: '34px' },
+    { emoji: '⚡', pos: { top: '60%', left: 0 }, anim: 'kdsIconCross', dur: '1.8s', size: '28px' },
+  ],
+  explosionFuego: [
+    { emoji: '🔥', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconPulse', dur: '1.6s', size: '46px' },
+    { emoji: '🔥', pos: { top: '20%', left: '20%' }, anim: 'kdsIconPulse', dur: '1.8s', size: '24px' },
+    { emoji: '🔥', pos: { bottom: '18%', right: '18%' }, anim: 'kdsIconPulse', dur: '2s', size: '24px' },
+  ],
+  ondaChoque: [{ emoji: '⚠️', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconPulse', dur: '1.2s', size: '40px' }],
+  tormentaAlerta: [
+    { emoji: '⚡', pos: { top: '10%', left: '10%' }, anim: 'kdsIconFlash', dur: '0.7s', size: '30px' },
+    { emoji: '⚠️', pos: { bottom: '12%', right: '12%' }, anim: 'kdsIconFlash', dur: '1.1s', size: '26px' },
+  ],
+  pulsoRadioactivo: [{ emoji: '☢️', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconSpin', dur: '4s', size: '40px' }],
+  alarmaGiratoria: [{ emoji: '⚠️', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconSpin', dur: '6s', size: '90px' }],
+  fuegoCruzado: [
+    { emoji: '🔥', pos: { top: '20%', left: '10%' }, anim: 'kdsIconPulse', dur: '1.4s', size: '26px' },
+    { emoji: '⚠️', pos: { bottom: '20%', right: '10%' }, anim: 'kdsIconPulse', dur: '1.6s', size: '26px' },
+  ],
+  semaforoUrgente: [{ emoji: '🚦', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconFlash', dur: '1s', size: '38px' }],
+  barreraPeligro: [{ emoji: '⚠️', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconFlash', dur: '1s', size: '34px' }],
+  meteoritoAlerta: [
+    { emoji: '💥', pos: { top: '-20px', left: '10%' }, anim: 'kdsIconFall', dur: '1.8s', size: '28px' },
+    { emoji: '⚠️', pos: { top: '-20px', left: '50%' }, anim: 'kdsIconFall', dur: '2.4s', size: '24px' },
+    { emoji: '💥', pos: { top: '-20px', left: '75%' }, anim: 'kdsIconFall', dur: '2.1s', size: '26px' },
+  ],
+  nucleoSobrecarga: [
+    { emoji: '☢️', pos: { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }, anim: 'kdsIconPulse', dur: '1.2s', size: '50px' },
+    { emoji: '⚠️', pos: { top: '15%', right: '15%' }, anim: 'kdsIconFlash', dur: '0.9s', size: '22px' },
+    { emoji: '⚠️', pos: { bottom: '15%', left: '15%' }, anim: 'kdsIconFlash', dur: '1.1s', size: '22px' },
+  ],
+};
+
+/**
+ * Genera posiciones repartidas para `count` iconos dentro del overlay.
+ */
+const posicionesPara = (count) => {
+  if (count <= 1) return [{ top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }];
+  if (count === 2) return [
+    { top: '30%', left: '25%', transform: 'translate(-50%,-50%)' },
+    { top: '70%', left: '75%', transform: 'translate(-50%,-50%)' },
+  ];
+  if (count === 3) return [
+    { top: '25%', left: '50%', transform: 'translate(-50%,-50%)' },
+    { top: '68%', left: '25%', transform: 'translate(-50%,-50%)' },
+    { top: '68%', left: '75%', transform: 'translate(-50%,-50%)' },
+  ];
+  if (count === 4) return [
+    { top: '22%', left: '22%', transform: 'translate(-50%,-50%)' },
+    { top: '22%', left: '78%', transform: 'translate(-50%,-50%)' },
+    { top: '78%', left: '22%', transform: 'translate(-50%,-50%)' },
+    { top: '78%', left: '78%', transform: 'translate(-50%,-50%)' },
+  ];
+  const cols = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / cols);
+  const pos = [];
+  const stepR = rows > 1 ? 70 / (rows - 1) : 0;
+  const stepC = cols > 1 ? 70 / (cols - 1) : 0;
+  for (let i = 0; i < count; i++) {
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    pos.push({
+      top: `${15 + r * stepR}%`,
+      left: `${15 + c * stepC}%`,
+      transform: 'translate(-50%,-50%)',
+    });
+  }
+  return pos;
+};
+
+/**
+ * AlertaOverlay - Capa absoluta dentro de la tarjeta que pinta el fondo animado
+ * (gradiente/ondas) y los iconos móviles para las animaciones de alerta complejas.
+ *
+ * Props extra para personalizar emojis:
+ * - emojisCustom: string con emojis (ej. "🔥⚠️💥"). Si se omite, usa los defaults de la animación.
+ * - sizeCustom: tamaño en px de los emojis (null = auto).
+ * - countCustom: cantidad de emojis a renderizar (null = auto).
+ */
+const AlertaOverlay = ({ nombre, color, emojisCustom = null, sizeCustom = null, countCustom = null }) => {
+  if (!nombre) return null;
+  const defaults = ICONOS_POR_ANIM[nombre];
+
+  let iconos;
+  if (emojisCustom && emojisCustom.trim()) {
+    const lista = Array.from(emojisCustom.trim());
+    const count = Math.max(1, Math.min(12, countCustom || lista.length));
+    const size = sizeCustom || 40;
+    const posiciones = posicionesPara(count);
+    iconos = posiciones.map((pos, i) => ({
+      emoji: lista[i % lista.length],
+      pos,
+      anim: 'kdsIconPulse',
+      dur: '1.4s',
+      size: `${size}px`,
+    }));
+  } else {
+    iconos = defaults || [];
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 0,
+        overflow: 'hidden',
+        '--kds-alerta-color': color,
+        animation: `${nombre} ${DURACION_ANIMACION(nombre)} ease-in-out infinite`,
+      }}
+    >
+      {iconos.map((ic, i) => (
+        <span
+          key={i}
+          style={{
+            position: 'absolute',
+            fontSize: ic.size,
+            ...ic.pos,
+            animation: `${ic.anim} ${ic.dur} ease-in-out infinite`,
+            opacity: 0.85,
+            filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.5))',
+          }}
+        >
+          {ic.emoji}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const CocineroPlatoCard = React.forwardRef(({
   item,
   configVisual = {},
   mostrarCocinero = false,
   modoTarjeta = false,
+  autoAcomodamiento = false,
   tick = 0,
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
@@ -61,6 +198,10 @@ const CocineroPlatoCard = React.forwardRef(({
   const mostrarIconoCocinero = configVisual.mostrarIconoCocinero !== false;
   const mostrarEtiquetaPlato = configVisual.mostrarEtiquetaPlato === true;
   const estiloTemporizador = configVisual.estiloTemporizador || 'vertical';
+  // Nuevas herramientas
+  const quitarNombreCocinero = configVisual.quitarNombreCocineroTarjeta === true;
+  const ocultarAtencionUrgente = configVisual.ocultarAtencionUrgente === true;
+  const animacionesAlerta = configVisual.animacionesAlerta !== false;
 
   // Alerta máxima de los timers (define color de la tarjeta)
   let alertaMaxima = 'normal';
@@ -76,7 +217,7 @@ const CocineroPlatoCard = React.forwardRef(({
   const colorCocinero = usarColorCocinero ? colorAcentoPorCocinero(cocinero?.alias) : colorAcento;
 
   // Colores estilo referencia
-  const FONDO_VINO = '#1a0f1f';
+  const FONDO_VINO = configVisual.colorFondoTarjeta || configVisual.colorFilaPlato || '#1a0f1f';
   const FONDO_VINO_HOVER = '#241029';
   const colorBorde = esCritico
     ? colorAlertaRoja
@@ -116,29 +257,97 @@ const CocineroPlatoCard = React.forwardRef(({
   const paddingY = esUnido ? '14px' : espaciado === 'compacto' ? '12px' : espaciado === 'amplio' ? '22px' : '16px';
   const paddingX = esUnido ? '14px' : espaciado === 'compacto' ? '14px' : '18px';
 
-  const estiloTarjeta = {
-    background: esCritico ? `linear-gradient(135deg, ${FONDO_VINO}, ${colorAlertaRoja}1f)` : FONDO_VINO,
+  // Animación de alerta (color) sobre el wrapper interno de la tarjeta.
+  // Se aplica al inner div (no al motion.div) para no chocar con los transforms
+  // de framer-motion (layout/exit/enter).
+  const animacionAtencionCfg = configVisual.animacionAtencion || 'resplandorUrgente';
+  const animacionUrgenteCfg = configVisual.animacionUrgente || 'urgentePulse';
+  const animacionAlertaNombre = animacionesAlerta
+    ? (esCritico ? animacionUrgenteCfg : esAlerta ? animacionAtencionCfg : null)
+    : null;
+  const duracionAnim = DURACION_ANIMACION(animacionAlertaNombre);
+  const animacionAlerta = animacionAlertaNombre
+    ? `${animacionAlertaNombre} ${duracionAnim} ease-in-out infinite`
+    : 'none';
+  // Color de la animación: color personalizado si está definido, si no el de alerta
+  const colorAnimacionAtencion = configVisual.colorAnimacionAtencion || colorAlertaAmarilla;
+  const colorAnimacionUrgente = configVisual.colorAnimacionUrgente || colorAlertaRoja;
+  const colorAlertaParaVar = esCritico
+    ? colorAnimacionUrgente
+    : esAlerta
+      ? colorAnimacionAtencion
+      : colorAcento;
+
+  // === AutoAcomodamiento (por tarjeta) ===
+  // Cada tarjeta escala su fuente/padding según el largo del texto, así las
+  // tarjetas con más letras se agrandan y las con menos se reducen — pero
+  // respetando el grid de N columnas y llenando el 100% del espacio.
+  const longitudContenido = (nombre?.length || 0) + (complementosTexto?.length || 0);
+  const factorContenido = (() => {
+    if (!autoAcomodamiento) return 1;
+    if (longitudContenido <= 8) return 0.82;
+    if (longitudContenido <= 16) return 0.92;
+    if (longitudContenido <= 26) return 1.05;
+    if (longitudContenido <= 40) return 1.16;
+    return 1.28;
+  })();
+  const fsPlatoAcomodado = Math.round(tamanioFuentePlato * factorContenido);
+  const fsDetalleAcomodado = Math.round(tamanioFuenteDetalle * factorContenido);
+  const padYAcomodado = autoAcomodamiento
+    ? `${Math.round(parseFloat(paddingY) * factorContenido)}px`
+    : paddingY;
+  const padXAcomodado = autoAcomodamiento
+    ? `${Math.round(parseFloat(paddingX) * factorContenido)}px`
+    : paddingX;
+
+  // Fondo de la tarjeta: degradado configurable o color fijo
+  const usarDegradado = configVisual.degradadoTarjeta !== false;
+  const colorDegradadoAuto = esCritico
+    ? `${colorAlertaRoja}1f`
+    : esAlerta
+      ? `${colorAlertaAmarilla}1f`
+      : `${colorAcento}1f`;
+  const colorDegradado = configVisual.colorDegradadoTarjeta || colorDegradadoAuto;
+  const fondoTarjeta = usarDegradado
+    ? `linear-gradient(135deg, ${FONDO_VINO}, ${colorDegradado})`
+    : FONDO_VINO;
+
+  // Outer: solo layout (framer-motion controla transforms aquí).
+  const outerStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+    minHeight: modoTarjeta ? '130px' : 'auto',
+    position: 'relative',
+  };
+
+  // Inner: visual + animación de alerta (incluye transform sin chocar con framer).
+  const innerStyle = {
+    background: fondoTarjeta,
     color: colorTextoPrincipal,
     border: esUnido ? `1px solid ${colorBorde}` : `2px solid ${colorBorde}`,
     borderRadius: esUnido ? 0 : '14px',
-    padding: `${paddingY} ${paddingX}`,
+    padding: `${padYAcomodado} ${padXAcomodado}`,
     fontFamily: fuenteFamilia,
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: '16px',
     minWidth: 0,
-    minHeight: modoTarjeta ? '130px' : 'auto',
+    flex: 1,
     boxShadow: esUnido ? 'none' : glowBorde,
     position: 'relative',
     overflow: 'hidden',
+    '--kds-alerta-color': colorAlertaParaVar,
+    '--kds-fondo-base': FONDO_VINO,
+    animation: animacionAlerta,
   };
 
   // Lado izquierdo: bloque textual (~65%)
   const ladoIzquierdo = (
     <div style={{ flex: '1 1 65%', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-      {/* Cocinero arriba (fucsia, siempre visible si mostrarCocinero) */}
-      {mostrarCocinero && cocinero && (
+      {/* Cocinero arriba (fucsia, solo si mostrarCocinero y NO se quitó el nombre) */}
+      {mostrarCocinero && cocinero && !quitarNombreCocinero && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {mostrarIconoCocinero && (
             cocinero.fotoUrl ? (
@@ -199,7 +408,7 @@ const CocineroPlatoCard = React.forwardRef(({
         )}
         <div
           style={{
-            fontSize: `${tamanioFuentePlato}px`,
+            fontSize: `${fsPlatoAcomodado}px`,
             fontWeight: pesoFuentePlato,
             lineHeight: 1.05,
             color: colorTextoPrincipal,
@@ -218,7 +427,7 @@ const CocineroPlatoCard = React.forwardRef(({
       {mostrarComplementos && complementosTexto && (
         <div
           style={{
-            fontSize: `${tamanioFuenteDetalle}px`,
+            fontSize: `${fsDetalleAcomodado}px`,
             color: colorTextoSecundario,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -235,7 +444,7 @@ const CocineroPlatoCard = React.forwardRef(({
 
       {/* Zona inferior: placa URGENTE + mesas */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-        {esCritico && (
+        {esCritico && !ocultarAtencionUrgente && (
           <span
             style={{
               display: 'inline-flex',
@@ -258,7 +467,7 @@ const CocineroPlatoCard = React.forwardRef(({
             ! URGENTE
           </span>
         )}
-        {esAlerta && !esCritico && (
+        {esAlerta && !esCritico && !ocultarAtencionUrgente && (
           <span
             style={{
               padding: '4px 12px',
@@ -316,10 +525,33 @@ const CocineroPlatoCard = React.forwardRef(({
     </div>
   );
 
+  const mostrarOverlay = animacionAlertaNombre && (esCritico || esAlerta);
   const contenido = (
     <>
-      {ladoIzquierdo}
-      {ladoDerecho}
+      {mostrarOverlay && (
+        <AlertaOverlay
+          nombre={animacionAlertaNombre}
+          color={colorAlertaParaVar}
+          emojisCustom={esCritico ? configVisual.emojisAnimacionUrgente : configVisual.emojisAnimacionAtencion}
+          sizeCustom={esCritico ? configVisual.tamanioEmojiUrgente : configVisual.tamanioEmojiAtencion}
+          countCustom={esCritico ? configVisual.cantidadEmojiUrgente : configVisual.cantidadEmojiAtencion}
+        />
+      )}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          gap: '16px',
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        {ladoIzquierdo}
+        {ladoDerecho}
+      </div>
     </>
   );
 
@@ -327,7 +559,11 @@ const CocineroPlatoCard = React.forwardRef(({
   const cardKey = item.grupoId || item.key;
 
   if (!animOn) {
-    return <div style={estiloTarjeta}>{contenido}</div>;
+    return (
+      <div style={outerStyle}>
+        <div style={innerStyle}>{contenido}</div>
+      </div>
+    );
   }
 
   return (
@@ -350,9 +586,9 @@ const CocineroPlatoCard = React.forwardRef(({
         scale: { duration: 0.24 },
         y: { type: 'spring', stiffness: 400, damping: 30 },
       }}
-      style={{ ...estiloTarjeta, willChange: 'transform, opacity' }}
+      style={{ ...outerStyle, willChange: 'transform, opacity' }}
     >
-      {contenido}
+      <div style={innerStyle}>{contenido}</div>
     </motion.div>
   );
 });

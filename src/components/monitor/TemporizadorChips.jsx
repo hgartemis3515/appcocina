@@ -23,6 +23,13 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const colorAlertaRoja = configVisual.colorAlertaRoja || '#ff2a4d';
   const colorFondo = configVisual.colorFondo || '#0a0a0f';
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#9ca3af';
+  // Colores personalizados del cronómetro. null = automático (según alerta).
+  const cronometroColor = configVisual.cronometroColor || null;
+  const cronometroContorno = configVisual.cronometroContorno || null;
+  const cronometroFondo = configVisual.cronometroFondo || null;
+  const cronometroContornoLetra = configVisual.cronometroContornoLetra || null;
+  // Fondo tipo resaltado detrás de las cifras (estilo "subrayado de texto"). null = sin fondo.
+  const cronometroFondoTexto = configVisual.cronometroFondoTexto || null;
   const espaciado = configVisual.espaciadoFilas || 'normal';
   const modoResumido = configVisual.modoTimers === 'resumidos';
   const orientacion = configVisual.estiloTemporizador === 'horizontal' ? 'horizontal' : 'vertical';
@@ -76,9 +83,20 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
 
   const renderBloqueVertical = (t, idx) => {
     const colorAlerta = colorPorAlerta(t.alerta);
-    const colorBorde = t.colorLinea || colorAlerta;
     const esCritico = t.alerta === 'rojo';
     const esAlerta = t.alerta === 'amarillo';
+    // Color del texto: custom siempre si está definido, si no según alerta
+    const colorTexto = cronometroColor != null ? cronometroColor : (esCritico ? '#fff' : colorAlerta);
+    // Borde del chip: custom siempre si está definido, si no colorLinea o alerta
+    const colorBorde = cronometroContorno != null ? cronometroContorno : (t.colorLinea || colorAlerta);
+    // Fondo del chip: custom siempre si está definido, si no según alerta
+    const fondoChip = cronometroFondo != null
+      ? cronometroFondo
+      : (esCritico ? colorAlerta : `${colorAlerta}1f`);
+    // Contorno de la letra (text stroke)
+    const contornoLetra = cronometroContornoLetra
+      ? `${Math.max(1, Math.round(tamanioCronometro / 18))}px ${cronometroContornoLetra}`
+      : 'none';
     const glow = esCritico ? `0 0 ${14 * glowMult}px ${colorAlerta}` : esAlerta ? `0 0 ${8 * glowMult}px ${colorAlerta}aa` : 'none';
     const numero = t.numeroGlobal != null ? t.numeroGlobal : idx + 1;
     const estilo = {
@@ -89,7 +107,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
       padding: espaciado === 'compacto' ? '4px 10px' : '8px 12px',
       borderRadius: esUnido ? '0' : '10px',
       border: `2px solid ${colorBorde}`,
-      background: esCritico ? colorAlerta : `${colorAlerta}1f`,
+      background: fondoChip,
       boxShadow: glow,
       whiteSpace: 'nowrap',
       width: '100%',
@@ -104,7 +122,11 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
             fontWeight: 800,
             fontFamily: 'ui-monospace, "Courier New", monospace',
             fontVariantNumeric: 'tabular-nums',
-            color: esCritico ? '#fff' : colorAlerta,
+            color: colorTexto,
+            WebkitTextStroke: contornoLetra,
+            background: cronometroFondoTexto || 'transparent',
+            padding: cronometroFondoTexto ? '2px 8px' : 0,
+            borderRadius: cronometroFondoTexto ? '6px' : 0,
             textShadow: esCritico ? '0 0 10px #fff' : `0 0 ${8 * glowMult}px ${colorAlerta}66`,
             animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
           }}
@@ -133,8 +155,15 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
 
   const renderChipHorizontal = (t, idx) => {
     const colorAlerta = colorPorAlerta(t.alerta);
-    const colorBorde = t.colorLinea || colorAlerta;
     const esCritico = t.alerta === 'rojo';
+    const colorTexto = cronometroColor != null ? cronometroColor : (esCritico ? colorFondo : colorAlerta);
+    const colorBorde = cronometroContorno != null ? cronometroContorno : (t.colorLinea || colorAlerta);
+    const fondoChip = cronometroFondo != null
+      ? cronometroFondo
+      : (esCritico ? colorAlerta : `${colorAlerta}22`);
+    const contornoLetra = cronometroContornoLetra
+      ? `${Math.max(1, Math.round(tamanioCronometro / 18))}px ${cronometroContornoLetra}`
+      : 'none';
     const numero = t.numeroGlobal != null ? t.numeroGlobal : idx + 1;
     const estilo = {
       display: 'inline-flex',
@@ -146,8 +175,9 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
       fontWeight: 800,
       fontFamily: 'ui-monospace, "Courier New", monospace',
       fontVariantNumeric: 'tabular-nums',
-      color: esCritico ? colorFondo : colorAlerta,
-      background: esCritico ? colorAlerta : `${colorAlerta}22`,
+      color: colorTexto,
+      WebkitTextStroke: contornoLetra,
+      background: fondoChip,
       border: `2px solid ${colorBorde}`,
       textShadow: esCritico ? 'none' : `0 0 10px ${colorAlerta}55`,
       animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
@@ -156,7 +186,15 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     const inner = (
       <>
         {renderBadgeNumero(numero)}
-        {t.cronometro}
+        <span
+          style={{
+            background: cronometroFondoTexto || 'transparent',
+            padding: cronometroFondoTexto ? '2px 8px' : 0,
+            borderRadius: cronometroFondoTexto ? '6px' : 0,
+          }}
+        >
+          {t.cronometro}
+        </span>
       </>
     );
     if (!animOn) {

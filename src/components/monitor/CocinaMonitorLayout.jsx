@@ -18,6 +18,14 @@ import { BADGE_DEFAULTS } from '../../utils/monitorBadgeStyles';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
+const colorAcentoPorCocineroHeader = (alias) => {
+  if (!alias) return '#d4af37';
+  const paleta = ['#d4af37', '#60a5fa', '#34d399', '#f472b6', '#a78bfa', '#fb923c', '#22d3ee', '#facc15'];
+  let h = 0;
+  for (let i = 0; i < alias.length; i++) h = (h * 31 + alias.charCodeAt(i)) >>> 0;
+  return paleta[h % paleta.length];
+};
+
 const DEFAULT_CONFIG = {
   fuenteFamilia: 'Inter, system-ui, sans-serif',
   tamanioFuentePlato: 36,
@@ -60,6 +68,46 @@ const DEFAULT_CONFIG = {
   intensidadAlerta: 'normal',      // 'suave' | 'normal' | 'alta'
   mostrarEtiquetaPlato: false,     // mostrar "Plato:" antes del nombre
   mostrarIconoCocinero: true,      // avatar con iniciales del cocinero
+  // === Nuevas herramientas de personalización ===
+  // Color del cronómetro (chip de temporizador). null = automático según alerta.
+  cronometroColor: null,
+  cronometroContorno: null,
+  cronometroFondo: null,
+  // Contorno de la letra del cronómetro (text stroke). null = sin contorno.
+  cronometroContornoLetra: null,
+  // Fondo tipo resaltado detrás de las cifras (como subrayado de texto en Word). null = sin fondo.
+  cronometroFondoTexto: null,
+  // Quitar el nombre del cocinero del cuerpo de la tarjeta y moverlo a una barra superior (compacta)
+  quitarNombreCocineroTarjeta: false,
+  // Ocultar placas "ATENCIÓN" y "URGENTE" dentro de las tarjetas
+  ocultarAtencionUrgente: false,
+  // Animaciones de alerta por color cuando la tarjeta entra en ATENCIÓN / URGENTE
+  animacionesAlerta: true,
+  // Tipo de animación (nombre de keyframe) para cada estado
+  animacionAtencion: 'resplandorUrgente',
+  animacionUrgente: 'urgentePulse',
+  // Color personalizado por animación (null = usar color de alerta amarillo/rojo)
+  colorAnimacionAtencion: null,
+  colorAnimacionUrgente: null,
+  // Color de fondo de la tarjeta (si null usa colorFilaPlato)
+  colorFondoTarjeta: null,
+  // Degradado de la tarjeta: desactivado = color fijo (sin degradado negro)
+  degradadoTarjeta: true,
+  // Segundo color del degradado (null = automático según alerta)
+  colorDegradadoTarjeta: null,
+  // Emojis personalizados para animaciones con iconos (null = defaults de la animación)
+  emojisAnimacionAtencion: null,
+  emojisAnimacionUrgente: null,
+  // Tamaño de los emojis en px (null = automático según animación)
+  tamanioEmojiAtencion: null,
+  tamanioEmojiUrgente: null,
+  // Cantidad de emojis a renderizar (null = automático)
+  cantidadEmojiAtencion: null,
+  cantidadEmojiUrgente: null,
+  // AutoAgrandamiento: las tarjetas reducen/aumentan su tamaño según cuántos platos haya en pantalla
+  autoAgrandamiento: false,
+  // AutoAcomodamiento: cada tarjeta se dimensiona según su contenido (texto más largo = tarjeta más grande)
+  autoAcomodamiento: false,
 };
 
 const ICONO_MAP = {
@@ -138,6 +186,11 @@ const CocinaMonitorLayout = ({
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
   const [perfilMensaje, setPerfilMensaje] = useState(null);
   const [perfilAutoAplicado, setPerfilAutoAplicado] = useState(false);
+  // Auto-save debounced del localDesign al perfil auto del cocinero (MongoDB).
+  // skip: evita guardar justo después de cargar un perfil (load → setLocalDesign).
+  const autoSaveSkipRef = useRef(true); // true al montar para no guardar el estado inicial
+  const autoSaveTimerRef = useRef(null);
+  const [autoGuardando, setAutoGuardando] = useState(false);
   const [ultimoPlato, setUltimoPlato] = useState(null); // { nombre, cantidadTotal, ts, delta }
   const previousStateRef = useRef(new Map()); // key -> cantidadTotal
   const skipNotifInicialRef = useRef(true);
@@ -157,6 +210,8 @@ const CocinaMonitorLayout = ({
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key !== STORAGE_DESIGN_KEY) return;
+      // La otra ventana ya persistió; evitar auto-save redundante acá.
+      autoSaveSkipRef.current = true;
       try {
         setLocalDesign(e.newValue ? JSON.parse(e.newValue) : {});
       } catch {
@@ -253,6 +308,7 @@ const CocinaMonitorLayout = ({
         { config: localDesign || {} },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      autoSaveSkipRef.current = true; // evita auto-save redundante tras guardado explícito
       setPerfilMensaje({ tipo: 'ok', texto: 'Perfil guardado ✓' });
       setTimeout(() => setPerfilMensaje(null), 3000);
     } catch (err) {
@@ -309,6 +365,7 @@ const CocinaMonitorLayout = ({
       const config = perfil?.config;
       const nombre = perfil?.nombre || 'Perfil';
       if (config && typeof config === 'object') {
+        autoSaveSkipRef.current = true; // no auto-guardar el perfil recién cargado
         setLocalDesign(config);
         try { localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(config)); } catch { /* noop */ }
         setPerfilSelId(perfilId);
@@ -323,6 +380,7 @@ const CocinaMonitorLayout = ({
       // Fallback: usar la lista en cache si el fetch falla
       const p = perfiles.find((x) => String(x._id) === String(perfilId));
       if (p && p.config) {
+        autoSaveSkipRef.current = true; // no auto-guardar el perfil recién cargado
         setLocalDesign(p.config);
         try { localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(p.config)); } catch { /* noop */ }
         setPerfilSelId(perfilId);
@@ -447,6 +505,7 @@ const CocinaMonitorLayout = ({
           );
           const perfil = res.data?.data?.config;
           if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
+            autoSaveSkipRef.current = true; // no re-guardar el perfil aplicado
             setLocalDesign(perfil);
           }
         } else {
@@ -457,6 +516,7 @@ const CocinaMonitorLayout = ({
           const perfil = res.data?.data;
           if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
             // El perfil del backend tiene prioridad sobre el localStorage en modo fijo.
+            autoSaveSkipRef.current = true; // no re-guardar el perfil aplicado
             setLocalDesign(perfil);
           }
         }
@@ -465,6 +525,44 @@ const CocinaMonitorLayout = ({
       }
     })();
   }, [modoFijo, cocineroActivoId, getToken, perfilAutoAplicado]);
+
+  // ===== Auto-save debounced del localDesign al perfil auto del cocinero (MongoDB) =====
+  // Persiste la personalización del panel "Personalizar" en el backend automáticamente,
+  // sin necesidad de pulsar "Guardar perfil". Solo aplica en la consola principal
+  // (no modoFijo, que son ventanas hijas que solo muestran el perfil asignado),
+  // cuando hay un cocinero activo y NO se está editando un perfil con nombre
+  // (perfilSelId), ya que esos se guardan explícitamente. Se omite justo después de
+  // cargar un perfil (skip ref) para no re-persistir lo recién cargado.
+  useEffect(() => {
+    if (modoFijo) return;
+    if (!cocineroActivoId) return;
+    if (!getToken) return;
+    if (perfilSelId) return; // editando un perfil con nombre: guardado explícito
+    if (autoSaveSkipRef.current) {
+      autoSaveSkipRef.current = false;
+      return;
+    }
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        setAutoGuardando(true);
+        const baseUrl = getServerBaseUrl();
+        const token = getToken();
+        await axios.put(
+          `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+          { config: localDesign || {} },
+          { headers: { Authorization: `Bearer ${token}` }, timeout: 6000 }
+        );
+      } catch (err) {
+        console.warn('[CocinaMonitorLayout] Auto-save perfil falló:', err.message);
+      } finally {
+        setAutoGuardando(false);
+      }
+    }, 1500);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [localDesign, cocineroActivoId, getToken, perfilSelId, modoFijo]);
 
   // Config visual final
   const fuenteFamilia = configVisual.fuenteFamilia;
@@ -550,8 +648,49 @@ const CocinaMonitorLayout = ({
     [platosPendientes, modoCocineros],
   );
 
+  // Cocineros activos (para la barra superior cuando se "quita" el nombre de las tarjetas)
+  const cocinerosActivos = useMemo(() => {
+    if (!modoCocineros) return [];
+    const map = new Map();
+    for (const item of platosPendientes) {
+      const cid = item.cocinero?.id || '_sin_cocinero';
+      if (!map.has(cid)) {
+        map.set(cid, {
+          id: cid,
+          alias: item.cocinero?.alias || 'Cocinero',
+          nombre: item.cocinero?.nombre || '',
+          fotoUrl: item.cocinero?.fotoUrl || '',
+          totalPlatos: 0,
+        });
+      }
+      map.get(cid).totalPlatos += item.cantidadTotal || 0;
+    }
+    return Array.from(map.values());
+  }, [platosPendientes, modoCocineros]);
+
   const animOn = configVisual.animacionesTarjetas !== false;
   const presenceMode = animOn ? 'popLayout' : undefined;
+
+  // === AutoAgrandamiento ===
+  // Factor de escala según cantidad de platos en pantalla. Cuantos menos platos,
+  // más grandes las tarjetas; cuantos más, más pequeñas (para que todas quepan).
+  const autoAgrandamientoOn = configVisual.autoAgrandamiento === true;
+  const totalPlatosLista = platosPendientes.length;
+  const autoScale = (() => {
+    if (!autoAgrandamientoOn) return 1;
+    if (totalPlatosLista <= 0) return 1;
+    // Rangos suaves (basados en platos visibles)
+    if (totalPlatosLista <= 3) return 1.35;
+    if (totalPlatosLista <= 6) return 1.2;
+    if (totalPlatosLista <= 10) return 1.05;
+    if (totalPlatosLista <= 16) return 0.92;
+    if (totalPlatosLista <= 24) return 0.82;
+    return 0.72;
+  })();
+
+  // === AutoAcomodamiento ===
+  // Cada tarjeta se dimensiona según su contenido (no todas del mismo ancho).
+  const autoAcomodamientoOn = configVisual.autoAcomodamiento === true;
 
   return (
     <div
@@ -577,7 +716,7 @@ const CocinaMonitorLayout = ({
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '30px' }}>{iconoEmoji}</span>
           <h1
             style={{
@@ -589,6 +728,71 @@ const CocinaMonitorLayout = ({
           >
             {nombreVista.toUpperCase()}
           </h1>
+          {/* Nombres de cocineras a la derecha del título cuando se quitan de las tarjetas */}
+          {configVisual.quitarNombreCocineroTarjeta === true && cocinerosActivos.length > 0 && (
+            <>
+              <span style={{ color: colorTextoSecundario, fontSize: '18px', fontWeight: 700 }}>·</span>
+              {cocinerosActivos.map((c) => {
+                const colorC = (configVisual.colorPorCocinero !== false)
+                  ? colorAcentoPorCocineroHeader(c.alias)
+                  : colorAcento;
+                return (
+                  <span
+                    key={c.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 10px',
+                      borderRadius: '999px',
+                      background: `${colorC}1f`,
+                      border: `1px solid ${colorC}66`,
+                      color: colorC,
+                      fontSize: '13px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {c.fotoUrl ? (
+                      <img
+                        src={c.fotoUrl}
+                        alt={c.alias}
+                        style={{
+                          width: '20px', height: '20px', borderRadius: '50%',
+                          objectFit: 'cover', border: `2px solid ${colorC}`,
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '20px', height: '20px', borderRadius: '50%',
+                          background: `${colorC}22`, border: `2px solid ${colorC}`,
+                          color: colorC, fontSize: '9px', fontWeight: 800,
+                        }}
+                      >
+                        {(c.alias || '?').slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    {c.alias}
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: colorFondo,
+                        background: colorC,
+                        borderRadius: '999px',
+                        padding: '1px 7px',
+                        minWidth: '22px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {c.totalPlatos}
+                    </span>
+                  </span>
+                );
+              })}
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -617,26 +821,37 @@ const CocinaMonitorLayout = ({
             </div>
           </div>
           {!modoFijo && (
-            <button
-              onClick={() => setShowConfigPanel(s => !s)}
-              title="Personalizar apariencia"
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: 600,
-                background: showConfigPanel ? colorAcento : 'transparent',
-                color: showConfigPanel ? colorFondo : colorTextoSecundario,
-                border: `2px solid ${showConfigPanel ? colorAcento : `${colorAcento}55`}`,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span style={{ fontSize: '16px' }}>⚙</span>
-              Personalizar
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {autoGuardando && (
+                <span
+                  title="Guardando personalización en el servidor…"
+                  style={{ fontSize: '11px', color: colorTextoSecundario, display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <span className="animate-spin" style={{ display: 'inline-block', width: '10px', height: '10px', border: `2px solid ${colorAcento}`, borderTopColor: 'transparent', borderRadius: '50%' }} />
+                  Guardando…
+                </span>
+              )}
+              <button
+                onClick={() => setShowConfigPanel(s => !s)}
+                title="Personalizar apariencia"
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  background: showConfigPanel ? colorAcento : 'transparent',
+                  color: showConfigPanel ? colorFondo : colorTextoSecundario,
+                  border: `2px solid ${showConfigPanel ? colorAcento : `${colorAcento}55`}`,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span style={{ fontSize: '16px' }}>⚙</span>
+                Personalizar
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -852,7 +1067,12 @@ const CocinaMonitorLayout = ({
             terminoBusqueda={hayFiltroBusqueda ? searchTerm : null}
           />
         ) : modoBloques ? (
-          <div style={{ padding: '0 0 16px 0' }}>
+          <div
+            style={{
+              padding: '0 0 16px 0',
+              zoom: autoAgrandamientoOn ? autoScale : undefined,
+            }}
+          >
             <LayoutGroup>
               <AnimatePresence initial={false} mode={presenceMode}>
                 {bloquesCocinero.map((bloque) => (
@@ -875,7 +1095,8 @@ const CocinaMonitorLayout = ({
               gap: gapGrid,
               padding: gapGrid,
               alignContent: 'start',
-            } : undefined}
+              zoom: autoAgrandamientoOn ? autoScale : undefined,
+            } : { zoom: autoAgrandamientoOn ? autoScale : undefined }}
           >
             <LayoutGroup>
               <AnimatePresence initial={false} mode={presenceMode}>
@@ -886,6 +1107,7 @@ const CocinaMonitorLayout = ({
                     configVisual={configVisual}
                     mostrarCocinero
                     modoTarjeta={esGrid}
+                    autoAcomodamiento={autoAcomodamientoOn}
                     tick={tick}
                   />
                 ))}
@@ -901,7 +1123,8 @@ const CocinaMonitorLayout = ({
               gap: gapGrid,
               padding: gapGrid,
               alignContent: 'start',
-            } : undefined}
+              zoom: autoAgrandamientoOn ? autoScale : undefined,
+            } : { zoom: autoAgrandamientoOn ? autoScale : undefined }}
           >
             <LayoutGroup>
               <AnimatePresence initial={false} mode={presenceMode}>

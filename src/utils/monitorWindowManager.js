@@ -101,7 +101,7 @@ const construirFeatures = (pos) => [
  * Después de abrir la ventana, la mueve y redimensiona al monitor correcto.
  * Reintenta varias veces porque la ventana puede no estar lista inmediatamente.
  * También intenta fullscreen automático (puede fallar si Chrome no lo considera
- * gesto del usuario; en ese caso el overlay de click en la vista es el fallback).
+ * gesto del usuario; el .bat con --kiosk es la vía recomendada para fullscreen real).
  */
 const posicionarVentana = (win, pos) => {
   if (!win) return;

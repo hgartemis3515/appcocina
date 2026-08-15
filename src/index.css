@@ -98,6 +98,159 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* === Animaciones de alerta para tarjetas (Ver Cocina) ===
+   Se aplican al wrapper interno de la tarjeta (no al motion.div de framer-motion
+   para no chocar con sus transforms de layout/exit).
+   El color lo inyecta la tarjeta vía CSS variables --kds-alerta-color / --kds-fondo-base. */
+
+@keyframes urgentePulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--kds-alerta-color, #ef4444); transform: scale(1); }
+  50% { box-shadow: 0 0 24px 6px var(--kds-alerta-color, #ef4444); transform: scale(1.03); }
+}
+
+@keyframes alertaShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes flashBorde {
+  0%, 100% { border-color: var(--kds-fondo-base, #1a0f1f); box-shadow: 0 0 0 0 transparent; }
+  50% { border-color: var(--kds-alerta-color, #ef4444); box-shadow: 0 0 18px 4px var(--kds-alerta-color, #ef4444); }
+}
+
+@keyframes sacudidaFuerte {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-6px, 2px) rotate(-1deg); }
+  30% { transform: translate(6px, -2px) rotate(1deg); }
+  45% { transform: translate(-5px, 1px) rotate(-0.5deg); }
+  60% { transform: translate(5px, -1px) rotate(0.5deg); }
+  75% { transform: translate(-3px, 1px) rotate(0deg); }
+  90% { transform: translate(3px, -1px) rotate(0deg); }
+}
+
+@keyframes latidoUrgente {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  25% { transform: scale(1.06); opacity: 0.92; }
+  50% { transform: scale(0.97); opacity: 1; }
+  75% { transform: scale(1.04); opacity: 0.95; }
+}
+
+@keyframes parpadeoAlerta {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes reboteAlerta {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-8px); }
+  60% { transform: translateY(0); }
+  80% { transform: translateY(-3px); }
+}
+
+@keyframes resplandorUrgente {
+  0%, 100% { box-shadow: 0 0 6px 0 var(--kds-alerta-color, #ef4444); }
+  50% { box-shadow: 0 0 32px 10px var(--kds-alerta-color, #ef4444), inset 0 0 18px var(--kds-alerta-color, #ef4444)55; }
+}
+
+/* === Animaciones de alerta con contenido (overlay dentro de la tarjeta) === */
+
+@keyframes sirenaAlerta {
+  0%, 100% { background: radial-gradient(circle, var(--kds-alerta-color, #ef4444) 0%, transparent 70%); }
+  50% { background: radial-gradient(circle, #fbbf24 0%, transparent 70%); }
+}
+
+@keyframes rayoUrgente {
+  0%, 100% { background: linear-gradient(135deg, var(--kds-alerta-color, #ef4444)22, transparent 60%); }
+  50% { background: linear-gradient(135deg, var(--kds-alerta-color, #ef4444)77, transparent 30%); }
+}
+
+@keyframes explosionFuego {
+  0%, 100% { background: radial-gradient(circle, #fbbf24 0%, var(--kds-alerta-color, #ef4444) 40%, transparent 75%); }
+  50% { background: radial-gradient(circle, #fde047 0%, #fb923c 35%, var(--kds-alerta-color, #ef4444) 70%); }
+}
+
+@keyframes ondaChoque {
+  0% { box-shadow: 0 0 0 0 var(--kds-alerta-color, #ef4444), inset 0 0 0 0 var(--kds-alerta-color, #ef4444); }
+  100% { box-shadow: 0 0 0 40px transparent, inset 0 0 0 20px transparent; }
+}
+
+@keyframes tormentaAlerta {
+  0%, 100% { background: linear-gradient(180deg, #0a0a0f 0%, var(--kds-alerta-color, #ef4444)33 100%); }
+  10% { background: linear-gradient(180deg, var(--kds-alerta-color, #ef4444)66 0%, #0a0a0f 100%); }
+  20% { background: linear-gradient(180deg, #0a0a0f 0%, var(--kds-alerta-color, #ef4444)33 100%); }
+}
+
+@keyframes pulsoRadioactivo {
+  0%, 100% { background: radial-gradient(circle, #22c55e33 0%, transparent 60%); box-shadow: 0 0 6px #22c55e; }
+  50% { background: radial-gradient(circle, #22c55e99 0%, transparent 70%); box-shadow: 0 0 28px #22c55e; }
+}
+
+@keyframes alarmaGiratoria {
+  0%, 100% { background: linear-gradient(135deg, var(--kds-alerta-color, #ef4444)22, #0a0a0f 80%); }
+  50% { background: linear-gradient(135deg, var(--kds-alerta-color, #ef4444)66, #0a0a0f 80%); }
+}
+
+@keyframes fuegoCruzado {
+  0% { background: linear-gradient(45deg, var(--kds-alerta-color, #ef4444)33, transparent 50%, #fbbf2433 100%); }
+  50% { background: linear-gradient(225deg, var(--kds-alerta-color, #ef4444)55, transparent 50%, #fbbf2455 100%); }
+  100% { background: linear-gradient(45deg, var(--kds-alerta-color, #ef4444)33, transparent 50%, #fbbf2433 100%); }
+}
+
+@keyframes semaforoUrgente {
+  0%, 100% { background: radial-gradient(circle at 50% 50%, var(--kds-alerta-color, #ef4444) 0%, transparent 50%); }
+  50% { background: radial-gradient(circle at 50% 50%, var(--kds-alerta-color, #ef4444)99 0%, transparent 60%); }
+}
+
+@keyframes barreraPeligro {
+  0% { background: repeating-linear-gradient(45deg, #fbbf2455 0 20px, #00000055 20px 40px); background-position: 0 0; }
+  100% { background: repeating-linear-gradient(45deg, #fbbf2455 0 20px, #00000055 20px 40px); background-position: 80px 0; }
+}
+
+@keyframes meteoritoAlerta {
+  0%, 100% { background: linear-gradient(180deg, #0a0a0f, var(--kds-alerta-color, #ef4444)33); }
+  50% { background: linear-gradient(180deg, var(--kds-alerta-color, #ef4444)22, #0a0a0f); }
+}
+
+@keyframes nucleoSobrecarga {
+  0%, 100% { background: radial-gradient(circle, #fff 0%, var(--kds-alerta-color, #ef4444) 30%, transparent 70%); box-shadow: 0 0 10px var(--kds-alerta-color, #ef4444); }
+  50% { background: radial-gradient(circle, #fff 0%, var(--kds-alerta-color, #ef4444) 50%, transparent 90%); box-shadow: 0 0 40px var(--kds-alerta-color, #ef4444); }
+}
+
+/* Propias */
+@keyframes pulsoNeon {
+  0%, 100% { box-shadow: 0 0 4px var(--kds-alerta-color, #ef4444), inset 0 0 4px var(--kds-alerta-color, #ef4444)44; border-color: var(--kds-alerta-color, #ef4444); }
+  50% { box-shadow: 0 0 26px 6px var(--kds-alerta-color, #ef4444), inset 0 0 16px var(--kds-alerta-color, #ef4444)88; border-color: #fff; }
+}
+
+@keyframes glitchAlerta {
+  0%, 100% { transform: translate(0, 0); filter: none; }
+  20% { transform: translate(-2px, 1px); filter: hue-rotate(20deg); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, -1px); filter: hue-rotate(-20deg); }
+  80% { transform: translate(1px, 1px); }
+}
+
+/* === Animaciones de iconos (dentro del overlay) === */
+@keyframes kdsIconSpin { to { transform: rotate(360deg); } }
+@keyframes kdsIconFlash { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@keyframes kdsIconFall {
+  0% { transform: translateY(-40px) translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(160px) translateX(40px); opacity: 0; }
+}
+@keyframes kdsIconCross {
+  0% { transform: translateX(-120%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+@keyframes kdsIconPulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
 /* ===== F2: Responsive KDS — grid y barra ===== */
 
 /* Forzar 1 columna en teléfono cuando el preset/config lo activa */
