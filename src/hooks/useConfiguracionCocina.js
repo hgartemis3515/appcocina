@@ -14,7 +14,14 @@ const DEFAULT = {
     obligarOrdenAsignacion: true,
     solicitudOrdenFueraDeCola: true,
     // PLAN NOMBRE_PLATO_COCINA: alias corto en tabla KDS (escape hatch).
-    usarNombreCocinaEnTablaKds: true
+    usarNombreCocinaEnTablaKds: true,
+    // PLAN GUARNICIONES_SEPARADAS v1.1: separar principal y guarniciones.
+    permitirGuarnicionesSeparadas: true,
+    tiemposGuarnicion: {
+        umbralAlertaMultiplo: 1.5,
+        umbralCriticaMultiplo: 2,
+        tiemposDefault: { rapido: 180, medio: 420, lento: 900 }
+    }
 };
 
 let cache = null; // cache en módulo (misma sesión)
@@ -37,7 +44,18 @@ export async function fetchConfiguracionCocina(getToken) {
             cache = {
                 obligarOrdenAsignacion: cfg.obligarOrdenAsignacion !== false,
                 solicitudOrdenFueraDeCola: cfg.solicitudOrdenFueraDeCola !== false,
-                usarNombreCocinaEnTablaKds: cfg.usarNombreCocinaEnTablaKds !== false
+                usarNombreCocinaEnTablaKds: cfg.usarNombreCocinaEnTablaKds !== false,
+                // PLAN GUARNICIONES_SEPARADAS v1.1
+                permitirGuarnicionesSeparadas: cfg.permitirGuarnicionesSeparadas !== false,
+                tiemposGuarnicion: {
+                    umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
+                    umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,
+                    tiemposDefault: {
+                        rapido: cfg.tiemposGuarnicion?.tiemposDefault?.rapido ?? 180,
+                        medio: cfg.tiemposGuarnicion?.tiemposDefault?.medio ?? 420,
+                        lento: cfg.tiemposGuarnicion?.tiemposDefault?.lento ?? 900
+                    }
+                }
             };
             return cache;
         } catch (e) {

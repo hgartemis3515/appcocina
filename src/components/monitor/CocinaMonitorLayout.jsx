@@ -13,8 +13,15 @@ import MonitorConfigPanel from './MonitorConfigPanel';
 import SearchBar from '../additionals/SearchBar';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { asignarNumeroGlobal } from '../../utils/numeracionTimersMonitor';
+import { asignarNumeroGlobal, colorLineaDesdeId } from '../../utils/numeracionTimersMonitor';
 import { BADGE_DEFAULTS } from '../../utils/monitorBadgeStyles';
+import { fetchConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
+import { grupoIdEstable } from '../../hooks/useCocinaMonitorFilter';
+// PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: helpers para el panel de guarniciones
+import { nombreGuarnicionSolo, guarnicionesPendientes } from '../../utils/guarnicionesKds';
+// §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
+// nombre comercial que incluye complementos).
+import { obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -42,6 +49,13 @@ const DEFAULT_CONFIG = {
   colorFilaPlato: '#1a1a28',
   espaciadoFilas: 'normal',
   layoutColumnas: 1,
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones
+  // (split 50/50 cuando "Lista complementos" está activo).
+  layoutColumnasGuarniciones: 1,
+  // §10: si false, las guarniciones heredan el diseño de lista de los platos
+  // (mismas columnas). Si true, se habilita la personalización independiente
+  // del panel de guarniciones (columnas, etc.).
+  diferenciarDisenoGuarniciones: false,
   disposicionTarjeta: 'vertical',
   pesoFuentePlato: '800',
   animacionesTarjetas: true,
@@ -77,6 +91,13 @@ const DEFAULT_CONFIG = {
   cronometroContornoLetra: null,
   // Fondo tipo resaltado detrás de las cifras (como subrayado de texto en Word). null = sin fondo.
   cronometroFondoTexto: null,
+  cronometroForma: 'redondeado',
+  cronometroAncho: null,
+  cronometroAlto: null,
+  cronometroRadio: null,
+  tarjetaRadio: 14,
+  tarjetaPadding: null,
+  tarjetaGap: 16,
   // Quitar el nombre del cocinero del cuerpo de la tarjeta y moverlo a una barra superior (compacta)
   quitarNombreCocineroTarjeta: false,
   // Ocultar placas "ATENCIÓN" y "URGENTE" dentro de las tarjetas
@@ -182,6 +203,24 @@ const CocinaMonitorLayout = ({
   });
 
   const [showConfigPanel, setShowConfigPanel] = useState(false);
+  // PLAN GUARNICIONES_SEPARADAS v1.1 §10: toggle "Activar Lista complementos".
+  // Estado inicial: query ?listaGuarniciones=1 (ventanas hijas kiosk) > localStorage > false.
+  // Si el flag global está OFF, el split nunca se aplica.
+  const [listaGuarnicionesOn, setListaGuarnicionesOn] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('listaGuarniciones');
+      if (q === '1' || q === 'true') return true;
+      if (q === '0' || q === 'false') return false;
+      return localStorage.getItem('cocina.listaComplementos') === '1';
+    } catch { return false; }
+  });
+  useEffect(() => {
+    // Persistir solo en sesión interactiva (no kiosk). En kiosk el estado lo gobierna la URL.
+    if (!modoFijo) {
+      try { localStorage.setItem('cocina.listaComplementos', listaGuarnicionesOn ? '1' : '0'); } catch { /* noop */ }
+    }
+  }, [listaGuarnicionesOn, modoFijo]);
   // Perfil de personalización Ver Cocina (flujo Distribuir Cocina en monitores)
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
   const [perfilMensaje, setPerfilMensaje] = useState(null);
@@ -195,6 +234,24 @@ const CocinaMonitorLayout = ({
   const previousStateRef = useRef(new Map()); // key -> cantidadTotal
   const skipNotifInicialRef = useRef(true);
   const notifTimeoutRef = useRef(null);
+  // PLAN GUARNICIONES_SEPARADAS v1.1: flag global + tiempos (para split 50/50 y alertas).
+  const [flagGuarnicionesGlobal, setFlagGuarnicionesGlobal] = useState(true);
+  const [tiemposGuarnicion, setTiemposGuarnicion] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const cfg = await fetchConfiguracionCocina(getToken);
+        if (!mounted) return;
+        setFlagGuarnicionesGlobal(cfg.permitirGuarnicionesSeparadas !== false);
+        if (cfg.tiemposGuarnicion) setTiemposGuarnicion(cfg.tiemposGuarnicion);
+      } catch (e) {
+        // defaults ya cargados
+      }
+    })();
+    return () => { mounted = false; };
+  }, [getToken]);
 
   // Config visual final combinada
   const configVisual = { ...DEFAULT_CONFIG, ...configVistaProp, ...localDesign };
@@ -586,6 +643,15 @@ const CocinaMonitorLayout = ({
   const iconoEmoji = ICONO_MAP[icono] || icono || '🍳';
   const layoutColumnas = clampColumnas(configVisual.layoutColumnas || 1);
   const esGrid = layoutColumnas > 1;
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones.
+  // Si NO se activa "diferenciar diseño", las guarniciones heredan las columnas
+  // de los platos principales (mismo diseño de lista).
+  const diferenciarDiseno = configVisual.diferenciarDisenoGuarniciones === true;
+  const layoutColumnasGuarniciones = clampColumnas(
+    diferenciarDiseno ? (configVisual.layoutColumnasGuarniciones || 1) : (configVisual.layoutColumnas || 1)
+  );
+  const esGridGuarniciones = layoutColumnasGuarniciones > 1;
+  const splitActivo = listaGuarnicionesOn && flagGuarnicionesGlobal;
   const gapGrid =
     configVisual.espaciadoFilas === 'unido' ? '0px' :
     configVisual.espaciadoFilas === 'compacto' ? '8px' :
@@ -596,10 +662,98 @@ const CocinaMonitorLayout = ({
     ? modoCocinerosProp
     : Array.isArray(platosPendientes) && platosPendientes.some(p => p && p.cocinero && Array.isArray(p.timers));
 
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: agrupar guarniciones igual que platos.
+  // Misma forma de item que CocineroPlatoCard: nombre, cantidadTotal, timers[]
+  // (un chip de cronómetro por unidad). Varios "Arroz" = una tarjeta + N timers.
+  const guarnicionesPanel = useMemo(() => {
+    if (!splitActivo) return [];
+    const gruposMap = new Map();
+    for (const grupo of platosPendientes) {
+      for (const p of (grupo.platos || [])) {
+        const plato = p?.plato;
+        if (!plato) continue;
+        const comps = guarnicionesPendientes(plato);
+        if (!comps.length) continue;
+        const nombrePadre = obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato';
+        const tiempoInicio = p.tiempoInicio || grupo.tiempoInicio || null;
+        const comanda = p.comanda || {};
+        const comandaId = String(comanda._id || comanda.id || comanda.numero || '');
+        const platoIndex = Array.isArray(comanda.platos) ? comanda.platos.indexOf(plato) : -1;
+        const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
+        const comandaNumero = comanda.numero || comanda.numeroMesa || null;
+
+        for (const comp of comps) {
+          const nombreG = nombreGuarnicionSolo(comp) || 'Guarnición';
+          const qty = Number(comp.cantidad) || 1;
+          const ppG = comp.procesandoPor;
+          const cocinero = (ppG?.cocineroId)
+            ? { id: String(ppG.cocineroId), alias: ppG.alias || ppG.nombre || 'Cocinero', nombre: ppG.nombre || ppG.alias || '' }
+            : (p.cocinero || grupo.cocinero || null);
+          const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
+          const key = `${cid}::g::${nombreG.trim().toLowerCase()}`;
+          if (!gruposMap.has(key)) {
+            gruposMap.set(key, {
+              nombre: nombreG,
+              cantidadTotal: 0,
+              platos: [],
+              tiempoInicio: null,
+              key,
+              grupoId: grupoIdEstable(key),
+              cocinero: modoCocineros ? cocinero : null,
+              timers: [],
+              esGuarnicion: true,
+              padresSet: new Set(),
+            });
+          }
+          const g = gruposMap.get(key);
+          g.cantidadTotal += qty;
+          g.platos.push(p);
+          if (nombrePadre) g.padresSet.add(nombrePadre);
+          const lineaId = `${comandaId}:${platoIndex}:g:${comp._id || nombreG}`;
+          const colorLinea = colorLineaDesdeId(lineaId);
+          for (let u = 0; u < qty; u++) {
+            g.timers.push({
+              tiempoInicio,
+              cantidad: 1,
+              mesa: mesaNum,
+              comandaNumero,
+              comandaId,
+              platoIndex,
+              unidadIndex: u,
+              lineaId,
+              colorLinea,
+            });
+          }
+          const t = tiempoInicio ? new Date(tiempoInicio).getTime() : null;
+          if (t != null && (g.tiempoInicio === null || t < new Date(g.tiempoInicio).getTime())) {
+            g.tiempoInicio = tiempoInicio;
+          }
+        }
+      }
+    }
+    const grupos = Array.from(gruposMap.values()).map((g) => {
+      const padres = Array.from(g.padresSet).filter(Boolean);
+      const { padresSet, ...rest } = g;
+      return {
+        ...rest,
+        subtitulo: padres.length ? `de ${padres.join(' · ')}` : '',
+      };
+    });
+    grupos.sort((a, b) => {
+      const ta = a.tiempoInicio ? new Date(a.tiempoInicio).getTime() : 0;
+      const tb = b.tiempoInicio ? new Date(b.tiempoInicio).getTime() : 0;
+      return ta - tb;
+    });
+    return modoCocineros ? asignarNumeroGlobal(grupos) : grupos;
+  }, [splitActivo, platosPendientes, modoCocineros]);
+
   // Modo de agrupación visual efectivo:
   // - tarjetas independientes si multi-columna O config.modoAgrupacion === 'tarjetas'
-  // - bloques por cocinero en columna única (default)
+  // - bloques por cocinero en columna única SOLO en vista General.
+  //   Si hay un cocinero filtrado, el header (foto + alias + PLATOS + MÁS ANTIGUO)
+  //   es redundante: ya se ve en el selector.
   const modoBloques = modoCocineros
+    && !cocineroActivoId
     && layoutColumnas === 1
     && (configVisual.modoAgrupacion || 'bloques') === 'bloques'
     && configVisual.mostrarCabeceraCocinero !== false;
@@ -851,6 +1005,30 @@ const CocinaMonitorLayout = ({
                 <span style={{ fontSize: '16px' }}>⚙</span>
                 Personalizar
               </button>
+              {/* PLAN GUARNICIONES_SEPARADAS v1.1 §10: botón a la derecha de Personalizar.
+                  Solo se muestra si el flag global permitirGuarnicionesSeparadas está ON. */}
+              {flagGuarnicionesGlobal && (
+                <button
+                  onClick={() => setListaGuarnicionesOn(v => !v)}
+                  title={listaGuarnicionesOn ? 'Lista de complementos activada (split 50/50)' : 'Activar Lista de complementos (split 50/50)'}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    background: listaGuarnicionesOn ? '#7CB342' : 'transparent',
+                    color: listaGuarnicionesOn ? colorFondo : colorTextoSecundario,
+                    border: `2px solid ${listaGuarnicionesOn ? '#7CB342' : `${colorAcento}55`}`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span style={{ fontSize: '16px' }}>🥗</span>
+                  {listaGuarnicionesOn ? 'Lista complementos ON' : 'Activar Lista complementos'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1059,7 +1237,17 @@ const CocinaMonitorLayout = ({
       </AnimatePresence>
 
       {/* Lista de platos */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: split 50/50 cuando "Lista
+        // complementos" está activo. Izquierda = platos principales, derecha =
+        // panel de guarniciones.
+        ...(splitActivo ? { display: 'flex', flexDirection: 'row', overflow: 'hidden' } : {}),
+      }}>
+        {/* Panel izquierdo: platos principales (ancho 50% cuando split activo) */}
+        <div style={splitActivo ? { flex: '1 1 50%', overflowY: 'auto', overflowX: 'hidden', borderRight: `2px solid ${colorAcento}33` } : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {totalPendientes === 0 ? (
           <MonitorEmptyState
             nombreVista={nombreVista}
@@ -1105,7 +1293,7 @@ const CocinaMonitorLayout = ({
                     key={item.grupoId || item.key}
                     item={item}
                     configVisual={configVisual}
-                    mostrarCocinero
+                    mostrarCocinero={!cocineroActivoId}
                     modoTarjeta={esGrid}
                     autoAcomodamiento={autoAcomodamientoOn}
                     tick={tick}
@@ -1139,6 +1327,67 @@ const CocinaMonitorLayout = ({
                 ))}
               </AnimatePresence>
             </LayoutGroup>
+          </div>
+        )}
+        </div>
+
+        {/* PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: Panel derecho de guarniciones.
+            Misma tarjeta que platos (CocineroPlatoCard): fuentes, colores,
+            animaciones y columna de TemporizadorChips a la derecha.
+            Varios iguales = una tarjeta + un chip de cronómetro por unidad. */}
+        {splitActivo && (
+          <div style={{
+            flex: '1 1 50%',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            background: `${colorFondo}f5`,
+          }}>
+            {guarnicionesPanel.length === 0 ? (
+              <div style={{
+                margin: 'auto', textAlign: 'center', color: colorTextoSecundario,
+                fontSize: '14px', opacity: 0.7,
+              }}>
+                No hay guarniciones pendientes
+              </div>
+            ) : (
+              <div
+                key={`guarn-cols-${layoutColumnasGuarniciones}`}
+                style={esGridGuarniciones ? {
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${layoutColumnasGuarniciones}, minmax(0, 1fr))`,
+                  gap: gapGrid,
+                  padding: gapGrid,
+                  alignContent: 'start',
+                  alignItems: 'start',
+                  zoom: autoAgrandamientoOn ? autoScale : undefined,
+                } : {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: gapGrid,
+                  padding: gapGrid,
+                  alignItems: 'stretch',
+                  zoom: autoAgrandamientoOn ? autoScale : undefined,
+                }}
+              >
+                <LayoutGroup>
+                  <AnimatePresence initial={false} mode={presenceMode}>
+                    {guarnicionesPanel.map((item) => (
+                      <CocineroPlatoCard
+                        key={item.grupoId || item.key}
+                        item={item}
+                        configVisual={configVisual}
+                        mostrarCocinero={false}
+                        modoTarjeta={esGridGuarniciones}
+                        autoAcomodamiento={autoAcomodamientoOn}
+                        tick={tick}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </LayoutGroup>
+              </div>
+            )}
           </div>
         )}
       </div>

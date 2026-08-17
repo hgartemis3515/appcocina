@@ -14,6 +14,8 @@ const DEFAULT_NUMERO_SEC = {
   peso: '900',
   prefijo: true,
   glow: true,
+  ancho: null,
+  alto: null,
 };
 
 const DEFAULT_CANTIDAD = {
@@ -27,20 +29,27 @@ const DEFAULT_CANTIDAD = {
 };
 
 /**
- * @param {'circulo'|'redondeado'|'cuadrado'|'pildora'} forma
- * @param {boolean} esUnido
+ * Radio de borde según forma, o píxeles explícitos.
+ * @param {'circulo'|'redondeado'|'cuadrado'|'pildora'|'sin-esquinas'} forma
+ * @param {{ esUnido?: boolean, radioPx?: number|null, defaultPx?: number }} opts
  */
-export function borderRadiusNumeroSec(forma, esUnido = false) {
+export function radioForma(forma, opts = {}) {
+  const { esUnido = false, radioPx = null, defaultPx = 10 } = opts;
+  if (radioPx != null && radioPx !== '') {
+    const n = Number(radioPx);
+    if (Number.isFinite(n)) return `${Math.max(0, n)}px`;
+  }
   switch (forma) {
     case 'circulo':
       return '50%';
     case 'cuadrado':
-      return 0;
+    case 'sin-esquinas':
+      return '0';
     case 'pildora':
       return '999px';
     case 'redondeado':
     default:
-      return esUnido ? '4px' : '10px';
+      return esUnido ? '4px' : `${defaultPx}px`;
   }
 }
 
@@ -71,15 +80,20 @@ export function estiloNumeroSecuencial(configVisual = {}, opts = {}) {
       : Math.max(10, Number(tamanioCfg) || Math.max(18, tamanioPlato * 0.55));
 
   const box = Math.max(36, fontSize * 1.35);
+  const anchoCfg = configVisual.numeroSecAncho;
+  const altoCfg = configVisual.numeroSecAlto;
+  const ancho = anchoCfg != null && anchoCfg !== '' ? Math.max(20, Number(anchoCfg) || box) : box;
+  const alto = altoCfg != null && altoCfg !== '' ? Math.max(20, Number(altoCfg) || box) : box;
 
   return {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: `${box}px`,
-    height: `${box}px`,
-    padding: '2px 8px',
-    borderRadius: borderRadiusNumeroSec(forma, esUnido),
+    minWidth: `${ancho}px`,
+    width: `${ancho}px`,
+    height: `${alto}px`,
+    padding: '2px 4px',
+    borderRadius: radioForma(forma, { esUnido, defaultPx: 10 }),
     backgroundColor: fondo,
     background: fondo,
     border: `2px solid ${contorno}`,
@@ -89,6 +103,7 @@ export function estiloNumeroSecuencial(configVisual = {}, opts = {}) {
     fontVariantNumeric: 'tabular-nums',
     flexShrink: 0,
     lineHeight: 1,
+    boxSizing: 'border-box',
     boxShadow: glow ? `0 0 6px ${contorno}55` : 'none',
     // Por encima del fondo del chip del temporizador
     position: 'relative',
@@ -156,6 +171,8 @@ export const BADGE_DEFAULTS = {
   numeroSecPeso: DEFAULT_NUMERO_SEC.peso,
   numeroSecPrefijo: DEFAULT_NUMERO_SEC.prefijo,
   numeroSecGlow: DEFAULT_NUMERO_SEC.glow,
+  numeroSecAncho: DEFAULT_NUMERO_SEC.ancho,
+  numeroSecAlto: DEFAULT_NUMERO_SEC.alto,
   cantidadColor: DEFAULT_CANTIDAD.color,
   cantidadContorno: DEFAULT_CANTIDAD.contorno,
   cantidadFondo: DEFAULT_CANTIDAD.fondo,
@@ -167,3 +184,8 @@ export const BADGE_DEFAULTS = {
 };
 
 export { DEFAULT_NUMERO_SEC, DEFAULT_CANTIDAD };
+
+/** Compat: nombre anterior de radioForma para el badge #N */
+export function borderRadiusNumeroSec(forma, esUnido = false) {
+  return radioForma(forma, { esUnido, defaultPx: 10 });
+}

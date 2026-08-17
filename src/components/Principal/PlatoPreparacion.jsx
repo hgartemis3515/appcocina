@@ -34,6 +34,14 @@ const PlatoPreparacion = ({
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: número de cola del plato (#1, #2, ...)
   // Precalculado por el padre con ordenColaCocinero.js. Si null, no se muestra el badge.
   numeroColaCocinero = null,
+  // PLAN GUARNICIONES_SEPARADAS v1.1: si esta tarjeta es una guarnición, no pinta
+  // complementosSeleccionados (ya están partidos en tarjetas hermanas).
+  tipoUnidad = 'principal',         // 'principal' | 'guarnicion'
+  ocultarComplementos = false,      // si true, no renderizar complementosSeleccionados
+  nombreGuarnicion = null,          // título para guarnición: "Papas (Lomo Saltado)"
+  compId = null,                    // _id del subdoc complemento (para toggle de guarnición)
+  estadoAlerta = null,              // null | 'alerta' | 'critica' (tiempo)
+  etiquetaPrioridad = null,         // texto VIP/refire para mostrar como badge
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -47,11 +55,22 @@ const PlatoPreparacion = ({
     // 🔥 FIX: No permitir interacción si está tomado por otro cocinero (excepto supervisor)
     if (!puedeInteractuar || isEliminado) return;
     if (onToggle && platoIndex !== undefined && platoIndex !== null && platoIndex >= 0) {
-      onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
+      // PLAN GUARNICIONES_SEPARADAS v1.1: si es guarnición, pasar compId
+      // para que el padre llame al endpoint de guarnición (no al de plato).
+      if (tipoUnidad === 'guarnicion' && compId) {
+        onToggle(comandaId, platoIndex, { tipo: 'guarnicion', compId });
+      } else {
+        onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
+      }
     }
   };
 
   const visualState = isEliminado ? 'eliminado' : estadoVisual;
+
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.1: la tarjeta de guarnición es compacta
+  // (un tercio de la altura del plato principal). Mismo ancho, menos padding,
+  // fuente y checkbox más pequeños. Se activa cuando tipoUnidad === 'guarnicion'.
+  const compact = tipoUnidad === 'guarnicion';
 
   const containerVariants = {
     normal: {
@@ -183,8 +202,8 @@ const PlatoPreparacion = ({
           onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
         }
       }}
-      className={`font-semibold leading-tight px-3 py-2 rounded-lg flex items-start gap-3 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
-      style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px' }}
+      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-lg flex items-start gap-2 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
+      style={{ fontFamily: 'Arial, sans-serif', fontSize: compact ? '13px' : '18px' }}
       title={isEliminado ? 'Plato eliminado' : estadoVisual === 'dejar' ? '↩️ Dejar plato' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
       variants={containerVariants}
       initial="normal"
@@ -193,7 +212,7 @@ const PlatoPreparacion = ({
       whileTap={!isEliminado ? { scale: 0.98 } : {}}
     >
       <div
-        className="w-8 h-8 border-2 rounded flex items-center justify-center pointer-events-none flex-shrink-0"
+        className={`${compact ? 'w-5 h-5' : 'w-8 h-8'} border-2 rounded flex items-center justify-center pointer-events-none flex-shrink-0`}
         style={{
           borderColor: checkBorderColor,
           backgroundColor: checkBgColor,
@@ -202,7 +221,7 @@ const PlatoPreparacion = ({
       >
         {visualState === 'seleccionado' && (
           <motion.svg
-            className="w-5 h-5 text-white"
+            className={`${compact ? 'w-3 h-3' : 'w-5 h-5'} text-white`}
             fill="currentColor"
             viewBox="0 0 20 20"
             variants={iconVariants}
@@ -215,7 +234,7 @@ const PlatoPreparacion = ({
         )}
         {visualState === 'dejar' && (
           <motion.span
-            className="text-xl"
+            className={compact ? 'text-sm' : 'text-xl'}
             variants={iconVariants}
             animate="dejar"
             style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.5))' }}
@@ -226,7 +245,7 @@ const PlatoPreparacion = ({
         )}
         {visualState === 'procesando' && (
           <motion.span
-            className="text-xl"
+            className={compact ? 'text-sm' : 'text-xl'}
             variants={iconVariants}
             animate="procesando"
             style={{ filter: 'drop-shadow(0 2px 4px rgba(252, 211, 77, 0.5))' }}
@@ -237,7 +256,7 @@ const PlatoPreparacion = ({
         )}
         {visualState === 'normal' && (
           <div
-            className={`w-4 h-4 rounded border-2 ${nightMode ? 'bg-gray-600 border-gray-500' : 'bg-gray-300 border-gray-400'}`}
+            className={`${compact ? 'w-2.5 h-2.5' : 'w-4 h-4'} rounded border-2 ${nightMode ? 'bg-gray-600 border-gray-500' : 'bg-gray-300 border-gray-400'}`}
             aria-hidden
           />
         )}
@@ -264,7 +283,7 @@ const PlatoPreparacion = ({
             <motion.span
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              className={`inline-flex items-center gap-1 ${compact ? 'px-1 py-0 text-[10px]' : 'px-2 py-0.5 text-xs'} font-medium ${
                 procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
                   ? 'bg-green-500/20 text-green-300 border border-green-500/30'
                   : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
@@ -277,7 +296,7 @@ const PlatoPreparacion = ({
               >
                 👨‍🍳
               </motion.span>
-              <span className="max-w-[60px] truncate">
+              <span className={compact ? 'max-w-[50px] truncate' : 'max-w-[60px] truncate'}>
                 {procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
                   ? 'Tú'
                   : (procesandoPor.alias || procesandoPor.nombre || 'Cocinero')}
@@ -295,7 +314,38 @@ const PlatoPreparacion = ({
           )}
         </div>
         
-        {complementosSeleccionados && complementosSeleccionados.length > 0 && (
+        {/* PLAN GUARNICIONES_SEPARADAS v1.1: badge de guarnición + alerta de tiempo */}
+        {tipoUnidad === 'guarnicion' && (
+          <div className="flex items-center gap-1 pointer-events-none">
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40" title="Guarnición">
+              🥗 Guarnición
+            </span>
+            {estadoAlerta === 'critica' && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500/30 text-red-200 border border-red-400/50 animate-pulse" title="Atrasada (crítica)">
+                ⏰ Atrasada
+              </span>
+            )}
+            {estadoAlerta === 'alerta' && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/25 text-amber-200 border border-amber-400/40" title="Atrasada">
+                ⏱️
+              </span>
+            )}
+          </div>
+        )}
+        {/* Etiqueta de prioridad VIP/refire/tiempo limitado */}
+        {etiquetaPrioridad && (
+          <span className="self-start px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/40" title={etiquetaPrioridad}>
+            {etiquetaPrioridad}
+          </span>
+        )}
+
+        {/* PLAN GUARNICIONES_SEPARADAS v1.1.1: la tarjeta de guarnición muestra
+            solo "1 Arroz" (cantidad + nombre de la guarnición, sin padre) en la
+            línea principal ({cantidad} {nombre}). La relación visual la da la
+            posición (debajo del principal) + el badge "🥗 Guarnición".
+            No se renderiza un título extra para evitar duplicado. */}
+
+        {complementosSeleccionados && complementosSeleccionados.length > 0 && !ocultarComplementos && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
             {complementosSeleccionados.map((comp, i) => {
               // v2.0: Mostrar siempre la cantidad del complemento

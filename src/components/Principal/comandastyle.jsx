@@ -47,6 +47,12 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato } from "../../utils/platoHelpers";
+import {
+  expandirUnidadesTrabajo,
+  estadoAlertaGuarnicion,
+  prioridadUnidad,
+  todasGuarnicionesListas
+} from "../../utils/guarnicionesKds";
 
 // Sonido de notificación
 const playNotificationSound = () => {
@@ -104,7 +110,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, tiemposGuarnicion } = useConfiguracionCocina(getToken);
   // Bypass de orden: admin o quien tenga permiso de Panel de Gestión (roles)
   const puedeOmitirOrden = userRole === 'admin' || hasPermission('ver-panel-gestion-mozos');
 
@@ -1479,7 +1485,11 @@ const ComandaStyle = ({
     entregarPlato,
     tomarComanda,
     liberarComanda,
-    finalizarComanda
+    finalizarComanda,
+    // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3
+    tomarGuarnicion,
+    liberarGuarnicion,
+    finalizarGuarnicion
   } = useProcesamiento({
     getToken,
     showToast: (msg) => setToastMessage(msg),
@@ -1893,7 +1903,42 @@ const ComandaStyle = ({
   // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
   // - Plato tomado por mí: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
   // - Plato tomado por otro: NO se puede interactuar (ignorar click)
-  const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: acepta opts {tipo:'guarnicion', compId}
+  //   para operar sobre el subdoc complemento (clave de estado propia).
+  const togglePlatoCheck = useCallback((comandaId, platoIndex, opts) => {
+    // §9.3: rama guarnición — ciclo visual independiente por complemento.
+    if (opts && opts.tipo === 'guarnicion' && opts.compId) {
+      const key = `${comandaId}-${platoIndex}-g-${opts.compId}`;
+      const comanda = comandas.find(c => c._id === comandaId);
+      const plato = comanda?.platos?.[platoIndex];
+      const comp = (plato?.complementosSeleccionados || []).find(c => c._id && String(c._id) === String(opts.compId));
+      // Si la guarnición ya está recoger, no hay ciclo (ya finalizada).
+      if (!comp || comp.estadoCocina === 'recoger') return;
+      const tomadoPorOtro = comp.procesandoPor?.cocineroId
+        && comp.procesandoPor.cocineroId.toString() !== userId?.toString();
+      if (tomadoPorOtro && !isSupervisorView) return; // solo supervisor o titular
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        const estadoActual = nuevo.get(key) || 'normal';
+        const tomado = isSupervisorView
+          ? (comp.procesandoPor?.cocineroId != null)
+          : (comp.procesandoPor?.cocineroId?.toString() === userId?.toString());
+        let nuevoEstado;
+        if (tomado) {
+          if (estadoActual === 'normal') nuevoEstado = 'dejar';
+          else if (estadoActual === 'dejar') nuevoEstado = 'seleccionado';
+          else nuevoEstado = 'normal';
+        } else {
+          if (estadoActual === 'normal') nuevoEstado = 'procesando';
+          else if (estadoActual === 'procesando') nuevoEstado = 'seleccionado';
+          else nuevoEstado = 'normal';
+        }
+        nuevo.set(key, nuevoEstado);
+        return nuevo;
+      });
+      return;
+    }
+
     const key = `${comandaId}-${platoIndex}`;
     const miUsuarioId = userId?.toString();
     
@@ -1980,12 +2025,22 @@ const ComandaStyle = ({
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
-    let total = 0;
-    platosChecked.forEach((checked) => {
-      if (checked) total++;
+    // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: contar unidades de trabajo marcadas
+    // (platos + guarniciones). platosChecked es legacy y se sincroniza con
+    // platoStates para platos principales; platoStates es la fuente de verdad
+    // e incluye guarniciones (clave con sufijo -g-). Usamos un Set de claves
+    // para evitar doble conteo.
+    const keysActivos = new Set();
+    platosChecked.forEach((checked, key) => {
+      if (checked) keysActivos.add(key);
     });
-    return total;
-  }, [platosChecked]);
+    platoStates.forEach((estado, key) => {
+      if (estado === 'seleccionado' || estado === 'procesando' || estado === 'dejar' || estado === 'entregando') {
+        keysActivos.add(key);
+      }
+    });
+    return keysActivos.size;
+  }, [platosChecked, platoStates]);
 
   // Verificar si una comanda tiene todos los platos listos (solo "recoger" - cocina nunca maneja "entregado")
   const comandaTieneTodosPlatosListos = useCallback((comandaId) => {
@@ -2207,6 +2262,18 @@ const ComandaStyle = ({
           console.error(`❌ [batchFinalizarPlatos] Error finalizando plato ${platoId}:`);
           console.error(`   Error: ${errorMsg}`);
           
+          // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3.2: mostrar guarniciones pendientes
+          if (error.response?.status === 409 && errorMsg === 'FALTAN_GUARNICIONES') {
+            const pendientes = error.response?.data?.pendientes || [];
+            const lista = pendientes.map(p => `• ${p.opcion || p.grupo || 'guarnición'}`).join('\n');
+            if (window.GambusinasNotifications) {
+              window.GambusinasNotifications.toast(
+                `Falta(n) ${pendientes.length} guarnición(es) por finalizar:\n${lista}`,
+                'warning'
+              );
+            }
+          }
+          
           const comanda = comandas.find(c => c._id === comandaId);
           const platoNombre = comanda?.platos?.[platoIndex]?.plato?.nombre || 
                               comanda?.platos?.find(p => p._id?.toString() === platoId?.toString())?.plato?.nombre ||
@@ -2258,7 +2325,46 @@ const ComandaStyle = ({
       // v7.2: Incluir 'procesando', 'seleccionado' y 'dejar'
       // SALIO: Incluir también 'entregando' (platos en recoger marcados para salir del pass)
       if (estado !== 'procesando' && estado !== 'seleccionado' && estado !== 'dejar' && estado !== 'entregando') return;
-      
+
+      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: rama guarnición.
+      // Clave de guarnición: ${comandaId}-${platoIndex}-g-${compId}.
+      // Las guarniciones se cuentan igual que platos para que los botones
+      // del supervisor (Tomar/Finalizar/Dejar) aparezcan al seleccionarlas.
+      if (key.includes('-g-')) {
+        const parts = key.split('-g-');
+        if (parts.length !== 2) return;
+        const base = parts[0];
+        const compId = parts[1];
+        const lastDash = base.lastIndexOf('-');
+        if (lastDash === -1) return;
+        const comandaId = base.substring(0, lastDash);
+        const platoIndex = parseInt(base.substring(lastDash + 1), 10);
+        if (isNaN(platoIndex)) return;
+        const comanda = comandas.find(c => String(c._id) === String(comandaId));
+        if (!comanda) return;
+        const plato = comanda.platos?.[platoIndex];
+        if (!plato) return;
+        const comp = (plato.complementosSeleccionados || []).find(c => c._id && String(c._id) === String(compId));
+        if (!comp) return;
+        const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
+        if (!platoId) return;
+        platosProcesadosSet.add(key);
+        platosInfo.push({
+          comandaId,
+          platoId,
+          platoIndex,
+          plato,
+          comp,
+          compId,
+          tipo: 'guarnicion',
+          nombre: Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || 'Guarnición'),
+          procesandoPor: comp.procesandoPor,
+          estadoBackend: comp.estadoCocina || 'pedido',
+          estadoVisual: estado
+        });
+        return;
+      }
+
       // Parsear key: formato es ${comandaId}-${platoIndex}
       const lastDashIndex = key.lastIndexOf('-');
       if (lastDashIndex === -1) return;
@@ -2444,10 +2550,16 @@ const ComandaStyle = ({
     
     // CASO 3: Platos en estado 'seleccionado' (verde) -> FINALIZAR o SOLICITAR_ORDEN
     // En modo supervisor, puede finalizar platos tomados por otros
-    const platosAFinalizar = analisis.filter(p => 
+    const platosAFinalizar = analisis.filter(p =>
       p.quiereFinalizar && (p.tomadoPorMi || (isSupervisorView && p.tomadoPorOtro))
     );
     if (platosAFinalizar.length > 0) {
+      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: las guarniciones son unidades
+      // independientes sin cola FIFO; se excluyen de la lógica de orden y siempre
+      // son finalizables. Solo los platos principales pasan por la verificación.
+      const guarnicionesAFinalizar = platosAFinalizar.filter(p => p.tipo === 'guarnicion');
+      const platosPrincipalesAFinalizar = platosAFinalizar.filter(p => p.tipo !== 'guarnicion');
+
       // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
       // Prefijo contiguo #1..#N por cocinero → FINALIZAR.
       // Salto de orden (falta un # intermedio o no está el #1) → SOLICITAR_ORDEN.
@@ -2456,14 +2568,16 @@ const ComandaStyle = ({
         solicitudOrdenFueraDeCola &&
         !puedeOmitirOrden;
 
-      if (requiereSolicitud) {
+      if (requiereSolicitud && platosPrincipalesAFinalizar.length > 0) {
         const { finalizables, bloqueados: fueraDeOrden } = filtrarLoteRespetandoOrden(
-          platosAFinalizar,
+          platosPrincipalesAFinalizar,
           comandas,
           {
             tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato),
           }
         );
+        // Las guarniciones siempre van a finalizables (no tienen orden de cola)
+        finalizables.push(...guarnicionesAFinalizar);
         if (fueraDeOrden.length > 0) {
           return {
             modo: 'SOLICITAR_ORDEN',
@@ -2473,6 +2587,13 @@ const ComandaStyle = ({
             subMensaje: 'Pedir autorización al admin (fuera de secuencia)'
           };
         }
+        // Todo finalizable (principales en orden + guarniciones)
+        return {
+          modo: 'FINALIZAR_PLATO',
+          platos: [...finalizables, ...guarnicionesAFinalizar.filter(g => !finalizables.includes(g))],
+          mensaje: `Finalizar ${platosAFinalizar.length} Plato${platosAFinalizar.length > 1 ? 's' : ''}`,
+          subMensaje: 'Marcar como listos para recoger'
+        };
       }
 
       return {
@@ -2509,58 +2630,86 @@ const ComandaStyle = ({
    */
   const handleTomarPlatos = useCallback(async (platos) => {
     if (!platos || platos.length === 0) return;
-    
+
+    // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: separar guarniciones.
+    // Las guarniciones se asignan con su propio endpoint (no notifica al mozo).
+    const platosPrincipales = platos.filter(p => p.tipo !== 'guarnicion');
+    const guarniciones = platos.filter(p => p.tipo === 'guarnicion');
+
     // === INTERCEPTACIÓN SUPERVISOR ===
-    // Si hay callback de supervisor, abrir modal de selección de cocinero
+    // Si hay callback de supervisor, abrir modal de selección de cocinero.
+    // Se pasan TODOS (platos + guarniciones); el supervisor decide el cocinero
+    // y handleConfirmarToma enruta cada uno al endpoint correcto según p.tipo.
     if (isSupervisorView && onSupervisorTomarPlato) {
       console.log('[TomarPlatos] Modo supervisor - delegando a modal');
       onSupervisorTomarPlato(platos);
       return; // No ejecutar la acción normal
     }
     // === FIN INTERCEPTACIÓN ===
-    
+
     setIsFinalizandoPlatos(true);
-    console.log(`[TomarPlatos] Tomando ${platos.length} plato(s)...`);
-    
+    console.log(`[TomarPlatos] Tomando ${platosPrincipales.length} plato(s) y ${guarniciones.length} guarnicion(es)...`);
+
     try {
-      const resultados = await Promise.allSettled(
-        platos.map(({ comandaId, platoId }) => 
-          tomarPlato(comandaId, platoId, userId)
-        )
-      );
-      
-      const exitosos = resultados.filter(r => 
+      // Platos principales (flujo existente)
+      const resultadosPlatos = platosPrincipales.length > 0
+        ? await Promise.allSettled(
+            platosPrincipales.map(({ comandaId, platoId }) =>
+              tomarPlato(comandaId, platoId, userId)
+            )
+          )
+        : [];
+      // Guarniciones (flujo propio: no notifica al mozo)
+      const resultadosGuarniciones = guarniciones.length > 0
+        ? await Promise.allSettled(
+            guarniciones.map(({ comandaId, platoId, compId }) =>
+              tomarGuarnicion(comandaId, platoId, compId, userId)
+            )
+          )
+        : [];
+
+      const resultados = [...resultadosPlatos, ...resultadosGuarniciones];
+      const exitosos = resultados.filter(r =>
         r.status === 'fulfilled' && r.value?.success
       ).length;
-      const fallidos = resultados.length - exitosos;
-      
+
       if (exitosos > 0) {
         setToastMessage({
           type: 'success',
-          message: `👨‍🍳 Tomaste ${exitosos} plato${exitosos > 1 ? 's' : ''} para preparar`,
+          message: `👨‍🍳 Tomaste ${exitosos} unidad${exitosos > 1 ? 'es' : ''} de trabajo para preparar`,
           duration: 3000
         });
-        
+
         if (config.soundEnabled) {
           playNotificationSound();
         }
+        // Resetear estado visual de guarniciones tomadas
+        guarniciones.forEach(({ comandaId, platoIndex, compId }) => {
+          const gKey = `${comandaId}-${platoIndex}-g-${compId}`;
+          setPlatoStates(prev => {
+            const nuevo = new Map(prev);
+            nuevo.set(gKey, 'normal');
+            return nuevo;
+          });
+        });
       }
-      
+
+      const fallidos = resultados.length - exitosos;
       if (fallidos > 0) {
-        console.warn(`[TomarPlatos] ${fallidos} plato(s) fallaron`);
+        console.warn(`[TomarPlatos] ${fallidos} unidad(es) fallaron`);
       }
-      
+
     } catch (error) {
       console.error('[TomarPlatos] Error:', error);
       setToastMessage({
         type: 'error',
-        message: '❌ Error al tomar platos',
+        message: '❌ Error al tomar unidades de trabajo',
         duration: 4000
       });
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [userId, tomarPlato, config.soundEnabled, isSupervisorView, onSupervisorTomarPlato]);
+  }, [userId, tomarPlato, tomarGuarnicion, config.soundEnabled, isSupervisorView, onSupervisorTomarPlato]);
 
   /**
    * Handler para DEJAR (liberar) platos que el cocinero actual habia tomado
@@ -2601,50 +2750,66 @@ const ComandaStyle = ({
     console.log(`[DejarPlatos] Liberando ${platosPendientesDejar.length} plato(s) con motivo: ${dejarMotivo}`);
     
     try {
-      const resultados = await Promise.allSettled(
-        platosPendientesDejar.map(({ comandaId, platoId }) => 
-          liberarPlato(comandaId, platoId, userId, dejarMotivo.trim())
-        )
-      );
-      
-      const exitosos = resultados.filter(r => 
+      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: separar guarniciones (endpoint propio).
+      const platosPrincipales = platosPendientesDejar.filter(p => p.tipo !== 'guarnicion');
+      const guarniciones = platosPendientesDejar.filter(p => p.tipo === 'guarnicion');
+
+      const resultadosPlatos = platosPrincipales.length > 0
+        ? await Promise.allSettled(
+            platosPrincipales.map(({ comandaId, platoId }) =>
+              liberarPlato(comandaId, platoId, userId, dejarMotivo.trim())
+            )
+          )
+        : [];
+      const resultadosGuarniciones = guarniciones.length > 0
+        ? await Promise.allSettled(
+            guarniciones.map(({ comandaId, platoId, compId }) =>
+              liberarGuarnicion(comandaId, platoId, compId, userId, dejarMotivo.trim())
+            )
+          )
+        : [];
+      const resultados = [...resultadosPlatos, ...resultadosGuarniciones];
+
+      const exitosos = resultados.filter(r =>
         r.status === 'fulfilled' && r.value?.success
       ).length;
-      
+
       if (exitosos > 0) {
         // Limpiar estado visual de los platos liberados
-        platosPendientesDejar.forEach(({ comandaId, platoIndex }) => {
-          const key = `${comandaId}-${platoIndex}`;
+        platosPendientesDejar.forEach(({ comandaId, platoIndex, compId, tipo }) => {
+          const key = tipo === 'guarnicion'
+            ? `${comandaId}-${platoIndex}-g-${compId}`
+            : `${comandaId}-${platoIndex}`;
           setPlatoStates(prev => {
             const nuevo = new Map(prev);
             nuevo.set(key, 'normal');
             return nuevo;
           });
         });
-        
+
         setToastMessage({
           type: 'info',
-          message: `Plato${exitosos > 1 ? 's liberados' : ' liberado'} - disponible para otros`,
+          message: `Unidad${exitosos > 1 ? 'es liberadas' : ' liberada'} - disponible para otros`,
           duration: 3000
         });
       }
-      
+
       // Limpiar estado
       setPlatosPendientesDejar([]);
       setDejarMotivo('');
-      
+
     } catch (error) {
       console.error('[DejarPlatos] Error:', error);
       setToastMessage({
         type: 'error',
-        message: '❌ Error al liberar platos',
+        message: '❌ Error al liberar unidades',
         duration: 4000
       });
     } finally {
       setIsFinalizandoPlatos(false);
       setDejarLoading(false);
     }
-  }, [userId, liberarPlato, dejarMotivo, platosPendientesDejar]);
+  }, [userId, liberarPlato, liberarGuarnicion, dejarMotivo, platosPendientesDejar]);
 
   // Handler para finalizar platos marcados con checkboxes
   // IMPORTANTE: En modo supervisor, delega al callback del supervisor
@@ -2670,6 +2835,36 @@ const ComandaStyle = ({
       const platosAFinalizar = [];
       platoStates.forEach((estado, key) => {
         if (estado !== 'seleccionado') return;
+
+        // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: rama guarnición
+        if (key.includes('-g-')) {
+          const parts = key.split('-g-');
+          if (parts.length !== 2) return;
+          const base = parts[0];
+          const compId = parts[1];
+          const lastDash = base.lastIndexOf('-');
+          if (lastDash === -1) return;
+          const comandaId = base.substring(0, lastDash);
+          const platoIndex = parseInt(base.substring(lastDash + 1), 10);
+          if (isNaN(platoIndex)) return;
+          const comanda = comandas.find(c => String(c._id) === String(comandaId));
+          if (!comanda) return;
+          const plato = comanda.platos?.[platoIndex];
+          if (!plato) return;
+          const comp = (plato.complementosSeleccionados || []).find(c => c._id && String(c._id) === String(compId));
+          if (!comp) return;
+          platosAFinalizar.push({
+            comandaId,
+            platoId: plato._id || plato.platoId,
+            platoIndex,
+            plato,
+            comp,
+            compId,
+            tipo: 'guarnicion'
+          });
+          return;
+        }
+
         const lastDashIndex = key.lastIndexOf('-');
         if (lastDashIndex === -1) return;
         const comandaId = key.substring(0, lastDashIndex);
@@ -2800,10 +2995,74 @@ const ComandaStyle = ({
         }
       });
 
-      if (platosProcesados.length === 0) {
+      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: recopilar guarniciones seleccionadas
+      // (clave de estado con sufijo -g-{compId}) y finalizarlas por su endpoint.
+      // Estas NO disparan notificación al mozo (solo el principal lo hace).
+      const guarnicionesAFinalizar = [];
+      platoStates.forEach((estado, key) => {
+        if (estado !== 'seleccionado') return;
+        if (!key.includes('-g-')) return; // solo claves de guarnición
+        const parts = key.split('-g-');
+        if (parts.length !== 2) return;
+        const base = parts[0]; // ${comandaId}-${platoIndex}
+        const compId = parts[1];
+        const lastDash = base.lastIndexOf('-');
+        if (lastDash === -1) return;
+        const comandaId = base.substring(0, lastDash);
+        const platoIndex = parseInt(base.substring(lastDash + 1), 10);
+        if (isNaN(platoIndex)) return;
+        const comanda = comandas.find(c => c._id === comandaId);
+        const plato = comanda?.platos?.[platoIndex];
+        const comp = (plato?.complementosSeleccionados || []).find(c => c._id && String(c._id) === String(compId));
+        if (!comp || comp.estadoCocina === 'recoger') return;
+        const platoId = plato?._id?.toString() || plato?.plato?._id?.toString();
+        guarnicionesAFinalizar.push({ comandaId, platoId, platoIndex, compId, plato });
+      });
+
+      if (platosProcesados.length === 0 && guarnicionesAFinalizar.length === 0) {
         console.warn('⚠️ No hay platos válidos para finalizar');
         console.warn('🔍 DEBUG: Verificar que platos estén en estado "seleccionado" (verde ✓)');
         return;
+      }
+
+      // Finalizar guarniciones en paralelo (no bloquea el lote de platos).
+      if (guarnicionesAFinalizar.length > 0) {
+        const baseUrl = getServerBaseUrl();
+        const token = getToken();
+        Promise.all(guarnicionesAFinalizar.map(async (g) => {
+          try {
+            const res = await fetch(
+              `${baseUrl}/api/comanda/${g.comandaId}/plato/${g.platoId}/guarnicion/${g.compId}/finalizar`,
+              {
+                method: 'PUT',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ cocineroId: userId })
+              }
+            );
+            return { ok: res.ok, g };
+          } catch (e) {
+            console.warn('[FinalizarGuarnicion] error', e.message);
+            return { ok: false, g };
+          }
+        })).then((results) => {
+          // Resetear estado visual de guarniciones exitosas
+          setPlatoStates(prev => {
+            const nuevo = new Map(prev);
+            results.forEach(r => {
+              if (r.ok) {
+                nuevo.set(`${r.g.comandaId}-${r.g.platoIndex}-g-${r.g.compId}`, 'normal');
+              }
+            });
+            return nuevo;
+          });
+          const okCount = results.filter(r => r.ok).length;
+          if (okCount > 0 && window.GambusinasNotifications) {
+            window.GambusinasNotifications.toast(`${okCount} guarnición(es) lista(s)`, 'success');
+          }
+        });
       }
 
       console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`, platosProcesados);
@@ -3949,6 +4208,9 @@ const ComandaStyle = ({
                     mapaColaCocineros={mapaColaCocineros}
                     // PLAN NOMBRE_PLATO_COCINA: flag de nombre de cocina en KDS
                     usarNombreCocinaEnTablaKds={usarNombreCocinaEnTablaKds}
+                    // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
+                    permitirGuarnicionesSeparadas={permitirGuarnicionesSeparadas}
+                    tiemposGuarnicion={tiemposGuarnicion}
                   />
                   );
                 })}
@@ -4934,6 +5196,9 @@ const SicarComandaCard = ({
   mapaColaCocineros = null,
   // PLAN NOMBRE_PLATO_COCINA: flag de configuración para nombre de cocina en KDS
   usarNombreCocinaEnTablaKds = false,
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
+  permitirGuarnicionesSeparadas = false,
+  tiemposGuarnicion = null,
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -5462,61 +5727,101 @@ const SicarComandaCard = ({
                 </span>
               </div>
               <div className="px-2 py-2 space-y-1">
-                {platosPreparacion.map((plato, index) => {
+                {platosPreparacion.flatMap((plato, index) => {
                   const platoObj = plato.plato || plato;
                   // 🔥 FIX buscador: no usar indexOf sobre copias { ...plato, _puntuacion }
                   const platoIndex = resolverIndicePlato(comanda, plato);
                   if (platoIndex < 0) {
                     console.warn(`[KDS] No se pudo resolver índice del plato en comanda #${comanda.comandaNumber}`);
-                    return null;
+                    return [];
                   }
                   const cantidad = comanda.cantidades?.[platoIndex] || 1;
                   const platoId = platoObj?._id || plato._id || platoIndex;
-                  const platoKey = `${comandaId}-${platoIndex}`;
-                  const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
-                  
-                  // v7.2: Si el plato tiene procesandoPor y está en estado local normal/procesando,
-                  // mostrar 'procesando' visualmente (amarillo) para indicar que alguien lo está trabajando
-                  // Si está en 'seleccionado' (verde), mantener ese estado
-                  let estadoVisual = estadoVisualLocal;
-                  if (plato.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
-                    estadoVisual = 'procesando';
-                  }
-                  
-                  // 🔥 Usar helper de nombre para consistencia con el hook
-                  // PLAN NOMBRE_PLATO_COCINA: tabla KDS respeta flag de configuración.
-                  const nombrePlato = obtenerNombreDisplayCocina(plato, {
-                    habilitadoEnKds: usarNombreCocinaEnTablaKds
-                  }) || 'Sin nombre';
-                  
-                  return (
-                    <PlatoPreparacion
-                      key={platoKey}
-                      plato={plato}
-                      comandaId={comandaId}
-                      platoId={platoId}
-                      platoIndex={platoIndex}
-                      cantidad={cantidad}
-                      nombre={nombrePlato}
-                      estadoVisual={estadoVisual}
-                      nightMode={nightMode}
-                      isEliminado={plato.eliminado === true}
-                      onToggle={togglePlatoCheck}
-                      complementosSeleccionados={plato.complementosSeleccionados || []}
-                      // v7.2: Props para multi-cocinero
-                      procesandoPor={plato.procesandoPor}
-                      usuarioActualId={usuarioActualId}
-                      // v7.5: Supervisor puede interactuar con cualquier plato
-                      isSupervisorView={isSupervisorView}
-                      // NUEVO: Tipo de servicio (Mesa vs Para llevar)
-                      tipoServicio={plato.tipoServicio || 'mesa'}
-                      // v3.0: flags de resumen de complementos
-                      mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
-                      resumenComplementosImpresion={plato.resumenComplementosImpresion || null}
-                      // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero
-                      numeroColaCocinero={mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null}
-                    />
-                  );
+
+                  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: expandir en unidades.
+                  // Con flag ON y plato en preparación → principal + guarniciones.
+                  // Con plato ya en recoger/salio/entregado → una sola tarjeta fusionada.
+                  const unidades = expandirUnidadesTrabajo(plato, {
+                    flagOn: permitirGuarnicionesSeparadas,
+                    usarAlias: usarNombreCocinaEnTablaKds
+                  });
+
+                  return unidades.map((unidad, uIdx) => {
+                    if (unidad.tipo === 'guarnicion') {
+                      // Tarjeta de guarnición: clave de estado propia.
+                      const gKey = `${comandaId}-${platoIndex}-g-${unidad.compId}`;
+                      const estadoVisualLocal = platoStates.get(gKey) || 'normal';
+                      const comp = unidad.comp;
+                      let estadoVisualG = estadoVisualLocal;
+                      if (comp.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
+                        estadoVisualG = 'procesando';
+                      }
+                      const alerta = estadoAlertaGuarnicion(comp, tiemposGuarnicion);
+                      const prio = prioridadUnidad(comanda);
+                      const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
+                      return (
+                        <PlatoPreparacion
+                          key={gKey}
+                          plato={plato}
+                          comandaId={comandaId}
+                          platoId={platoId}
+                          platoIndex={platoIndex}
+                          cantidad={comp.cantidad || 1}
+                          nombre={unidad.nombreGuarnicion}
+                          estadoVisual={estadoVisualG}
+                          nightMode={nightMode}
+                          isEliminado={comp.eliminado === true}
+                          onToggle={togglePlatoCheck}
+                          complementosSeleccionados={[]}
+                          procesandoPor={comp.procesandoPor}
+                          usuarioActualId={usuarioActualId}
+                          isSupervisorView={isSupervisorView}
+                          tipoServicio={plato.tipoServicio || 'mesa'}
+                          tipoUnidad="guarnicion"
+                          ocultarComplementos
+                          compId={unidad.compId}
+                          estadoAlerta={alerta}
+                          etiquetaPrioridad={etiquetaPrioridad}
+                        />
+                      );
+                    }
+                    // Tarjeta principal (oculta complementos si está partida; fusionada si recoger).
+                    const platoKey = `${comandaId}-${platoIndex}`;
+                    const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
+                    let estadoVisual = estadoVisualLocal;
+                    if (plato.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
+                      estadoVisual = 'procesando';
+                    }
+                    const nombrePlato = obtenerNombreDisplayCocina(plato, {
+                      habilitadoEnKds: usarNombreCocinaEnTablaKds
+                    }) || 'Sin nombre';
+                    return (
+                      <PlatoPreparacion
+                        key={platoKey}
+                        plato={plato}
+                        comandaId={comandaId}
+                        platoId={platoId}
+                        platoIndex={platoIndex}
+                        cantidad={cantidad}
+                        nombre={nombrePlato}
+                        estadoVisual={estadoVisual}
+                        nightMode={nightMode}
+                        isEliminado={plato.eliminado === true}
+                        onToggle={togglePlatoCheck}
+                        complementosSeleccionados={plato.complementosSeleccionados || []}
+                        procesandoPor={plato.procesandoPor}
+                        usuarioActualId={usuarioActualId}
+                        isSupervisorView={isSupervisorView}
+                        tipoServicio={plato.tipoServicio || 'mesa'}
+                        mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
+                        resumenComplementosImpresion={plato.resumenComplementosImpresion || null}
+                        numeroColaCocinero={mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null}
+                        tipoUnidad="principal"
+                        ocultarComplementos={unidad.ocultarComplementos === true && !unidad.fusionado}
+                        fusionado={unidad.fusionado === true}
+                      />
+                    );
+                  });
                 })}
                 {platosEliminadosFinal.map((platoEliminado, index) => {
                   const timestamp = platoEliminado.timestamp ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm') : '';

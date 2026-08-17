@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
 
 /**
  * PlatoMonitorRow - Fila AGRUPADA de un plato en el monitor Ver Cocina
@@ -73,7 +73,11 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
         complementosSet.add(c);
         return;
       }
-      const grupo = c.grupo ? `${c.grupo}: ` : '';
+      // PLAN GUARNICIONES_SEPARADAS v1.1.1: para guarniciones mostrar solo el
+      // nombre de la opción ("Arroz"), sin el título del grupo ("Guarnicion:").
+      const grupoRaw = (c.grupo || '').trim();
+      const esGuarnicion = /^guarnici[oó]n(es)?$/i.test(grupoRaw);
+      const grupo = (grupoRaw && !esGuarnicion) ? `${grupoRaw}: ` : '';
       const opcion = c.opcion || c.nombre || '';
       const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
       if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
@@ -220,8 +224,14 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
     border: modoTarjeta
       ? (esUnido ? `1px solid ${alerta !== 'normal' ? colorAlerta : `${colorAcento}44`}` : bordeAlerta)
       : (esUnido ? `1px solid ${colorAcento}33` : undefined),
-    borderRadius: esUnido ? 0 : (modoTarjeta ? '12px' : 0),
-    padding: `${paddingY} ${paddingX}`,
+    borderRadius: esUnido
+      ? radioForma('redondeado', { esUnido: true, radioPx: configVisual.tarjetaRadio, defaultPx: 0 })
+      : (modoTarjeta
+        ? radioForma('redondeado', { radioPx: configVisual.tarjetaRadio ?? 12, defaultPx: 12 })
+        : 0),
+    padding: (configVisual.tarjetaPadding != null && configVisual.tarjetaPadding !== '')
+      ? `${Math.max(0, Number(configVisual.tarjetaPadding) || 0)}px`
+      : `${paddingY} ${paddingX}`,
     fontFamily: fuenteFamilia,
     display: 'flex',
     flexDirection: disposicionVertical ? 'column' : 'row',

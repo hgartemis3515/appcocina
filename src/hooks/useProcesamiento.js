@@ -409,6 +409,87 @@ const useProcesamiento = ({
     }
   }, [getToken, showToast, onProcesamientoChange]);
 
+  // ============================================================
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3
+  // Helpers para guarniciones (complementos como unidades de
+  // trabajo independientes). Llaman a los endpoints
+  // /guarnicion/:complementoId/... de procesamientoController.
+  // No disparan notificación al mozo (solo el principal lo hace).
+  // ============================================================
+
+  const tomarGuarnicion = useCallback(async (comandaId, platoId, compId, cocineroId, forzar = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/guarnicion/${compId}/procesando`,
+        { cocineroId, forzar },
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      onProcesamientoChange({
+        type: 'GUARNICION_TOMADA',
+        comandaId, platoId, compId,
+        procesandoPor: response.data?.data?.procesandoPor
+      });
+      return { success: true, data: response.data };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al tomar la guarnición';
+      showToast({
+        type: err.response?.status === 409 ? 'warning' : 'error',
+        message: err.response?.status === 409 ? `⚠️ ${errorMsg}` : `❌ ${errorMsg}`,
+        duration: 4000
+      });
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, showToast, onProcesamientoChange]);
+
+  const liberarGuarnicion = useCallback(async (comandaId, platoId, compId, cocineroId, motivo = '') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      await axios.delete(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/guarnicion/${compId}/procesando`,
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, data: { cocineroId, motivo } }
+      );
+      onProcesamientoChange({ type: 'GUARNICION_LIBERADA', comandaId, platoId, compId });
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al liberar la guarnición';
+      showToast({ type: 'error', message: `❌ ${errorMsg}`, duration: 4000 });
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, showToast, onProcesamientoChange]);
+
+  const finalizarGuarnicion = useCallback(async (comandaId, platoId, compId, cocineroId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/guarnicion/${compId}/finalizar`,
+        { cocineroId },
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      onProcesamientoChange({ type: 'GUARNICION_FINALIZADA', comandaId, platoId, compId });
+      return { success: true, data: response.data };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al finalizar la guarnición';
+      showToast({ type: 'error', message: `❌ ${errorMsg}`, duration: 4000 });
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, showToast, onProcesamientoChange]);
+
   return {
     loading,
     error,
@@ -418,7 +499,11 @@ const useProcesamiento = ({
     entregarPlato,
     tomarComanda,
     liberarComanda,
-    finalizarComanda
+    finalizarComanda,
+    // PLAN GUARNICIONES_SEPARADAS v1.1.1
+    tomarGuarnicion,
+    liberarGuarnicion,
+    finalizarGuarnicion
   };
 };
 

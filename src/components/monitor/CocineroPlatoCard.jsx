@@ -4,7 +4,7 @@ import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer
 import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
-import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -178,6 +178,7 @@ const CocineroPlatoCard = React.forwardRef(({
   tick = 0,
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
+  const esGuarnicion = item.esGuarnicion === true;
 
   // Config
   const amarilloMin = configVisual.tiempoAmarillo ?? 5;
@@ -231,21 +232,30 @@ const CocineroPlatoCard = React.forwardRef(({
       : 'none';
 
   // Complementos / observaciones
-  const complementosSet = new Set();
-  const platoRef = platos[0]?.plato;
-  if (platoRef) {
-    const comps = platoRef.complementosSeleccionados || platoRef.complementos || [];
-    comps.forEach(c => {
-      if (typeof c === 'string') { complementosSet.add(c); return; }
-      const grupo = c.grupo ? `${c.grupo}: ` : '';
-      const opcion = c.opcion || c.nombre || '';
-      const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
-      if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
-    });
-    const obs = platoRef.observaciones || platoRef.nota;
-    if (obs) complementosSet.add(obs);
+  // PLAN GUARNICIONES_SEPARADAS §10: en tarjeta de guarnición el subtítulo es
+  // "de {nombreCocinaPadre}" (no se re-listan los complementos del plato).
+  let complementosTexto = '';
+  if (esGuarnicion) {
+    complementosTexto = item.subtitulo || '';
+  } else {
+    const complementosSet = new Set();
+    const platoRef = platos[0]?.plato;
+    if (platoRef) {
+      const comps = platoRef.complementosSeleccionados || platoRef.complementos || [];
+      comps.forEach(c => {
+        if (typeof c === 'string') { complementosSet.add(c); return; }
+        const grupoRaw = (c.grupo || '').trim();
+        const esGrupoGuarnicion = /^guarnici[oó]n(es)?$/i.test(grupoRaw);
+        const grupo = (grupoRaw && !esGrupoGuarnicion) ? `${grupoRaw}: ` : '';
+        const opcion = c.opcion || c.nombre || '';
+        const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
+        if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
+      });
+      const obs = platoRef.observaciones || platoRef.nota;
+      if (obs) complementosSet.add(obs);
+    }
+    complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');
   }
-  const complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
   const hayParaLlevar = platos.some(p => p.comanda.tipoServicio === 'para_llevar');
 
@@ -299,6 +309,20 @@ const CocineroPlatoCard = React.forwardRef(({
   const padXAcomodado = autoAcomodamiento
     ? `${Math.round(parseFloat(paddingX) * factorContenido)}px`
     : paddingX;
+  const padOverride = configVisual.tarjetaPadding;
+  const paddingTarjeta = (padOverride != null && padOverride !== '')
+    ? `${Math.max(0, Number(padOverride) || 0)}px`
+    : `${padYAcomodado} ${padXAcomodado}`;
+  const radioTarjeta = radioForma('redondeado', {
+    esUnido,
+    radioPx: configVisual.tarjetaRadio != null && configVisual.tarjetaRadio !== ''
+      ? configVisual.tarjetaRadio
+      : (esUnido ? 0 : 14),
+    defaultPx: 14,
+  });
+  const gapTarjeta = configVisual.tarjetaGap != null && configVisual.tarjetaGap !== ''
+    ? Math.max(0, Number(configVisual.tarjetaGap) || 16)
+    : 16;
 
   // Fondo de la tarjeta: degradado configurable o color fijo
   const usarDegradado = configVisual.degradadoTarjeta !== false;
@@ -313,11 +337,18 @@ const CocineroPlatoCard = React.forwardRef(({
     : FONDO_VINO;
 
   // Outer: solo layout (framer-motion controla transforms aquí).
+  // Guarnición / compacto: altura al contenido (sin minHeight 130 ni spacer vacío).
+  const compacto = esUnido || espaciado === 'compacto' || esGuarnicion;
+  const hayPie = (!ocultarAtencionUrgente && (esCritico || esAlerta))
+    || hayParaLlevar
+    || (configVisual.mostrarMesas !== false && !esGuarnicion);
   const outerStyle = {
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
-    minHeight: modoTarjeta ? '130px' : 'auto',
+    minHeight: (modoTarjeta && !compacto) ? '130px' : 'auto',
+    height: compacto ? 'auto' : undefined,
+    alignSelf: 'stretch',
     position: 'relative',
   };
 
@@ -326,15 +357,15 @@ const CocineroPlatoCard = React.forwardRef(({
     background: fondoTarjeta,
     color: colorTextoPrincipal,
     border: esUnido ? `1px solid ${colorBorde}` : `2px solid ${colorBorde}`,
-    borderRadius: esUnido ? 0 : '14px',
-    padding: `${padYAcomodado} ${padXAcomodado}`,
+    borderRadius: radioTarjeta,
+    padding: paddingTarjeta,
     fontFamily: fuenteFamilia,
     display: 'flex',
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: '16px',
+    alignItems: compacto ? 'center' : 'stretch',
+    gap: `${gapTarjeta}px`,
     minWidth: 0,
-    flex: 1,
+    flex: compacto ? '0 0 auto' : 1,
     boxShadow: esUnido ? 'none' : glowBorde,
     position: 'relative',
     overflow: 'hidden',
@@ -345,9 +376,9 @@ const CocineroPlatoCard = React.forwardRef(({
 
   // Lado izquierdo: bloque textual (~65%)
   const ladoIzquierdo = (
-    <div style={{ flex: '1 1 65%', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+    <div style={{ flex: '1 1 65%', display: 'flex', flexDirection: 'column', gap: compacto ? '3px' : '6px', minWidth: 0, justifyContent: compacto ? 'center' : 'flex-start' }}>
       {/* Cocinero arriba (fucsia, solo si mostrarCocinero y NO se quitó el nombre) */}
-      {mostrarCocinero && cocinero && !quitarNombreCocinero && (
+      {mostrarCocinero && cocinero && !quitarNombreCocinero && !esGuarnicion && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {mostrarIconoCocinero && (
             cocinero.fotoUrl ? (
@@ -424,7 +455,7 @@ const CocineroPlatoCard = React.forwardRef(({
       </div>
 
       {/* Complementos / sabores / notas */}
-      {mostrarComplementos && complementosTexto && (
+      {(esGuarnicion || mostrarComplementos) && complementosTexto && (
         <div
           style={{
             fontSize: `${fsDetalleAcomodado}px`,
@@ -439,11 +470,14 @@ const CocineroPlatoCard = React.forwardRef(({
         </div>
       )}
 
-      {/* Espaciador */}
-      <div style={{ flex: 1, minHeight: '4px' }} />
+      {/* Espaciador solo si hay pie (mesas / urgente). En guarnición y compacto
+          no se estira: evita el hueco vacío bajo "de Bistec". */}
+      {hayPie && !compacto && (
+        <div style={{ flex: 1, minHeight: '4px' }} />
+      )}
 
-      {/* Zona inferior: placa URGENTE + mesas */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+      {hayPie && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         {esCritico && !ocultarAtencionUrgente && (
           <span
             style={{
@@ -497,7 +531,7 @@ const CocineroPlatoCard = React.forwardRef(({
             Para llevar
           </span>
         )}
-        {configVisual.mostrarMesas !== false && (
+        {configVisual.mostrarMesas !== false && !esGuarnicion && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: `${fsEtiquetaMesa}px`, color: colorTextoSecundario, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {timers.length > 1 ? 'Mesas:' : 'Mesa:'}
@@ -505,7 +539,8 @@ const CocineroPlatoCard = React.forwardRef(({
             <MesaChips timers={timers} configVisual={{ ...configVisual, colorTextoSecundario, colorAcento }} />
           </div>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 
@@ -517,7 +552,7 @@ const CocineroPlatoCard = React.forwardRef(({
         minWidth: estiloTemporizador === 'vertical' ? '110px' : 'auto',
         maxWidth: estiloTemporizador === 'vertical' ? '160px' : 'none',
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: compacto ? 'center' : 'flex-start',
         justifyContent: 'flex-end',
       }}
     >
@@ -543,8 +578,8 @@ const CocineroPlatoCard = React.forwardRef(({
           zIndex: 1,
           display: 'flex',
           flexDirection: 'row',
-          alignItems: 'stretch',
-          gap: '16px',
+          alignItems: compacto ? 'center' : 'stretch',
+          gap: `${gapTarjeta}px`,
           flex: 1,
           minWidth: 0,
         }}

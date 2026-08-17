@@ -211,3 +211,9 @@ Frontend (App Cocina):
   llega populado desde la API; queda como mejora visual menor).
 - Considerar migrar `perfilAuto` + `perfilVerCocinaId` a un único campo
   `perfilAplicar: String` si se quiere simplificar el modelo.
+- **Lista de guarniciones por monitor** (plan
+  `docs/PLAN_GUARNICIONES_SEPARADAS_COCINEROS.md` §11): checkbox por
+  tarjeta 2–8, persistir `PantallaCocina.listaGuarniciones`, sufijo
+  `&listaGuarniciones=1` en popup / `.bat` / Hub. Mismo patrón que
+  `asignacionPerfil`. Las ventanas `modo=completo-fijo` no tienen el
+  botón de Ver Cocina; el split tiene que nacer de esta consola.

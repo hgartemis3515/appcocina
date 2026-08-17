@@ -77,7 +77,11 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     liberarComanda,
     finalizarPlato,
     entregarPlato,
-    finalizarComanda
+    finalizarComanda,
+    // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3
+    tomarGuarnicion,
+    liberarGuarnicion,
+    finalizarGuarnicion
   } = useProcesamiento({
     getToken,
     showToast: (msg) => setToastLocal({ ...msg, duration: 3000 }),
@@ -194,9 +198,16 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         // Forzar reseteo de selección
         setResetKey(prev => prev + 1);
       }
+      // Cerrar modal de toma (comanda o platos, incluye guarniciones)
+      setModalTomarAbierto(false);
+      setTipoToma(null);
+      setAccionPendiente(null);
     } else if (tipo === 'platos') {
+      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
+      const platosPrincipales = datos.filter(p => p.tipo !== 'guarnicion');
+      const guarniciones = datos.filter(p => p.tipo === 'guarnicion');
       let exitosos = 0;
-      for (const plato of datos) {
+      for (const plato of platosPrincipales) {
         // forzar=true para permitir reasignación como supervisor
         const result = await tomarPlato(
           plato.comandaId || plato.comanda?._id,
@@ -206,17 +217,31 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         );
         if (result.success) exitosos++;
       }
+      for (const g of guarniciones) {
+        const result = await tomarGuarnicion(
+          g.comandaId || g.comanda?._id,
+          g.platoId,
+          g.compId,
+          cocineroId,
+          true // supervisor: forzar reasignación
+        );
+        if (result.success) exitosos++;
+      }
       if (exitosos > 0) {
         setToastLocal({
           type: 'success',
-          text: `👨‍🍳 ${exitosos} plato${exitosos > 1 ? 's' : ''} asignado${exitosos > 1 ? 's' : ''}`,
+          text: `👨‍🍳 ${exitosos} unidad${exitosos > 1 ? 'es' : ''} asignada${exitosos > 1 ? 's' : ''}`,
           duration: 3000
         });
         // Forzar reseteo de selección
         setResetKey(prev => prev + 1);
       }
+      // Cerrar modal de toma (platos + guarniciones)
+      setModalTomarAbierto(false);
+      setTipoToma(null);
+      setAccionPendiente(null);
     }
-  }, [accionPendiente, tomarPlato, tomarComanda]);
+  }, [accionPendiente, tomarPlato, tomarGuarnicion, tomarComanda]);
 
   /**
    * Ejecuta la liberación con motivo
@@ -243,8 +268,11 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
           setResetKey(prev => prev + 1);
         }
       } else if (tipo === 'platos') {
+        // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
+        const platosPrincipales = datos.filter(p => p.tipo !== 'guarnicion');
+        const guarniciones = datos.filter(p => p.tipo === 'guarnicion');
         let exitosos = 0;
-        for (const plato of datos) {
+        for (const plato of platosPrincipales) {
           const result = await liberarPlato(
             plato.comandaId || plato.comanda?._id,
             plato.platoId || plato._id,
@@ -253,8 +281,18 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
           );
           if (result.success) exitosos++;
         }
+        for (const g of guarniciones) {
+          const result = await liberarGuarnicion(
+            g.comandaId || g.comanda?._id,
+            g.platoId,
+            g.compId,
+            userId,
+            dejarMotivo.trim()
+          );
+          if (result.success) exitosos++;
+        }
         if (exitosos > 0) {
-          setToastLocal({ type: 'info', text: `${exitosos} plato${exitosos > 1 ? 's' : ''} liberado${exitosos > 1 ? 's' : ''}`, duration: 3000 });
+          setToastLocal({ type: 'info', text: `${exitosos} unidad${exitosos > 1 ? 'es' : ''} liberada${exitosos > 1 ? 's' : ''}`, duration: 3000 });
           setModalDejarAbierto(false);
           // Forzar reseteo de selección
           setResetKey(prev => prev + 1);
@@ -263,7 +301,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     } finally {
       setDejarLoading(false);
     }
-  }, [accionDejarPendiente, dejarMotivo, userId, liberarPlato, liberarComanda]);
+  }, [accionDejarPendiente, dejarMotivo, userId, liberarPlato, liberarGuarnicion, liberarComanda]);
 
   /**
    * Ejecuta finalizar platos (el supervisor puede finalizar cualquier plato)
@@ -272,8 +310,12 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     console.log('[Supervi] Finalizar platos:', platos);
     if (!platos || platos.length === 0) return;
 
+    // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
+    const platosPrincipales = platos.filter(p => p.tipo !== 'guarnicion');
+    const guarniciones = platos.filter(p => p.tipo === 'guarnicion');
+
     let exitosos = 0;
-    for (const plato of platos) {
+    for (const plato of platosPrincipales) {
       // Usar el userId del supervisor para auditoría
       const result = await finalizarPlato(
         plato.comandaId || plato.comanda?._id,
@@ -282,17 +324,26 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       );
       if (result.success) exitosos++;
     }
-    
+    for (const g of guarniciones) {
+      const result = await finalizarGuarnicion(
+        g.comandaId || g.comanda?._id,
+        g.platoId,
+        g.compId,
+        userId
+      );
+      if (result.success) exitosos++;
+    }
+
     if (exitosos > 0) {
       setToastLocal({
         type: 'success',
-        text: `✅ ${exitosos} plato${exitosos > 1 ? 's' : ''} finalizado${exitosos > 1 ? 's' : ''}`,
+        text: `✅ ${exitosos} unidad${exitosos > 1 ? 'es' : ''} finalizada${exitosos > 1 ? 's' : ''}`,
         duration: 3000
       });
       // Forzar reseteo de selección
       setResetKey(prev => prev + 1);
     }
-  }, [userId, finalizarPlato]);
+  }, [userId, finalizarPlato, finalizarGuarnicion]);
 
   /**
    * SALIO: Ejecuta la entrega del pass (recoger → salio) como supervisor.

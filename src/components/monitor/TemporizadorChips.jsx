@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { estiloNumeroSecuencial, textoNumeroSecuencial } from '../../utils/monitorBadgeStyles';
+import { estiloNumeroSecuencial, textoNumeroSecuencial, radioForma } from '../../utils/monitorBadgeStyles';
 
 /**
  * TemporizadorChips - Temporizadores individuales con numeración GLOBAL (#1 = más viejo).
@@ -35,6 +35,18 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
   const orientacion = configVisual.estiloTemporizador === 'horizontal' ? 'horizontal' : 'vertical';
   const intensidad = configVisual.intensidadAlerta || 'normal';
   const esUnido = espaciado === 'unido';
+  const cronometroForma = configVisual.cronometroForma || 'redondeado';
+  const radioChip = radioForma(cronometroForma, {
+    esUnido,
+    radioPx: configVisual.cronometroRadio,
+    defaultPx: 10,
+  });
+  const anchoChip = configVisual.cronometroAncho != null && configVisual.cronometroAncho !== ''
+    ? Math.max(40, Number(configVisual.cronometroAncho) || 0)
+    : null;
+  const altoChip = configVisual.cronometroAlto != null && configVisual.cronometroAlto !== ''
+    ? Math.max(24, Number(configVisual.cronometroAlto) || 0)
+    : null;
   const gap = espaciado === 'compacto' || esUnido
     ? '4px'
     : (orientacion === 'vertical' ? '8px' : '6px');
@@ -105,12 +117,14 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
       justifyContent: 'flex-start',
       gap: '10px',
       padding: espaciado === 'compacto' ? '4px 10px' : '8px 12px',
-      borderRadius: esUnido ? '0' : '10px',
+      borderRadius: radioChip,
       border: `2px solid ${colorBorde}`,
       background: fondoChip,
       boxShadow: glow,
       whiteSpace: 'nowrap',
-      width: '100%',
+      width: anchoChip ? `${anchoChip}px` : '100%',
+      minWidth: anchoChip ? `${anchoChip}px` : undefined,
+      minHeight: altoChip ? `${altoChip}px` : undefined,
       boxSizing: 'border-box',
     };
     const inner = (
@@ -170,7 +184,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
       alignItems: 'center',
       gap: '8px',
       padding: '4px 10px',
-      borderRadius: esUnido ? '0' : '8px',
+      borderRadius: radioChip,
       fontSize: `${tamanioCronometro}px`,
       fontWeight: 800,
       fontFamily: 'ui-monospace, "Courier New", monospace',
@@ -182,6 +196,9 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
       textShadow: esCritico ? 'none' : `0 0 10px ${colorAlerta}55`,
       animation: esCritico ? 'kdspulse 1.5s ease-in-out infinite' : 'none',
       whiteSpace: 'nowrap',
+      minWidth: anchoChip ? `${anchoChip}px` : undefined,
+      minHeight: altoChip ? `${altoChip}px` : undefined,
+      boxSizing: 'border-box',
     };
     const inner = (
       <>
@@ -224,7 +241,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
 
   if (orientacion === 'vertical') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap, width: '100%', minWidth: '140px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap, width: anchoChip ? `${anchoChip}px` : '100%', minWidth: anchoChip ? `${anchoChip}px` : '140px' }}>
         <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>
           {visibles.map((t, i) => renderBloqueVertical(t, i))}
         </AnimatePresence>

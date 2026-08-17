@@ -166,13 +166,16 @@ export const abrirMonitorCocinero = async (pantalla, opts = {}) => {
   // Flujo "Distribuir Cocina en monitores":
   //  - perfilId=<id> aplica un perfil de personalización con nombre guardado.
   //  - perfil=auto aplica el perfil personal del cocinero (legacy).
+  //  - listaGuarniciones=1 abre Ver Cocina ya partida 50/50 (PLAN GUARNICIONES_SEPARADAS v1.1 §11).
   let perfilParam = '';
   if (opts.perfilId) {
     perfilParam = `&perfilId=${encodeURIComponent(opts.perfilId)}`;
   } else if (opts.aplicarPerfil) {
     perfilParam = '&perfil=auto';
   }
-  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}`;
+  // PLAN GUARNICIONES_SEPARADAS v1.1 §11.4
+  const listaParam = opts.listaGuarniciones ? '&listaGuarniciones=1' : '';
+  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}${listaParam}`;
 
   // Intentar usar Window Management API para obtener coords exactas del monitor
   let pos;
@@ -209,7 +212,9 @@ export const redirigirVentanaMonitor = (win, pantalla, cocineroId = '', opts = {
   } else if (opts.aplicarPerfil) {
     perfilParam = '&perfil=auto';
   }
-  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}`;
+  // PLAN GUARNICIONES_SEPARADAS v1.1 §11.4
+  const listaParam = opts.listaGuarniciones ? '&listaGuarniciones=1' : '';
+  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}${listaParam}`;
   try {
     win.location.href = url;
     const pos = calcularPosicion(pantalla?.configDespliegue, numero);

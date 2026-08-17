@@ -83,6 +83,52 @@ const BtnStep = ({ onClick, children, colorAcento, colorFondo, colorTexto }) => 
   </button>
 );
 
+/** Ancho/alto en px con Auto (null = automático). */
+const DimPx = ({ label, value, onChange, min = 20, max = 280, inp, lbl, colorAcento, colorFondo, colorTexto }) => {
+  const esAuto = value == null || value === '';
+  const n = esAuto ? null : Number(value);
+  return (
+    <label style={lbl}>
+      {label}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          style={{
+            ...inp,
+            cursor: 'pointer',
+            background: esAuto ? `${colorAcento}33` : 'transparent',
+          }}
+        >
+          Auto
+        </button>
+        <BtnStep
+          onClick={() => onChange(Math.max(min, (n || min) - 4))}
+          colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTexto}
+        >−</BtnStep>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={esAuto ? '' : n}
+          placeholder="auto"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '') onChange(null);
+            else onChange(Math.min(max, Math.max(min, Number(v) || min)));
+          }}
+          style={{ ...inp, width: '64px', textAlign: 'center' }}
+        />
+        <BtnStep
+          onClick={() => onChange(Math.min(max, (n || min) + 4))}
+          colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTexto}
+        >+</BtnStep>
+        <span style={{ fontSize: '11px', opacity: 0.7 }}>px</span>
+      </div>
+    </label>
+  );
+};
+
 /**
  * Vista previa de una animación de alerta. Renderiza una tarjeta miniatura
  * que ejecuta la keyframe seleccionada con el color de alerta correspondiente.
@@ -209,6 +255,15 @@ const MonitorConfigPanel = ({
 
   const setColumnas = (n) => guardar({ layoutColumnas: clampColumnas(n) });
 
+  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones
+  // (split 50/50 cuando "Lista complementos" está activo).
+  const diferenciarDiseno = configVisual.diferenciarDisenoGuarniciones === true;
+  const columnasGuarnicionesActuales = clampColumnas(
+    diferenciarDiseno ? (configVisual.layoutColumnasGuarniciones || 1) : (configVisual.layoutColumnas || 1)
+  );
+  const setColumnasGuarniciones = (n) => guardar({ layoutColumnasGuarniciones: clampColumnas(n) });
+  const toggleDiferenciar = (val) => guardar({ diferenciarDisenoGuarniciones: val });
+
   const inp = inputStyle(colorFondo, colorTextoPrincipal, colorAcento);
   const lbl = labelStyle(colorTextoSecundario);
 
@@ -287,6 +342,56 @@ const MonitorConfigPanel = ({
               Con 2+ columnas se muestran tarjetas en cuadrícula (no bloques por cocinero).
             </p>
           )}
+          {/* PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones */}
+          <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${colorAcento}33`, background: `${colorAcento}0d` }}>
+            {/* Check: permitir diferenciar el diseño de lista de guarniciones */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: diferenciarDiseno ? '8px' : '0' }}>
+              <input
+                type="checkbox"
+                checked={diferenciarDiseno}
+                onChange={(e) => toggleDiferenciar(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '12px', color: colorTextoPrincipal, fontWeight: 700 }}>
+                🥗 Diferenciar diseño de lista de guarniciones
+              </span>
+            </label>
+            {!diferenciarDiseno && (
+              <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0 24px' }}>
+                Desactivado: las guarniciones usan las mismas columnas que los platos ({columnasGuarnicionesActuales}).
+              </p>
+            )}
+            {diferenciarDiseno && (
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginLeft: '24px' }}>
+                {[1, 2, 3, 4].map((cols) => {
+                  const activo = columnasGuarnicionesActuales === cols;
+                  return (
+                    <button
+                      key={cols}
+                      type="button"
+                      onClick={() => setColumnasGuarniciones(cols)}
+                      title={`${cols} columna${cols > 1 ? 's' : ''}`}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: `2px solid ${activo ? colorAcento : `${colorAcento}33`}`,
+                        background: activo ? `${colorAcento}22` : 'transparent',
+                        color: activo ? colorAcento : colorTextoSecundario,
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: activo ? 700 : 500,
+                      }}
+                    >
+                      {cols}
+                    </button>
+                  );
+                })}
+                <span style={{ fontSize: '11px', color: colorTextoSecundario, marginLeft: '6px' }}>
+                  Solo aplica con "Lista complementos" activo
+                </span>
+              </div>
+            )}
+          </div>
           <label style={lbl}>
             Espaciado entre filas
             <select
@@ -495,6 +600,25 @@ const MonitorConfigPanel = ({
               <option value="pildora">Píldora</option>
             </select>
           </label>
+          <DimPx
+            label="Ancho del cuadro"
+            value={configVisual.numeroSecAncho}
+            onChange={(v) => guardar({ numeroSecAncho: v })}
+            min={20} max={160}
+            inp={inp} lbl={lbl}
+            colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+          />
+          <DimPx
+            label="Alto del cuadro"
+            value={configVisual.numeroSecAlto}
+            onChange={(v) => guardar({ numeroSecAlto: v })}
+            min={20} max={160}
+            inp={inp} lbl={lbl}
+            colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+          />
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-4px 0 4px', width: '100%' }}>
+            Cuadrado = esquinas rectas. Redondeado / píldora = con esquinas. Ancho y alto se pueden estirar por separado.
+          </p>
           <label style={lbl}>
             Tamaño letra
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -637,6 +761,34 @@ const MonitorConfigPanel = ({
           <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
             "Fondo de texto" pinta un resaltado detrás de las cifras (como subrayado de texto en Word), independiente del fondo del cuadro.
           </p>
+          <label style={lbl}>
+            Forma del cuadro
+            <select
+              value={configVisual.cronometroForma || 'redondeado'}
+              onChange={e => guardar({ cronometroForma: e.target.value })}
+              style={{ ...inp, minWidth: '140px' }}
+            >
+              <option value="redondeado">Redondeado (con esquinas)</option>
+              <option value="cuadrado">Cuadrado (sin esquinas)</option>
+              <option value="pildora">Píldora</option>
+            </select>
+          </label>
+          <DimPx
+            label="Ancho del cuadro"
+            value={configVisual.cronometroAncho}
+            onChange={(v) => guardar({ cronometroAncho: v })}
+            min={80} max={320}
+            inp={inp} lbl={lbl}
+            colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+          />
+          <DimPx
+            label="Alto del cuadro"
+            value={configVisual.cronometroAlto}
+            onChange={(v) => guardar({ cronometroAlto: v })}
+            min={28} max={160}
+            inp={inp} lbl={lbl}
+            colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+          />
         </Section>
 
         {/* Cantidad ×N */}
@@ -1012,6 +1164,55 @@ const MonitorConfigPanel = ({
 
         {/* Tarjetas (nuevas herramientas) */}
         <Section title="Tarjetas" colorAcento={colorAcento}>
+          <label style={lbl}>
+            Esquinas de la tarjeta
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: colorTextoSecundario, minWidth: '58px' }}>Cuadrada</span>
+              <input
+                type="range"
+                min={0}
+                max={28}
+                step={1}
+                value={configVisual.tarjetaRadio ?? 14}
+                onChange={e => guardar({ tarjetaRadio: Number(e.target.value) })}
+                style={{ width: '140px', accentColor: colorAcento }}
+              />
+              <span style={{ fontSize: '11px', color: colorTextoSecundario, minWidth: '58px' }}>Redonda</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, minWidth: '36px' }}>
+                {configVisual.tarjetaRadio ?? 14}px
+              </span>
+            </div>
+          </label>
+          <DimPx
+            label="Relleno interno (espacio dentro de la tarjeta)"
+            value={configVisual.tarjetaPadding}
+            onChange={(v) => guardar({ tarjetaPadding: v })}
+            min={0} max={48}
+            inp={inp} lbl={lbl}
+            colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+          />
+          <DimPx
+            label="Espacio entre nombre y cronómetro"
+            value={configVisual.tarjetaGap}
+            onChange={(v) => guardar({ tarjetaGap: v == null ? 16 : v })}
+            min={0} max={48}
+            inp={inp} lbl={lbl}
+            colorAcento={colorAcento} colorFondo={colorFondo} colorTexto={colorTextoPrincipal}
+          />
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-4px 0 8px', width: '100%' }}>
+            0 px de esquinas = tarjeta cuadrada. Sube el slider para redondear. Auto en relleno usa el espaciado de lista.
+          </p>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.mostrarComplementos !== false}
+              onChange={e => guardar({ mostrarComplementos: e.target.checked })}
+            />
+            Mostrar nombres de guarniciones en el plato principal
+          </label>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 6px', width: '100%' }}>
+            En Ver Cocina, la tarjeta del plato (ej. Bistec) lista Arroz, papa frita, ensalada. Desactívalo para dejar solo el nombre del plato. No afecta la lista de guarniciones del panel derecho.
+          </p>
           <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
             <input
               type="checkbox"
@@ -1318,14 +1519,6 @@ const MonitorConfigPanel = ({
               onChange={e => guardar({ mostrarCocineroTomado: e.target.checked })}
             />
             Mostrar cocinero
-          </label>
-          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
-            <input
-              type="checkbox"
-              checked={configVisual.mostrarComplementos !== false}
-              onChange={e => guardar({ mostrarComplementos: e.target.checked })}
-            />
-            Mostrar complementos
           </label>
           <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
             <input

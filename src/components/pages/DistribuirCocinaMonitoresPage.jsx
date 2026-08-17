@@ -29,6 +29,11 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   // Valores por monitor: 'none' | 'auto' | '<PerfilVerCocinaId>'.
   const [asignacionPerfil, setAsignacionPerfil] = useState({});
   const [asignacionPerfilInicial, setAsignacionPerfilInicial] = useState({});
+  // PLAN GUARNICIONES_SEPARADAS v1.1 §11: lista de guarniciones por monitor.
+  const [asignacionListaGuarniciones, setAsignacionListaGuarniciones] = useState({});
+  const [asignacionListaGuarnicionesInicial, setAsignacionListaGuarnicionesInicial] = useState({});
+  // Flag global (para deshabilitar el checkbox si está OFF en Configuración → Cocina).
+  const [flagGuarnicionesGlobal, setFlagGuarnicionesGlobal] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ventanas, setVentanas] = useState({});
@@ -57,6 +62,14 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     if (perfil === 'auto') return '&perfil=auto';
     return `&perfilId=${encodeURIComponent(perfil)}`;
   }, [asignacionPerfil]);
+
+  // PLAN GUARNICIONES_SEPARADAS v1.1 §11.4: helpers para el flag por monitor.
+  const getListaGuarnicionesOptsForMonitor = useCallback((numero) => {
+    return asignacionListaGuarniciones[numero] ? { listaGuarniciones: true } : {};
+  }, [asignacionListaGuarniciones]);
+  const getListaGuarnicionesSuffixForMonitor = useCallback((numero) => {
+    return asignacionListaGuarniciones[numero] ? '&listaGuarniciones=1' : '';
+  }, [asignacionListaGuarniciones]);
 
   const cargarPerfiles = useCallback(async () => {
     if (!getToken) return;
@@ -89,6 +102,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       setPantallas(data);
       const map = {};
       const mapPerfil = {};
+      const mapLista = {};
       for (const p of data) {
         if (p.numeroPantalla === MONITOR_PRINCIPAL) continue;
         const cid = p.cocineroId?._id || p.cocineroId || null;
@@ -101,12 +115,25 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
         } else {
           mapPerfil[p.numeroPantalla] = 'none';
         }
+        // PLAN GUARNICIONES_SEPARADAS v1.1 §11.3: hidratar flag por monitor.
+        mapLista[p.numeroPantalla] = p.listaGuarniciones === true;
       }
       setAsignacion(map);
       setAsignacionInicial(map);
       setAsignacionPerfil(mapPerfil);
       setAsignacionPerfilInicial(mapPerfil);
+      setAsignacionListaGuarniciones(mapLista);
+      setAsignacionListaGuarnicionesInicial(mapLista);
       setMensaje(null);
+
+      // Flag global (para deshabilitar el checkbox si está OFF).
+      try {
+        const cfgRes = await axios.get(`${getServerBaseUrl()}/api/configuracion`, {
+          headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
+        });
+        const cocina = cfgRes.data?.configuracion?.cocina || {};
+        setFlagGuarnicionesGlobal(cocina.permitirGuarnicionesSeparadas !== false);
+      } catch { /* defaults */ }
     } catch (err) {
       console.warn('[DistribuirCocina] Error:', err.message);
       setError('No se pudieron cargar las pantallas');
@@ -170,9 +197,13 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       const pa = asignacionPerfil[num] || 'none';
       const pb = asignacionPerfilInicial[num] || 'none';
       if (pa !== pb) return true;
+      // PLAN GUARNICIONES_SEPARADAS v1.1 §11.3
+      const la = asignacionListaGuarniciones[num] === true;
+      const lb = asignacionListaGuarnicionesInicial[num] === true;
+      if (la !== lb) return true;
     }
     return false;
-  }, [asignacion, asignacionInicial, asignacionPerfil, asignacionPerfilInicial]);
+  }, [asignacion, asignacionInicial, asignacionPerfil, asignacionPerfilInicial, asignacionListaGuarniciones, asignacionListaGuarnicionesInicial]);
 
   const cambiarCocinero = (numero, valor) => {
     const cid = valor === SIN_ASIGNAR ? null : valor;
@@ -182,6 +213,12 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
 
   const cambiarPerfilMonitor = (numero, valor) => {
     setAsignacionPerfil((prev) => ({ ...prev, [numero]: valor || 'none' }));
+    setMensaje(null);
+  };
+
+  // PLAN GUARNICIONES_SEPARADAS v1.1 §11.3
+  const cambiarListaGuarnicionesMonitor = (numero, valor) => {
+    setAsignacionListaGuarniciones((prev) => ({ ...prev, [numero]: !!valor }));
     setMensaje(null);
   };
 
@@ -199,6 +236,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
           cocineroId: asignacion[num] || null,
           modoVista: asignacion[num] ? 'completo' : 'personalizado',
           perfilAplicar: asignacionPerfil[num] || 'none',
+          listaGuarniciones: asignacionListaGuarniciones[num] === true,
         };
       }).filter(Boolean);
       if (items.length === 0) {
@@ -212,6 +250,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       );
       setAsignacionInicial({ ...asignacion });
       setAsignacionPerfilInicial({ ...asignacionPerfil });
+      setAsignacionListaGuarnicionesInicial({ ...asignacionListaGuarniciones });
       setMensaje('Distribución guardada correctamente.');
     } catch (err) {
       console.warn('[DistribuirCocina] Error guardando:', err.message);
@@ -232,13 +271,24 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       return;
     }
     if (existente && !existente.closed) {
-      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, getPerfilOptsForMonitor(numero));
+      const ok = redirigirVentanaMonitor(existente, pantalla, cocineroId, {
+        ...getPerfilOptsForMonitor(numero),
+        ...getListaGuarnicionesOptsForMonitor(numero),
+      });
       if (!ok) {
-        const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOptsForMonitor(numero) });
+        const win = await abrirMonitorCocinero(pantalla, {
+          cocineroIdOverride: cocineroId,
+          ...getPerfilOptsForMonitor(numero),
+          ...getListaGuarnicionesOptsForMonitor(numero),
+        });
         if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
       }
     } else {
-      const win = await abrirMonitorCocinero(pantalla, { cocineroIdOverride: cocineroId, ...getPerfilOptsForMonitor(numero) });
+      const win = await abrirMonitorCocinero(pantalla, {
+        cocineroIdOverride: cocineroId,
+        ...getPerfilOptsForMonitor(numero),
+        ...getListaGuarnicionesOptsForMonitor(numero),
+      });
       if (win) setVentanas((prev) => ({ ...prev, [numero]: win }));
     }
   };
@@ -279,7 +329,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       .filter((num) => asignacion[num])
       .map((num) => ({
         monitorIndex: num,
-        url: `${base}/?monitor=${num}&cocineroId=${asignacion[num]}&modo=completo-fijo${getPerfilSuffixForMonitor(num)}`,
+        url: `${base}/?monitor=${num}&cocineroId=${asignacion[num]}&modo=completo-fijo${getPerfilSuffixForMonitor(num)}${getListaGuarnicionesSuffixForMonitor(num)}`,
         mode: 'fullscreen',
       }));
     if (slots.length === 0) {
@@ -410,7 +460,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     const bloquesStart = monsData.map((m) => (
 `if not "%COCINERO_${m.num}%"=="" (
   echo Abriendo Monitor ${m.num} - Cocinero: %COCINERO_${m.num}% - Pos: ${m.posX},${m.posY}
-  start "cocina-monitor-${m.num}" "%CHROME%" --kiosk --new-window "%BASE%/?monitor=${m.num}&cocineroId=%COCINERO_${m.num}%&modo=completo-fijo${getPerfilSuffixForMonitor(m.num)}"
+    start "cocina-monitor-${m.num}" "%CHROME%" --kiosk --new-window "%BASE%/?monitor=${m.num}&cocineroId=%COCINERO_${m.num}%&modo=completo-fijo${getPerfilSuffixForMonitor(m.num)}${getListaGuarnicionesSuffixForMonitor(m.num)}"
 )`)).join('\n\n');
 
     const bat = `@echo off
@@ -777,6 +827,28 @@ pause
                       <option key={p._id} value={p._id}>{p.nombre}</option>
                     ))}
                   </select>
+
+                  {/* PLAN GUARNICIONES_SEPARADAS v1.1 §11.2: checkbox por monitor */}
+                  <label
+                    className="mt-3 flex items-center gap-2 text-xs text-gray-400 cursor-pointer"
+                    title="Si está marcado, esta ventana abre Ver Cocina ya partida 50/50 (principales | guarniciones)"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={asignacionListaGuarniciones[num] === true}
+                      onChange={(e) => cambiarListaGuarnicionesMonitor(num, e.target.checked)}
+                      disabled={!cid || !flagGuarnicionesGlobal}
+                      className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-lime-500 focus:ring-lime-500 disabled:opacity-40"
+                    />
+                    <span className={(!cid || !flagGuarnicionesGlobal) ? 'opacity-50' : ''}>
+                      Lista de guarniciones (split 50/50)
+                    </span>
+                  </label>
+                  {!flagGuarnicionesGlobal && (
+                    <p className="text-[10px] text-amber-400 mt-1">
+                      Guarniciones separadas desactivadas en Configuración → Cocina
+                    </p>
+                  )}
 
                   <div className="mt-3 text-xs text-gray-400 flex items-center gap-1">
                     <FaUser className="text-gray-500" />
