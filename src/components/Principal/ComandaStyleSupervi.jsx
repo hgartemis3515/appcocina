@@ -311,24 +311,27 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     if (!platos || platos.length === 0) return;
 
     // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
-    const platosPrincipales = platos.filter(p => p.tipo !== 'guarnicion');
-    const guarniciones = platos.filter(p => p.tipo === 'guarnicion');
+    const platosPrincipales = platos.filter(p => p && p.tipo !== 'guarnicion');
+    const guarniciones = platos.filter(p => p && p.tipo === 'guarnicion' && p.compId);
 
     let exitosos = 0;
-    for (const plato of platosPrincipales) {
-      // Usar el userId del supervisor para auditoría
-      const result = await finalizarPlato(
-        plato.comandaId || plato.comanda?._id,
-        plato.platoId || plato._id,
-        userId
-      );
-      if (result.success) exitosos++;
-    }
+    // Finalizar PRIMERO las guarniciones y esperar a que terminen antes de
+    // cerrar el plato principal. Si no, el principal se manda antes y el
+    // backend rechaza con 409 FALTAN_GUARNICIONES (la guarnición aún pendiente).
     for (const g of guarniciones) {
       const result = await finalizarGuarnicion(
         g.comandaId || g.comanda?._id,
         g.platoId,
         g.compId,
+        userId
+      );
+      if (result.success) exitosos++;
+    }
+    for (const plato of platosPrincipales) {
+      // Usar el userId del supervisor para auditoría
+      const result = await finalizarPlato(
+        plato.comandaId || plato.comanda?._id,
+        plato.platoId || plato._id,
         userId
       );
       if (result.success) exitosos++;

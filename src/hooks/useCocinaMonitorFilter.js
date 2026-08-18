@@ -66,14 +66,20 @@ function obtenerPlatoTipoId(plato) {
  * Clave estable para agrupar complementos idénticos.
  * Solo grupo + opción (ignora precio/cantidad para no separar el mismo plato).
  */
+function textoComplemento(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.join(', ');
+  return String(v);
+}
+
 function claveComplementos(plato) {
   const comps = plato.complementosSeleccionados || plato.complementos || [];
   if (!comps.length) return '';
   return comps
     .map(c => {
       if (typeof c === 'string') return c.trim().toLowerCase();
-      const grupo = (c.grupo || '').trim().toLowerCase();
-      const opcion = (c.opcion || c.nombre || '').trim().toLowerCase();
+      const grupo = textoComplemento(c.grupo).trim().toLowerCase();
+      const opcion = textoComplemento(c.opcion || c.nombre).trim().toLowerCase();
       return `${grupo}:${opcion}`;
     })
     .filter(Boolean)

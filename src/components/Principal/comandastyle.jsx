@@ -51,7 +51,10 @@ import {
   expandirUnidadesTrabajo,
   estadoAlertaGuarnicion,
   prioridadUnidad,
-  todasGuarnicionesListas
+  todasGuarnicionesListas,
+  esClaveGuarnicion,
+  esEventoGuarnicion,
+  aplicarEventoGuarnicion
 } from "../../utils/guarnicionesKds";
 
 // Sonido de notificación
@@ -864,6 +867,11 @@ const ComandaStyle = ({
     // COMANDA_* no traen platoId — no refrescar toda la lista
     if (data.tipo === 'COMANDA_TOMADA' || data.tipo === 'COMANDA_LIBERADA' || data.tipo === 'COMANDA_FINALIZADA') {
       // Redirigido también vía onComandaActualizada; aquí solo evitar el fallback obtenerComandas
+      return;
+    }
+
+    if (esEventoGuarnicion(data)) {
+      setComandas(prev => aplicarEventoGuarnicion(prev, data));
       return;
     }
 
@@ -1907,11 +1915,15 @@ const ComandaStyle = ({
   //   para operar sobre el subdoc complemento (clave de estado propia).
   const togglePlatoCheck = useCallback((comandaId, platoIndex, opts) => {
     // §9.3: rama guarnición — ciclo visual independiente por complemento.
-    if (opts && opts.tipo === 'guarnicion' && opts.compId) {
+    if (opts && opts.tipo === 'guarnicion') {
+      if (!opts.compId) return;
       const key = `${comandaId}-${platoIndex}-g-${opts.compId}`;
       const comanda = comandas.find(c => c._id === comandaId);
       const plato = comanda?.platos?.[platoIndex];
-      const comp = (plato?.complementosSeleccionados || []).find(c => c._id && String(c._id) === String(opts.compId));
+      const comps = plato?.complementosSeleccionados || [];
+      const comp = String(opts.compId || '').startsWith('idx:')
+        ? comps[parseInt(opts.compId.slice(4), 10)]
+        : comps.find(c => c._id && String(c._id) === String(opts.compId));
       // Si la guarnición ya está recoger, no hay ciclo (ya finalizada).
       if (!comp || comp.estadoCocina === 'recoger') return;
       const tomadoPorOtro = comp.procesandoPor?.cocineroId
@@ -2326,11 +2338,9 @@ const ComandaStyle = ({
       // SALIO: Incluir también 'entregando' (platos en recoger marcados para salir del pass)
       if (estado !== 'procesando' && estado !== 'seleccionado' && estado !== 'dejar' && estado !== 'entregando') return;
 
-      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: rama guarnición.
-      // Clave de guarnición: ${comandaId}-${platoIndex}-g-${compId}.
-      // Las guarniciones se cuentan igual que platos para que los botones
-      // del supervisor (Tomar/Finalizar/Dejar) aparezcan al seleccionarlas.
-      if (key.includes('-g-')) {
+        // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: rama guarnición.
+        // Clave de guarnición: ${comandaId}-${platoIndex}-g-${compId}.
+        if (esClaveGuarnicion(key)) {
         const parts = key.split('-g-');
         if (parts.length !== 2) return;
         const base = parts[0];
@@ -2837,7 +2847,7 @@ const ComandaStyle = ({
         if (estado !== 'seleccionado') return;
 
         // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: rama guarnición
-        if (key.includes('-g-')) {
+        if (esClaveGuarnicion(key)) {
           const parts = key.split('-g-');
           if (parts.length !== 2) return;
           const base = parts[0];
@@ -2879,7 +2889,8 @@ const ComandaStyle = ({
           comandaId,
           platoId: plato._id || plato.platoId,
           platoIndex,
-          plato
+          plato,
+          tipo: 'principal'
         });
       });
       
@@ -2906,8 +2917,13 @@ const ComandaStyle = ({
       const platosProcesadosSet = new Set(); // Para deduplicar
       
       // Método 1: Platos con estado visual 'seleccionado' (verde ✓)
+      // IMPORTANTE: las claves de guarnición (`-g-`) NO se parsean como plato
+      // principal. Si se parsean con lastIndexOf('-'), parseInt del ObjectId
+      // da un índice numérico (ej. 6) y se finaliza el plato padre por error
+      // → 409 FALTAN_GUARNICIONES.
       platoStates.forEach((estado, key) => {
         if (estado !== 'seleccionado') return;
+        if (esClaveGuarnicion(key)) return;
         
         // Parsear key: formato es ${comandaId}-${platoIndex} (índice, NO ID)
         const lastDashIndex = key.lastIndexOf('-');
@@ -3001,7 +3017,7 @@ const ComandaStyle = ({
       const guarnicionesAFinalizar = [];
       platoStates.forEach((estado, key) => {
         if (estado !== 'seleccionado') return;
-        if (!key.includes('-g-')) return; // solo claves de guarnición
+        if (!esClaveGuarnicion(key)) return; // solo claves de guarnición
         const parts = key.split('-g-');
         if (parts.length !== 2) return;
         const base = parts[0]; // ${comandaId}-${platoIndex}
@@ -3025,11 +3041,13 @@ const ComandaStyle = ({
         return;
       }
 
-      // Finalizar guarniciones en paralelo (no bloquea el lote de platos).
+      // Finalizar guarniciones PRIMERO y esperar a que terminen antes de
+      // cerrar los platos principales. Si no, el principal se manda antes y
+      // el backend rechaza con 409 FALTAN_GUARNICIONES (guarnición aún pendiente).
       if (guarnicionesAFinalizar.length > 0) {
         const baseUrl = getServerBaseUrl();
         const token = getToken();
-        Promise.all(guarnicionesAFinalizar.map(async (g) => {
+        const results = await Promise.all(guarnicionesAFinalizar.map(async (g) => {
           try {
             const res = await fetch(
               `${baseUrl}/api/comanda/${g.comandaId}/plato/${g.platoId}/guarnicion/${g.compId}/finalizar`,
@@ -3047,22 +3065,21 @@ const ComandaStyle = ({
             console.warn('[FinalizarGuarnicion] error', e.message);
             return { ok: false, g };
           }
-        })).then((results) => {
-          // Resetear estado visual de guarniciones exitosas
-          setPlatoStates(prev => {
-            const nuevo = new Map(prev);
-            results.forEach(r => {
-              if (r.ok) {
-                nuevo.set(`${r.g.comandaId}-${r.g.platoIndex}-g-${r.g.compId}`, 'normal');
-              }
-            });
-            return nuevo;
+        }));
+        // Resetear estado visual de guarniciones exitosas
+        setPlatoStates(prev => {
+          const nuevo = new Map(prev);
+          results.forEach(r => {
+            if (r.ok) {
+              nuevo.set(`${r.g.comandaId}-${r.g.platoIndex}-g-${r.g.compId}`, 'normal');
+            }
           });
-          const okCount = results.filter(r => r.ok).length;
-          if (okCount > 0 && window.GambusinasNotifications) {
-            window.GambusinasNotifications.toast(`${okCount} guarnición(es) lista(s)`, 'success');
-          }
+          return nuevo;
         });
+        const okCount = results.filter(r => r.ok).length;
+        if (okCount > 0 && window.GambusinasNotifications) {
+          window.GambusinasNotifications.toast(`${okCount} guarnición(es) lista(s)`, 'success');
+        }
       }
 
       console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`, platosProcesados);
@@ -3194,6 +3211,7 @@ const ComandaStyle = ({
     const platosAEntregar = [];
     platoStates.forEach((estado, key) => {
       if (estado !== 'entregando') return;
+      if (esClaveGuarnicion(key)) return;
       const lastDashIndex = key.lastIndexOf('-');
       if (lastDashIndex === -1) return;
       const comandaId = key.substring(0, lastDashIndex);

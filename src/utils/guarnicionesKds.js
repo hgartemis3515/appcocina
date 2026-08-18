@@ -91,13 +91,19 @@ export function expandirUnidadesTrabajo(plato, opts = {}) {
 
   const unidades = [{ tipo: 'principal', plato, nombrePadre, ocultarComplementos: true }];
   const comps = plato.complementosSeleccionados || plato.complementos || [];
-  comps.forEach((comp) => {
+  comps.forEach((comp, index) => {
     if (!comp || comp.eliminado) return;
+    // Guarnición ya lista: desaparece de la tabla KDS / Ver Cocina como unidad
+    // independiente. El principal se mantiene hasta que él también se finalice
+    // (entonces expandir fusiona todo en una sola tarjeta).
+    if (comp.estadoCocina === 'recoger') return;
     unidades.push({
       tipo: 'guarnicion',
       plato,            // el plato padre (para mesa, comanda, timers)
       comp,             // el subdoc del complemento
-      compId: comp._id ? String(comp._id) : null,
+      // Fallback idx:N si el subdoc aún no tiene _id (legacy / socket incompleto).
+      // Evita que el click de la tarjeta caiga al toggle del plato principal.
+      compId: comp._id ? String(comp._id) : `idx:${index}`,
       nombrePadre,
       // §9.3: la tarjeta muestra solo el nombre de la guarnición (sin padre);
       // la relación visual la da la posición (debajo del principal) + el badge.
@@ -128,9 +134,24 @@ export function claveAgrupacionUnidad(unidad, flagOn) {
 }
 
 /**
- * ¿La guarnición está atrasada respecto a su tiempo medio?
- * @returns {null|'alerta'|'critica'} null si no aplica
+ * ¿La clave de estado KDS pertenece a una guarnición? (`${comandaId}-${idx}-g-${compId}`)
  */
+export function esClaveGuarnicion(key) {
+  return typeof key === 'string' && key.includes('-g-');
+}
+
+/**
+ * Inicio del cronómetro de la guarnición (propia). Nunca hereda el del plato padre:
+ * son tiempos de trabajo distintos.
+ */
+export function tiempoInicioGuarnicion(comp) {
+  if (!comp) return null;
+  return comp.procesandoPor?.timestamp
+    || comp.asignacionMeta?.timestamp
+    || comp.procesadoPor?.tomadoEn
+    || null;
+}
+
 export function estadoAlertaGuarnicion(comp, tiemposConfig) {
   if (!comp || !comp.procesandoPor?.timestamp) return null;
   const tiempoMedio = Number(comp.tiempoMedioPreparacion) || 0;
@@ -162,6 +183,7 @@ export function guarnicionesPendientes(plato) {
   return comps
     .filter(c => c && !c.eliminado && c.estadoCocina !== 'recoger')
     .map(c => ({
+      ...c,
       compId: c._id ? String(c._id) : null,
       grupo: c.grupo,
       opcion: Array.isArray(c.opcion) ? c.opcion.join(', ') : c.opcion,
@@ -182,3 +204,123 @@ export function prioridadUnidad(comanda) {
 }
 
 export const TIPOS_UNIDAD = { PRINCIPAL: 'principal', GUARNICION: 'guarnicion' };
+
+/**
+ * ¿El payload de socket es de una guarnición (no del plato padre)?
+ * El backend manda complementoId + tipo:'guarnicion' en plato-procesando / plato-liberado.
+ */
+export function esEventoGuarnicion(payload) {
+  if (!payload) return false;
+  if (payload.complementoId) return true;
+  const t = payload.tipo;
+  return t === 'guarnicion'
+    || t === 'GUARNICION_ACTUALIZADA'
+    || t === 'GUARNICION_LIBERADA'
+    || t === 'GUARNICION_TOMADA'
+    || t === 'GUARNICION_FINALIZADA';
+}
+
+function coincideComplemento(comp, idx, complementoId) {
+  const want = String(complementoId);
+  if (comp._id && String(comp._id) === want) return true;
+  const fallback = `idx:${idx}`;
+  return fallback === want;
+}
+
+/**
+ * Parchea SOLO el subdoc de guarnición. No toca platos[].estado ni
+ * procesandoPor del padre (si lo hiciera, Ver Cocina Completo puede
+ * vaciarse o marcar el principal como listo).
+ */
+/**
+ * Guarniciones para el panel derecho de Ver Cocina.
+ * Incluye las TOMADAS/ASIGNADAS aunque el plato padre no esté en la lista
+ * de principales (el padre puede ser de otro cocinero o aún no tomado).
+ * Si hay padresVisibles, también incluye extras pendientes de esos padres.
+ */
+export function recolectarGuarnicionesMonitor(comandas, opts = {}) {
+  const { cocineroIdFiltrado = null, padresVisibles = null } = opts;
+  const seen = new Set();
+  const out = [];
+  if (!Array.isArray(comandas)) return out;
+
+  for (const comanda of comandas) {
+    const platos = comanda.platos || [];
+    for (let platoIndex = 0; platoIndex < platos.length; platoIndex++) {
+      const plato = platos[platoIndex];
+      if (!plato || plato.anulado || plato.eliminado || plato.eliminar) continue;
+      const estado = plato.estado || '';
+      if (estado && !['pedido', 'en_espera'].includes(estado)) continue;
+      const comps = guarnicionesPendientes(plato);
+      if (!comps.length) continue;
+      const comandaId = String(comanda._id || comanda.id || '');
+      const padreKey = `${comandaId}:${platoIndex}`;
+      const padreVisible = padresVisibles instanceof Set && padresVisibles.has(padreKey);
+
+      for (const comp of comps) {
+        const tomada = !!(comp.procesandoPor && comp.procesandoPor.cocineroId);
+        if (!tomada && !padreVisible) continue;
+        if (cocineroIdFiltrado) {
+          const gid = comp.procesandoPor && comp.procesandoPor.cocineroId;
+          if (!gid || String(gid) !== String(cocineroIdFiltrado)) continue;
+        }
+        const cid = comp.compId || (comp._id ? String(comp._id) : `idx:${platoIndex}`);
+        const key = `${comandaId}:${platoIndex}:${cid}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ comanda, plato, platoIndex, comp });
+      }
+    }
+  }
+  return out;
+}
+
+export function aplicarEventoGuarnicion(comandas, payload) {
+  if (!Array.isArray(comandas) || !payload) return comandas;
+  const { comandaId, platoId, complementoId } = payload;
+  if (!comandaId || !platoId || !complementoId) return comandas;
+
+  const esLiberacion = payload.tipo === 'GUARNICION_LIBERADA'
+    || payload.tipo === 'PLATO_LIBERADO';
+  const estadoCocina = payload.estadoCocina
+    || (esLiberacion ? 'pedido' : null);
+
+  let changed = false;
+  const next = comandas.map((comanda) => {
+    if (String(comanda._id || comanda.id) !== String(comandaId)) return comanda;
+    const platos = (comanda.platos || []).map((p) => {
+      if (String(p._id || p.id) !== String(platoId)) return p;
+      const comps = p.complementosSeleccionados || p.complementos;
+      if (!Array.isArray(comps) || comps.length === 0) return p;
+      const compsNext = comps.map((c, idx) => {
+        if (!coincideComplemento(c, idx, complementoId)) return c;
+        changed = true;
+        if (esLiberacion) {
+          return {
+            ...c,
+            estadoCocina: 'pedido',
+            procesandoPor: { cocineroId: null, nombre: null, alias: null, timestamp: null }
+          };
+        }
+        if (estadoCocina === 'recoger') {
+          return {
+            ...c,
+            estadoCocina: 'recoger',
+            procesadoPor: payload.procesandoPor
+              ? { ...payload.procesandoPor, timestamp: payload.timestamp || payload.procesandoPor.timestamp }
+              : c.procesadoPor,
+            procesandoPor: { cocineroId: null, nombre: null, alias: null, timestamp: null }
+          };
+        }
+        return {
+          ...c,
+          estadoCocina: estadoCocina || 'en_espera',
+          procesandoPor: payload.procesandoPor || c.procesandoPor
+        };
+      });
+      return { ...p, complementosSeleccionados: compsNext };
+    });
+    return { ...comanda, platos };
+  });
+  return changed ? next : comandas;
+}

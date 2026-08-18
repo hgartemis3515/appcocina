@@ -24,6 +24,11 @@ import axios from 'axios';
 import moment from 'moment-timezone';
 import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
+import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
+
+function comandaReemplazoValida(comanda) {
+  return !!(comanda && Array.isArray(comanda.platos));
+}
 
 const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
   const [comandas, setComandas] = useState([]);
@@ -79,12 +84,15 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
       // Si la comanda está eliminada/anulada, removerla
       if (comandaReplacement.IsActive === false || comandaReplacement.IsActive === null ||
           comandaReplacement.eliminada === true || comandaReplacement.status === 'cancelado') {
-        return prev.filter(c => (c._id || c.id) !== id);
+        return prev.filter(c => String(c._id || c.id) !== String(id));
       }
+
+      // Stub sin platos (evento de guarnición / COMANDA_* incompleto): no pisar.
+      if (!comandaReemplazoValida(comandaReplacement)) return prev;
 
       // Reemplazar la comanda completa (datos frescos del backend)
       return prev.map(c => {
-        if ((c._id || c.id) === id) {
+        if (String(c._id || c.id) === String(id)) {
           return { ...comandaReplacement };
         }
         return c;
@@ -113,24 +121,31 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
     if (!payload) return;
     const comandaId = payload.comandaId;
     const platoId = payload.platoId;
-    const tipo = payload.tipo; // 'PLATO_TOMADO' | 'PLATO_LIBERADO' | undefined (plato-actualizado)
+    const tipo = payload.tipo; // 'PLATO_TOMADO' | 'PLATO_LIBERADO' | 'GUARNICION_*' | undefined
+
+    // Guarnición: parchear el subdoc. Nunca PLATO_TOMADO del padre ni reemplazar comanda.
+    if (esEventoGuarnicion(payload)) {
+      setComandas(prev => aplicarEventoGuarnicion(prev, payload));
+      return;
+    }
 
     // Caso A: El backend envía la comanda completa (plato-actualizado / plato-actualizado-batch)
     // Reemplazamos toda la comanda - garantiza que el estado del plato sea el correcto
     // y que cualquier acción (tomar, finalizar, entregar) se refleje.
     if (payload.comanda) {
       const comandaReplacement = payload.comanda;
+      if (!comandaReemplazoValida(comandaReplacement)) return;
       const id = comandaReplacement._id || comandaReplacement.id || comandaId;
       setComandas(prev => {
         // Si está eliminada, quitarla
         if (comandaReplacement.IsActive === false || comandaReplacement.IsActive === null ||
             comandaReplacement.eliminada === true) {
-          return prev.filter(c => (c._id || c.id) !== id);
+          return prev.filter(c => String(c._id || c.id) !== String(id));
         }
         // Reemplazar o agregar
-        const exists = prev.some(c => (c._id || c.id) === id);
+        const exists = prev.some(c => String(c._id || c.id) === String(id));
         if (exists) {
-          return prev.map(c => ((c._id || c.id) === id) ? { ...comandaReplacement } : c);
+          return prev.map(c => (String(c._id || c.id) === String(id)) ? { ...comandaReplacement } : c);
         }
         return [...prev, { ...comandaReplacement }];
       });

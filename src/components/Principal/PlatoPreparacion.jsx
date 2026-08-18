@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 /**
@@ -55,17 +55,42 @@ const PlatoPreparacion = ({
     // 🔥 FIX: No permitir interacción si está tomado por otro cocinero (excepto supervisor)
     if (!puedeInteractuar || isEliminado) return;
     if (onToggle && platoIndex !== undefined && platoIndex !== null && platoIndex >= 0) {
-      // PLAN GUARNICIONES_SEPARADAS v1.1: si es guarnición, pasar compId
-      // para que el padre llame al endpoint de guarnición (no al de plato).
-      if (tipoUnidad === 'guarnicion' && compId) {
+      // PLAN GUARNICIONES_SEPARADAS: NUNCA caer al toggle del plato padre.
+      // Si falta compId (subdoc sin _id), el padre genera fallback idx:N.
+      if (tipoUnidad === 'guarnicion') {
         onToggle(comandaId, platoIndex, { tipo: 'guarnicion', compId });
-      } else {
-        onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
+        return;
       }
+      onToggle(comandaId, platoIndex);
     }
   };
 
   const visualState = isEliminado ? 'eliminado' : estadoVisual;
+
+  // Cronómetro propio de la guarnición (desde que se asignó / tomó).
+  const [elapsedG, setElapsedG] = useState('');
+  useEffect(() => {
+    if (tipoUnidad !== 'guarnicion') return undefined;
+    const ini = procesandoPor?.timestamp;
+    if (!ini) {
+      setElapsedG('');
+      return undefined;
+    }
+    const tick = () => {
+      const ms = Date.now() - new Date(ini).getTime();
+      if (!Number.isFinite(ms) || ms < 0) {
+        setElapsedG('');
+        return;
+      }
+      const total = Math.floor(ms / 1000);
+      const m = Math.floor(total / 60);
+      const s = total % 60;
+      setElapsedG(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [tipoUnidad, procesandoPor?.timestamp]);
 
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.1: la tarjeta de guarnición es compacta
   // (un tercio de la altura del plato principal). Mismo ancho, menos padding,
@@ -320,6 +345,14 @@ const PlatoPreparacion = ({
             <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40" title="Guarnición">
               🥗 Guarnición
             </span>
+            {elapsedG && (
+              <span
+                className="px-1.5 py-0.5 rounded-full text-[9px] font-bold tabular-nums bg-cyan-500/20 text-cyan-200 border border-cyan-400/40"
+                title="Cronómetro de esta guarnición (no el del plato principal)"
+              >
+                ⏱ {elapsedG}
+              </span>
+            )}
             {estadoAlerta === 'critica' && (
               <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500/30 text-red-200 border border-red-400/50 animate-pulse" title="Atrasada (crítica)">
                 ⏰ Atrasada

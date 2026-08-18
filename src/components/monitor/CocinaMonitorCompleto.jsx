@@ -204,6 +204,7 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
         sugerenciasBusqueda={sugerencias}
         onSugerenciaClick={setSearchTerm}
         getToken={getToken}
+        comandas={comandasParaMonitor}
       />
     </>
   );

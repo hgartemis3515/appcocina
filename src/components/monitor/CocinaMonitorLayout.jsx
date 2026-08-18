@@ -18,7 +18,7 @@ import { BADGE_DEFAULTS } from '../../utils/monitorBadgeStyles';
 import { fetchConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
 import { grupoIdEstable } from '../../hooks/useCocinaMonitorFilter';
 // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: helpers para el panel de guarniciones
-import { nombreGuarnicionSolo, guarnicionesPendientes } from '../../utils/guarnicionesKds';
+import { nombreGuarnicionSolo, tiempoInicioGuarnicion, recolectarGuarnicionesMonitor } from '../../utils/guarnicionesKds';
 // §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
 // nombre comercial que incluye complementos).
 import { obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
@@ -189,6 +189,9 @@ const CocinaMonitorLayout = ({
   modoCocineros: modoCocinerosProp = null,
   // Perfil de personalización Ver Cocina (flujo Distribuir Cocina en monitores)
   getToken = null,
+  // Comandas crudas: el panel de guarniciones las recorre para mostrar
+  // extras asignados aunque el plato padre no esté en platosPendientes.
+  comandas = null,
 }) => {
   const tick = useCocinaMonitorTimer();
   const [reloj, setReloj] = useState(moment().tz('America/Lima').format('HH:mm:ss'));
@@ -667,68 +670,71 @@ const CocinaMonitorLayout = ({
   // (un chip de cronómetro por unidad). Varios "Arroz" = una tarjeta + N timers.
   const guarnicionesPanel = useMemo(() => {
     if (!splitActivo) return [];
-    const gruposMap = new Map();
+    const padresVisibles = new Set();
     for (const grupo of platosPendientes) {
       for (const p of (grupo.platos || [])) {
-        const plato = p?.plato;
-        if (!plato) continue;
-        const comps = guarnicionesPendientes(plato);
-        if (!comps.length) continue;
-        const nombrePadre = obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato';
-        const tiempoInicio = p.tiempoInicio || grupo.tiempoInicio || null;
         const comanda = p.comanda || {};
-        const comandaId = String(comanda._id || comanda.id || comanda.numero || '');
-        const platoIndex = Array.isArray(comanda.platos) ? comanda.platos.indexOf(plato) : -1;
-        const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
-        const comandaNumero = comanda.numero || comanda.numeroMesa || null;
-
-        for (const comp of comps) {
-          const nombreG = nombreGuarnicionSolo(comp) || 'Guarnición';
-          const qty = Number(comp.cantidad) || 1;
-          const ppG = comp.procesandoPor;
-          const cocinero = (ppG?.cocineroId)
-            ? { id: String(ppG.cocineroId), alias: ppG.alias || ppG.nombre || 'Cocinero', nombre: ppG.nombre || ppG.alias || '' }
-            : (p.cocinero || grupo.cocinero || null);
-          const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
-          const key = `${cid}::g::${nombreG.trim().toLowerCase()}`;
-          if (!gruposMap.has(key)) {
-            gruposMap.set(key, {
-              nombre: nombreG,
-              cantidadTotal: 0,
-              platos: [],
-              tiempoInicio: null,
-              key,
-              grupoId: grupoIdEstable(key),
-              cocinero: modoCocineros ? cocinero : null,
-              timers: [],
-              esGuarnicion: true,
-              padresSet: new Set(),
-            });
-          }
-          const g = gruposMap.get(key);
-          g.cantidadTotal += qty;
-          g.platos.push(p);
-          if (nombrePadre) g.padresSet.add(nombrePadre);
-          const lineaId = `${comandaId}:${platoIndex}:g:${comp._id || nombreG}`;
-          const colorLinea = colorLineaDesdeId(lineaId);
-          for (let u = 0; u < qty; u++) {
-            g.timers.push({
-              tiempoInicio,
-              cantidad: 1,
-              mesa: mesaNum,
-              comandaNumero,
-              comandaId,
-              platoIndex,
-              unidadIndex: u,
-              lineaId,
-              colorLinea,
-            });
-          }
-          const t = tiempoInicio ? new Date(tiempoInicio).getTime() : null;
-          if (t != null && (g.tiempoInicio === null || t < new Date(g.tiempoInicio).getTime())) {
-            g.tiempoInicio = tiempoInicio;
-          }
-        }
+        const plato = p.plato;
+        const idx = Array.isArray(comanda.platos) ? comanda.platos.indexOf(plato) : -1;
+        padresVisibles.add(`${comanda._id || comanda.id}:${idx}`);
+      }
+    }
+    const items = recolectarGuarnicionesMonitor(Array.isArray(comandas) ? comandas : [], {
+      cocineroIdFiltrado: cocineroActivoId,
+      padresVisibles,
+    });
+    const gruposMap = new Map();
+    for (const item of items) {
+      const { comanda, plato, platoIndex, comp } = item;
+      const nombrePadre = obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato';
+      const comandaId = String(comanda._id || comanda.id || comanda.numero || '');
+      const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
+      const comandaNumero = comanda.numero || comanda.numeroMesa || null;
+      const nombreG = nombreGuarnicionSolo(comp) || 'Guarnición';
+      const qty = Number(comp.cantidad) || 1;
+      const ppG = comp.procesandoPor;
+      const tiempoInicio = tiempoInicioGuarnicion(comp);
+      const cocinero = (ppG?.cocineroId)
+        ? { id: String(ppG.cocineroId), alias: ppG.alias || ppG.nombre || 'Cocinero', nombre: ppG.nombre || ppG.alias || '' }
+        : null;
+      const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
+      const key = `${cid}::g::${nombreG.trim().toLowerCase()}`;
+      if (!gruposMap.has(key)) {
+        gruposMap.set(key, {
+          nombre: nombreG,
+          cantidadTotal: 0,
+          platos: [],
+          tiempoInicio: null,
+          key,
+          grupoId: grupoIdEstable(key),
+          cocinero: modoCocineros ? cocinero : null,
+          timers: [],
+          esGuarnicion: true,
+          padresSet: new Set(),
+        });
+      }
+      const g = gruposMap.get(key);
+      g.cantidadTotal += qty;
+      g.platos.push({ plato, comanda, cocinero });
+      if (nombrePadre) g.padresSet.add(nombrePadre);
+      const lineaId = `${comandaId}:${platoIndex}:g:${comp._id || nombreG}`;
+      const colorLinea = colorLineaDesdeId(lineaId);
+      for (let u = 0; u < qty; u++) {
+        g.timers.push({
+          tiempoInicio,
+          cantidad: 1,
+          mesa: mesaNum,
+          comandaNumero,
+          comandaId,
+          platoIndex,
+          unidadIndex: u,
+          lineaId,
+          colorLinea,
+        });
+      }
+      const t = tiempoInicio ? new Date(tiempoInicio).getTime() : null;
+      if (t != null && (g.tiempoInicio === null || t < new Date(g.tiempoInicio).getTime())) {
+        g.tiempoInicio = tiempoInicio;
       }
     }
     const grupos = Array.from(gruposMap.values()).map((g) => {
@@ -745,7 +751,7 @@ const CocinaMonitorLayout = ({
       return ta - tb;
     });
     return modoCocineros ? asignarNumeroGlobal(grupos) : grupos;
-  }, [splitActivo, platosPendientes, modoCocineros]);
+  }, [splitActivo, platosPendientes, comandas, modoCocineros, cocineroActivoId]);
 
   // Modo de agrupación visual efectivo:
   // - tarjetas independientes si multi-columna O config.modoAgrupacion === 'tarjetas'

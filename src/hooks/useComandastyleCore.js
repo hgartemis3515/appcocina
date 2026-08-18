@@ -20,6 +20,7 @@ import axios from 'axios';
 import moment from 'moment-timezone';
 import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
+import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
 
 /**
  * Sonido de notificación para nuevas comandas
@@ -252,6 +253,11 @@ const useComandastyleCore = ({
     console.log('[useComandastyleCore] Plato actualizado:', data?.platoId);
 
     if (!data?.comandaId || !data?.platoId) return;
+
+    if (esEventoGuarnicion(data)) {
+      setComandasOriginales(prev => aplicarEventoGuarnicion(prev, data));
+      return;
+    }
 
     setComandasOriginales(prev => {
       return prev.map(comanda => {

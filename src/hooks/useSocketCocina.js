@@ -488,14 +488,20 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato tomado por:', data.cocinero?.alias || data.cocinero?.nombre);
       ultimoPingRef.current = Date.now();
       
-      // Actualizar el estado de las comandas para reflejar quien esta procesando
+      // PLAN GUARNICIONES_SEPARADAS: no reescribir tipo/complementoId.
+      // Si se fuerza PLATO_TOMADO, Ver Cocina parchea el padre y puede vaciar la lista.
+      const esGuarnicion = !!(data.complementoId || data.tipo === 'guarnicion');
       if (handlersRef.current.onPlatoActualizado) {
         handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
-          tipo: 'PLATO_TOMADO',
+          tipo: esGuarnicion ? 'GUARNICION_ACTUALIZADA' : 'PLATO_TOMADO',
           procesandoPor: data.cocinero,
-          timestamp: data.timestamp
+          timestamp: data.timestamp,
+          ...(esGuarnicion ? {
+            complementoId: data.complementoId,
+            estadoCocina: data.estadoCocina
+          } : {})
         });
       }
     });
@@ -505,13 +511,15 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato liberado:', data.platoId, 'por', data.cocineroId);
       ultimoPingRef.current = Date.now();
       
+      const esGuarnicion = !!(data.complementoId || data.tipo === 'guarnicion');
       if (handlersRef.current.onPlatoActualizado) {
         handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
-          tipo: 'PLATO_LIBERADO',
+          tipo: esGuarnicion ? 'GUARNICION_LIBERADA' : 'PLATO_LIBERADO',
           cocineroId: data.cocineroId,
-          timestamp: data.timestamp
+          timestamp: data.timestamp,
+          ...(esGuarnicion ? { complementoId: data.complementoId } : {})
         });
       }
     });

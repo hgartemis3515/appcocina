@@ -48,6 +48,7 @@ import {
   calcularEstadisticasFiltrado 
 } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato } from "../../utils/platoHelpers";
+import { esEventoGuarnicion, aplicarEventoGuarnicion } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 
 // Sonido de notificación
@@ -1213,6 +1214,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
     // COMANDA_* sin platoId: no disparar obtenerComandas (rompe la lista KDS)
     if (data.tipo === 'COMANDA_TOMADA' || data.tipo === 'COMANDA_LIBERADA' || data.tipo === 'COMANDA_FINALIZADA') {
+      return;
+    }
+
+    if (esEventoGuarnicion(data)) {
+      setComandas(prev => aplicarEventoGuarnicion(prev, data));
       return;
     }
     

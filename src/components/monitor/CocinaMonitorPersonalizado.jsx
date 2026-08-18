@@ -165,6 +165,7 @@ const CocinaMonitorPersonalizado = ({ onGoToMenu, modoFijo = false, vistaIdInici
       vistasCocina={modoFijo ? null : vistasCocina}
       vistaActivaId={vistaActivaId}
       onCambiarVista={modoFijo ? null : cambiarVista}
+      comandas={comandas}
     />
   );
 };

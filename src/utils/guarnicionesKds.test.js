@@ -173,6 +173,31 @@ describe('expandirUnidadesTrabajo', () => {
       expect(unidades[0].ocultarComplementos).toBe(true);
     }
   });
+
+  test('guarnición recoger desaparece; el principal se mantiene', () => {
+    const plato = {
+      nombre: 'Lomo Saltado',
+      estado: 'en_espera',
+      complementosSeleccionados: [
+        { grupo: 'Acomp', opcion: 'Papas', _id: 'c1', estadoCocina: 'recoger' },
+        { grupo: 'Salsa', opcion: 'Criolla', _id: 'c2', estadoCocina: 'en_espera' }
+      ]
+    };
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true });
+    expect(unidades).toHaveLength(2); // principal + criolla (papas ya lista)
+    expect(unidades.filter(u => u.tipo === 'guarnicion').map(u => u.nombreGuarnicion))
+      .toEqual(['Criolla']);
+  });
+
+  test('sin _id usa fallback idx:N para no colisionar con el principal', () => {
+    const plato = {
+      nombre: 'Lomo',
+      estado: 'pedido',
+      complementosSeleccionados: [{ grupo: 'Acomp', opcion: 'Papas' }]
+    };
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true });
+    expect(unidades[1].compId).toBe('idx:0');
+  });
 });
 
 describe('claveAgrupacionUnidad', () => {
@@ -356,5 +381,92 @@ describe('Escenarios de servicio real', () => {
     // vía props.cantidad = 2 → "2 Papas fritas").
     const conCantidad2 = guarniciones.find(g => Number(g.comp.cantidad) === 2);
     expect(conCantidad2.nombreGuarnicion).toBe('Papas fritas');
+  });
+});
+
+const { esEventoGuarnicion, aplicarEventoGuarnicion } = require('./guarnicionesKds');
+
+describe('aplicarEventoGuarnicion (Ver Cocina live patch)', () => {
+  const base = [{
+    _id: 'com1',
+    platos: [{
+      _id: 'p1',
+      estado: 'pedido',
+      procesandoPor: { cocineroId: 'cook1', alias: 'Ana' },
+      complementosSeleccionados: [
+        { _id: 'g1', opcion: 'Arroz', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2' } },
+        { _id: 'g2', opcion: 'Ensalada', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2' } }
+      ]
+    }]
+  }];
+
+  test('esEventoGuarnicion detecta complementoId y tipos', () => {
+    expect(esEventoGuarnicion({ complementoId: 'g1' })).toBe(true);
+    expect(esEventoGuarnicion({ tipo: 'guarnicion' })).toBe(true);
+    expect(esEventoGuarnicion({ tipo: 'PLATO_TOMADO' })).toBe(false);
+    expect(esEventoGuarnicion(null)).toBe(false);
+  });
+
+  test('finalizar guarnición: solo el subdoc pasa a recoger; el padre sigue pedido', () => {
+    const next = aplicarEventoGuarnicion(base, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      complementoId: 'g1',
+      tipo: 'GUARNICION_ACTUALIZADA',
+      estadoCocina: 'recoger',
+      procesandoPor: { cocineroId: 'cook2', alias: 'Luis' }
+    });
+    const padre = next[0].platos[0];
+    expect(padre.estado).toBe('pedido');
+    expect(padre.procesandoPor.cocineroId).toBe('cook1');
+    expect(padre.complementosSeleccionados[0].estadoCocina).toBe('recoger');
+    expect(padre.complementosSeleccionados[0].procesandoPor.cocineroId).toBeNull();
+    expect(padre.complementosSeleccionados[1].estadoCocina).toBe('en_espera');
+  });
+
+  test('recolectar: guarnición asignada aparece aunque el padre no esté tomado', () => {
+    const { recolectarGuarnicionesMonitor } = require('./guarnicionesKds');
+    const comandas = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'p1',
+        estado: 'pedido',
+        procesandoPor: null,
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Arroz', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2', alias: 'Luis' } }
+        ]
+      }]
+    }];
+    const items = recolectarGuarnicionesMonitor(comandas, {});
+    expect(items).toHaveLength(1);
+    expect(items[0].comp._id).toBe('g1');
+  });
+
+  test('recolectar: filtro por cocinero solo esa guarnición', () => {
+    const { recolectarGuarnicionesMonitor } = require('./guarnicionesKds');
+    const comandas = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'p1',
+        estado: 'pedido',
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Arroz', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2' } },
+          { _id: 'g2', opcion: 'Papa', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook3' } }
+        ]
+      }]
+    }];
+    const items = recolectarGuarnicionesMonitor(comandas, { cocineroIdFiltrado: 'cook2' });
+    expect(items).toHaveLength(1);
+    expect(items[0].comp._id).toBe('g1');
+  });
+
+  test('sin complementoId no muta (evita vaciar Ver Cocina)', () => {
+    const next = aplicarEventoGuarnicion(base, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      tipo: 'GUARNICION_ACTUALIZADA',
+      estadoCocina: 'recoger'
+    });
+    expect(next).toBe(base);
   });
 });
