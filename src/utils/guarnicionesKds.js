@@ -140,16 +140,38 @@ export function esClaveGuarnicion(key) {
   return typeof key === 'string' && key.includes('-g-');
 }
 
+/** ISO usable por `calcularSegundos` (string, Date o {$date}). */
+export function normalizarTimestampGuarnicion(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number' && !Number.isNaN(v)) {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  if (typeof v === 'string') {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : v;
+  }
+  if (typeof v === 'object') {
+    if (v.$date) return normalizarTimestampGuarnicion(v.$date);
+    if (typeof v.toISOString === 'function') {
+      try { return v.toISOString(); } catch (_) { /* noop */ }
+    }
+  }
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 /**
  * Inicio del cronómetro de la guarnición (propia). Nunca hereda el del plato padre:
  * son tiempos de trabajo distintos.
  */
 export function tiempoInicioGuarnicion(comp) {
   if (!comp) return null;
-  return comp.procesandoPor?.timestamp
+  return normalizarTimestampGuarnicion(
+    comp.procesandoPor?.timestamp
     || comp.asignacionMeta?.timestamp
     || comp.procesadoPor?.tomadoEn
-    || null;
+  );
 }
 
 export function estadoAlertaGuarnicion(comp, tiemposConfig) {
@@ -303,19 +325,37 @@ export function aplicarEventoGuarnicion(comandas, payload) {
           };
         }
         if (estadoCocina === 'recoger') {
+          const tomadoEn = normalizarTimestampGuarnicion(
+            c.procesandoPor?.timestamp || c.asignacionMeta?.timestamp || c.procesadoPor?.tomadoEn
+          );
           return {
             ...c,
             estadoCocina: 'recoger',
             procesadoPor: payload.procesandoPor
-              ? { ...payload.procesandoPor, timestamp: payload.timestamp || payload.procesandoPor.timestamp }
+              ? {
+                  ...payload.procesandoPor,
+                  timestamp: payload.timestamp || payload.procesandoPor.timestamp,
+                  tomadoEn: tomadoEn || payload.procesandoPor.tomadoEn
+                }
               : c.procesadoPor,
             procesandoPor: { cocineroId: null, nombre: null, alias: null, timestamp: null }
           };
         }
+        const tsToma = normalizarTimestampGuarnicion(
+          payload.procesandoPor?.timestamp
+          || payload.timestamp
+          || c.procesandoPor?.timestamp
+          || c.asignacionMeta?.timestamp
+        ) || new Date().toISOString();
+        const pp = payload.procesandoPor || c.procesandoPor || {};
         return {
           ...c,
           estadoCocina: estadoCocina || 'en_espera',
-          procesandoPor: payload.procesandoPor || c.procesandoPor
+          procesandoPor: { ...pp, timestamp: tsToma },
+          asignacionMeta: {
+            ...(c.asignacionMeta || {}),
+            timestamp: c.asignacionMeta?.timestamp || tsToma
+          }
         };
       });
       return { ...p, complementosSeleccionados: compsNext };

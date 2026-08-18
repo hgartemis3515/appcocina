@@ -46,7 +46,7 @@ import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
-import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
 import {
   expandirUnidadesTrabajo,
   estadoAlertaGuarnicion,
@@ -113,7 +113,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
   // Bypass de orden: admin o quien tenga permiso de Panel de Gestión (roles)
   const puedeOmitirOrden = userRole === 'admin' || hasPermission('ver-panel-gestion-mozos');
 
@@ -1016,13 +1016,7 @@ const ComandaStyle = ({
       const platoIdStr = data.platoId?.toString ? data.platoId.toString() : data.platoId;
       
       // Buscar el plato en la comanda
-      const platoIndex = comanda.platos?.findIndex(p => {
-        const pId = p.plato?._id?.toString ? p.plato._id.toString() : 
-                    p.plato?.toString ? p.plato.toString() : 
-                    p.platoId?.toString ? p.platoId.toString() : 
-                    p.plato;
-        return pId === platoIdStr;
-      });
+      const platoIndex = comanda.platos?.findIndex(p => platoCoincideId(p, platoIdStr));
       
       if (platoIndex === -1 || !comanda.platos) {
         console.warn('⚠️ FASE3: Plato no encontrado en comanda, refrescando comanda completa');
@@ -1054,6 +1048,9 @@ const ComandaStyle = ({
       // Actualizar estado del plato (si existe)
       if (data.nuevoEstado) {
         platoActualizado.estado = data.nuevoEstado;
+        if (data.nuevoEstado === 'recoger' || data.nuevoEstado === 'salio' || data.nuevoEstado === 'entregado') {
+          platoActualizado.procesandoPor = null;
+        }
       }
       
       // Si el plato fue eliminado, también actualizar historialPlatos de la comanda
@@ -2564,9 +2561,8 @@ const ComandaStyle = ({
       p.quiereFinalizar && (p.tomadoPorMi || (isSupervisorView && p.tomadoPorOtro))
     );
     if (platosAFinalizar.length > 0) {
-      // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: las guarniciones son unidades
-      // independientes sin cola FIFO; se excluyen de la lógica de orden y siempre
-      // son finalizables. Solo los platos principales pasan por la verificación.
+      // PLAN GUARNICIONES_SEPARADAS: si deshabilitarOrdenSecuencialGuarniciones
+      // (default ON), las extras no entran en cola #1/#2 y siempre son finalizables.
       const guarnicionesAFinalizar = platosAFinalizar.filter(p => p.tipo === 'guarnicion');
       const platosPrincipalesAFinalizar = platosAFinalizar.filter(p => p.tipo !== 'guarnicion');
 
@@ -4229,6 +4225,7 @@ const ComandaStyle = ({
                     // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
                     permitirGuarnicionesSeparadas={permitirGuarnicionesSeparadas}
                     tiemposGuarnicion={tiemposGuarnicion}
+                    deshabilitarOrdenSecuencialGuarniciones={deshabilitarOrdenSecuencialGuarniciones}
                   />
                   );
                 })}
@@ -5217,6 +5214,7 @@ const SicarComandaCard = ({
   // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
   permitirGuarnicionesSeparadas = false,
   tiemposGuarnicion = null,
+  deshabilitarOrdenSecuencialGuarniciones = true,
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -5798,6 +5796,7 @@ const SicarComandaCard = ({
                           tipoUnidad="guarnicion"
                           ocultarComplementos
                           compId={unidad.compId}
+                          numeroColaCocinero={deshabilitarOrdenSecuencialGuarniciones ? null : (mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null)}
                           estadoAlerta={alerta}
                           etiquetaPrioridad={etiquetaPrioridad}
                         />

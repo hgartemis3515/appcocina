@@ -47,7 +47,7 @@ import {
   debeMostrarPlato,
   calcularEstadisticasFiltrado 
 } from "../../utils/kdsFilters";
-import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 
@@ -1301,13 +1301,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       const platoIdStr = data.platoId?.toString ? data.platoId.toString() : data.platoId;
       
       // Buscar el plato en la comanda
-      const platoIndex = comanda.platos?.findIndex(p => {
-        const pId = p.plato?._id?.toString ? p.plato._id.toString() : 
-                    p.plato?.toString ? p.plato.toString() : 
-                    p.platoId?.toString ? p.platoId.toString() : 
-                    p.plato;
-        return pId === platoIdStr;
-      });
+      const platoIndex = comanda.platos?.findIndex(p => platoCoincideId(p, platoIdStr));
       
       if (platoIndex === -1 || !comanda.platos) {
         console.warn('⚠️ FASE3: Plato no encontrado en comanda, refrescando comanda completa');
@@ -1339,6 +1333,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       // Actualizar estado del plato (si existe)
       if (data.nuevoEstado) {
         platoActualizado.estado = data.nuevoEstado;
+        if (data.nuevoEstado === 'recoger' || data.nuevoEstado === 'salio' || data.nuevoEstado === 'entregado') {
+          platoActualizado.procesandoPor = null;
+        }
       }
       
       // Si el plato fue eliminado, también actualizar historialPlatos de la comanda

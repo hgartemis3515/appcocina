@@ -460,6 +460,60 @@ describe('aplicarEventoGuarnicion (Ver Cocina live patch)', () => {
     expect(items[0].comp._id).toBe('g1');
   });
 
+  test('tomar guarnición: cronómetro usa timestamp del evento si procesandoPor no lo trae', () => {
+    const prev = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'p1',
+        estado: 'pedido',
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Arroz', estadoCocina: 'pedido', procesandoPor: null }
+        ]
+      }]
+    }];
+    const ts = '2026-08-18T22:00:00.000Z';
+    const { tiempoInicioGuarnicion } = require('./guarnicionesKds');
+    const next = aplicarEventoGuarnicion(prev, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      complementoId: 'g1',
+      tipo: 'GUARNICION_ACTUALIZADA',
+      procesandoPor: { cocineroId: 'cook2', alias: 'Luis' },
+      timestamp: ts
+    });
+    const comp = next[0].platos[0].complementosSeleccionados[0];
+    expect(comp.procesandoPor.cocineroId).toBe('cook2');
+    expect(comp.procesandoPor.timestamp).toBe(ts);
+    expect(tiempoInicioGuarnicion(comp)).toBe(ts);
+  });
+
+  test('tomar guarnición sin timestamp: usa ahora para que el cronómetro no quede 00:00', () => {
+    const prev = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'p1',
+        estado: 'pedido',
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Arroz', estadoCocina: 'pedido', procesandoPor: null }
+        ]
+      }]
+    }];
+    const before = Date.now();
+    const { tiempoInicioGuarnicion } = require('./guarnicionesKds');
+    const next = aplicarEventoGuarnicion(prev, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      complementoId: 'g1',
+      tipo: 'GUARNICION_ACTUALIZADA',
+      procesandoPor: { cocineroId: 'cook2', alias: 'Luis' }
+    });
+    const inicio = tiempoInicioGuarnicion(next[0].platos[0].complementosSeleccionados[0]);
+    expect(inicio).toBeTruthy();
+    const t = new Date(inicio).getTime();
+    expect(t).toBeGreaterThanOrEqual(before - 1000);
+    expect(t).toBeLessThanOrEqual(Date.now() + 1000);
+  });
+
   test('sin complementoId no muta (evita vaciar Ver Cocina)', () => {
     const next = aplicarEventoGuarnicion(base, {
       comandaId: 'com1',

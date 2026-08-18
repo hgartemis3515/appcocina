@@ -4,30 +4,76 @@
  * Carga comandas del día vía GET /api/comanda/cocina/:fecha y se mantiene
  * actualizado en tiempo real vía Socket.io namespace /cocina.
  *
- * v2.3: Refleja TODAS las acciones de los 3 tableros KDS en tiempo real:
- *   - Tomar plato (plato-procesando): setea procesandoPor -> el plato aparece
- *   - Liberar plato (plato-liberado): quita procesandoPor -> el plato desaparece
- *   - Finalizar plato (plato-actualizado, nuevoEstado='recoger'): comanda completa -> el grupo se reduce al recalcular
- *   - Entregar plato (plato-actualizado, nuevoEstado='salio'): comanda completa -> igual
- *   - Nueva comanda / comanda actualizada: reemplaza comanda completa
- *
- * El backend SIEMPRE envía la `comanda` completa populatada en plato-actualizado
- * y comanda-actualizada, así que reemplazamos la comanda entera en el estado.
- * Esto garantiza que cualquier acción en cualquier tablero (General, Personal, Supervisor)
- * se refleje inmediatamente en Ver Cocina.
+ * Al finalizar (recoger) NO se reemplaza la comanda entera: un payload mongoose
+ * o un GET cacheado volvía a dejar el plato en pedido+procesandoPor.
  *
  * @module useCocinaMonitorData
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import moment from 'moment-timezone';
 import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
 import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
+import { platoCoincideId, normalizarId } from '../utils/platoHelpers';
+
+const ESTADOS_LISTOS = new Set(['recoger', 'salio', 'entregado', 'pagado']);
+
+function idsIguales(a, b) {
+  const na = normalizarId(a);
+  const nb = normalizarId(b);
+  return !!(na && nb && na === nb);
+}
 
 function comandaReemplazoValida(comanda) {
   return !!(comanda && Array.isArray(comanda.platos));
+}
+
+function aplicarEstadoEnPlatos(platos, platoId, nuevoEstado) {
+  if (!Array.isArray(platos) || !platoId || !nuevoEstado) return { platos, hits: 0 };
+  let hits = 0;
+  const next = platos.map((p) => {
+    if (!platoCoincideId(p, platoId)) return p;
+    hits += 1;
+    const updated = { ...p, estado: nuevoEstado };
+    if (ESTADOS_LISTOS.has(nuevoEstado)) updated.procesandoPor = null;
+    return updated;
+  });
+  return { platos: next, hits };
+}
+
+function aplicarFinalizacionEnComandas(comandas, comandaId, platoId, nuevoEstado) {
+  const tryPass = (exigirComanda) => {
+    let hits = 0;
+    const next = comandas.map((comanda) => {
+      if (exigirComanda && comandaId && !idsIguales(comanda._id || comanda.id, comandaId)) {
+        return comanda;
+      }
+      const r = aplicarEstadoEnPlatos(comanda.platos, platoId, nuevoEstado);
+      hits += r.hits;
+      return r.hits ? { ...comanda, platos: r.platos } : comanda;
+    });
+    return { next, hits };
+  };
+
+  const conComanda = tryPass(true);
+  if (conComanda.hits > 0) return conComanda.next;
+  return tryPass(false).next;
+}
+
+function fusionarComandaSinRegresarListo(local, incoming) {
+  const incomingPlatos = incoming.platos || [];
+  const localPlatos = local?.platos || [];
+  const platos = incomingPlatos.map((inc) => {
+    if (ESTADOS_LISTOS.has(inc.estado)) return { ...inc, procesandoPor: null };
+    const loc = localPlatos.find((lp) => platoCoincideId(lp, inc._id) || platoCoincideId(inc, lp._id));
+    if (loc && ESTADOS_LISTOS.has(loc.estado)) {
+      return { ...inc, estado: loc.estado, procesandoPor: null };
+    }
+    return inc;
+  });
+  return { ...incoming, platos };
 }
 
 const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
@@ -36,13 +82,20 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
 
+  const refetchTimerRef = useRef(null);
+  const obtenerComandasRef = useRef(null);
+
   // Obtener comandas del día
-  const obtenerComandas = useCallback(async () => {
+  const obtenerComandas = useCallback(async (opts = {}) => {
+    const silent = opts === true || opts.silent === true;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const fechaActual = moment().tz('America/Lima').format('YYYY-MM-DD');
       const apiUrl = `${getApiUrl()}/cocina/${fechaActual}`;
-      const response = await axios.get(apiUrl, { timeout: 5000 });
+      const response = await axios.get(apiUrl, {
+        timeout: 5000,
+        params: { _t: Date.now() },
+      });
 
       const comandasValidas = (response.data || []).filter(c => {
         if (c.IsActive === false || c.IsActive === null || c.eliminada === true) return false;
@@ -50,121 +103,127 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
         return true;
       });
 
-      setComandas(comandasValidas);
+      setComandas(prev => {
+        if (!silent) return comandasValidas;
+        const byId = new Map(prev.map(c => [normalizarId(c._id || c.id), c]));
+        return comandasValidas.map((inc) => {
+          const loc = byId.get(normalizarId(inc._id || inc.id));
+          return loc ? fusionarComandaSinRegresarListo(loc, inc) : inc;
+        });
+      });
       setLastRefresh(moment().tz('America/Lima').format('HH:mm:ss'));
       setError(null);
     } catch (err) {
       console.warn('[useCocinaMonitorData] Error obteniendo comandas:', err.message);
-      setError(err.message || 'Error al obtener comandas');
+      if (!silent) setError(err.message || 'Error al obtener comandas');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+  }, []);
+
+  obtenerComandasRef.current = obtenerComandas;
+
+  const programarRefrescoSilencioso = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    refetchTimerRef.current = setTimeout(() => {
+      obtenerComandasRef.current?.({ silent: true });
+    }, 500);
+  }, []);
+
+  useEffect(() => () => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
   }, []);
 
   const onNuevaComanda = useCallback((payload) => {
     setComandas(prev => {
       const comanda = payload.comanda || payload;
       const id = comanda._id || comanda.id;
-      const exists = prev.some(c => (c._id || c.id) === id);
+      const exists = prev.some(c => idsIguales(c._id || c.id, id));
       if (exists) return prev;
       return [...prev, comanda];
     });
   }, []);
 
   /**
-   * Maneja comanda-actualizada y comanda-anulada.
-   * El backend envía la comanda completa en payload.comanda (o el payload mismo).
-   * Reemplazamos la comanda entera en el estado.
+   * comanda-actualizada: fusionar sin devolver a pedido un plato ya en recoger.
    */
   const onComandaActualizada = useCallback((payload) => {
     const comandaReplacement = payload.comanda || payload;
     const id = comandaReplacement._id || comandaReplacement.id || payload._id || payload.id || payload.comandaId;
 
     setComandas(prev => {
-      // Si la comanda está eliminada/anulada, removerla
       if (comandaReplacement.IsActive === false || comandaReplacement.IsActive === null ||
           comandaReplacement.eliminada === true || comandaReplacement.status === 'cancelado') {
-        return prev.filter(c => String(c._id || c.id) !== String(id));
+        return prev.filter(c => idsIguales(c._id || c.id, id) === false);
       }
 
-      // Stub sin platos (evento de guarnición / COMANDA_* incompleto): no pisar.
       if (!comandaReemplazoValida(comandaReplacement)) return prev;
 
-      // Reemplazar la comanda completa (datos frescos del backend)
       return prev.map(c => {
-        if (String(c._id || c.id) === String(id)) {
-          return { ...comandaReplacement };
-        }
-        return c;
+        if (!idsIguales(c._id || c.id, id)) return c;
+        return fusionarComandaSinRegresarListo(c, comandaReplacement);
       });
     });
   }, []);
 
   /**
-   * v2.3: Maneja plato-actualizado, plato-procesando y plato-liberado.
-   *
-   * El backend emite `plato-actualizado` con:
-   *   { comandaId, platoId, nuevoEstado, comanda (completa populatada), timestamp }
-   *
-   * El backend emite `plato-procesando` con:
-   *   { comandaId, platoId, cocinero, procesandoPor: cocinero, timestamp }
-   *
-   * `useSocketCocina` enruta los tres eventos a este callback. Detectamos
-   * el caso y reaccionamos de la forma más robusta posible:
-   *   - Si viene `comanda` (plato-actualizado), reemplazamos toda la comanda.
-   *   - Si viene `procesandoPor` con `tipo:'PLATO_TOMADO'`, seteamos procesandoPor.
-   *   - Si viene `tipo:'PLATO_LIBERADO'`, quitamos procesandoPor.
-   * En todos los casos, el hook `useCocinaMonitorFilter` recalcula los grupos,
-   * lo que hace que el plato aparezca/desaparezca y la cantidad se sume/reduzca.
+   * plato-actualizado / plato-procesando / plato-liberado.
+   * En recoger/salio solo parche granular: reemplazar la comanda reponía el plato.
    */
   const onPlatoActualizado = useCallback((payload) => {
     if (!payload) return;
     const comandaId = payload.comandaId;
     const platoId = payload.platoId;
-    const tipo = payload.tipo; // 'PLATO_TOMADO' | 'PLATO_LIBERADO' | 'GUARNICION_*' | undefined
+    const tipo = payload.tipo;
 
-    // Guarnición: parchear el subdoc. Nunca PLATO_TOMADO del padre ni reemplazar comanda.
     if (esEventoGuarnicion(payload)) {
       setComandas(prev => aplicarEventoGuarnicion(prev, payload));
       return;
     }
 
-    // Caso A: El backend envía la comanda completa (plato-actualizado / plato-actualizado-batch)
-    // Reemplazamos toda la comanda - garantiza que el estado del plato sea el correcto
-    // y que cualquier acción (tomar, finalizar, entregar) se refleje.
-    if (payload.comanda) {
-      const comandaReplacement = payload.comanda;
-      if (!comandaReemplazoValida(comandaReplacement)) return;
-      const id = comandaReplacement._id || comandaReplacement.id || comandaId;
+    const nuevoEstado = payload.nuevoEstado || payload.estado;
+    const esListo = !!(nuevoEstado && ESTADOS_LISTOS.has(nuevoEstado));
+
+    if (platoId && nuevoEstado) {
+      setComandas(prev => aplicarFinalizacionEnComandas(prev, comandaId, platoId, nuevoEstado));
+      if (esListo) {
+        programarRefrescoSilencioso();
+        return;
+      }
+    } else if (esListo) {
+      programarRefrescoSilencioso();
+      return;
+    }
+
+    if (payload.comanda && comandaReemplazoValida(payload.comanda)) {
+      const id = payload.comanda._id || payload.comanda.id || comandaId;
       setComandas(prev => {
-        // Si está eliminada, quitarla
-        if (comandaReplacement.IsActive === false || comandaReplacement.IsActive === null ||
-            comandaReplacement.eliminada === true) {
-          return prev.filter(c => String(c._id || c.id) !== String(id));
+        if (payload.comanda.IsActive === false || payload.comanda.IsActive === null ||
+            payload.comanda.eliminada === true) {
+          return prev.filter(c => !idsIguales(c._id || c.id, id));
         }
-        // Reemplazar o agregar
-        const exists = prev.some(c => String(c._id || c.id) === String(id));
+        const exists = prev.some(c => idsIguales(c._id || c.id, id));
         if (exists) {
-          return prev.map(c => (String(c._id || c.id) === String(id)) ? { ...comandaReplacement } : c);
+          return prev.map(c => (
+            idsIguales(c._id || c.id, id)
+              ? fusionarComandaSinRegresarListo(c, payload.comanda)
+              : c
+          ));
         }
-        return [...prev, { ...comandaReplacement }];
+        return [...prev, payload.comanda];
       });
       return;
     }
 
-    // Caso B: Plato tomado por un cocinero (plato-procesando sin comanda completa)
     if (tipo === 'PLATO_TOMADO' && payload.procesandoPor) {
       const procesandoPor = {
         ...payload.procesandoPor,
         timestamp: payload.procesandoPor.timestamp || payload.timestamp || new Date().toISOString(),
       };
       setComandas(prev => prev.map(comanda => {
-        const matchesComanda = (comanda._id || comanda.id) === comandaId;
-        if (!matchesComanda) return comanda;
+        if (!idsIguales(comanda._id || comanda.id, comandaId)) return comanda;
         const platosActualizados = (comanda.platos || []).map(p => {
-          const idA = String(p._id || p.id || '');
-          const idB = String(platoId || '');
-          if (idA !== idB) return p;
+          if (!platoCoincideId(p, platoId)) return p;
           return { ...p, procesandoPor };
         });
         return { ...comanda, platos: platosActualizados };
@@ -172,43 +231,17 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
       return;
     }
 
-    // Caso C: Plato liberado (plato-liberado, sin comanda completa)
-    // Quitar el `procesandoPor` del plato
     if (tipo === 'PLATO_LIBERADO') {
       setComandas(prev => prev.map(comanda => {
-        const matchesComanda = (comanda._id || comanda.id) === comandaId;
-        if (!matchesComanda) return comanda;
+        if (!idsIguales(comanda._id || comanda.id, comandaId)) return comanda;
         const platosActualizados = (comanda.platos || []).map(p => {
-          const idA = String(p._id || p.id || '');
-          const idB = String(platoId || '');
-          if (idA !== idB) return p;
+          if (!platoCoincideId(p, platoId)) return p;
           return { ...p, procesandoPor: null };
         });
         return { ...comanda, platos: platosActualizados };
       }));
-      return;
     }
-
-    // Caso D: plato-actualizado SIN comanda completa (edge case)
-    // Parchar el estado del plato individual usando `nuevoEstado` o `estado`
-    if (!payload.comanda && (payload.nuevoEstado || payload.estado)) {
-      const nuevoEstado = payload.nuevoEstado || payload.estado;
-      setComandas(prev => prev.map(comanda => {
-        const matchesComanda = (comanda._id || comanda.id) === comandaId;
-        if (!matchesComanda) return comanda;
-        const platosActualizados = (comanda.platos || []).map(p => {
-          const idA = String(p._id || p.id || '');
-          const idB = String(platoId || '');
-          if (idA !== idB) return p;
-          const updated = { ...p, estado: nuevoEstado };
-          if (payload.procesandoPor !== undefined) updated.procesandoPor = payload.procesandoPor;
-          return updated;
-        });
-        return { ...comanda, platos: platosActualizados };
-      }));
-      return;
-    }
-  }, []);
+  }, [programarRefrescoSilencioso]);
 
   // Socket subscription (solo lectura)
   const { connected, connectionStatus } = useSocketCocina({

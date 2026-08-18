@@ -21,6 +21,7 @@ import moment from 'moment-timezone';
 import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
 import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
+import { platoCoincideId } from '../utils/platoHelpers';
 
 /**
  * Sonido de notificación para nuevas comandas
@@ -261,16 +262,17 @@ const useComandastyleCore = ({
 
     setComandasOriginales(prev => {
       return prev.map(comanda => {
-        if (comanda._id !== data.comandaId) return comanda;
+        if (String(comanda._id) !== String(data.comandaId)) return comanda;
 
         return {
           ...comanda,
           platos: comanda.platos.map(plato => {
-            const platoId = plato._id || plato.platoId;
-            if (platoId?.toString() === data.platoId?.toString()) {
-              return { ...plato, estado: data.nuevoEstado };
+            if (!platoCoincideId(plato, data.platoId)) return plato;
+            const updated = { ...plato, estado: data.nuevoEstado };
+            if (data.nuevoEstado === 'recoger' || data.nuevoEstado === 'salio' || data.nuevoEstado === 'entregado') {
+              updated.procesandoPor = null;
             }
-            return plato;
+            return updated;
           })
         };
       });

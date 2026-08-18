@@ -556,7 +556,12 @@ const CocineroPlatoCard = React.forwardRef(({
         justifyContent: 'flex-end',
       }}
     >
-      <TemporizadorChips timers={timers} configVisual={configVisual} tick={tick} />
+      <TemporizadorChips
+        timers={timers}
+        configVisual={configVisual}
+        tick={tick}
+        ocultarNumeroSecuencial={esGuarnicion && configVisual.deshabilitarOrdenSecuencialGuarniciones !== false}
+      />
     </div>
   );
 

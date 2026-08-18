@@ -239,6 +239,7 @@ const CocinaMonitorLayout = ({
   const notifTimeoutRef = useRef(null);
   // PLAN GUARNICIONES_SEPARADAS v1.1: flag global + tiempos (para split 50/50 y alertas).
   const [flagGuarnicionesGlobal, setFlagGuarnicionesGlobal] = useState(true);
+  const [deshabilitarOrdenGuarniciones, setDeshabilitarOrdenGuarniciones] = useState(true);
   const [tiemposGuarnicion, setTiemposGuarnicion] = useState(null);
 
   useEffect(() => {
@@ -248,6 +249,7 @@ const CocinaMonitorLayout = ({
         const cfg = await fetchConfiguracionCocina(getToken);
         if (!mounted) return;
         setFlagGuarnicionesGlobal(cfg.permitirGuarnicionesSeparadas !== false);
+        setDeshabilitarOrdenGuarniciones(cfg.deshabilitarOrdenSecuencialGuarniciones !== false);
         if (cfg.tiemposGuarnicion) setTiemposGuarnicion(cfg.tiemposGuarnicion);
       } catch (e) {
         // defaults ya cargados
@@ -257,7 +259,12 @@ const CocinaMonitorLayout = ({
   }, [getToken]);
 
   // Config visual final combinada
-  const configVisual = { ...DEFAULT_CONFIG, ...configVistaProp, ...localDesign };
+  const configVisual = {
+    ...DEFAULT_CONFIG,
+    ...configVistaProp,
+    ...localDesign,
+    deshabilitarOrdenSecuencialGuarniciones: deshabilitarOrdenGuarniciones,
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {

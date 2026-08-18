@@ -75,13 +75,44 @@ export const obtenerCodigoPlato = (plato) => {
  */
 export const obtenerPlatoSubdocId = (plato) => {
   if (!plato || typeof plato !== 'object') return '';
-  // Priorizar _id del subdocumento (único por línea de comanda)
-  if (plato._id) return String(plato._id);
-  // Fallback al _id del plato referenciado (NO es único, pero mejor que nada)
+  if (plato._id) return normalizarId(plato._id);
   if (plato.plato && typeof plato.plato === 'object' && plato.plato._id) {
-    return String(plato.plato._id);
+    return normalizarId(plato.plato._id);
   }
   return '';
+};
+
+export function normalizarId(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'string' || typeof v === 'number') {
+    const s = String(v);
+    return s === '[object Object]' ? '' : s;
+  }
+  if (typeof v === 'object') {
+    if (v.$oid) return String(v.$oid);
+    if (typeof v.toHexString === 'function') return v.toHexString();
+    const buf = v.buffer;
+    const data = buf?.data || (Array.isArray(buf) ? buf : null);
+    if (Array.isArray(data) && data.length >= 12) {
+      return data.slice(0, 12).map((b) => Number(b).toString(16).padStart(2, '0')).join('');
+    }
+    if (typeof v.toString === 'function') {
+      const s = v.toString();
+      if (s && s !== '[object Object]') return s;
+    }
+  }
+  return '';
+}
+
+/** ¿La línea de comanda coincide con el platoId del socket (subdoc, id o catálogo)? */
+export const platoCoincideId = (plato, platoId) => {
+  if (!plato || platoId == null || platoId === '') return false;
+  const want = normalizarId(platoId);
+  if (!want) return false;
+  if (obtenerPlatoSubdocId(plato) === want) return true;
+  if (plato.platoId != null && normalizarId(plato.platoId) === want) return true;
+  if (plato.id != null && normalizarId(plato.id) === want) return true;
+  return false;
 };
 
 /**

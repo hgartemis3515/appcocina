@@ -384,10 +384,24 @@ const useSocketCocina = ({
       console.log('[useSocketCocina] Plato actualizado (batch):', data.batchSize, 'platos');
       ultimoPingRef.current = Date.now();
 
-      if (handlersRef.current.onPlatoActualizado && data.comanda) {
-        handlersRef.current.onPlatoActualizado({ comandaId: data.comandaId, comanda: data.comanda });
-      } else if (handlersRef.current.obtenerComandas) {
-        handlersRef.current.obtenerComandas();
+      const handler = handlersRef.current.onPlatoActualizado;
+      const platos = Array.isArray(data?.platos) ? data.platos : [];
+      // El batch de cocina NO trae `comanda`. Aplicar cada plato (platoId + nuevoEstado).
+      // No hacer GET: un listado cacheado reponía el plato ya finalizado en Ver Cocina.
+      if (handler && platos.length > 0) {
+        platos.forEach((p) => {
+          handler({
+            comandaId: data.comandaId,
+            platoId: p.platoId,
+            nuevoEstado: p.nuevoEstado,
+            estadoAnterior: p.estadoAnterior,
+            comanda: data.comanda,
+          });
+        });
+        return;
+      }
+      if (handler && data?.comanda) {
+        handler({ comandaId: data.comandaId, comanda: data.comanda });
       }
     });
 
@@ -492,12 +506,16 @@ const useSocketCocina = ({
       // Si se fuerza PLATO_TOMADO, Ver Cocina parchea el padre y puede vaciar la lista.
       const esGuarnicion = !!(data.complementoId || data.tipo === 'guarnicion');
       if (handlersRef.current.onPlatoActualizado) {
+        const tsToma = data.cocinero?.timestamp
+          || data.procesandoPor?.timestamp
+          || data.timestamp
+          || new Date().toISOString();
         handlersRef.current.onPlatoActualizado({
           comandaId: data.comandaId,
           platoId: data.platoId,
           tipo: esGuarnicion ? 'GUARNICION_ACTUALIZADA' : 'PLATO_TOMADO',
-          procesandoPor: data.cocinero,
-          timestamp: data.timestamp,
+          procesandoPor: { ...(data.cocinero || data.procesandoPor || {}), timestamp: tsToma },
+          timestamp: tsToma,
           ...(esGuarnicion ? {
             complementoId: data.complementoId,
             estadoCocina: data.estadoCocina

@@ -14,7 +14,7 @@ import { estiloNumeroSecuencial, textoNumeroSecuencial, radioForma } from '../..
  * - timers: [{ tiempoInicio, numeroGlobal, colorLinea, lineaId, unidadIndex, ... }]
  * - tick, configVisual
  */
-const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
+const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0, ocultarNumeroSecuencial = false }) => {
   const tamanioCronometro = configVisual.tamanioFuenteCronometro || 28;
   const amarilloMin = configVisual.tiempoAmarillo ?? 5;
   const rojoMin = configVisual.tiempoRojo ?? 20;
@@ -129,7 +129,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     };
     const inner = (
       <>
-        {renderBadgeNumero(numero)}
+        {!ocultarNumeroSecuencial && renderBadgeNumero(numero)}
         <span
           style={{
             fontSize: `${tamanioCronometro}px`,
@@ -202,7 +202,7 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0 }) => {
     };
     const inner = (
       <>
-        {renderBadgeNumero(numero)}
+        {!ocultarNumeroSecuencial && renderBadgeNumero(numero)}
         <span
           style={{
             background: cronometroFondoTexto || 'transparent',

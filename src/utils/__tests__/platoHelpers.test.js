@@ -9,6 +9,8 @@
 import {
   obtenerNombrePlato,
   obtenerNombreDisplayCocina,
+  platoCoincideId,
+  normalizarId,
 } from '../platoHelpers';
 
 describe('obtenerNombreDisplayCocina', () => {
@@ -65,5 +67,24 @@ describe('obtenerNombreDisplayCocina', () => {
   test('no modifica el comportamiento de obtenerNombrePlato', () => {
     const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
     expect(obtenerNombrePlato(plato)).toBe('Ceviche Clásico');
+  });
+});
+
+describe('platoCoincideId', () => {
+  test('matchea subdoc _id string con $oid del socket', () => {
+    const plato = { _id: '64a1b2c3d4e5f67890123456', estado: 'pedido' };
+    expect(platoCoincideId(plato, { $oid: '64a1b2c3d4e5f67890123456' })).toBe(true);
+  });
+
+  test('no trata String(object) como id', () => {
+    const plato = { _id: '64a1b2c3d4e5f67890123456' };
+    expect(platoCoincideId(plato, { foo: 1 })).toBe(false);
+  });
+
+  test('normalizarId extrae hex de buffer-like', () => {
+    const hex = '64a1b2c3d4e5f67890123456';
+    const data = [];
+    for (let i = 0; i < hex.length; i += 2) data.push(parseInt(hex.slice(i, i + 2), 16));
+    expect(normalizarId({ buffer: { data } })).toBe(hex);
   });
 });

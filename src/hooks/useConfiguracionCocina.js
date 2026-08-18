@@ -17,6 +17,7 @@ const DEFAULT = {
     usarNombreCocinaEnTablaKds: true,
     // PLAN GUARNICIONES_SEPARADAS v1.1: separar principal y guarniciones.
     permitirGuarnicionesSeparadas: true,
+    deshabilitarOrdenSecuencialGuarniciones: true,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -47,6 +48,7 @@ export async function fetchConfiguracionCocina(getToken) {
                 usarNombreCocinaEnTablaKds: cfg.usarNombreCocinaEnTablaKds !== false,
                 // PLAN GUARNICIONES_SEPARADAS v1.1
                 permitirGuarnicionesSeparadas: cfg.permitirGuarnicionesSeparadas !== false,
+                deshabilitarOrdenSecuencialGuarniciones: cfg.deshabilitarOrdenSecuencialGuarniciones !== false,
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,
