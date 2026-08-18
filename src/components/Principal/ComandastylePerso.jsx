@@ -439,7 +439,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     entregarPlato,
     tomarComanda,
     liberarComanda,
-    finalizarComanda
+    finalizarComanda,
+    liberarGuarnicion
   } = useProcesamiento({
     getToken,
     showToast: (msg) => setToastMessage(msg),
@@ -2394,11 +2395,23 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     console.log(`[DejarPlatos] Liberando ${platosPendientesDejar.length} plato(s) con motivo: ${motivoConfirmado}`);
     
     try {
-      const resultados = await Promise.allSettled(
-        platosPendientesDejar.map(({ comandaId, platoId }) => 
-          liberarPlato(comandaId, platoId, userId, motivoConfirmado)
-        )
-      );
+      const platosPrincipales = platosPendientesDejar.filter(p => p.tipo !== 'guarnicion');
+      const guarniciones = platosPendientesDejar.filter(p => p.tipo === 'guarnicion');
+      const resultadosPlatos = platosPrincipales.length > 0
+        ? await Promise.allSettled(
+            platosPrincipales.map(({ comandaId, platoId }) =>
+              liberarPlato(comandaId, platoId, userId, motivoConfirmado)
+            )
+          )
+        : [];
+      const resultadosGuarniciones = guarniciones.length > 0
+        ? await Promise.allSettled(
+            guarniciones.map(({ comandaId, platoId, compId }) =>
+              liberarGuarnicion(comandaId, platoId, compId, userId, motivoConfirmado)
+            )
+          )
+        : [];
+      const resultados = [...resultadosPlatos, ...resultadosGuarniciones];
       
       const exitosos = resultados.filter(r => 
         r.status === 'fulfilled' && r.value?.success
@@ -2406,8 +2419,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       if (exitosos > 0) {
         // Limpiar estado visual de los platos liberados
-        platosPendientesDejar.forEach(({ comandaId, platoIndex }) => {
-          const key = `${comandaId}-${platoIndex}`;
+        platosPendientesDejar.forEach(({ comandaId, platoIndex, compId, tipo }) => {
+          const key = tipo === 'guarnicion'
+            ? `${comandaId}-${platoIndex}-g-${compId}`
+            : `${comandaId}-${platoIndex}`;
           setPlatoStates(prev => {
             const nuevo = new Map(prev);
             nuevo.set(key, 'normal');
@@ -2437,7 +2452,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       setIsFinalizandoPlatos(false);
       setDejarLoading(false);
     }
-  }, [userId, liberarPlato, platosPendientesDejar]);
+  }, [userId, liberarPlato, liberarGuarnicion, platosPendientesDejar]);
 
   // Función genérica para batch finalizar platos (unifica lógica FinalizarPlatos y FinalizarComanda)
   // REGLA COCINA: Siempre usa 'recoger', nunca 'entregado' (exclusivo de mozos)

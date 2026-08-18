@@ -90,7 +90,7 @@ const DejarPlatoModal = ({
                 <div>
                   <h2 className={`text-lg font-bold ${textModal}`}>Dejar Plato(s)</h2>
                   <p className={`text-xs ${textSecondary}`}>
-                    {platos.length} plato{platos.length > 1 ? 's' : ''} será{platos.length > 1 ? 'án' : 'á'} liberado{platos.length > 1 ? 's' : ''} para otros cocineros
+                    {platos.length} unidad{platos.length > 1 ? 'es' : ''} será{platos.length > 1 ? 'n' : ''} liberada{platos.length > 1 ? 's' : ''} para otros cocineros
                   </p>
                 </div>
               </div>
@@ -106,12 +106,14 @@ const DejarPlatoModal = ({
             <div className="p-4 space-y-4">
               {/* Lista de platos */}
               <div className={`${nightMode ? 'bg-gray-700/50' : 'bg-gray-100'} rounded-lg p-3 max-h-32 overflow-y-auto`}>
-                <p className={`text-xs ${textSecondary} mb-2 font-medium`}>Platos a liberar:</p>
+                <p className={`text-xs ${textSecondary} mb-2 font-medium`}>A liberar:</p>
                 <ul className={`text-sm ${textTertiary} space-y-1`}>
                   {platos.slice(0, 5).map((plato, index) => (
                     <li key={index} className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-                      {plato.nombre || plato.plato?.nombre || 'Plato'}
+                      {plato.tipo === 'guarnicion'
+                        ? ('🥗 ' + (plato.nombre || (Array.isArray(plato.comp?.opcion) ? plato.comp.opcion.join(', ') : plato.comp?.opcion) || 'Guarnición'))
+                        : (plato.nombre || plato.plato?.nombre || 'Plato')}
                     </li>
                   ))}
                   {platos.length > 5 && (
