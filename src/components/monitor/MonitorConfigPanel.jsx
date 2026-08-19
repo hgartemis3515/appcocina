@@ -421,6 +421,17 @@ const MonitorConfigPanel = ({
           <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', minWidth: '180px' }}>
             <input
               type="checkbox"
+              checked={configVisual.aprovecharEspacio === true}
+              onChange={e => guardar({ aprovecharEspacio: e.target.checked })}
+            />
+            Aprovechar espacio
+          </label>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 6px', width: '100%' }}>
+            Cada tarjeta se ajusta a su texto (Bistec queda baja, Lomo saltado queda alta) y el hueco libre se llena con otra tarjeta. El grid deja de ser simétrico.
+          </p>
+          <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', minWidth: '180px' }}>
+            <input
+              type="checkbox"
               checked={configVisual.animacionesTarjetas !== false}
               onChange={e => guardar({ animacionesTarjetas: e.target.checked })}
             />

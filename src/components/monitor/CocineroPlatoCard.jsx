@@ -337,8 +337,11 @@ const CocineroPlatoCard = React.forwardRef(({
     : FONDO_VINO;
 
   // Outer: solo layout (framer-motion controla transforms aquí).
-  // Guarnición / compacto: altura al contenido (sin minHeight 130 ni spacer vacío).
+  // Guarnición / compacto / aprovecharEspacio: altura al contenido
+  // (sin minHeight 130 ni spacer vacío que estira la tarjeta).
   const compacto = esUnido || espaciado === 'compacto' || esGuarnicion;
+  const aprovecharEspacio = configVisual.aprovecharEspacio === true;
+  const alturaAlContenido = compacto || aprovecharEspacio;
   const hayPie = (!ocultarAtencionUrgente && (esCritico || esAlerta))
     || hayParaLlevar
     || (configVisual.mostrarMesas !== false && !esGuarnicion);
@@ -346,9 +349,9 @@ const CocineroPlatoCard = React.forwardRef(({
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
-    minHeight: (modoTarjeta && !compacto) ? '130px' : 'auto',
-    height: compacto ? 'auto' : undefined,
-    alignSelf: 'stretch',
+    minHeight: (modoTarjeta && !alturaAlContenido) ? '130px' : 'auto',
+    height: alturaAlContenido ? 'auto' : undefined,
+    alignSelf: aprovecharEspacio ? 'start' : 'stretch',
     position: 'relative',
   };
 
@@ -365,7 +368,7 @@ const CocineroPlatoCard = React.forwardRef(({
     alignItems: compacto ? 'center' : 'stretch',
     gap: `${gapTarjeta}px`,
     minWidth: 0,
-    flex: compacto ? '0 0 auto' : 1,
+    flex: alturaAlContenido ? '0 0 auto' : 1,
     boxShadow: esUnido ? 'none' : glowBorde,
     position: 'relative',
     overflow: 'hidden',
@@ -470,9 +473,9 @@ const CocineroPlatoCard = React.forwardRef(({
         </div>
       )}
 
-      {/* Espaciador solo si hay pie (mesas / urgente). En guarnición y compacto
-          no se estira: evita el hueco vacío bajo "de Bistec". */}
-      {hayPie && !compacto && (
+      {/* Espaciador solo si hay pie (mesas / urgente). En guarnición, compacto
+          y aprovecharEspacio no se estira: evita el hueco vacío bajo el nombre. */}
+      {hayPie && !compacto && !aprovecharEspacio && (
         <div style={{ flex: 1, minHeight: '4px' }} />
       )}
 

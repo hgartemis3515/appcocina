@@ -237,8 +237,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
     flexDirection: disposicionVertical ? 'column' : 'row',
     alignItems: disposicionVertical ? 'stretch' : 'center',
     justifyContent: disposicionVertical ? 'flex-start' : 'space-between',
-    minHeight: modoTarjeta ? '120px' : '72px',
-    height: modoTarjeta ? '100%' : undefined,
+    minHeight: (modoTarjeta && configVisual.aprovecharEspacio !== true) ? '120px' : (modoTarjeta ? 'auto' : '72px'),
+    height: (modoTarjeta && configVisual.aprovecharEspacio !== true) ? '100%' : undefined,
     boxShadow: esUnido ? 'none' : (modoTarjeta ? `0 2px 12px ${colorAcento}11` : 'none'),
     minWidth: 0,
   };

@@ -6,6 +6,7 @@ import { getServerBaseUrl } from '../../config/apiConfig';
 import { clampColumnas } from '../../config/monitorVisualConstants';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
+import MonitorTarjetasGrid from './MonitorTarjetasGrid';
 import CocineroBlockHeader from './CocineroBlockHeader';
 import CocineroSelectorDropdown from './CocineroSelectorDropdown';
 import MonitorEmptyState from './MonitorEmptyState';
@@ -130,6 +131,15 @@ const DEFAULT_CONFIG = {
   autoAgrandamiento: false,
   // AutoAcomodamiento: cada tarjeta se dimensiona según su contenido (texto más largo = tarjeta más grande)
   autoAcomodamiento: false,
+  // Aprovechar espacio: altura al contenido + masonry (deja de ser simétrico)
+  aprovecharEspacio: false,
+};
+
+/** Snapshot de lo que se ve en Personalizar (para Guardar perfil / Guardar como). */
+const snapshotConfigPerfil = (configVisual) => {
+  if (!configVisual || typeof configVisual !== 'object') return {};
+  const { deshabilitarOrdenSecuencialGuarniciones, ...rest } = configVisual;
+  return rest;
 };
 
 const ICONO_MAP = {
@@ -355,7 +365,16 @@ const CocinaMonitorLayout = ({
     }
   }, []);
 
-  // Guardar el localDesign actual como perfil del cocinero activo en backend.
+  const armarConfigPerfil = useCallback(
+    () => snapshotConfigPerfil({
+      ...DEFAULT_CONFIG,
+      ...configVistaProp,
+      ...localDesign,
+    }),
+    [configVistaProp, localDesign]
+  );
+
+  // Guardar el diseño actual como perfil del cocinero activo en backend.
   // Flujo "Distribuir Cocina en monitores" → botón "Guardar Perfil".
   const guardarPerfilCocinero = useCallback(async () => {
     const idPerfil = primerCocineroIdFiltro(cocineroActivoId);
@@ -374,7 +393,7 @@ const CocinaMonitorLayout = ({
       const token = getToken();
       await axios.put(
         `${baseUrl}/api/cocineros/${idPerfil}/perfil-ver-cocina`,
-        { config: localDesign || {} },
+        { config: armarConfigPerfil() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       autoSaveSkipRef.current = true; // evita auto-save redundante tras guardado explícito
@@ -386,7 +405,7 @@ const CocinaMonitorLayout = ({
     } finally {
       setGuardandoPerfil(false);
     }
-  }, [cocineroActivoId, getToken, localDesign]);
+  }, [cocineroActivoId, getToken, armarConfigPerfil]);
 
   // ===== Perfiles de personalización con nombre (flujo Distribuir Cocina) =====
   const [perfiles, setPerfiles] = useState([]);
@@ -478,7 +497,7 @@ const CocinaMonitorLayout = ({
       const token = getToken();
       const res = await axios.post(
         `${baseUrl}/api/perfiles-ver-cocina`,
-        { nombre: nom, config: localDesign || {} },
+        { nombre: nom, config: armarConfigPerfil() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const creado = res.data?.data;
@@ -494,7 +513,7 @@ const CocinaMonitorLayout = ({
     } finally {
       setGuardandoPerfil(false);
     }
-  }, [getToken, localDesign, cargarPerfiles]);
+  }, [getToken, armarConfigPerfil, cargarPerfiles]);
 
   const sobrescribirPerfil = useCallback(async (perfilId) => {
     if (!perfilId || !getToken) return;
@@ -507,7 +526,7 @@ const CocinaMonitorLayout = ({
       const token = getToken();
       await axios.put(
         `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
-        { config: localDesign || {} },
+        { config: armarConfigPerfil() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setPerfilMensaje({ tipo: 'ok', texto: `Perfil "${p.nombre}" actualizado ✓` });
@@ -519,7 +538,7 @@ const CocinaMonitorLayout = ({
     } finally {
       setGuardandoPerfil(false);
     }
-  }, [getToken, localDesign, perfiles, cargarPerfiles]);
+  }, [getToken, armarConfigPerfil, perfiles, cargarPerfiles]);
 
   const eliminarPerfil = useCallback(async (perfilId) => {
     if (!perfilId || !getToken) return;
@@ -619,7 +638,7 @@ const CocinaMonitorLayout = ({
         const token = getToken();
         await axios.put(
           `${baseUrl}/api/cocineros/${primerCocineroIdFiltro(cocineroActivoId)}/perfil-ver-cocina`,
-          { config: localDesign || {} },
+          { config: snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...configVistaProp, ...localDesign }) },
           { headers: { Authorization: `Bearer ${token}` }, timeout: 6000 }
         );
       } catch (err) {
@@ -860,6 +879,8 @@ const CocinaMonitorLayout = ({
   // === AutoAcomodamiento ===
   // Cada tarjeta se dimensiona según su contenido (no todas del mismo ancho).
   const autoAcomodamientoOn = configVisual.autoAcomodamiento === true;
+  const aprovecharEspacioOn = configVisual.aprovecharEspacio === true;
+  const zoomLista = autoAgrandamientoOn ? autoScale : undefined;
 
   return (
     <div
@@ -1290,59 +1311,45 @@ const CocinaMonitorLayout = ({
             </LayoutGroup>
           </div>
         ) : modoCocineros ? (
-          <div
+          <MonitorTarjetasGrid
             key={`monitor-cols-${layoutColumnas}`}
-            style={esGrid ? {
-              display: 'grid',
-              gridTemplateColumns: `repeat(${layoutColumnas}, minmax(0, 1fr))`,
-              gap: gapGrid,
-              padding: gapGrid,
-              alignContent: 'start',
-              zoom: autoAgrandamientoOn ? autoScale : undefined,
-            } : { zoom: autoAgrandamientoOn ? autoScale : undefined }}
+            columns={layoutColumnas}
+            gap={gapGrid}
+            zoom={zoomLista}
+            aprovecharEspacio={aprovecharEspacioOn}
+            presenceMode={presenceMode}
           >
-            <LayoutGroup>
-              <AnimatePresence initial={false} mode={presenceMode}>
-                {platosConTimersNumerados.map((item) => (
-                  <CocineroPlatoCard
-                    key={item.grupoId || item.key}
-                    item={item}
-                    configVisual={configVisual}
-                    mostrarCocinero={!esUnSoloCocineroFiltro(cocineroActivoId)}
-                    modoTarjeta={esGrid}
-                    autoAcomodamiento={autoAcomodamientoOn}
-                    tick={tick}
-                  />
-                ))}
-              </AnimatePresence>
-            </LayoutGroup>
-          </div>
+            {platosConTimersNumerados.map((item) => (
+              <CocineroPlatoCard
+                key={item.grupoId || item.key}
+                item={item}
+                configVisual={configVisual}
+                mostrarCocinero={!esUnSoloCocineroFiltro(cocineroActivoId)}
+                modoTarjeta={esGrid}
+                autoAcomodamiento={autoAcomodamientoOn}
+                tick={tick}
+              />
+            ))}
+          </MonitorTarjetasGrid>
         ) : (
-          <div
+          <MonitorTarjetasGrid
             key={`monitor-cols-${layoutColumnas}`}
-            style={esGrid ? {
-              display: 'grid',
-              gridTemplateColumns: `repeat(${layoutColumnas}, minmax(0, 1fr))`,
-              gap: gapGrid,
-              padding: gapGrid,
-              alignContent: 'start',
-              zoom: autoAgrandamientoOn ? autoScale : undefined,
-            } : { zoom: autoAgrandamientoOn ? autoScale : undefined }}
+            columns={layoutColumnas}
+            gap={gapGrid}
+            zoom={zoomLista}
+            aprovecharEspacio={aprovecharEspacioOn}
+            presenceMode={presenceMode}
           >
-            <LayoutGroup>
-              <AnimatePresence initial={false} mode={presenceMode}>
-                {platosPendientes.map((item) => (
-                  <PlatoMonitorRow
-                    key={item.grupoId || item.key}
-                    item={item}
-                    configVisual={configVisual}
-                    tick={tick}
-                    modoTarjeta={esGrid}
-                  />
-                ))}
-              </AnimatePresence>
-            </LayoutGroup>
-          </div>
+            {platosPendientes.map((item) => (
+              <PlatoMonitorRow
+                key={item.grupoId || item.key}
+                item={item}
+                configVisual={configVisual}
+                tick={tick}
+                modoTarjeta={esGrid}
+              />
+            ))}
+          </MonitorTarjetasGrid>
         )}
         </div>
 
@@ -1367,41 +1374,34 @@ const CocinaMonitorLayout = ({
                 No hay guarniciones pendientes
               </div>
             ) : (
-              <div
+              <MonitorTarjetasGrid
                 key={`guarn-cols-${layoutColumnasGuarniciones}`}
-                style={esGridGuarniciones ? {
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${layoutColumnasGuarniciones}, minmax(0, 1fr))`,
-                  gap: gapGrid,
-                  padding: gapGrid,
-                  alignContent: 'start',
-                  alignItems: 'start',
-                  zoom: autoAgrandamientoOn ? autoScale : undefined,
-                } : {
+                columns={layoutColumnasGuarniciones}
+                gap={gapGrid}
+                zoom={zoomLista}
+                aprovecharEspacio={aprovecharEspacioOn}
+                presenceMode={presenceMode}
+                stackedStyle={{
                   display: 'flex',
                   flexDirection: 'column',
                   gap: gapGrid,
                   padding: gapGrid,
                   alignItems: 'stretch',
-                  zoom: autoAgrandamientoOn ? autoScale : undefined,
+                  zoom: zoomLista,
                 }}
               >
-                <LayoutGroup>
-                  <AnimatePresence initial={false} mode={presenceMode}>
-                    {guarnicionesPanel.map((item) => (
-                      <CocineroPlatoCard
-                        key={item.grupoId || item.key}
-                        item={item}
-                        configVisual={configVisual}
-                        mostrarCocinero={false}
-                        modoTarjeta={esGridGuarniciones}
-                        autoAcomodamiento={autoAcomodamientoOn}
-                        tick={tick}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </LayoutGroup>
-              </div>
+                {guarnicionesPanel.map((item) => (
+                  <CocineroPlatoCard
+                    key={item.grupoId || item.key}
+                    item={item}
+                    configVisual={configVisual}
+                    mostrarCocinero={false}
+                    modoTarjeta={esGridGuarniciones}
+                    autoAcomodamiento={autoAcomodamientoOn}
+                    tick={tick}
+                  />
+                ))}
+              </MonitorTarjetasGrid>
             )}
           </div>
         )}
