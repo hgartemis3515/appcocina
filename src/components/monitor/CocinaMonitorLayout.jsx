@@ -34,6 +34,8 @@ import {
 // nombre comercial que incluye complementos).
 import { obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import { primerCocineroIdFiltro, esUnSoloCocineroFiltro } from '../../utils/cocineroFiltroIds';
+import NotasMonitorFranja from './NotasMonitorFranja';
+import { recolectarNotasMonitor, cocineroDesdeProcesandoPor, pronombreReferenciaPrincipal } from '../../utils/notasMonitor';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -76,6 +78,21 @@ const DEFAULT_CONFIG = {
   mostrarTitulosListasSplit: false,
   tituloListaPlatos: 'PLATOS',
   tituloListaGuarniciones: 'Lista de Guarniciones',
+  grosorSeparadorSplit: 2,
+  colorSeparadorSplit: null,
+  alinearTituloListaSplit: 'izquierda',
+  colorTituloListaSplit: null,
+  tamanioTituloListaSplit: 13,
+  pesoTituloListaSplit: '800',
+  fuenteFamiliaTituloListaSplit: null,
+  mostrarPronombreCocineroGuarnicion: true,
+  mostrarTablaNotas: true,
+  tituloTablaNotas: 'Notas:',
+  colorTextoNotas: null,
+  tamanioFuenteNotas: 14,
+  pesoFuenteNotas: '600',
+  fuenteFamiliaNotas: null,
+  alinearTablaNotas: 'izquierda',
   referenciaPadreGuarnicion: 'de',
   fuenteFamiliaGuarnicion: null,
   tamanioFuenteGuarnicion: null,
@@ -743,6 +760,22 @@ const CocinaMonitorLayout = ({
   const ocultarCronometroG = configVisual.ocultarCronometroGuarniciones === true;
   const mostrarTitulosSplit = splitActivo && configVisual.mostrarTitulosListasSplit === true;
   const colorAcentoGuarn = tokenGuarnicion(configVisual, 'colorAcentoGuarnicion', colorAcento);
+  const grosorSeparador = Math.min(16, Math.max(1, Number(configVisual.grosorSeparadorSplit) || 2));
+  const colorSeparador = configVisual.colorSeparadorSplit || colorAcentoGuarn;
+  const ALIGN_TITULO = { izquierda: 'left', centro: 'center', derecha: 'right' };
+  const estiloTituloSplit = {
+    flexShrink: 0,
+    padding: '8px 16px',
+    background: colorFondo,
+    borderBottom: `${grosorSeparador}px solid ${colorSeparador}`,
+    fontFamily: configVisual.fuenteFamiliaTituloListaSplit || fuenteFamilia,
+    fontWeight: configVisual.pesoTituloListaSplit || 800,
+    fontSize: `${Number(configVisual.tamanioTituloListaSplit) || 13}px`,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: configVisual.colorTituloListaSplit || colorTextoPrincipal,
+    textAlign: ALIGN_TITULO[configVisual.alinearTituloListaSplit] || 'left',
+  };
   const espaciadoGuarn = tokenGuarnicion(configVisual, 'espaciadoFilasGuarnicion', configVisual.espaciadoFilas || 'normal');
   const gapGrid =
     configVisual.espaciadoFilas === 'unido' ? '0px' :
@@ -757,6 +790,20 @@ const CocinaMonitorLayout = ({
   const modoCocineros = modoCocinerosProp != null
     ? modoCocinerosProp
     : Array.isArray(platosPendientes) && platosPendientes.some(p => p && p.cocinero && Array.isArray(p.timers));
+
+  const mapaPronombresCocinero = useMemo(() => {
+    const m = new Map();
+    (cocineros || []).forEach((c) => {
+      const p = String(c.pronombre || '').trim();
+      if (c && c._id && p) m.set(String(c._id), p);
+    });
+    return m;
+  }, [cocineros]);
+
+  const mostrarPronombreRef = configVisual.mostrarPronombreCocineroGuarnicion !== false;
+  const ocultarPronombreSiId = esUnSoloCocineroFiltro(cocineroActivoId)
+    ? primerCocineroIdFiltro(cocineroActivoId)
+    : null;
 
   // Panel derecho: agrupación ON = 1 ítem por plato; OFF = 1 ítem por extra.
   const guarnicionesPanel = useMemo(() => {
@@ -774,9 +821,16 @@ const CocinaMonitorLayout = ({
       const nombreG = nombreCocinaComplemento(comp) || 'Guarnición';
       const qty = Number(comp.cantidad) || 1;
       const ppG = comp.procesandoPor;
-      const cocinero = (ppG?.cocineroId)
-        ? { id: String(ppG.cocineroId), alias: ppG.alias || ppG.nombre || 'Cocinero', nombre: ppG.nombre || ppG.alias || '' }
+      const cidG = ppG?.cocineroId;
+      const cocinero = (cidG)
+        ? {
+            id: String(cidG),
+            alias: ppG.alias || ppG.nombre || 'Cocinero',
+            nombre: ppG.nombre || ppG.alias || '',
+            pronombre: String(ppG.pronombre || '').trim() || mapaPronombresCocinero.get(String(cidG)) || '',
+          }
         : null;
+      const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
       const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
       const key = agrupacionOn
         ? `${cid}::gg::${comandaId}:${platoIndex}`
@@ -790,6 +844,7 @@ const CocinaMonitorLayout = ({
           key,
           grupoId: grupoIdEstable(key),
           cocinero: modoCocineros ? cocinero : null,
+          cocineroPrincipal,
           timers: [],
           comps: [],
           esGuarnicion: true,
@@ -803,9 +858,10 @@ const CocinaMonitorLayout = ({
       const g = gruposMap.get(key);
       g.cantidadTotal += qty;
       g.comps.push(comp);
-      g.platos.push({ plato, comanda, cocinero });
+      g.platos.push({ plato, comanda, cocinero, cocineroPrincipal });
       if (nombrePadre) g.padresSet.add(nombrePadre);
       if (modoCocineros && !g.cocinero && cocinero) g.cocinero = cocinero;
+      if (!g.cocineroPrincipal && cocineroPrincipal) g.cocineroPrincipal = cocineroPrincipal;
       if (!agrupacionOn) {
         const tiempoInicio = tiempoInicioGuarnicion(comp);
         const lineaId = `${comandaId}:${platoIndex}:g:${comp._id || nombreG}`;
@@ -863,6 +919,12 @@ const CocinaMonitorLayout = ({
         subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
         lineaLista: lineaListaGuarniciones(comps, padreTxt, modoRefPadre),
         nombrePadre: padreTxt,
+        cocineroPrincipal: rest.cocineroPrincipal || null,
+        pronombrePrincipal: pronombreReferenciaPrincipal(rest.cocineroPrincipal, {
+          mapaCocineros: mapaPronombresCocinero,
+          mostrar: mostrarPronombreRef,
+          ocultarSiIds: [ocultarPronombreSiId],
+        }),
       };
     });
     grupos.sort((a, b) => {
@@ -871,7 +933,27 @@ const CocinaMonitorLayout = ({
       return ta - tb;
     });
     return modoCocineros ? asignarNumeroGlobal(grupos) : grupos;
-  }, [splitActivo, comandas, modoCocineros, cocineroActivoId, agrupacionOn, modoRefPadre, ocultarCronometroG]);
+  }, [splitActivo, comandas, modoCocineros, cocineroActivoId, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, ocultarPronombreSiId]);
+
+  const notasPlatos = useMemo(() => {
+    if (configVisual.mostrarTablaNotas === false) return [];
+    return recolectarNotasMonitor(platosPendientes, {
+      mapaCocineros: mapaPronombresCocinero,
+      nombrePlatoFn: (p) => obtenerNombreDisplayCocina(p, { forzar: true }) || p?.nombre || 'Plato',
+      mostrarPronombre: mostrarPronombreRef,
+      ocultarSiCocineroId: ocultarPronombreSiId,
+    });
+  }, [platosPendientes, mapaPronombresCocinero, configVisual.mostrarTablaNotas, mostrarPronombreRef, ocultarPronombreSiId]);
+
+  const notasGuarniciones = useMemo(() => {
+    if (configVisual.mostrarTablaNotas === false) return [];
+    return recolectarNotasMonitor(guarnicionesPanel, {
+      mapaCocineros: mapaPronombresCocinero,
+      nombrePlatoFn: (p) => obtenerNombreDisplayCocina(p, { forzar: true }) || p?.nombre || 'Plato',
+      mostrarPronombre: mostrarPronombreRef,
+      ocultarSiCocineroId: ocultarPronombreSiId,
+    });
+  }, [guarnicionesPanel, mapaPronombresCocinero, configVisual.mostrarTablaNotas, mostrarPronombreRef, ocultarPronombreSiId]);
 
   // Modo de agrupación visual efectivo:
   // - tarjetas independientes si multi-columna O config.modoAgrupacion === 'tarjetas'
@@ -1380,21 +1462,10 @@ const CocinaMonitorLayout = ({
       }}>
         {/* Panel izquierdo: platos principales (ancho 50% cuando split activo) */}
         <div style={splitActivo
-          ? { flex: '1 1 50%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: `2px solid ${colorAcentoGuarn}33` }
+          ? { flex: '1 1 50%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: `${grosorSeparador}px solid ${colorSeparador}` }
           : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {mostrarTitulosSplit && (
-          <div style={{
-            flexShrink: 0,
-            padding: '8px 16px',
-            background: colorFondo,
-            borderBottom: `2px solid ${colorAcento}`,
-            fontFamily: fuenteFamilia,
-            fontWeight: 800,
-            fontSize: '13px',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: colorTextoPrincipal,
-          }}>
+          <div style={estiloTituloSplit}>
             {configVisual.tituloListaPlatos || 'PLATOS'}
           </div>
         )}
@@ -1467,6 +1538,15 @@ const CocinaMonitorLayout = ({
           </MonitorTarjetasGrid>
         )}
         </div>
+        {configVisual.mostrarTablaNotas !== false && (
+          <NotasMonitorFranja
+            lineas={notasPlatos}
+            titulo={configVisual.tituloTablaNotas || 'Notas:'}
+            configVisual={configVisual}
+            colorTexto={colorTextoSecundario}
+            fuenteFamilia={fuenteFamilia}
+          />
+        )}
         </div>
 
         {/* Panel derecho de guarniciones. */}
@@ -1479,18 +1559,7 @@ const CocinaMonitorLayout = ({
             background: `${colorFondo}f5`,
           }}>
             {mostrarTitulosSplit && (
-              <div style={{
-                flexShrink: 0,
-                padding: '8px 16px',
-                background: colorFondo,
-                borderBottom: `2px solid ${colorAcentoGuarn}`,
-                fontFamily: tokenGuarnicion(configVisual, 'fuenteFamiliaGuarnicion', fuenteFamilia),
-                fontWeight: 800,
-                fontSize: '13px',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: tokenGuarnicion(configVisual, 'colorTextoGuarnicion', colorTextoPrincipal),
-              }}>
+              <div style={estiloTituloSplit}>
                 {configVisual.tituloListaGuarniciones || 'Lista de Guarniciones'}
               </div>
             )}
@@ -1533,6 +1602,15 @@ const CocinaMonitorLayout = ({
               </MonitorTarjetasGrid>
             )}
             </div>
+            {configVisual.mostrarTablaNotas !== false && (
+              <NotasMonitorFranja
+                lineas={notasGuarniciones}
+                titulo={configVisual.tituloTablaNotas || 'Notas:'}
+                configVisual={configVisual}
+                colorTexto={colorTextoSecundario}
+                fuenteFamilia={fuenteFamilia}
+              />
+            )}
           </div>
         )}
       </div>

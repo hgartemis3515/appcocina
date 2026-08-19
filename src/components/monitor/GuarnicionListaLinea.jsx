@@ -10,6 +10,7 @@ const GAP = { unido: 0, compacto: 4, normal: 8, amplio: 14 };
 const GuarnicionListaLinea = ({
   texto,
   textoPadre = '',
+  textoCocinero = '',
   fuenteFamilia,
   tamanioFuente,
   pesoFuente,
@@ -69,6 +70,21 @@ const GuarnicionListaLinea = ({
                 }}
               >
                 {textoPadre}
+              </span>
+            </>
+          ) : null}
+          {textoCocinero ? (
+            <>
+              {' '}
+              <span
+                style={{
+                  fontSize: `${tamanioPadre || Math.max(10, Math.round((tamanioFuente || 18) * 0.75))}px`,
+                  fontWeight: 700,
+                  color: colorPadre || colorTexto,
+                  opacity: 0.9,
+                }}
+              >
+                {textoCocinero}
               </span>
             </>
           ) : null}

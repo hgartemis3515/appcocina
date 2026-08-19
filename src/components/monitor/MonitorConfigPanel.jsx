@@ -129,6 +129,57 @@ const DimPx = ({ label, value, onChange, min = 20, max = 280, inp, lbl, colorAce
   );
 };
 
+/** Fuera del panel: si se define adentro, cada tick del reloj remonta el input y Windows cierra el picker. */
+const ColorG = ({ k, label, fallback, configVisual, guardar, lbl, inp, colorAcento }) => {
+  const raw = configVisual[k];
+  const hex = String(raw || fallback || '#ffffff').slice(0, 7);
+  return (
+    <div style={lbl}>
+      <span>{label}</span>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <input
+          type="color"
+          value={hex}
+          onChange={(e) => guardar({ [k]: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+        />
+        <button
+          type="button"
+          onClick={() => guardar({ [k]: null })}
+          title="Heredar de platos"
+          style={{
+            ...inp,
+            cursor: 'pointer',
+            padding: '6px 10px',
+            background: raw == null ? `${colorAcento}33` : 'transparent',
+          }}
+        >
+          Heredar
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const CheckG = ({ k, label, help, configVisual, guardar, lbl, colorAcento, colorTextoPrincipal, colorTextoSecundario }) => (
+  <label style={{ ...lbl, flexDirection: 'column', alignItems: 'flex-start', minWidth: '220px' }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        checked={configVisual[k] === true}
+        onChange={(e) => guardar({ [k]: e.target.checked })}
+        style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
+      />
+      <span style={{ fontSize: '12px', color: colorTextoPrincipal, fontWeight: 600 }}>{label}</span>
+    </span>
+    {help ? (
+      <span style={{ fontSize: '11px', color: colorTextoSecundario, marginLeft: '24px' }}>{help}</span>
+    ) : null}
+  </label>
+);
+
 /**
  * Vista previa de una animación de alerta. Renderiza una tarjeta miniatura
  * que ejecuta la keyframe seleccionada con el color de alerta correspondiente.
@@ -271,49 +322,10 @@ const MonitorConfigPanel = ({
   const fuenteGuarnicionActual = presetFuenteG?.id
     || (configVisual.fuenteFamiliaGuarnicion ? 'custom' : '');
 
-  const CheckG = ({ k, label, help }) => (
-    <label style={{ ...lbl, flexDirection: 'column', alignItems: 'flex-start', minWidth: '220px' }}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={configVisual[k] === true}
-          onChange={(e) => guardar({ [k]: e.target.checked })}
-          style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
-        />
-        <span style={{ fontSize: '12px', color: colorTextoPrincipal, fontWeight: 600 }}>{label}</span>
-      </span>
-      {help ? (
-        <span style={{ fontSize: '11px', color: colorTextoSecundario, marginLeft: '24px' }}>{help}</span>
-      ) : null}
-    </label>
-  );
-
-  const ColorG = ({ k, label, fallback }) => (
-    <label style={lbl}>
-      {label}
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <input
-          type="color"
-          value={(configVisual[k] || fallback || '#ffffff').toString().slice(0, 7)}
-          onChange={(e) => guardar({ [k]: e.target.value })}
-          style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
-        />
-        <button
-          type="button"
-          onClick={() => guardar({ [k]: null })}
-          title="Heredar de platos"
-          style={{
-            ...inp,
-            cursor: 'pointer',
-            padding: '6px 10px',
-            background: configVisual[k] == null ? `${colorAcento}33` : 'transparent',
-          }}
-        >
-          Heredar
-        </button>
-      </div>
-    </label>
-  );
+  const checkGProps = {
+    configVisual, guardar, lbl, colorAcento, colorTextoPrincipal, colorTextoSecundario,
+  };
+  const colorGProps = { configVisual, guardar, lbl, inp, colorAcento };
 
   const layoutBtn = (cols, label) => {
     const activo = columnasActuales === cols;
@@ -580,10 +592,36 @@ const MonitorConfigPanel = ({
         </Section>
 
         <Section title="Guarniciones" colorAcento={colorAcento}>
-          <CheckG k="ocultarCronometroGuarniciones" label="Ocultar cronómetro de guarniciones" help="Solo el panel derecho. Los platos principales conservan su reloj." />
-          <CheckG k="ocultarCuadroGuarniciones" label="Quitar cuadro de la tarjeta" help="Lista de letras: - Arroz, PFrita, Ensal (Bistec)" />
-          <CheckG k="ocultarBuscadorPlatos" label="Ocultar buscador de platos" help="El selector de cocinero se queda." />
-          <CheckG k="mostrarTitulosListasSplit" label="Mostrar títulos de listas" help="Barras PLATOS / Lista de Guarniciones. Solo con split 50/50." />
+          <CheckG k="ocultarCronometroGuarniciones" label="Ocultar cronómetro de guarniciones" help="Solo el panel derecho. Los platos principales conservan su reloj." {...checkGProps} />
+          <CheckG k="ocultarCuadroGuarniciones" label="Quitar cuadro de la tarjeta" help="Lista de letras: - Arroz, PFrita, Ensal (Bistec)" {...checkGProps} />
+          <CheckG k="ocultarBuscadorPlatos" label="Ocultar buscador de platos" help="El selector de cocinero se queda." {...checkGProps} />
+          <CheckG k="mostrarTitulosListasSplit" label="Mostrar títulos de listas" help="Barras PLATOS / Lista de Guarniciones. Solo con split 50/50." {...checkGProps} />
+          <CheckG k="mostrarPronombreCocineroGuarnicion" label="Pronombre del cocinero junto al plato referencial" help="En guarniciones y notas: (Bistec) C1 es quien atiende el plato principal, no la guarnición. Se oculta si el monitor está filtrado a ese mismo cocinero. El código (C1) se edita en Personalizar cocineros." {...checkGProps} />
+          <CheckG k="mostrarTablaNotas" label="Mostrar notas del mozo al pie" help="Franja fija abajo: Notas: - Piña (Bistec) C1. Observaciones de comanda y nota especial del plato." {...checkGProps} />
+          <label style={lbl}>
+            Grosor línea split (px)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <BtnStep
+                onClick={() => guardar({ grosorSeparadorSplit: Math.max(1, (Number(configVisual.grosorSeparadorSplit) || 2) - 1) })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={1}
+                max={16}
+                value={configVisual.grosorSeparadorSplit ?? 2}
+                onChange={(e) => guardar({ grosorSeparadorSplit: Math.min(16, Math.max(1, Number(e.target.value) || 2)) })}
+                style={{ ...inp, width: '56px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => guardar({ grosorSeparadorSplit: Math.min(16, (Number(configVisual.grosorSeparadorSplit) || 2) + 1) })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+          <ColorG key="colorSeparadorSplit" k="colorSeparadorSplit" label="Color línea split" fallback={colorAcento} {...colorGProps} />
           {configVisual.mostrarTitulosListasSplit === true && (
             <>
               <label style={lbl}>
@@ -604,6 +642,131 @@ const MonitorConfigPanel = ({
                   style={{ ...inp, minWidth: '180px' }}
                 />
               </label>
+              <label style={lbl}>
+                Alinear títulos
+                <select
+                  value={configVisual.alinearTituloListaSplit || 'izquierda'}
+                  onChange={(e) => guardar({ alinearTituloListaSplit: e.target.value })}
+                  style={{ ...inp, minWidth: '120px' }}
+                >
+                  <option value="izquierda">Izquierda</option>
+                  <option value="centro">Centro</option>
+                  <option value="derecha">Derecha</option>
+                </select>
+              </label>
+              <ColorG key="colorTituloListaSplit" k="colorTituloListaSplit" label="Color títulos" fallback={colorTextoPrincipal} {...colorGProps} />
+              <label style={lbl}>
+                Tamaño títulos (px)
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <BtnStep
+                    onClick={() => guardar({ tamanioTituloListaSplit: Math.max(10, (Number(configVisual.tamanioTituloListaSplit) || 13) - 1) })}
+                    colorAcento={colorAcento}
+                    colorTexto={colorTextoPrincipal}
+                  >−</BtnStep>
+                  <input
+                    type="number"
+                    min={10}
+                    max={48}
+                    value={configVisual.tamanioTituloListaSplit ?? 13}
+                    onChange={(e) => guardar({ tamanioTituloListaSplit: Math.min(48, Math.max(10, Number(e.target.value) || 13)) })}
+                    style={{ ...inp, width: '56px', textAlign: 'center' }}
+                  />
+                  <BtnStep
+                    onClick={() => guardar({ tamanioTituloListaSplit: Math.min(48, (Number(configVisual.tamanioTituloListaSplit) || 13) + 1) })}
+                    colorAcento={colorAcento}
+                    colorTexto={colorTextoPrincipal}
+                  >+</BtnStep>
+                </div>
+              </label>
+              <label style={lbl}>
+                Peso títulos
+                <select
+                  value={configVisual.pesoTituloListaSplit || '800'}
+                  onChange={(e) => guardar({ pesoTituloListaSplit: e.target.value })}
+                  style={{ ...inp, minWidth: '120px' }}
+                >
+                  <option value="400">Normal</option>
+                  <option value="600">Semi-negrita</option>
+                  <option value="700">Negrita</option>
+                  <option value="800">Extra negrita</option>
+                  <option value="900">Máximo</option>
+                </select>
+              </label>
+              <label style={lbl}>
+                Fuente títulos
+                <select
+                  value={configVisual.fuenteFamiliaTituloListaSplit || ''}
+                  onChange={(e) => guardar({ fuenteFamiliaTituloListaSplit: e.target.value || null })}
+                  style={{ ...inp, minWidth: '160px' }}
+                >
+                  <option value="">Heredar</option>
+                  {FUENTES_DISPONIBLES.map((f) => (
+                    <option key={f.id} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {configVisual.mostrarTablaNotas !== false && (
+            <>
+              <label style={lbl}>
+                Prefijo notas
+                <input
+                  type="text"
+                  value={configVisual.tituloTablaNotas ?? 'Notas:'}
+                  onChange={(e) => guardar({ tituloTablaNotas: e.target.value })}
+                  style={{ ...inp, minWidth: '100px' }}
+                />
+              </label>
+              <ColorG key="colorTextoNotas" k="colorTextoNotas" label="Color notas" fallback={colorTextoSecundario} {...colorGProps} />
+              <label style={lbl}>
+                Tamaño notas (px)
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <BtnStep
+                    onClick={() => guardar({ tamanioFuenteNotas: Math.max(10, (Number(configVisual.tamanioFuenteNotas) || 14) - 1) })}
+                    colorAcento={colorAcento}
+                    colorTexto={colorTextoPrincipal}
+                  >−</BtnStep>
+                  <input
+                    type="number"
+                    min={10}
+                    max={36}
+                    value={configVisual.tamanioFuenteNotas ?? 14}
+                    onChange={(e) => guardar({ tamanioFuenteNotas: Math.min(36, Math.max(10, Number(e.target.value) || 14)) })}
+                    style={{ ...inp, width: '56px', textAlign: 'center' }}
+                  />
+                  <BtnStep
+                    onClick={() => guardar({ tamanioFuenteNotas: Math.min(36, (Number(configVisual.tamanioFuenteNotas) || 14) + 1) })}
+                    colorAcento={colorAcento}
+                    colorTexto={colorTextoPrincipal}
+                  >+</BtnStep>
+                </div>
+              </label>
+              <label style={lbl}>
+                Peso notas
+                <select
+                  value={configVisual.pesoFuenteNotas || '600'}
+                  onChange={(e) => guardar({ pesoFuenteNotas: e.target.value })}
+                  style={{ ...inp, minWidth: '120px' }}
+                >
+                  <option value="400">Normal</option>
+                  <option value="600">Semi-negrita</option>
+                  <option value="700">Negrita</option>
+                  <option value="800">Extra negrita</option>
+                </select>
+              </label>
+              <label style={lbl}>
+                Alinear notas
+                <select
+                  value={configVisual.alinearTablaNotas || 'izquierda'}
+                  onChange={(e) => guardar({ alinearTablaNotas: e.target.value })}
+                  style={{ ...inp, minWidth: '120px' }}
+                >
+                  <option value="izquierda">Izquierda</option>
+                  <option value="centro">Centro</option>
+                  <option value="derecha">Derecha</option>
+                </select>
+              </label>
             </>
           )}
           <label style={lbl}>
@@ -620,9 +783,11 @@ const MonitorConfigPanel = ({
             </select>
           </label>
           <ColorG
+            key="colorTextoPadreGuarnicion"
             k="colorTextoPadreGuarnicion"
             label="Color letra plato referencial"
             fallback={colorTextoSecundario}
+            {...colorGProps}
           />
           <label style={lbl}>
             Tamaño letra plato referencial (px)
@@ -798,9 +963,9 @@ const MonitorConfigPanel = ({
                     <option value="900">Máximo</option>
                   </select>
                 </label>
-                <ColorG k="colorTextoGuarnicion" label="Color texto" fallback={colorTextoPrincipal} />
-                <ColorG k="colorFondoGuarnicion" label="Fondo tarjeta" fallback={configVisual.colorFilaPlato || '#1a1a28'} />
-                <ColorG k="colorAcentoGuarnicion" label="Acento" fallback={colorAcento} />
+                <ColorG key="colorTextoGuarnicion" k="colorTextoGuarnicion" label="Color texto" fallback={colorTextoPrincipal} {...colorGProps} />
+                <ColorG key="colorFondoGuarnicion" k="colorFondoGuarnicion" label="Fondo tarjeta" fallback={configVisual.colorFilaPlato || '#1a1a28'} {...colorGProps} />
+                <ColorG key="colorAcentoGuarnicion" k="colorAcentoGuarnicion" label="Acento" fallback={colorAcento} {...colorGProps} />
                 <label style={lbl}>
                   Espaciado filas
                   <select

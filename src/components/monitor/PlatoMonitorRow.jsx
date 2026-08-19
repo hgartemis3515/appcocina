@@ -82,7 +82,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
       const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
       if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
     });
-    const obs = platoRef.observaciones || platoRef.nota;
+    const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
     if (obs) complementosSet.add(obs);
   }
   const complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');

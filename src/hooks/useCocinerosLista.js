@@ -33,6 +33,7 @@ const useCocinerosLista = ({ getToken } = {}) => {
         _id: c._id,
         name: c.name,
         alias: c.alias || c.name,
+        pronombre: String(c.pronombre || '').trim(),
         fotoUrl: c.fotoUrl || '',
       }));
       data.sort((a, b) => (a.alias || a.name).localeCompare(b.alias || b.name));

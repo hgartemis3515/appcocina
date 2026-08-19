@@ -7,6 +7,7 @@ import MesaChips from './MesaChips';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
+import { pronombreReferenciaPrincipal } from '../../utils/notasMonitor';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -181,6 +182,14 @@ const CocineroPlatoCard = React.forwardRef(({
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
   const esGuarnicion = item.esGuarnicion === true;
+  const textoPronombreRef = esGuarnicion
+    ? (item.pronombrePrincipal !== undefined
+      ? (item.pronombrePrincipal || '')
+      : pronombreReferenciaPrincipal(
+          item.cocineroPrincipal || platos[0]?.cocineroPrincipal || platos[0]?.plato?.procesandoPor,
+          { mostrar: configVisual.mostrarPronombreCocineroGuarnicion !== false },
+        ))
+    : '';
   const pickG = (key, fallback) => (esGuarnicion ? tokenGuarnicion(configVisual, key, fallback) : fallback);
 
   // Config
@@ -232,6 +241,7 @@ const CocineroPlatoCard = React.forwardRef(({
       <GuarnicionListaLinea
         texto={textoNombres}
         textoPadre={item.subtitulo || ''}
+        textoCocinero={textoPronombreRef}
         fuenteFamilia={fuenteFamilia}
         tamanioFuente={tamanioFuentePlato}
         pesoFuente={pesoFuentePlato}
@@ -267,6 +277,8 @@ const CocineroPlatoCard = React.forwardRef(({
   let complementosTexto = '';
   if (esGuarnicion) {
     complementosTexto = item.subtitulo || '';
+    const pron = textoPronombreRef;
+    if (pron) complementosTexto = [complementosTexto, pron].filter(Boolean).join(' ');
   } else {
     const complementosSet = new Set();
     const platoRef = platos[0]?.plato;
@@ -281,7 +293,7 @@ const CocineroPlatoCard = React.forwardRef(({
         const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
         if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
       });
-      const obs = platoRef.observaciones || platoRef.nota;
+      const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
       if (obs) complementosSet.add(obs);
     }
     complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');

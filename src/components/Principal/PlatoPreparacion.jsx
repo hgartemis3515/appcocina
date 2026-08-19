@@ -378,6 +378,18 @@ const PlatoPreparacion = ({
             posición (debajo del principal) + el badge "🥗 Guarnición".
             No se renderiza un título extra para evitar duplicado. */}
 
+        {tipoUnidad !== 'guarnicion' && String(plato?.notaEspecial || '').trim() && (
+          <div
+            className={`text-xs leading-tight pl-1 mt-0.5 pointer-events-none ${
+              nightMode ? 'text-amber-200' : 'text-amber-800'
+            }`}
+            style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
+            title="Nota especial del mozo"
+          >
+            📌 {String(plato.notaEspecial).trim()}
+          </div>
+        )}
+
         {complementosSeleccionados && complementosSeleccionados.length > 0 && !ocultarComplementos && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
             {complementosSeleccionados.map((comp, i) => {

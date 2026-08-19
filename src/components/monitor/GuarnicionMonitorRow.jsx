@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { formatearReferenciaPadre, tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
+import { pronombreReferenciaPrincipal } from '../../utils/notasMonitor';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
 
 /**
@@ -67,12 +68,19 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
   const disposicionVertical = modoTarjeta && (configVisual.disposicionTarjeta || 'vertical') === 'vertical';
   const esUnido = espaciado === 'unido';
   const refPadre = formatearReferenciaPadre(nombrePadre, configVisual.referenciaPadreGuarnicion || 'de');
+  const textoCocinero = item.pronombrePrincipal !== undefined
+    ? (item.pronombrePrincipal || '')
+    : pronombreReferenciaPrincipal(
+        item.cocineroPrincipal || item.platos?.[0]?.plato?.procesandoPor,
+        { mostrar: configVisual.mostrarPronombreCocineroGuarnicion !== false },
+      );
 
   if (configVisual.ocultarCuadroGuarniciones === true) {
     return (
       <GuarnicionListaLinea
         texto={nombresListaGuarniciones(item.comps) || `- ${nombre}`}
         textoPadre={refPadre}
+        textoCocinero={textoCocinero}
         fuenteFamilia={fuenteFamilia}
         tamanioFuente={tamanioFuentePlato}
         pesoFuente={pesoFuentePlato}
@@ -159,6 +167,17 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
               {refPadre}
             </span>
           )}
+          {textoCocinero ? (
+            <span
+              style={{
+                fontSize: `${tamanioFuentePadre || tamanioFuenteDetalle}px`,
+                fontWeight: 700,
+                color: colorTextoPadre,
+              }}
+            >
+              {textoCocinero}
+            </span>
+          ) : null}
         </div>
       )}
     </div>
