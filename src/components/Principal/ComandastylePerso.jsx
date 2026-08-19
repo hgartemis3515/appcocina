@@ -41,6 +41,7 @@ import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
+import { useConfig } from "../../contexts/ConfigContext";
 import { 
   aplicarFiltrosAComandas, 
   debeMostrarComanda, 
@@ -101,7 +102,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
-  const { usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { config: kdsVistaConfig } = useConfig();
+  const usarNombreCocinaEnTablaKds = kdsVistaConfig.usarNombreCocinaEnTablaKds !== false;
   const agrupacionOn = agrupacionGuarnicionesOn({ permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones });
   
   const [comandas, setComandas] = useState([]);

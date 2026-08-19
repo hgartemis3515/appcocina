@@ -116,7 +116,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
     deshabilitarAgrupacionGuarniciones
@@ -126,6 +126,7 @@ const ComandaStyle = ({
 
   // Hook de configuración centralizada (v7.1)
   const { config, updateConfig } = useConfig();
+  const usarNombreCocinaEnTablaKds = config.usarNombreCocinaEnTablaKds !== false;
   
   // Hook de comportamiento KDS basado en configuración
   const kdsBehavior = useKdsBehavior({

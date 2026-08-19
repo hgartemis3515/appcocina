@@ -4,8 +4,6 @@ import {
   FaShieldAlt, 
   FaExclamationTriangle, 
   FaCheckCircle, 
-  FaPalette,
-  FaClock,
   FaCog,
   FaTrash,
   FaUndo
@@ -20,20 +18,15 @@ import {
 } from "../../config/apiConfig";
 import { useConfig } from "../../contexts/ConfigContext";
 import { 
-  TIEMPOS_ALERTA,
-  DISENO_GRID,
-  MODO_VISTA,
-  TAMANO_TARJETA,
-  ORDENAMIENTO,
   ejecutarLimpieza,
   KDS_CONFIG_VERSION
 } from "../../config/kdsConfigConstants";
+import ConfigVistaAlertasTab from "./ConfigVistaAlertasTab";
 
 /**
  * ConfigModal - Modal de configuración del sistema KDS
  *
- * Tab Vista: tipografía + paginación (cols×rows). El tamaño de tarjeta en pantalla
- * es fijo (300×500) para que el zoom del navegador empaquete más comandas.
+ * Tab Vista y alertas: tipografía, paginación, badge guarnición, umbrales y perfiles.
  */
 const ConfigModal = ({ onClose, nightMode = true }) => {
   // Usar ConfigContext
@@ -152,7 +145,7 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
+      <div className={`${bgModal} rounded-lg p-6 max-w-5xl w-full mx-4 max-h-[92vh] overflow-y-auto`}>
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -171,8 +164,7 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
         <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-600 pb-2">
           {[
             { key: 'general', label: 'General', icon: '⚙️' },
-            { key: 'vista', label: 'Vista', icon: '🎨' },
-            { key: 'alertas', label: 'Alertas', icon: '⏰' },
+            { key: 'vista', label: 'Vista y alertas', icon: '🎨' },
             { key: 'avanzado', label: 'Avanzado', icon: '🔧' },
           ].map(tab => (
             <button
@@ -319,215 +311,9 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
             </div>
           )}
 
-          {/* ==================== TAB: VISTA ==================== */}
+          {/* ==================== TAB: VISTA + ALERTAS ==================== */}
           {activeTab === 'vista' && (
-            <div>
-              <h3 className={`text-xl font-bold ${textModal} mb-4 flex items-center gap-2`}>
-                <FaPalette className="text-purple-500" />
-                Diseño de Comandas
-              </h3>
-              <p className={`text-xs ${textSecondary} mb-4`}>
-                Las tarjetas mantienen tamaño fijo (300×500). Al bajar el zoom del navegador
-                caben más comandas en pantalla sin deformar cada tarjeta. Columnas/filas
-                solo controlan cuántas se muestran por página.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>Tamaño de Fuente</label>
-                  <select
-                    value={config.tamanoFuente}
-                    onChange={(e) => updateConfig({ tamanoFuente: parseInt(e.target.value) })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  >
-                    {Array.from(
-                      { length: DISENO_GRID.FUENTE_MAX - DISENO_GRID.FUENTE_MIN + 1 },
-                      (_, i) => DISENO_GRID.FUENTE_MIN + i
-                    ).map(size => (
-                      <option key={size} value={size}>{size}px</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>Referencia de densidad</label>
-                  <select
-                    value={config.tamanoTarjeta}
-                    onChange={(e) => updateConfig({ tamanoTarjeta: e.target.value })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  >
-                    <option value={TAMANO_TARJETA.COMPACTO}>Compacto</option>
-                    <option value={TAMANO_TARJETA.MEDIANO}>Mediano</option>
-                    <option value={TAMANO_TARJETA.EXPANDIDO}>Expandido</option>
-                  </select>
-                  <p className={`text-xs ${textSecondary} mt-1`}>No altera el tamaño fijo 300×500 de la tarjeta.</p>
-                </div>
-
-                <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>Columnas (paginación)</label>
-                  <input
-                    type="number"
-                    min={DISENO_GRID.COLUMNAS_MIN}
-                    max={DISENO_GRID.COLUMNAS_MAX}
-                    value={config.columnasGrid}
-                    onChange={(e) => updateConfig({
-                      columnasGrid: Math.max(DISENO_GRID.COLUMNAS_MIN, Math.min(DISENO_GRID.COLUMNAS_MAX, parseInt(e.target.value) || DISENO_GRID.COLUMNAS_DEFAULT))
-                    })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>Filas (paginación)</label>
-                  <input
-                    type="number"
-                    min={DISENO_GRID.FILAS_MIN}
-                    max={DISENO_GRID.FILAS_MAX}
-                    value={config.filasGrid}
-                    onChange={(e) => updateConfig({
-                      filasGrid: Math.max(DISENO_GRID.FILAS_MIN, Math.min(DISENO_GRID.FILAS_MAX, parseInt(e.target.value) || DISENO_GRID.FILAS_DEFAULT))
-                    })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  />
-                  <p className={`text-xs ${textSecondary} mt-1`}>
-                    Comandas por página: {config.columnasGrid * config.filasGrid}
-                  </p>
-                </div>
-
-                <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>Ordenamiento por Defecto</label>
-                  <select
-                    value={config.ordenamientoDefault}
-                    onChange={(e) => updateConfig({ ordenamientoDefault: e.target.value })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  >
-                    <option value={ORDENAMIENTO.TIEMPO}>Por tiempo (más antiguo)</option>
-                    <option value={ORDENAMIENTO.PRIORIDAD}>Por prioridad</option>
-                    <option value={ORDENAMIENTO.MESA}>Por mesa</option>
-                    <option value={ORDENAMIENTO.CREACION}>Por creación</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={`block ${textModal} font-semibold mb-2`}>Modo de Vista</label>
-                  <select
-                    value={config.modoVista}
-                    disabled
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal} opacity-70`}
-                  >
-                    <option value={MODO_VISTA.TARJETAS}>Tarjetas (Kanban)</option>
-                    <option value={MODO_VISTA.TABLA}>Tabla (Próximamente)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label className={`block ${textModal} font-semibold mb-3`}>Preview</label>
-                <div
-                  className={`${nightMode ? 'bg-gray-900' : 'bg-gray-100'} p-4 rounded-lg border-2 ${borderModal}`}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 120px))',
-                    gap: '12px',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <div className="bg-gray-800 border-2 border-gray-700 rounded-lg p-2" style={{ width: 120, height: 160 }}>
-                    <div className="bg-red-600 text-white text-center text-xs font-bold py-0.5 mb-1">ESPERA</div>
-                    <div className="text-red-400 font-bold text-xs" style={{ fontSize: `${Math.max(10, (config.tamanoFuente || 15) - 4)}px` }}>ORDEN #1</div>
-                    <div className="text-white text-xs">MESA #2</div>
-                  </div>
-                  {Array.from({ length: Math.min(4, Math.max(0, (config.columnasGrid * config.filasGrid) - 1)) }).map((_, idx) => (
-                    <div key={idx} className="bg-gray-900 border border-gray-800 rounded-lg" style={{ width: 120, height: 160 }} />
-                  ))}
-                </div>
-                <p className={`${textSecondary} text-sm mt-2`}>
-                  Tarjeta fija 300×500 · {config.columnasGrid}×{config.filasGrid} = {config.columnasGrid * config.filasGrid}/página · zoom del navegador = más comandas visibles
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== TAB: ALERTAS ==================== */}
-          {activeTab === 'alertas' && (
-            <div>
-              <h3 className={`text-xl font-bold ${textModal} mb-4 flex items-center gap-2`}>
-                <FaClock className="text-yellow-500" />
-                Tiempos y Alertas
-              </h3>
-
-              <div className="space-y-6">
-                {/* Alerta Amarilla */}
-                <div className="p-4 rounded-lg bg-yellow-500 bg-opacity-10 border border-yellow-500">
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    ⚠️ Alerta Amarilla (Precaución)
-                  </label>
-                  <input
-                    type="number"
-                    min={TIEMPOS_ALERTA.AMARILLA_MIN}
-                    max={TIEMPOS_ALERTA.AMARILLA_MAX}
-                    value={config.alertYellowMinutes}
-                    onChange={(e) => updateConfig({ 
-                      alertYellowMinutes: Math.max(TIEMPOS_ALERTA.AMARILLA_MIN, Math.min(TIEMPOS_ALERTA.AMARILLA_MAX, parseInt(e.target.value) || TIEMPOS_ALERTA.AMARILLA_DEFAULT))
-                    })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  />
-                  <p className={`${textSecondary} text-sm mt-1`}>
-                    Los pedidos que superen este tiempo mostrarán fondo amarillo ({TIEMPOS_ALERTA.AMARILLA_MIN}-{TIEMPOS_ALERTA.AMARILLA_MAX} min)
-                  </p>
-                </div>
-
-                {/* Alerta Roja */}
-                <div className="p-4 rounded-lg bg-red-500 bg-opacity-10 border border-red-500">
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    🚨 Alerta Roja (Urgente)
-                  </label>
-                  <input
-                    type="number"
-                    min={TIEMPOS_ALERTA.ROJA_MIN}
-                    max={TIEMPOS_ALERTA.ROJA_MAX}
-                    value={config.alertRedMinutes}
-                    onChange={(e) => updateConfig({ 
-                      alertRedMinutes: Math.max(TIEMPOS_ALERTA.ROJA_MIN, Math.min(TIEMPOS_ALERTA.ROJA_MAX, parseInt(e.target.value) || TIEMPOS_ALERTA.ROJA_DEFAULT))
-                    })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  />
-                  <p className={`${textSecondary} text-sm mt-1`}>
-                    Los pedidos que superen este tiempo mostrarán fondo rojo urgente ({TIEMPOS_ALERTA.ROJA_MIN}-{TIEMPOS_ALERTA.ROJA_MAX} min)
-                  </p>
-                </div>
-
-                {/* Alerta Crítica */}
-                <div className="p-4 rounded-lg bg-purple-500 bg-opacity-10 border border-purple-500">
-                  <label className={`block ${textModal} font-semibold mb-2`}>
-                    🔔 Alerta Crítica (Sonido adicional)
-                  </label>
-                  <input
-                    type="number"
-                    min={TIEMPOS_ALERTA.CRITICA_MIN}
-                    max={TIEMPOS_ALERTA.CRITICA_MAX}
-                    value={config.alertCriticalMinutes}
-                    onChange={(e) => updateConfig({ 
-                      alertCriticalMinutes: Math.max(TIEMPOS_ALERTA.CRITICA_MIN, Math.min(TIEMPOS_ALERTA.CRITICA_MAX, parseInt(e.target.value) || TIEMPOS_ALERTA.CRITICA_DEFAULT))
-                    })}
-                    className={`w-full ${inputBg} ${inputText} p-2 rounded border ${borderModal}`}
-                  />
-                  <p className={`${textSecondary} text-sm mt-1`}>
-                    Reproduce sonido adicional cuando un pedido supera este tiempo
-                  </p>
-                </div>
-
-                {/* Validación visual */}
-                {config.alertRedMinutes <= config.alertYellowMinutes && (
-                  <div className="p-3 rounded-lg bg-red-500 bg-opacity-20 border border-red-500">
-                    <p className="text-red-400 text-sm flex items-center gap-2">
-                      <FaExclamationTriangle />
-                      La alerta roja debe ser mayor que la alerta amarilla
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ConfigVistaAlertasTab nightMode={nightMode} />
           )}
 
           {/* ==================== TAB: AVANZADO ==================== */}

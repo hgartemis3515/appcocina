@@ -10,6 +10,16 @@ import {
   ejecutarLimpieza,
   verificarNecesidadLimpieza,
 } from '../config/kdsConfigConstants';
+import {
+  snapshotPerfilVista,
+  aplicarSnapshotVista,
+  sanitizarNombrePerfil,
+  nombrePerfilDisponible,
+  mapPerfilVistaDesdeApi,
+  perfilVistaDifiere,
+  TIPO_PERFIL_TABLAS_KDS,
+} from '../utils/kdsPerfilesVista';
+import { apiGet, apiPost, apiPut, apiDelete } from '../config/apiClient';
 
 /**
  * ConfigContext - Contexto para gestión centralizada de configuración KDS
@@ -45,6 +55,10 @@ export const ConfigProvider = ({ children }) => {
 
   // Estado de perfil activo
   const [perfilActivo, setPerfilActivoState] = useState(config.perfilActivo || null);
+  const [perfilesVista, setPerfilesVista] = useState([]);
+  const perfilesVistaRef = useRef(perfilesVista);
+  const [cargandoPerfilesVista, setCargandoPerfilesVista] = useState(false);
+  const [guardandoPerfilVista, setGuardandoPerfilVista] = useState(false);
 
   // Estado para feedback de guardado
   const [isSaving, setIsSaving] = useState(false);
@@ -52,6 +66,10 @@ export const ConfigProvider = ({ children }) => {
 
   // Ref para debounce de guardado
   const saveTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    perfilesVistaRef.current = perfilesVista;
+  }, [perfilesVista]);
 
   /**
    * Ejecuta limpieza automática si es necesaria
@@ -143,16 +161,17 @@ export const ConfigProvider = ({ children }) => {
    * Verifica si una configuración difiere del perfil activo
    */
   const _isOpcionPersonalizada = (configToCheck, perfilId) => {
-    const perfil = Object.values(PERFILES_PREDEFINIDOS).find(p => p.id === perfilId);
-    if (!perfil) return false;
-
-    // Keys que no cuentan como personalización
-    const ignoredKeys = ['version', 'ultimaModificacion', 'perfilActivo', 'design'];
-    
-    return Object.keys(perfil.config).some(key => {
-      if (ignoredKeys.includes(key)) return false;
-      return configToCheck[key] !== perfil.config[key];
-    });
+    const preset = Object.values(PERFILES_PREDEFINIDOS).find(p => p.id === perfilId);
+    if (preset) {
+      const ignoredKeys = ['version', 'ultimaModificacion', 'perfilActivo', 'design'];
+      return Object.keys(preset.config).some(key => {
+        if (ignoredKeys.includes(key)) return false;
+        return configToCheck[key] !== preset.config[key];
+      });
+    }
+    const custom = perfilesVistaRef.current.find(p => p.id === perfilId);
+    if (!custom) return false;
+    return perfilVistaDifiere(configToCheck, custom.config);
   };
 
   /**
@@ -175,6 +194,144 @@ export const ConfigProvider = ({ children }) => {
     console.log(`[ConfigContext] Perfil aplicado: ${perfil.nombre}`);
     return true;
   }, [config, saveConfig]);
+
+  /**
+   * Carga un perfil de vista (plantilla predefinida o perfil guardado en servidor).
+   */
+  const cargarPerfilVista = useCallback((perfilId) => {
+    if (!perfilId) return false;
+    const preset = Object.values(PERFILES_PREDEFINIDOS).find(p => p.id === perfilId);
+    if (preset) {
+      const newConfig = aplicarPerfil(perfilId, config);
+      setConfigState(newConfig);
+      setPerfilActivoState(perfilId);
+      saveConfig(newConfig);
+      return true;
+    }
+    const custom = perfilesVistaRef.current.find(p => p.id === perfilId);
+    if (!custom) return false;
+    const merged = aplicarSnapshotVista(config, custom.config);
+    const newConfig = {
+      ...normalizarConfiguracion(merged),
+      perfilActivo: custom.id,
+    };
+    setConfigState(newConfig);
+    setPerfilActivoState(custom.id);
+    saveConfig(newConfig);
+    return true;
+  }, [config, saveConfig]);
+
+  const recargarPerfilesVista = useCallback(async () => {
+    setCargandoPerfilesVista(true);
+    try {
+      const res = await apiGet('/api/perfiles-tablas-kds');
+      const lista = (Array.isArray(res?.data) ? res.data : [])
+        .map(mapPerfilVistaDesdeApi)
+        .filter((p) => p && p.tipo === TIPO_PERFIL_TABLAS_KDS);
+      setPerfilesVista(lista);
+      return lista;
+    } catch (e) {
+      console.warn('[ConfigContext] No se pudieron cargar perfiles de tablas KDS', e);
+      return perfilesVistaRef.current;
+    } finally {
+      setCargandoPerfilesVista(false);
+    }
+  }, []);
+
+  /**
+   * Crea un perfil con la vista/alertas actuales (servidor, tipo tablas_kds).
+   */
+  const crearPerfilVista = useCallback(async (nombreRaw) => {
+    const nombre = sanitizarNombrePerfil(nombreRaw);
+    if (!nombre) return { ok: false, error: 'Escribe un nombre para el perfil' };
+    if (!nombrePerfilDisponible(perfilesVistaRef.current, nombre)) {
+      return { ok: false, error: 'Ya existe un perfil con ese nombre' };
+    }
+    setGuardandoPerfilVista(true);
+    try {
+      const res = await apiPost('/api/perfiles-tablas-kds', {
+        nombre,
+        config: snapshotPerfilVista(config),
+      });
+      const perfil = mapPerfilVistaDesdeApi(res.data);
+      await recargarPerfilesVista();
+      if (perfil) {
+        setPerfilActivoState(perfil.id);
+        setConfigState((prev) => {
+          const newConfig = { ...prev, perfilActivo: perfil.id };
+          saveConfig(newConfig);
+          return newConfig;
+        });
+      }
+      return { ok: true, perfil };
+    } catch (e) {
+      const status = e?.response?.status;
+      const msg = status === 409
+        ? 'Ya existe un perfil con ese nombre'
+        : (e?.response?.data?.error || e?.userMessage || 'No se pudo crear el perfil');
+      return { ok: false, error: msg };
+    } finally {
+      setGuardandoPerfilVista(false);
+    }
+  }, [config, recargarPerfilesVista, saveConfig]);
+
+  /**
+   * Sobrescribe un perfil guardado con la vista actual.
+   */
+  const sobrescribirPerfilVista = useCallback(async (perfilId) => {
+    if (!perfilId) return { ok: false, error: 'Perfil no encontrado' };
+    setGuardandoPerfilVista(true);
+    try {
+      await apiPut(`/api/perfiles-tablas-kds/${perfilId}`, {
+        config: snapshotPerfilVista(config),
+      });
+      await recargarPerfilesVista();
+      setPerfilActivoState(perfilId);
+      setConfigState((prev) => {
+        const newConfig = { ...prev, perfilActivo: perfilId };
+        saveConfig(newConfig);
+        return newConfig;
+      });
+      return { ok: true };
+    } catch (e) {
+      const status = e?.response?.status;
+      const msg = status === 404
+        ? 'Perfil no encontrado'
+        : (e?.response?.data?.error || e?.userMessage || 'No se pudo guardar el perfil');
+      return { ok: false, error: msg };
+    } finally {
+      setGuardandoPerfilVista(false);
+    }
+  }, [config, recargarPerfilesVista, saveConfig]);
+
+  /**
+   * Elimina un perfil guardado (borrado lógico en servidor).
+   */
+  const eliminarPerfilVista = useCallback(async (perfilId) => {
+    if (!perfilId) return { ok: false, error: 'Perfil no encontrado' };
+    setGuardandoPerfilVista(true);
+    try {
+      await apiDelete(`/api/perfiles-tablas-kds/${perfilId}`);
+      await recargarPerfilesVista();
+      if (perfilActivo === perfilId) {
+        setPerfilActivoState(null);
+        setConfigState((prev) => {
+          const newConfig = { ...prev, perfilActivo: null };
+          saveConfig(newConfig);
+          return newConfig;
+        });
+      }
+      return { ok: true };
+    } catch (e) {
+      const status = e?.response?.status;
+      const msg = status === 404
+        ? 'Perfil no encontrado'
+        : (e?.response?.data?.error || e?.userMessage || 'No se pudo eliminar el perfil');
+      return { ok: false, error: msg };
+    } finally {
+      setGuardandoPerfilVista(false);
+    }
+  }, [perfilActivo, recargarPerfilesVista, saveConfig]);
 
   /**
    * Resetea la configuración a valores por defecto
@@ -234,12 +391,20 @@ export const ConfigProvider = ({ children }) => {
     // Estado
     config,
     perfilActivo,
+    perfilesVista,
+    cargandoPerfilesVista,
+    guardandoPerfilVista,
     isSaving,
     lastSaved,
     
     // Acciones
     updateConfig,
     aplicarPerfilPredefinido,
+    cargarPerfilVista,
+    recargarPerfilesVista,
+    crearPerfilVista,
+    sobrescribirPerfilVista,
+    eliminarPerfilVista,
     resetConfig,
     
     // Helpers

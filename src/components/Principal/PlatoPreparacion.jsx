@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useConfig } from '../../contexts/ConfigContext';
 
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
@@ -48,6 +49,8 @@ const PlatoPreparacion = ({
   const tomadoPorOtro = procesandoPor?.cocineroId && 
                          procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
   const puedeInteractuar = isSupervisorView || !tomadoPorOtro;
+  const { config: kdsConfig } = useConfig();
+  const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
   
   const handleClick = (e) => {
     e.stopPropagation();
@@ -340,11 +343,13 @@ const PlatoPreparacion = ({
         </div>
         
         {/* PLAN GUARNICIONES_SEPARADAS v1.1: badge de guarnición + alerta de tiempo */}
-        {tipoUnidad === 'guarnicion' && (
+        {tipoUnidad === 'guarnicion' && (mostrarBadgeGuarnicion || elapsedG || estadoAlerta) && (
           <div className="flex items-center gap-1 pointer-events-none">
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40" title="Guarnición">
-              🥗 Guarnición
-            </span>
+            {mostrarBadgeGuarnicion && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40" title="Guarnición">
+                🥗 Guarnición
+              </span>
+            )}
             {elapsedG && (
               <span
                 className="px-1.5 py-0.5 rounded-full text-[9px] font-bold tabular-nums bg-cyan-500/20 text-cyan-200 border border-cyan-400/40"

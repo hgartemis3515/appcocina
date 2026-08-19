@@ -264,6 +264,8 @@ export const DEFAULT_KDS_CONFIG = {
   filasGrid: DISENO_GRID.FILAS_DEFAULT,
   mostrarImagenes: false,
   agruparPorMesa: false,
+  mostrarBadgeGuarnicion: true,
+  usarNombreCocinaEnTablaKds: true,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500
@@ -448,6 +450,7 @@ export const STORAGE_KEYS = {
   ZONA_ACTIVA: 'cocinaZonaActiva',
   VIEW_MODE: 'cocinaViewMode',
   LAST_CLEANUP: 'kdsLastCleanup',
+  PERFILES_VISTA: 'kdsPerfilesVista',
 };
 
 export const LIMPIEZA_CONFIG = {
