@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { formatearReferenciaPadre, tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
+import GuarnicionListaLinea from './GuarnicionListaLinea';
 
 /**
  * GuarnicionMonitorRow - Fila de una guarnición en el panel derecho del
@@ -46,20 +48,45 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
     : alerta;
 
   // Estilos (idénticos a PlatoMonitorRow para respetar la personalización).
-  const fuenteFamilia = configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif';
-  const tamanioFuentePlato = configVisual.tamanioFuentePlato || 36;
+  const fuenteFamilia = tokenGuarnicion(configVisual, 'fuenteFamiliaGuarnicion', configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif');
+  const tamanioFuentePlato = tokenGuarnicion(configVisual, 'tamanioFuenteGuarnicion', configVisual.tamanioFuentePlato || 36);
   const tamanioFuenteDetalle = configVisual.tamanioFuenteDetalle || 20;
   const tamanioFuenteCronometro = configVisual.tamanioFuenteCronometro || 28;
-  const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
+  const colorTextoPrincipal = tokenGuarnicion(configVisual, 'colorTextoGuarnicion', configVisual.colorTextoPrincipal || '#ffffff');
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#9ca3af';
-  const colorAcento = configVisual.colorAcento || '#d4af37';
+  const colorTextoPadre = configVisual.colorTextoPadreGuarnicion || colorTextoSecundario;
+  const tamanioFuentePadre = (configVisual.tamanioFuentePadreGuarnicion != null && configVisual.tamanioFuentePadreGuarnicion !== '')
+    ? Number(configVisual.tamanioFuentePadreGuarnicion)
+    : null;
+  const colorAcento = tokenGuarnicion(configVisual, 'colorAcentoGuarnicion', configVisual.colorAcento || '#d4af37');
   const colorAlertaAmarilla = configVisual.colorAlertaAmarilla || '#fbbf24';
   const colorAlertaRoja = configVisual.colorAlertaRoja || '#ef4444';
-  const colorFilaPlato = configVisual.colorFilaPlato || '#1a1a28';
-  const espaciado = configVisual.espaciadoFilas || 'normal';
-  const pesoFuentePlato = configVisual.pesoFuentePlato || '800';
+  const colorFilaPlato = tokenGuarnicion(configVisual, 'colorFondoGuarnicion', configVisual.colorFilaPlato || '#1a1a28');
+  const espaciado = tokenGuarnicion(configVisual, 'espaciadoFilasGuarnicion', configVisual.espaciadoFilas || 'normal');
+  const pesoFuentePlato = tokenGuarnicion(configVisual, 'pesoFuenteGuarnicion', configVisual.pesoFuentePlato || '800');
   const disposicionVertical = modoTarjeta && (configVisual.disposicionTarjeta || 'vertical') === 'vertical';
   const esUnido = espaciado === 'unido';
+  const refPadre = formatearReferenciaPadre(nombrePadre, configVisual.referenciaPadreGuarnicion || 'de');
+
+  if (configVisual.ocultarCuadroGuarniciones === true) {
+    return (
+      <GuarnicionListaLinea
+        texto={nombresListaGuarniciones(item.comps) || `- ${nombre}`}
+        textoPadre={refPadre}
+        fuenteFamilia={fuenteFamilia}
+        tamanioFuente={tamanioFuentePlato}
+        pesoFuente={pesoFuentePlato}
+        colorTexto={colorTextoPrincipal}
+        colorPadre={colorTextoPadre}
+        tamanioPadre={tamanioFuentePadre}
+        espaciado={espaciado}
+        cronometroIso={item.tiempoInicio || null}
+        ocultarCronometro={configVisual.ocultarCronometroGuarniciones === true}
+        colorCronometro={colorTextoPrincipal}
+        tamanioCronometro={tamanioFuenteCronometro}
+      />
+    );
+  }
 
   const paddingY = esUnido ? '14px' : espaciado === 'compacto' ? '12px' : espaciado === 'amplio' ? '28px' : '18px';
   const paddingX = modoTarjeta || esUnido ? '16px' : '24px';
@@ -98,7 +125,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
 
       {/* Sub-texto: "de {nombreCocinaPadre}" — referencia al plato padre.
           Usa el nombre de cocina (alias) si existe, no el nombre comercial. */}
-      {nombrePadre && (
+      {(nombrePadre || refPadre) && (
         <div
           style={{
             fontSize: `${tamanioFuenteDetalle}px`,
@@ -122,7 +149,16 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
           >
             🥗 Guarnición
           </span>
-          <span>de {nombrePadre}</span>
+          {refPadre && (
+            <span
+              style={{
+                fontSize: `${tamanioFuentePadre || tamanioFuenteDetalle}px`,
+                color: colorTextoPadre,
+              }}
+            >
+              {refPadre}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -190,7 +226,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
     return (
       <div style={estiloFila}>
         {contenidoNombre}
-        {contenidoCronometro}
+        {configVisual.ocultarCronometroGuarniciones !== true && contenidoCronometro}
       </div>
     );
   }
@@ -207,7 +243,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
       style={estiloFila}
     >
       {contenidoNombre}
-      {contenidoCronometro}
+      {configVisual.ocultarCronometroGuarniciones !== true && contenidoCronometro}
     </motion.div>
   );
 });

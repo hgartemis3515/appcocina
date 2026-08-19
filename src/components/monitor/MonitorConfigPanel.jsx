@@ -267,6 +267,54 @@ const MonitorConfigPanel = ({
   const inp = inputStyle(colorFondo, colorTextoPrincipal, colorAcento);
   const lbl = labelStyle(colorTextoSecundario);
 
+  const presetFuenteG = FUENTES_DISPONIBLES.find(f => f.value === configVisual.fuenteFamiliaGuarnicion);
+  const fuenteGuarnicionActual = presetFuenteG?.id
+    || (configVisual.fuenteFamiliaGuarnicion ? 'custom' : '');
+
+  const CheckG = ({ k, label, help }) => (
+    <label style={{ ...lbl, flexDirection: 'column', alignItems: 'flex-start', minWidth: '220px' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={configVisual[k] === true}
+          onChange={(e) => guardar({ [k]: e.target.checked })}
+          style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
+        />
+        <span style={{ fontSize: '12px', color: colorTextoPrincipal, fontWeight: 600 }}>{label}</span>
+      </span>
+      {help ? (
+        <span style={{ fontSize: '11px', color: colorTextoSecundario, marginLeft: '24px' }}>{help}</span>
+      ) : null}
+    </label>
+  );
+
+  const ColorG = ({ k, label, fallback }) => (
+    <label style={lbl}>
+      {label}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <input
+          type="color"
+          value={(configVisual[k] || fallback || '#ffffff').toString().slice(0, 7)}
+          onChange={(e) => guardar({ [k]: e.target.value })}
+          style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+        />
+        <button
+          type="button"
+          onClick={() => guardar({ [k]: null })}
+          title="Heredar de platos"
+          style={{
+            ...inp,
+            cursor: 'pointer',
+            padding: '6px 10px',
+            background: configVisual[k] == null ? `${colorAcento}33` : 'transparent',
+          }}
+        >
+          Heredar
+        </button>
+      </div>
+    </label>
+  );
+
   const layoutBtn = (cols, label) => {
     const activo = columnasActuales === cols;
     return (
@@ -342,56 +390,6 @@ const MonitorConfigPanel = ({
               Con 2+ columnas se muestran tarjetas en cuadrícula (no bloques por cocinero).
             </p>
           )}
-          {/* PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones */}
-          <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${colorAcento}33`, background: `${colorAcento}0d` }}>
-            {/* Check: permitir diferenciar el diseño de lista de guarniciones */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: diferenciarDiseno ? '8px' : '0' }}>
-              <input
-                type="checkbox"
-                checked={diferenciarDiseno}
-                onChange={(e) => toggleDiferenciar(e.target.checked)}
-                style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '12px', color: colorTextoPrincipal, fontWeight: 700 }}>
-                🥗 Diferenciar diseño de lista de guarniciones
-              </span>
-            </label>
-            {!diferenciarDiseno && (
-              <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0 24px' }}>
-                Desactivado: las guarniciones usan las mismas columnas que los platos ({columnasGuarnicionesActuales}).
-              </p>
-            )}
-            {diferenciarDiseno && (
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginLeft: '24px' }}>
-                {[1, 2, 3, 4].map((cols) => {
-                  const activo = columnasGuarnicionesActuales === cols;
-                  return (
-                    <button
-                      key={cols}
-                      type="button"
-                      onClick={() => setColumnasGuarniciones(cols)}
-                      title={`${cols} columna${cols > 1 ? 's' : ''}`}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: `2px solid ${activo ? colorAcento : `${colorAcento}33`}`,
-                        background: activo ? `${colorAcento}22` : 'transparent',
-                        color: activo ? colorAcento : colorTextoSecundario,
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: activo ? 700 : 500,
-                      }}
-                    >
-                      {cols}
-                    </button>
-                  );
-                })}
-                <span style={{ fontSize: '11px', color: colorTextoSecundario, marginLeft: '6px' }}>
-                  Solo aplica con "Lista complementos" activo
-                </span>
-              </div>
-            )}
-          </div>
           <label style={lbl}>
             Espaciado entre filas
             <select
@@ -579,6 +577,247 @@ const MonitorConfigPanel = ({
               <option value="900">Máximo</option>
             </select>
           </label>
+        </Section>
+
+        <Section title="Guarniciones" colorAcento={colorAcento}>
+          <CheckG k="ocultarCronometroGuarniciones" label="Ocultar cronómetro de guarniciones" help="Solo el panel derecho. Los platos principales conservan su reloj." />
+          <CheckG k="ocultarCuadroGuarniciones" label="Quitar cuadro de la tarjeta" help="Lista de letras: - Arroz, PFrita, Ensal (Bistec)" />
+          <CheckG k="ocultarBuscadorPlatos" label="Ocultar buscador de platos" help="El selector de cocinero se queda." />
+          <CheckG k="mostrarTitulosListasSplit" label="Mostrar títulos de listas" help="Barras PLATOS / Lista de Guarniciones. Solo con split 50/50." />
+          {configVisual.mostrarTitulosListasSplit === true && (
+            <>
+              <label style={lbl}>
+                Título lista platos
+                <input
+                  type="text"
+                  value={configVisual.tituloListaPlatos ?? 'PLATOS'}
+                  onChange={(e) => guardar({ tituloListaPlatos: e.target.value })}
+                  style={{ ...inp, minWidth: '140px' }}
+                />
+              </label>
+              <label style={lbl}>
+                Título lista guarniciones
+                <input
+                  type="text"
+                  value={configVisual.tituloListaGuarniciones ?? 'Lista de Guarniciones'}
+                  onChange={(e) => guardar({ tituloListaGuarniciones: e.target.value })}
+                  style={{ ...inp, minWidth: '180px' }}
+                />
+              </label>
+            </>
+          )}
+          <label style={lbl}>
+            Referencia al plato principal
+            <select
+              value={configVisual.referenciaPadreGuarnicion || 'de'}
+              onChange={(e) => guardar({ referenciaPadreGuarnicion: e.target.value })}
+              style={{ ...inp, minWidth: '160px' }}
+            >
+              <option value="de">de Bistec</option>
+              <option value="nuda">Bistec (sin «de»)</option>
+              <option value="parentesis">(Bistec)</option>
+              <option value="ocultar">Ocultar</option>
+            </select>
+          </label>
+          <ColorG
+            k="colorTextoPadreGuarnicion"
+            label="Color letra plato referencial"
+            fallback={colorTextoSecundario}
+          />
+          <label style={lbl}>
+            Tamaño letra plato referencial (px)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <BtnStep
+                onClick={() => guardar({
+                  tamanioFuentePadreGuarnicion: Math.max(
+                    MONITOR_TIPOGRAFIA.DETALLE_MIN,
+                    (Number(configVisual.tamanioFuentePadreGuarnicion) || Number(configVisual.tamanioFuenteDetalle) || 20) - 2
+                  ),
+                })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={MONITOR_TIPOGRAFIA.DETALLE_MIN}
+                max={MONITOR_TIPOGRAFIA.DETALLE_MAX}
+                value={configVisual.tamanioFuentePadreGuarnicion ?? configVisual.tamanioFuenteDetalle ?? 20}
+                onChange={(e) => guardar({
+                  tamanioFuentePadreGuarnicion: Math.min(
+                    MONITOR_TIPOGRAFIA.DETALLE_MAX,
+                    Math.max(MONITOR_TIPOGRAFIA.DETALLE_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.DETALLE_MIN)
+                  ),
+                })}
+                style={{ ...inp, width: '64px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => guardar({
+                  tamanioFuentePadreGuarnicion: Math.min(
+                    MONITOR_TIPOGRAFIA.DETALLE_MAX,
+                    (Number(configVisual.tamanioFuentePadreGuarnicion) || Number(configVisual.tamanioFuenteDetalle) || 20) + 2
+                  ),
+                })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+              <button
+                type="button"
+                onClick={() => guardar({ tamanioFuentePadreGuarnicion: null })}
+                title="Volver al tamaño de detalle de platos"
+                style={{ ...inp, cursor: 'pointer', padding: '6px 8px' }}
+              >
+                Heredar
+              </button>
+            </div>
+            <span style={{ fontSize: '11px', color: colorTextoSecundario }}>
+              Independiente del nombre de la guarnición. Se guarda en el perfil.
+            </span>
+          </label>
+          <div style={{ marginTop: '6px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${colorAcento}33`, background: `${colorAcento}0d`, width: '100%' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: diferenciarDiseno ? '8px' : '0' }}>
+              <input
+                type="checkbox"
+                checked={diferenciarDiseno}
+                onChange={(e) => toggleDiferenciar(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '12px', color: colorTextoPrincipal, fontWeight: 700 }}>
+                🥗 Diferenciar diseño de lista de guarniciones
+              </span>
+            </label>
+            {!diferenciarDiseno && (
+              <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0 24px' }}>
+                Desactivado: las guarniciones heredan fuente, color y columnas de los platos.
+              </p>
+            )}
+            {diferenciarDiseno && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginLeft: '8px', marginTop: '8px', alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4].map((cols) => {
+                    const activo = columnasGuarnicionesActuales === cols;
+                    return (
+                      <button
+                        key={cols}
+                        type="button"
+                        onClick={() => setColumnasGuarniciones(cols)}
+                        title={`${cols} columna${cols > 1 ? 's' : ''}`}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: `2px solid ${activo ? colorAcento : `${colorAcento}33`}`,
+                          background: activo ? `${colorAcento}22` : 'transparent',
+                          color: activo ? colorAcento : colorTextoSecundario,
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: activo ? 700 : 500,
+                        }}
+                      >
+                        {cols}
+                      </button>
+                    );
+                  })}
+                  <span style={{ fontSize: '11px', color: colorTextoSecundario }}>Columnas (split ON)</span>
+                </div>
+                <label style={{ ...lbl, minWidth: '160px' }}>
+                  Tipo de fuente
+                  <select
+                    value={fuenteGuarnicionActual}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        guardar({ fuenteFamiliaGuarnicion: null });
+                        return;
+                      }
+                      const f = FUENTES_DISPONIBLES.find(x => x.id === e.target.value);
+                      if (f) guardar({ fuenteFamiliaGuarnicion: f.value });
+                    }}
+                    style={{ ...inp, minWidth: '160px' }}
+                  >
+                    <option value="">Heredar (platos)</option>
+                    {FUENTES_DISPONIBLES.map((f) => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: f.value }}>{f.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={lbl}>
+                  Tamaño (px)
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <BtnStep
+                      onClick={() => guardar({
+                        tamanioFuenteGuarnicion: Math.max(
+                          MONITOR_TIPOGRAFIA.PLATO_MIN,
+                          (Number(configVisual.tamanioFuenteGuarnicion) || Number(configVisual.tamanioFuentePlato) || 36) - 2
+                        ),
+                      })}
+                      colorAcento={colorAcento}
+                      colorTexto={colorTextoPrincipal}
+                    >−</BtnStep>
+                    <input
+                      type="number"
+                      min={MONITOR_TIPOGRAFIA.PLATO_MIN}
+                      max={MONITOR_TIPOGRAFIA.PLATO_MAX}
+                      value={configVisual.tamanioFuenteGuarnicion ?? configVisual.tamanioFuentePlato ?? 36}
+                      onChange={(e) => guardar({
+                        tamanioFuenteGuarnicion: Math.min(
+                          MONITOR_TIPOGRAFIA.PLATO_MAX,
+                          Math.max(MONITOR_TIPOGRAFIA.PLATO_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.PLATO_MIN)
+                        ),
+                      })}
+                      style={{ ...inp, width: '64px', textAlign: 'center' }}
+                    />
+                    <BtnStep
+                      onClick={() => guardar({
+                        tamanioFuenteGuarnicion: Math.min(
+                          MONITOR_TIPOGRAFIA.PLATO_MAX,
+                          (Number(configVisual.tamanioFuenteGuarnicion) || Number(configVisual.tamanioFuentePlato) || 36) + 2
+                        ),
+                      })}
+                      colorAcento={colorAcento}
+                      colorTexto={colorTextoPrincipal}
+                    >+</BtnStep>
+                    <button
+                      type="button"
+                      onClick={() => guardar({ tamanioFuenteGuarnicion: null })}
+                      style={{ ...inp, cursor: 'pointer', padding: '6px 8px' }}
+                    >
+                      Heredar
+                    </button>
+                  </div>
+                </label>
+                <label style={lbl}>
+                  Peso
+                  <select
+                    value={configVisual.pesoFuenteGuarnicion || ''}
+                    onChange={(e) => guardar({ pesoFuenteGuarnicion: e.target.value || null })}
+                    style={{ ...inp, minWidth: '120px' }}
+                  >
+                    <option value="">Heredar</option>
+                    <option value="400">Normal</option>
+                    <option value="600">Semi-negrita</option>
+                    <option value="700">Negrita</option>
+                    <option value="800">Extra negrita</option>
+                    <option value="900">Máximo</option>
+                  </select>
+                </label>
+                <ColorG k="colorTextoGuarnicion" label="Color texto" fallback={colorTextoPrincipal} />
+                <ColorG k="colorFondoGuarnicion" label="Fondo tarjeta" fallback={configVisual.colorFilaPlato || '#1a1a28'} />
+                <ColorG k="colorAcentoGuarnicion" label="Acento" fallback={colorAcento} />
+                <label style={lbl}>
+                  Espaciado filas
+                  <select
+                    value={configVisual.espaciadoFilasGuarnicion || ''}
+                    onChange={(e) => guardar({ espaciadoFilasGuarnicion: e.target.value || null })}
+                    style={{ ...inp, minWidth: '120px' }}
+                  >
+                    <option value="">Heredar</option>
+                    <option value="unido">Unido</option>
+                    <option value="compacto">Compacto</option>
+                    <option value="normal">Normal</option>
+                    <option value="amplio">Amplio</option>
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
         </Section>
 
         {/* Número secuencial (#N en timers) */}
@@ -1672,8 +1911,9 @@ const MonitorConfigPanel = ({
             </p>
           )}
           <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
-            Los perfiles guardan toda la configuración de personalización (tamaños, fuente, colores, etc.)
-            y pueden aplicarse a los monitores desde "Distribuir Cocina en monitores".
+            Los perfiles guardan todas las opciones de Personalizar (tipografía, colores, tarjetas,
+            cronómetros, animaciones y guarniciones: referencia al plato, color/tamaño del padre, títulos, split).
+            Se aplican a los monitores desde Distribuir Cocina.
           </p>
         </Section>
       </div>

@@ -674,8 +674,9 @@ pause
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-950 text-white">
+      <header className="flex-shrink-0 px-6 pt-5 pb-3 border-b border-gray-800">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <button onClick={onGoToMenu} className="px-3 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 text-gray-300">
             <FaArrowLeft /> Menú
@@ -729,14 +730,17 @@ pause
           </button>
         </div>
       </div>
+      </header>
 
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4" style={{ overscrollBehavior: 'contain' }}>
       <div className="mb-4 p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">
         <p className="text-cyan-300 text-sm">
           Desde el <strong>monitor 1</strong> (esta consola) eliges qué cocineros se ven en cada
           monitor pasivo (2-8) y qué <strong>perfil de personalización</strong> aplica a cada uno.
-          Puedes poner <strong>varios cocineros en el mismo monitor</strong> y repetir un cocinero
-          en varios monitores. Cada ventana abre Ver Cocina Completo filtrado por esos cocineros. Pulsa{' '}
-          <strong>Aplicar / Desplegar</strong> para guardar y enviar al Hub.
+          El perfil incluye <strong>todas</strong> las opciones de Personalizar (tipografía, colores,
+          guarniciones, títulos, cronómetros, etc.). Puedes poner <strong>varios cocineros en el mismo
+          monitor</strong> y repetir un cocinero en varios. Cada ventana abre Ver Cocina Completo
+          filtrado por esos cocineros. Pulsa <strong>Aplicar / Desplegar</strong> para guardar y enviar al Hub.
         </p>
       </div>
 
@@ -982,6 +986,7 @@ pause
       <div className="mt-6 text-xs text-gray-500">
         Usuario: {user?.name} ({user?.rol}) · PC multi-monitor
       </div>
+      </main>
 
       {/* Modal de configuración antes de generar .bat */}
       {showBatModal && (

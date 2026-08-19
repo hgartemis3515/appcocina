@@ -4,7 +4,9 @@ import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer
 import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
+import GuarnicionListaLinea from './GuarnicionListaLinea';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
+import { tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -179,22 +181,29 @@ const CocineroPlatoCard = React.forwardRef(({
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
   const esGuarnicion = item.esGuarnicion === true;
+  const pickG = (key, fallback) => (esGuarnicion ? tokenGuarnicion(configVisual, key, fallback) : fallback);
 
   // Config
   const amarilloMin = configVisual.tiempoAmarillo ?? 5;
   const rojoMin = configVisual.tiempoRojo ?? 20;
-  const colorAcento = configVisual.colorAcento || '#d4af37';
+  const colorAcento = pickG('colorAcentoGuarnicion', configVisual.colorAcento || '#d4af37');
   const colorAlertaAmarilla = configVisual.colorAlertaAmarilla || '#fbbf24';
   const colorAlertaRoja = configVisual.colorAlertaRoja || '#ff2a4d';
-  const tamanioFuentePlato = configVisual.tamanioFuentePlato || 38;
+  const tamanioFuentePlato = pickG('tamanioFuenteGuarnicion', configVisual.tamanioFuentePlato || 38);
   const tamanioFuenteDetalle = configVisual.tamanioFuenteDetalle || 18;
   const tamanioFuenteCocinero = configVisual.tamanioFuenteCocinero || 24;
   const tamanioFuenteCronometro = configVisual.tamanioFuenteCronometro || 28;
-  const pesoFuentePlato = configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT;
-  const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
+  const pesoFuentePlato = pickG('pesoFuenteGuarnicion', configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT);
+  const colorTextoPrincipal = pickG('colorTextoGuarnicion', configVisual.colorTextoPrincipal || '#ffffff');
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#b8a8c8';
-  const espaciado = configVisual.espaciadoFilas || 'normal';
-  const fuenteFamilia = configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif';
+  const colorTextoPadre = (esGuarnicion && configVisual.colorTextoPadreGuarnicion)
+    ? configVisual.colorTextoPadreGuarnicion
+    : colorTextoSecundario;
+  const tamanioFuentePadre = (esGuarnicion && configVisual.tamanioFuentePadreGuarnicion != null && configVisual.tamanioFuentePadreGuarnicion !== '')
+    ? Number(configVisual.tamanioFuentePadreGuarnicion)
+    : null;
+  const espaciado = pickG('espaciadoFilasGuarnicion', configVisual.espaciadoFilas || 'normal');
+  const fuenteFamilia = pickG('fuenteFamiliaGuarnicion', configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif');
   const usarColorCocinero = configVisual.colorPorCocinero !== false;
   const mostrarIconoCocinero = configVisual.mostrarIconoCocinero !== false;
   const mostrarEtiquetaPlato = configVisual.mostrarEtiquetaPlato === true;
@@ -217,8 +226,29 @@ const CocineroPlatoCard = React.forwardRef(({
   const esAlerta = alertaMaxima === 'amarillo';
   const colorCocinero = usarColorCocinero ? colorAcentoPorCocinero(cocinero?.alias) : colorAcento;
 
+  if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
+    const textoNombres = nombresListaGuarniciones(item.comps) || `- ${nombre}`;
+    return (
+      <GuarnicionListaLinea
+        texto={textoNombres}
+        textoPadre={item.subtitulo || ''}
+        fuenteFamilia={fuenteFamilia}
+        tamanioFuente={tamanioFuentePlato}
+        pesoFuente={pesoFuentePlato}
+        colorTexto={colorTextoPrincipal}
+        colorPadre={colorTextoPadre}
+        tamanioPadre={tamanioFuentePadre}
+        espaciado={espaciado}
+        cronometroIso={timers[0]?.tiempoInicio || item.tiempoInicio || null}
+        ocultarCronometro={configVisual.ocultarCronometroGuarniciones === true}
+        colorCronometro={colorTextoPrincipal}
+        tamanioCronometro={tamanioFuenteCronometro}
+      />
+    );
+  }
+
   // Colores estilo referencia
-  const FONDO_VINO = configVisual.colorFondoTarjeta || configVisual.colorFilaPlato || '#1a0f1f';
+  const FONDO_VINO = pickG('colorFondoGuarnicion', configVisual.colorFondoTarjeta || configVisual.colorFilaPlato || '#1a0f1f');
   const FONDO_VINO_HOVER = '#241029';
   const colorBorde = esCritico
     ? colorAlertaRoja
@@ -461,8 +491,8 @@ const CocineroPlatoCard = React.forwardRef(({
       {(esGuarnicion || mostrarComplementos) && complementosTexto && (
         <div
           style={{
-            fontSize: `${fsDetalleAcomodado}px`,
-            color: colorTextoSecundario,
+            fontSize: `${esGuarnicion ? (tamanioFuentePadre || fsDetalleAcomodado) : fsDetalleAcomodado}px`,
+            color: esGuarnicion ? colorTextoPadre : colorTextoSecundario,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -547,8 +577,8 @@ const CocineroPlatoCard = React.forwardRef(({
     </div>
   );
 
-  // Lado derecho: columna de temporizadores individuales
-  const ladoDerecho = (
+  const ocultarCronometroG = esGuarnicion && configVisual.ocultarCronometroGuarniciones === true;
+  const ladoDerecho = ocultarCronometroG ? null : (
     <div
       style={{
         flex: '0 0 auto',

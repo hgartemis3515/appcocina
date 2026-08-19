@@ -429,7 +429,9 @@ const useProcesamiento = ({
       );
       onProcesamientoChange({
         type: 'GUARNICION_TOMADA',
-        comandaId, platoId, compId,
+        comandaId, platoId,
+        complementoId: compId,
+        complementoIds: response.data?.data?.complementoIds,
         procesandoPor: response.data?.data?.procesandoPor
       });
       return { success: true, data: response.data };
@@ -452,11 +454,17 @@ const useProcesamiento = ({
     setError(null);
     try {
       const token = getToken();
-      await axios.delete(
+      const response = await axios.delete(
         `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/guarnicion/${compId}/procesando`,
         { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, data: { cocineroId, motivo } }
       );
-      onProcesamientoChange({ type: 'GUARNICION_LIBERADA', comandaId, platoId, compId });
+      onProcesamientoChange({
+        type: 'GUARNICION_LIBERADA',
+        comandaId,
+        platoId,
+        complementoId: compId,
+        complementoIds: response.data?.data?.complementoIds,
+      });
       return { success: true };
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Error al liberar la guarnición';

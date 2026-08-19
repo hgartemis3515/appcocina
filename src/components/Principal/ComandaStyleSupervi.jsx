@@ -21,6 +21,7 @@ import TomarCocineroModal from './TomarCocineroModal';
 import useAsignacionCocinero from '../../hooks/useAsignacionCocinero';
 import useProcesamiento from '../../hooks/useProcesamiento';
 import { useAuth } from '../../contexts/AuthContext';
+import { esTipoGuarnicionKds } from '../../utils/guarnicionesKds';
 
 /**
  * Componente wrapper que extiende ComandaStyle con funcionalidades de supervisor
@@ -204,8 +205,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       setAccionPendiente(null);
     } else if (tipo === 'platos') {
       // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
-      const platosPrincipales = datos.filter(p => p.tipo !== 'guarnicion');
-      const guarniciones = datos.filter(p => p.tipo === 'guarnicion');
+      const platosPrincipales = datos.filter(p => !esTipoGuarnicionKds(p.tipo));
+      const guarniciones = datos.filter(p => esTipoGuarnicionKds(p.tipo));
       let exitosos = 0;
       for (const plato of platosPrincipales) {
         // forzar=true para permitir reasignación como supervisor
@@ -269,8 +270,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         }
       } else if (tipo === 'platos') {
         // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
-        const platosPrincipales = datos.filter(p => p.tipo !== 'guarnicion');
-        const guarniciones = datos.filter(p => p.tipo === 'guarnicion');
+        const platosPrincipales = datos.filter(p => !esTipoGuarnicionKds(p.tipo));
+        const guarniciones = datos.filter(p => esTipoGuarnicionKds(p.tipo));
         let exitosos = 0;
         for (const plato of platosPrincipales) {
           const result = await liberarPlato(
@@ -311,8 +312,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     if (!platos || platos.length === 0) return;
 
     // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: enrutar guarniciones a su endpoint.
-    const platosPrincipales = platos.filter(p => p && p.tipo !== 'guarnicion');
-    const guarniciones = platos.filter(p => p && p.tipo === 'guarnicion' && p.compId);
+    const platosPrincipales = platos.filter(p => p && !esTipoGuarnicionKds(p.tipo));
+    const guarniciones = platos.filter(p => p && esTipoGuarnicionKds(p.tipo) && p.compId);
 
     let exitosos = 0;
     // Finalizar PRIMERO las guarniciones y esperar a que terminen antes de

@@ -48,7 +48,7 @@ import {
   calcularEstadisticasFiltrado 
 } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
-import { esEventoGuarnicion, aplicarEventoGuarnicion } from "../../utils/guarnicionesKds";
+import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 
 // Sonido de notificación
@@ -101,7 +101,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
-  const { usarNombreCocinaEnTablaKds } = useConfiguracionCocina(getToken);
+  const { usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const agrupacionOn = agrupacionGuarnicionesOn({ permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones });
   
   const [comandas, setComandas] = useState([]);
   const [filteredComandas, setFilteredComandas] = useState([]);
@@ -440,7 +441,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     tomarComanda,
     liberarComanda,
     finalizarComanda,
-    liberarGuarnicion
+    liberarGuarnicion,
+    tomarGuarnicion,
+    finalizarGuarnicion
   } = useProcesamiento({
     getToken,
     showToast: (msg) => setToastMessage(msg),
@@ -1900,7 +1903,39 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
   // - Plato tomado por mí: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
   // - Plato tomado por otro: NO se puede interactuar (ignorar click)
-  const togglePlatoCheck = useCallback((comandaId, platoIndex) => {
+  const togglePlatoCheck = useCallback((comandaId, platoIndex, opts) => {
+    if (opts && opts.tipo === 'guarnicion') {
+      if (!opts.compId) return;
+      const key = `${comandaId}-${platoIndex}-g-${opts.compId}`;
+      const comanda = comandas.find(c => c._id === comandaId);
+      const plato = comanda?.platos?.[platoIndex];
+      const comps = plato?.complementosSeleccionados || [];
+      const comp = String(opts.compId || '').startsWith('idx:')
+        ? comps[parseInt(opts.compId.slice(4), 10)]
+        : comps.find(c => c._id && String(c._id) === String(opts.compId));
+      if (!comp || comp.estadoCocina === 'recoger') return;
+      const tomadoPorOtro = comp.procesandoPor?.cocineroId
+        && comp.procesandoPor.cocineroId.toString() !== userId?.toString();
+      if (tomadoPorOtro) return;
+      setPlatoStates(prev => {
+        const nuevo = new Map(prev);
+        const estadoActual = nuevo.get(key) || 'normal';
+        const tomado = comp.procesandoPor?.cocineroId?.toString() === userId?.toString();
+        let nuevoEstado;
+        if (tomado) {
+          if (estadoActual === 'normal') nuevoEstado = 'dejar';
+          else if (estadoActual === 'dejar') nuevoEstado = 'seleccionado';
+          else nuevoEstado = 'normal';
+        } else {
+          if (estadoActual === 'normal') nuevoEstado = 'procesando';
+          else if (estadoActual === 'procesando') nuevoEstado = 'seleccionado';
+          else nuevoEstado = 'normal';
+        }
+        nuevo.set(key, nuevoEstado);
+        return nuevo;
+      });
+      return;
+    }
     const key = `${comandaId}-${platoIndex}`;
     const miUsuarioId = userId?.toString();
     
@@ -2145,9 +2180,36 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     
     // Recorrer platoStates para encontrar platos con interacción
     platoStates.forEach((estadoVisual, key) => {
-      // Solo considerar platos con estado 'procesando' (amarillo) o 'seleccionado' (verde) o 'dejar' (rojo)
-      // SALIO: Incluir también 'entregando' (platos en recoger marcados para salir del pass)
       if (estadoVisual !== 'procesando' && estadoVisual !== 'seleccionado' && estadoVisual !== 'dejar' && estadoVisual !== 'entregando') return;
+
+      if (esClaveGuarnicion(key)) {
+        const parts = key.split('-g-');
+        if (parts.length !== 2) return;
+        const base = parts[0];
+        const compId = parts[1];
+        const lastDash = base.lastIndexOf('-');
+        if (lastDash === -1) return;
+        const comandaId = base.substring(0, lastDash);
+        const platoIndex = parseInt(base.substring(lastDash + 1), 10);
+        if (isNaN(platoIndex)) return;
+        const comanda = comandas.find(c => String(c._id) === String(comandaId));
+        if (!comanda) return;
+        const plato = comanda.platos?.[platoIndex];
+        if (!plato) return;
+        const comp = (plato.complementosSeleccionados || []).find(c => c._id && String(c._id) === String(compId));
+        if (!comp) return;
+        const platoId = plato._id?.toString() || plato.plato?._id?.toString() || plato.platoId?.toString();
+        if (!platoId) return;
+        platosInfo.push({
+          comandaId, platoId, platoIndex, plato, comp, compId,
+          tipo: 'guarnicion',
+          nombre: Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || 'Guarnición'),
+          procesandoPor: comp.procesandoPor,
+          estadoBackend: comp.estadoCocina || 'pedido',
+          estadoVisual
+        });
+        return;
+      }
       
       // Parsear key: formato es ${comandaId}-${platoIndex}
       const lastDashIndex = key.lastIndexOf('-');
@@ -2330,11 +2392,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     console.log(`[TomarPlatos] Tomando ${platos.length} plato(s)...`);
     
     try {
-      const resultados = await Promise.allSettled(
-        platos.map(({ comandaId, platoId }) => 
-          tomarPlato(comandaId, platoId, userId)
-        )
-      );
+      const platosPrincipales = platos.filter(p => !esTipoGuarnicionKds(p.tipo));
+      const guarniciones = platos.filter(p => esTipoGuarnicionKds(p.tipo));
+      const resultados = await Promise.allSettled([
+        ...platosPrincipales.map(({ comandaId, platoId }) => tomarPlato(comandaId, platoId, userId)),
+        ...guarniciones.map(({ comandaId, platoId, compId }) => tomarGuarnicion(comandaId, platoId, compId, userId))
+      ]);
       
       const exitosos = resultados.filter(r => 
         r.status === 'fulfilled' && r.value?.success
@@ -2367,7 +2430,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [userId, tomarPlato, config.soundEnabled]);
+  }, [userId, tomarPlato, tomarGuarnicion, config.soundEnabled]);
 
   /**
    * Handler para DEJAR (liberar) platos que el cocinero actual habia tomado
@@ -2395,8 +2458,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     console.log(`[DejarPlatos] Liberando ${platosPendientesDejar.length} plato(s) con motivo: ${motivoConfirmado}`);
     
     try {
-      const platosPrincipales = platosPendientesDejar.filter(p => p.tipo !== 'guarnicion');
-      const guarniciones = platosPendientesDejar.filter(p => p.tipo === 'guarnicion');
+      const platosPrincipales = platosPendientesDejar.filter(p => !esTipoGuarnicionKds(p.tipo));
+      const guarniciones = platosPendientesDejar.filter(p => esTipoGuarnicionKds(p.tipo));
       const resultadosPlatos = platosPrincipales.length > 0
         ? await Promise.allSettled(
             platosPrincipales.map(({ comandaId, platoId }) =>
@@ -2420,7 +2483,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       if (exitosos > 0) {
         // Limpiar estado visual de los platos liberados
         platosPendientesDejar.forEach(({ comandaId, platoIndex, compId, tipo }) => {
-          const key = tipo === 'guarnicion'
+          const key = esTipoGuarnicionKds(tipo)
             ? `${comandaId}-${platoIndex}-g-${compId}`
             : `${comandaId}-${platoIndex}`;
           setPlatoStates(prev => {
@@ -2597,6 +2660,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       // Método 1: Platos con estado visual 'seleccionado' (verde ✓)
       platoStates.forEach((estado, key) => {
         if (estado !== 'seleccionado') return;
+        if (esClaveGuarnicion(key)) return;
         
         // Parsear key: formato es ${comandaId}-${platoIndex} (índice, NO ID)
         const lastDashIndex = key.lastIndexOf('-');
@@ -2632,6 +2696,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       // Método 2: Platos con check boolean activo (compatibilidad legacy)
       platosChecked.forEach((checked, key) => {
         if (!checked) return;
+        if (esClaveGuarnicion(key)) return;
         
         // Parsear key: formato es ${comandaId}-${platoIndex} (índice, NO ID)
         const lastDashIndex = key.lastIndexOf('-');
@@ -2665,9 +2730,46 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       });
 
       if (platosProcesados.length === 0) {
+        // Puede haber solo guarniciones seleccionadas
+      }
+
+      const guarnicionesAFinalizar = [];
+      platoStates.forEach((estado, key) => {
+        if (estado !== 'seleccionado') return;
+        if (!esClaveGuarnicion(key)) return;
+        const parts = key.split('-g-');
+        if (parts.length !== 2) return;
+        const base = parts[0];
+        const compId = parts[1];
+        const lastDash = base.lastIndexOf('-');
+        if (lastDash === -1) return;
+        const comandaId = base.substring(0, lastDash);
+        const platoIndex = parseInt(base.substring(lastDash + 1), 10);
+        if (isNaN(platoIndex)) return;
+        const comanda = comandas.find(c => c._id === comandaId);
+        const plato = comanda?.platos?.[platoIndex];
+        const platoId = plato?._id?.toString() || plato?.plato?._id?.toString();
+        if (!platoId) return;
+        guarnicionesAFinalizar.push({ comandaId, platoId, platoIndex, compId });
+      });
+
+      if (platosProcesados.length === 0 && guarnicionesAFinalizar.length === 0) {
         console.warn('⚠️ No hay platos válidos para finalizar');
         console.warn('🔍 DEBUG: Verificar que platos estén en estado "seleccionado" (verde ✓)');
         return;
+      }
+
+      if (guarnicionesAFinalizar.length > 0) {
+        await Promise.all(guarnicionesAFinalizar.map((g) =>
+          finalizarGuarnicion(g.comandaId, g.platoId, g.compId, userId)
+        ));
+        setPlatoStates(prev => {
+          const nuevo = new Map(prev);
+          guarnicionesAFinalizar.forEach((g) => {
+            nuevo.set(`${g.comandaId}-${g.platoIndex}-g-${g.compId}`, 'normal');
+          });
+          return nuevo;
+        });
       }
 
       console.log(`🔄 Finalizando ${platosProcesados.length} plato(s)...`, platosProcesados);
@@ -3640,6 +3742,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     obtenerNombreMesa={obtenerNombreMesa}
                     hayBusquedaActiva={hayFiltroActivo}
                     platosVisiblesBusqueda={getPlatosVisibles(comanda)}
+                    usarNombreCocinaEnTablaKds={usarNombreCocinaEnTablaKds}
+                    permitirGuarnicionesSeparadas={permitirGuarnicionesSeparadas}
+                    agrupacionOn={agrupacionOn}
+                    tiemposGuarnicion={tiemposGuarnicion}
                   />
                   );
                 })}
@@ -4587,6 +4693,10 @@ const SicarComandaCard = ({
   // comanda.platosFiltrados (que puede perderse en re-renders / sockets)
   hayBusquedaActiva = false,
   platosVisiblesBusqueda = null,
+  usarNombreCocinaEnTablaKds = false,
+  permitirGuarnicionesSeparadas = false,
+  agrupacionOn = false,
+  tiemposGuarnicion = null,
 }) => {
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
@@ -5103,16 +5213,63 @@ const SicarComandaCard = ({
                 </span>
               </div>
               <div className="px-2 py-2 space-y-1">
-                {platosPreparacion.map((plato, index) => {
+                {platosPreparacion.flatMap((plato, index) => {
                   const platoObj = plato.plato || plato;
-                  // 🔥 FIX buscador: no usar indexOf sobre copias { ...plato, _puntuacion }
                   const platoIndex = resolverIndicePlato(comanda, plato);
                   if (platoIndex < 0) {
                     console.warn(`[KDS Perso] No se pudo resolver índice del plato en comanda #${comanda.comandaNumber}`);
-                    return null;
+                    return [];
                   }
                   const cantidad = comanda.cantidades?.[platoIndex] || 1;
                   const platoId = platoObj?._id || plato._id || platoIndex;
+                  const unidades = expandirUnidadesTrabajo(plato, {
+                    flagOn: permitirGuarnicionesSeparadas,
+                    agrupacionOn,
+                    usarAlias: usarNombreCocinaEnTablaKds
+                  });
+                  return unidades.map((unidad) => {
+                    if (esTipoGuarnicionKds(unidad.tipo)) {
+                      const gKey = `${comandaId}-${platoIndex}-g-${unidad.compId}`;
+                      const estadoVisualLocal = platoStates.get(gKey) || 'normal';
+                      const comp = unidad.comp;
+                      const procBase = unidad.tipo === 'grupo_guarniciones'
+                        ? (unidad.comps || []).find(c => c.procesandoPor?.cocineroId)?.procesandoPor || comp.procesandoPor
+                        : comp.procesandoPor;
+                      const tsGrupo = unidad.tipo === 'grupo_guarniciones' ? tiempoInicioGrupo(unidad.comps) : null;
+                      const proc = tsGrupo ? { ...(procBase || {}), timestamp: tsGrupo } : procBase;
+                      let estadoVisualG = estadoVisualLocal;
+                      if (proc?.cocineroId && estadoVisualLocal === 'normal') estadoVisualG = 'procesando';
+                      const alerta = estadoAlertaGuarnicion(comp, tiemposGuarnicion);
+                      const prio = prioridadUnidad(comanda);
+                      const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
+                      const cantG = unidad.tipo === 'grupo_guarniciones'
+                        ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
+                        : (comp.cantidad || 1);
+                      return (
+                        <PlatoPreparacion
+                          key={gKey}
+                          plato={plato}
+                          comandaId={comandaId}
+                          platoId={platoId}
+                          platoIndex={platoIndex}
+                          cantidad={cantG}
+                          nombre={unidad.nombreGuarnicion}
+                          estadoVisual={estadoVisualG}
+                          nightMode={nightMode}
+                          isEliminado={comp.eliminado === true}
+                          onToggle={togglePlatoCheck}
+                          complementosSeleccionados={[]}
+                          procesandoPor={proc}
+                          usuarioActualId={usuarioActualId}
+                          tipoServicio={plato.tipoServicio || 'mesa'}
+                          tipoUnidad="guarnicion"
+                          ocultarComplementos
+                          compId={unidad.compId}
+                          estadoAlerta={alerta}
+                          etiquetaPrioridad={etiquetaPrioridad}
+                        />
+                      );
+                    }
                   const platoKey = `${comandaId}-${platoIndex}`;
                   const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
                   
@@ -5144,16 +5301,17 @@ const SicarComandaCard = ({
                       isEliminado={plato.eliminado === true}
                       onToggle={togglePlatoCheck}
                       complementosSeleccionados={plato.complementosSeleccionados || []}
-                      // v7.2: Props para multi-cocinero
                       procesandoPor={plato.procesandoPor}
                       usuarioActualId={usuarioActualId}
-                      // NUEVO: Tipo de servicio (Mesa vs Para llevar)
                       tipoServicio={plato.tipoServicio || 'mesa'}
-                      // v3.0: flags de resumen de complementos
                       mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
                       resumenComplementosImpresion={plato.resumenComplementosImpresion || null}
+                      tipoUnidad="principal"
+                      ocultarComplementos={unidad.ocultarComplementos === true && !unidad.fusionado}
+                      fusionado={unidad.fusionado === true}
                     />
                   );
+                  });
                 })}
                 {platosEliminadosFinal.map((platoEliminado, index) => {
                   const timestamp = platoEliminado.timestamp ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm') : '';

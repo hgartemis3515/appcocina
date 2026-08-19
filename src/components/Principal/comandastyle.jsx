@@ -54,7 +54,10 @@ import {
   todasGuarnicionesListas,
   esClaveGuarnicion,
   esEventoGuarnicion,
-  aplicarEventoGuarnicion
+  aplicarEventoGuarnicion,
+  esTipoGuarnicionKds,
+  agrupacionGuarnicionesOn,
+  tiempoInicioGrupo
 } from "../../utils/guarnicionesKds";
 
 // Sonido de notificación
@@ -113,7 +116,11 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, usarNombreCocinaEnTablaKds, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const agrupacionOn = agrupacionGuarnicionesOn({
+    permitirGuarnicionesSeparadas,
+    deshabilitarAgrupacionGuarniciones
+  });
   // Bypass de orden: admin o quien tenga permiso de Panel de Gestión (roles)
   const puedeOmitirOrden = userRole === 'admin' || hasPermission('ver-panel-gestion-mozos');
 
@@ -2563,8 +2570,8 @@ const ComandaStyle = ({
     if (platosAFinalizar.length > 0) {
       // PLAN GUARNICIONES_SEPARADAS: si deshabilitarOrdenSecuencialGuarniciones
       // (default ON), las extras no entran en cola #1/#2 y siempre son finalizables.
-      const guarnicionesAFinalizar = platosAFinalizar.filter(p => p.tipo === 'guarnicion');
-      const platosPrincipalesAFinalizar = platosAFinalizar.filter(p => p.tipo !== 'guarnicion');
+      const guarnicionesAFinalizar = platosAFinalizar.filter(p => esTipoGuarnicionKds(p.tipo));
+      const platosPrincipalesAFinalizar = platosAFinalizar.filter(p => !esTipoGuarnicionKds(p.tipo));
 
       // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
       // Prefijo contiguo #1..#N por cocinero → FINALIZAR.
@@ -2639,8 +2646,8 @@ const ComandaStyle = ({
 
     // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: separar guarniciones.
     // Las guarniciones se asignan con su propio endpoint (no notifica al mozo).
-    const platosPrincipales = platos.filter(p => p.tipo !== 'guarnicion');
-    const guarniciones = platos.filter(p => p.tipo === 'guarnicion');
+    const platosPrincipales = platos.filter(p => !esTipoGuarnicionKds(p.tipo));
+    const guarniciones = platos.filter(p => esTipoGuarnicionKds(p.tipo));
 
     // === INTERCEPTACIÓN SUPERVISOR ===
     // Si hay callback de supervisor, abrir modal de selección de cocinero.
@@ -2757,8 +2764,8 @@ const ComandaStyle = ({
     
     try {
       // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: separar guarniciones (endpoint propio).
-      const platosPrincipales = platosPendientesDejar.filter(p => p.tipo !== 'guarnicion');
-      const guarniciones = platosPendientesDejar.filter(p => p.tipo === 'guarnicion');
+      const platosPrincipales = platosPendientesDejar.filter(p => !esTipoGuarnicionKds(p.tipo));
+      const guarniciones = platosPendientesDejar.filter(p => esTipoGuarnicionKds(p.tipo));
 
       const resultadosPlatos = platosPrincipales.length > 0
         ? await Promise.allSettled(
@@ -2783,7 +2790,7 @@ const ComandaStyle = ({
       if (exitosos > 0) {
         // Limpiar estado visual de los platos liberados
         platosPendientesDejar.forEach(({ comandaId, platoIndex, compId, tipo }) => {
-          const key = tipo === 'guarnicion'
+          const key = esTipoGuarnicionKds(tipo)
             ? `${comandaId}-${platoIndex}-g-${compId}`
             : `${comandaId}-${platoIndex}`;
           setPlatoStates(prev => {
@@ -4224,6 +4231,7 @@ const ComandaStyle = ({
                     usarNombreCocinaEnTablaKds={usarNombreCocinaEnTablaKds}
                     // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
                     permitirGuarnicionesSeparadas={permitirGuarnicionesSeparadas}
+                    agrupacionOn={agrupacionOn}
                     tiemposGuarnicion={tiemposGuarnicion}
                     deshabilitarOrdenSecuencialGuarniciones={deshabilitarOrdenSecuencialGuarniciones}
                   />
@@ -5213,6 +5221,7 @@ const SicarComandaCard = ({
   usarNombreCocinaEnTablaKds = false,
   // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
   permitirGuarnicionesSeparadas = false,
+  agrupacionOn = false,
   tiemposGuarnicion = null,
   deshabilitarOrdenSecuencialGuarniciones = true,
 }) => {
@@ -5759,22 +5768,30 @@ const SicarComandaCard = ({
                   // Con plato ya en recoger/salio/entregado → una sola tarjeta fusionada.
                   const unidades = expandirUnidadesTrabajo(plato, {
                     flagOn: permitirGuarnicionesSeparadas,
+                    agrupacionOn,
                     usarAlias: usarNombreCocinaEnTablaKds
                   });
 
                   return unidades.map((unidad, uIdx) => {
-                    if (unidad.tipo === 'guarnicion') {
-                      // Tarjeta de guarnición: clave de estado propia.
+                    if (esTipoGuarnicionKds(unidad.tipo)) {
                       const gKey = `${comandaId}-${platoIndex}-g-${unidad.compId}`;
                       const estadoVisualLocal = platoStates.get(gKey) || 'normal';
                       const comp = unidad.comp;
                       let estadoVisualG = estadoVisualLocal;
-                      if (comp.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
+                      const procBase = unidad.tipo === 'grupo_guarniciones'
+                        ? (unidad.comps || []).find(c => c.procesandoPor?.cocineroId)?.procesandoPor || comp.procesandoPor
+                        : comp.procesandoPor;
+                      const tsGrupo = unidad.tipo === 'grupo_guarniciones' ? tiempoInicioGrupo(unidad.comps) : null;
+                      const proc = tsGrupo ? { ...(procBase || {}), timestamp: tsGrupo } : procBase;
+                      if (proc?.cocineroId && estadoVisualLocal === 'normal') {
                         estadoVisualG = 'procesando';
                       }
                       const alerta = estadoAlertaGuarnicion(comp, tiemposGuarnicion);
                       const prio = prioridadUnidad(comanda);
                       const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
+                      const cantG = unidad.tipo === 'grupo_guarniciones'
+                        ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
+                        : (comp.cantidad || 1);
                       return (
                         <PlatoPreparacion
                           key={gKey}
@@ -5782,14 +5799,14 @@ const SicarComandaCard = ({
                           comandaId={comandaId}
                           platoId={platoId}
                           platoIndex={platoIndex}
-                          cantidad={comp.cantidad || 1}
+                          cantidad={cantG}
                           nombre={unidad.nombreGuarnicion}
                           estadoVisual={estadoVisualG}
                           nightMode={nightMode}
                           isEliminado={comp.eliminado === true}
                           onToggle={togglePlatoCheck}
                           complementosSeleccionados={[]}
-                          procesandoPor={comp.procesandoPor}
+                          procesandoPor={proc}
                           usuarioActualId={usuarioActualId}
                           isSupervisorView={isSupervisorView}
                           tipoServicio={plato.tipoServicio || 'mesa'}

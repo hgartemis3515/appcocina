@@ -18,6 +18,7 @@ const DEFAULT = {
     // PLAN GUARNICIONES_SEPARADAS v1.1: separar principal y guarniciones.
     permitirGuarnicionesSeparadas: true,
     deshabilitarOrdenSecuencialGuarniciones: true,
+    deshabilitarAgrupacionGuarniciones: false,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -49,6 +50,7 @@ export async function fetchConfiguracionCocina(getToken) {
                 // PLAN GUARNICIONES_SEPARADAS v1.1
                 permitirGuarnicionesSeparadas: cfg.permitirGuarnicionesSeparadas !== false,
                 deshabilitarOrdenSecuencialGuarniciones: cfg.deshabilitarOrdenSecuencialGuarniciones !== false,
+                deshabilitarAgrupacionGuarniciones: cfg.deshabilitarAgrupacionGuarniciones === true,
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,

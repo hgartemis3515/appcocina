@@ -460,6 +460,78 @@ describe('aplicarEventoGuarnicion (Ver Cocina live patch)', () => {
     expect(items[0].comp._id).toBe('g1');
   });
 
+  test('recolectar: extra no tomada no aparece aunque el padre esté tomado', () => {
+    const { recolectarGuarnicionesMonitor } = require('./guarnicionesKds');
+    const comandas = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'p1',
+        estado: 'pedido',
+        procesandoPor: { cocineroId: 'cook1' },
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Arroz', estadoCocina: 'pedido', procesandoPor: null }
+        ]
+      }]
+    }];
+    const items = recolectarGuarnicionesMonitor(comandas, {
+      cocineroIdFiltrado: 'cook1',
+      padresVisibles: new Set(['com1:0'])
+    });
+    expect(items).toHaveLength(0);
+  });
+
+  test('liberar con complementoIds limpia todas las extras del grupo', () => {
+    const next = aplicarEventoGuarnicion(base, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      complementoIds: ['g1', 'g2'],
+      tipo: 'GUARNICION_LIBERADA'
+    });
+    const comps = next[0].platos[0].complementosSeleccionados;
+    expect(comps[0].procesandoPor.cocineroId).toBeNull();
+    expect(comps[1].procesandoPor.cocineroId).toBeNull();
+    expect(comps[0].estadoCocina).toBe('pedido');
+    expect(comps[1].estadoCocina).toBe('pedido');
+    expect(next[0].platos[0].procesandoPor.cocineroId).toBe('cook1');
+  });
+
+  test('liberar acepta compId (alias del panel KDS)', () => {
+    const next = aplicarEventoGuarnicion(base, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      compId: 'g1',
+      tipo: 'GUARNICION_LIBERADA'
+    });
+    expect(next[0].platos[0].complementosSeleccionados[0].procesandoPor.cocineroId).toBeNull();
+    expect(next[0].platos[0].complementosSeleccionados[1].procesandoPor.cocineroId).toBe('cook2');
+  });
+
+  test('liberar un extra con regla grupo limpia todo el grupo en vivo', () => {
+    const grupal = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'linea99',
+        platoId: 'p1',
+        estado: 'pedido',
+        procesandoPor: { cocineroId: 'cook1' },
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Arroz', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2' }, asignacionMeta: { regla: 'grupo', grupoId: 'linea99' } },
+          { _id: 'g2', opcion: 'Ensalada', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2' }, asignacionMeta: { regla: 'grupo', grupoId: 'linea99' } }
+        ]
+      }]
+    }];
+    const next = aplicarEventoGuarnicion(grupal, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      complementoId: 'g1',
+      tipo: 'GUARNICION_LIBERADA'
+    });
+    const comps = next[0].platos[0].complementosSeleccionados;
+    expect(comps[0].procesandoPor.cocineroId).toBeNull();
+    expect(comps[1].procesandoPor.cocineroId).toBeNull();
+    expect(next[0].platos[0].procesandoPor.cocineroId).toBe('cook1');
+  });
+
   test('tomar guarnición: cronómetro usa timestamp del evento si procesandoPor no lo trae', () => {
     const prev = [{
       _id: 'com1',
@@ -522,5 +594,100 @@ describe('aplicarEventoGuarnicion (Ver Cocina live patch)', () => {
       estadoCocina: 'recoger'
     });
     expect(next).toBe(base);
+  });
+
+  test('complementoIds aplica el parche a todo el grupo', () => {
+    const next = aplicarEventoGuarnicion(base, {
+      comandaId: 'com1',
+      platoId: 'p1',
+      complementoIds: ['g1', 'g2'],
+      tipo: 'grupo_guarniciones',
+      estadoCocina: 'recoger',
+      procesandoPor: { cocineroId: 'cook2', alias: 'Luis' }
+    });
+    const comps = next[0].platos[0].complementosSeleccionados;
+    expect(comps[0].estadoCocina).toBe('recoger');
+    expect(comps[1].estadoCocina).toBe('recoger');
+  });
+});
+
+describe('agrupacion y pronombre', () => {
+  const {
+    agrupacionGuarnicionesOn,
+    tituloGrupoGuarniciones,
+    formatearReferenciaPadre,
+    lineaListaGuarniciones,
+    tokenGuarnicion,
+    claveAgrupacionUnidad,
+    expandirUnidadesTrabajo,
+    esEventoGuarnicion,
+  } = require('./guarnicionesKds');
+
+  test('agrupacionGuarnicionesOn default ON si separados ON', () => {
+    expect(agrupacionGuarnicionesOn({})).toBe(true);
+    expect(agrupacionGuarnicionesOn({ deshabilitarAgrupacionGuarniciones: true })).toBe(false);
+    expect(agrupacionGuarnicionesOn({ permitirGuarnicionesSeparadas: false })).toBe(false);
+  });
+
+  test('tituloGrupoGuarniciones mezcla pronombre y nombre', () => {
+    const titulo = tituloGrupoGuarniciones([
+      { opcion: 'Papa frita', pronombre: 'P FRITA' },
+      { opcion: 'Ensalada', pronombre: 'ENSAL' },
+      { opcion: 'arroz', pronombre: '' },
+      { opcion: 'Papas', cantidad: 2, pronombre: 'PFrita' },
+    ]);
+    expect(titulo).toBe('P FRITA + ENSAL + arroz + PFrita x2');
+  });
+
+  test('formatearReferenciaPadre modos', () => {
+    expect(formatearReferenciaPadre('Bistec', 'de')).toBe('de Bistec');
+    expect(formatearReferenciaPadre('Bistec', 'nuda')).toBe('Bistec');
+    expect(formatearReferenciaPadre('Bistec', 'parentesis')).toBe('(Bistec)');
+    expect(formatearReferenciaPadre('Bistec', 'ocultar')).toBe('');
+    expect(formatearReferenciaPadre('', 'de')).toBe('');
+  });
+
+  test('lineaListaGuarniciones usa comas y referencia', () => {
+    const comps = [
+      { opcion: 'Arroz', pronombre: '' },
+      { opcion: 'Papa frita', pronombre: 'PFrita' },
+      { opcion: 'Ensalada', pronombre: 'Ensal' },
+    ];
+    expect(lineaListaGuarniciones(comps, 'Bistec', 'parentesis'))
+      .toBe('- Arroz, PFrita, Ensal (Bistec)');
+    expect(lineaListaGuarniciones(comps, 'Bistec', 'de'))
+      .toBe('- Arroz, PFrita, Ensal de Bistec');
+    expect(lineaListaGuarniciones(comps, 'Bistec', 'ocultar'))
+      .toBe('- Arroz, PFrita, Ensal');
+  });
+
+  test('tokenGuarnicion hereda si diferenciar OFF o null', () => {
+    expect(tokenGuarnicion({ diferenciarDisenoGuarniciones: false, colorTextoGuarnicion: '#f00' }, 'colorTextoGuarnicion', '#fff')).toBe('#fff');
+    expect(tokenGuarnicion({ diferenciarDisenoGuarniciones: true, colorTextoGuarnicion: null }, 'colorTextoGuarnicion', '#fff')).toBe('#fff');
+    expect(tokenGuarnicion({ diferenciarDisenoGuarniciones: true, colorTextoGuarnicion: '#f00' }, 'colorTextoGuarnicion', '#fff')).toBe('#f00');
+  });
+
+  test('expandirUnidadesTrabajo agrupacion ON: una unidad grupo', () => {
+    const plato = {
+      _id: 'p1',
+      nombre: 'Bistec',
+      estado: 'pedido',
+      complementosSeleccionados: [
+        { _id: 'c1', opcion: 'arroz' },
+        { _id: 'c2', opcion: 'Papa frita', pronombre: 'P FRITA' },
+        { _id: 'c3', opcion: 'Ensalada', pronombre: 'ENSAL' },
+      ]
+    };
+    const u = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: true });
+    expect(u).toHaveLength(2);
+    expect(u[1].tipo).toBe('grupo_guarniciones');
+    expect(u[1].nombreGuarnicion).toBe('arroz + P FRITA + ENSAL');
+    expect(u[1].compIds).toEqual(['c1', 'c2', 'c3']);
+    expect(claveAgrupacionUnidad(u[1], true)).toBe('grupo_guarniciones::p1');
+  });
+
+  test('esEventoGuarnicion acepta complementoIds y tipo grupo', () => {
+    expect(esEventoGuarnicion({ complementoIds: ['g1', 'g2'] })).toBe(true);
+    expect(esEventoGuarnicion({ tipo: 'grupo_guarniciones' })).toBe(true);
   });
 });
