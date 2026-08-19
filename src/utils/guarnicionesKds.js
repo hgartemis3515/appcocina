@@ -10,6 +10,8 @@
  * en su propia tarjeta con referencia al plato padre.
  */
 
+import { platoCoincideCocineroFiltro } from './cocineroFiltroIds';
+
 /**
  * Normaliza `grupo::opcion` a clave canónica (trim + lowercase).
  * Debe coincidir con el backend (asignacionAutomaticaGuarnicionesService.normalizarGuarnicionKey).
@@ -284,7 +286,7 @@ export function recolectarGuarnicionesMonitor(comandas, opts = {}) {
         if (!tomada && !padreVisible) continue;
         if (cocineroIdFiltrado) {
           const gid = comp.procesandoPor && comp.procesandoPor.cocineroId;
-          if (!gid || String(gid) !== String(cocineroIdFiltrado)) continue;
+          if (!platoCoincideCocineroFiltro(gid, cocineroIdFiltrado)) continue;
         }
         const cid = comp.compId || (comp._id ? String(comp._id) : `idx:${platoIndex}`);
         const key = `${comandaId}:${platoIndex}:${cid}`;

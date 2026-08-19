@@ -175,7 +175,7 @@ export const abrirMonitorCocinero = async (pantalla, opts = {}) => {
   }
   // PLAN GUARNICIONES_SEPARADAS v1.1 §11.4
   const listaParam = opts.listaGuarniciones ? '&listaGuarniciones=1' : '';
-  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}${listaParam}`;
+  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${encodeURIComponent(cocineroId)}&modo=completo-fijo${perfilParam}${listaParam}`;
 
   // Intentar usar Window Management API para obtener coords exactas del monitor
   let pos;
@@ -214,7 +214,7 @@ export const redirigirVentanaMonitor = (win, pantalla, cocineroId = '', opts = {
   }
   // PLAN GUARNICIONES_SEPARADAS v1.1 §11.4
   const listaParam = opts.listaGuarniciones ? '&listaGuarniciones=1' : '';
-  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${cocineroId}&modo=completo-fijo${perfilParam}${listaParam}`;
+  const url = `${window.location.origin}/?monitor=${numero}&cocineroId=${encodeURIComponent(cocineroId)}&modo=completo-fijo${perfilParam}${listaParam}`;
   try {
     win.location.href = url;
     const pos = calcularPosicion(pantalla?.configDespliegue, numero);

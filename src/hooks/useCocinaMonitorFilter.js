@@ -17,6 +17,7 @@ import {
   colorLineaDesdeId,
   obtenerCantidadLinea,
 } from '../utils/numeracionTimersMonitor';
+import { platoCoincideCocineroFiltro } from '../utils/cocineroFiltroIds';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
 // pero tienen procesandoPor set. Los que pasan a recoger/salio/entregado desaparecen.
@@ -152,10 +153,7 @@ function obtenerCocineroDePlato(plato) {
  * Filtro por cocinero seleccionado en el selector (null = General).
  */
 function platoAsignadoACocinero(plato, cocineroIdFiltrado) {
-  if (!cocineroIdFiltrado) return true; // General
-  const id = plato.procesandoPor?.cocineroId;
-  if (id == null) return false;
-  return String(id) === String(cocineroIdFiltrado);
+  return platoCoincideCocineroFiltro(plato.procesandoPor?.cocineroId, cocineroIdFiltrado);
 }
 
 /**

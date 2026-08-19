@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { registerLogoutCallback } from '../config/apiClient';
+import { consumeHubAuthFromLocation } from '../utils/hubAuth';
 import axios from 'axios';
+
+// Ventanas kiosk del Monitor Hub: perfil Chrome vacío → inyectar JWT del hash.
+consumeHubAuthFromLocation();
 
 /**
  * Contexto de autenticación para App Cocina
@@ -296,6 +300,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const loadStoredAuth = () => {
       try {
+        consumeHubAuthFromLocation();
         // Sesion monitor (TVs kiosko) - se carga primero para no mostrar login
         const storedMonitor = localStorage.getItem(MONITOR_AUTH_STORAGE_KEY);
         if (storedMonitor) {

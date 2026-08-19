@@ -22,6 +22,7 @@ import { nombreGuarnicionSolo, tiempoInicioGuarnicion, recolectarGuarnicionesMon
 // §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
 // nombre comercial que incluye complementos).
 import { obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
+import { primerCocineroIdFiltro, esUnSoloCocineroFiltro } from '../../utils/cocineroFiltroIds';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -357,7 +358,8 @@ const CocinaMonitorLayout = ({
   // Guardar el localDesign actual como perfil del cocinero activo en backend.
   // Flujo "Distribuir Cocina en monitores" → botón "Guardar Perfil".
   const guardarPerfilCocinero = useCallback(async () => {
-    if (!cocineroActivoId) {
+    const idPerfil = primerCocineroIdFiltro(cocineroActivoId);
+    if (!idPerfil) {
       setPerfilMensaje({ tipo: 'error', texto: 'Selecciona un cocinero para guardar su perfil' });
       return;
     }
@@ -371,7 +373,7 @@ const CocinaMonitorLayout = ({
       const baseUrl = getServerBaseUrl();
       const token = getToken();
       await axios.put(
-        `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+        `${baseUrl}/api/cocineros/${idPerfil}/perfil-ver-cocina`,
         { config: localDesign || {} },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -557,7 +559,7 @@ const CocinaMonitorLayout = ({
       perfilId = params.get('perfilId');
       perfilAuto = params.get('perfil') === 'auto';
       if (!perfilId && !perfilAuto) return;
-      if (!perfilId && perfilAuto && !cocineroActivoId) return;
+      if (!perfilId && perfilAuto && !primerCocineroIdFiltro(cocineroActivoId)) return;
     } catch { return; }
     if (!getToken) return;
     setPerfilAutoAplicado(true);
@@ -577,7 +579,7 @@ const CocinaMonitorLayout = ({
           }
         } else {
           const res = await axios.get(
-            `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+            `${baseUrl}/api/cocineros/${primerCocineroIdFiltro(cocineroActivoId)}/perfil-ver-cocina`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const perfil = res.data?.data;
@@ -602,7 +604,7 @@ const CocinaMonitorLayout = ({
   // cargar un perfil (skip ref) para no re-persistir lo recién cargado.
   useEffect(() => {
     if (modoFijo) return;
-    if (!cocineroActivoId) return;
+    if (!primerCocineroIdFiltro(cocineroActivoId)) return;
     if (!getToken) return;
     if (perfilSelId) return; // editando un perfil con nombre: guardado explícito
     if (autoSaveSkipRef.current) {
@@ -616,7 +618,7 @@ const CocinaMonitorLayout = ({
         const baseUrl = getServerBaseUrl();
         const token = getToken();
         await axios.put(
-          `${baseUrl}/api/cocineros/${cocineroActivoId}/perfil-ver-cocina`,
+          `${baseUrl}/api/cocineros/${primerCocineroIdFiltro(cocineroActivoId)}/perfil-ver-cocina`,
           { config: localDesign || {} },
           { headers: { Authorization: `Bearer ${token}` }, timeout: 6000 }
         );
@@ -766,7 +768,7 @@ const CocinaMonitorLayout = ({
   //   Si hay un cocinero filtrado, el header (foto + alias + PLATOS + MÁS ANTIGUO)
   //   es redundante: ya se ve en el selector.
   const modoBloques = modoCocineros
-    && !cocineroActivoId
+    && !esUnSoloCocineroFiltro(cocineroActivoId)
     && layoutColumnas === 1
     && (configVisual.modoAgrupacion || 'bloques') === 'bloques'
     && configVisual.mostrarCabeceraCocinero !== false;
@@ -1306,7 +1308,7 @@ const CocinaMonitorLayout = ({
                     key={item.grupoId || item.key}
                     item={item}
                     configVisual={configVisual}
-                    mostrarCocinero={!cocineroActivoId}
+                    mostrarCocinero={!esUnSoloCocineroFiltro(cocineroActivoId)}
                     modoTarjeta={esGrid}
                     autoAcomodamiento={autoAcomodamientoOn}
                     tick={tick}

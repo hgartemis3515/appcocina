@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import { getServerBaseUrl } from '../../config/apiConfig';
+import { getHubAuthBundle, getHubAuthHash } from '../../utils/hubAuth';
 import useCocinerosLista from '../../hooks/useCocinerosLista';
 import {
   abrirMonitorCocinero, redirigirVentanaMonitor, cerrarVentanaMonitor,
@@ -16,7 +17,16 @@ import {
 // Flujo "Distribuir Cocina en monitores (1 PC x 8 pantallas)".
 const MONITOR_PRINCIPAL = 1;
 const MONITORES_PASIVOS = [2, 3, 4, 5, 6, 7, 8];
-const SIN_ASIGNAR = '__sin_asignar__';
+
+function idsDeMonitor(valor) {
+  if (!valor) return [];
+  if (Array.isArray(valor)) return valor.filter(Boolean).map(String);
+  return String(valor).split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+function serializeIdsMonitor(valor) {
+  return idsDeMonitor(valor).join(',');
+}
 
 const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const { getToken, user } = useAuth();
@@ -106,7 +116,11 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       for (const p of data) {
         if (p.numeroPantalla === MONITOR_PRINCIPAL) continue;
         const cid = p.cocineroId?._id || p.cocineroId || null;
-        map[p.numeroPantalla] = cid ? String(cid) : null;
+        const fromArr = Array.isArray(p.cocineroIds) ? p.cocineroIds : [];
+        const ids = (fromArr.length ? fromArr : (cid ? [cid] : []))
+          .map((x) => String(x?._id || x))
+          .filter(Boolean);
+        map[p.numeroPantalla] = ids;
         // Perfil por monitor: 'auto' > 'id' > 'none'
         if (p.perfilAuto) {
           mapPerfil[p.numeroPantalla] = 'auto';
@@ -162,8 +176,8 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
           let cocineroIdx = 0;
           for (let i = 0; i < monitoresPasivosDetectados && i < 7 && cocineroIdx < cocinerosDisponibles.length; i++) {
             const numMonitor = i + 2; // monitores 2..8
-            if (!nueva[numMonitor]) {
-              nueva[numMonitor] = String(cocinerosDisponibles[cocineroIdx]._id);
+            if (idsDeMonitor(nueva[numMonitor]).length === 0) {
+              nueva[numMonitor] = [String(cocinerosDisponibles[cocineroIdx]._id)];
               cocineroIdx++;
             }
           }
@@ -182,18 +196,18 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const duplicados = useMemo(() => {
     const counts = {};
     for (const num of MONITORES_PASIVOS) {
-      const cid = asignacion[num];
-      if (!cid) continue;
-      counts[cid] = (counts[cid] || 0) + 1;
+      for (const cid of idsDeMonitor(asignacion[num])) {
+        counts[cid] = (counts[cid] || 0) + 1;
+      }
     }
     return Object.keys(counts).filter((cid) => counts[cid] > 1);
   }, [asignacion]);
 
   const hayCambios = useMemo(() => {
     for (const num of MONITORES_PASIVOS) {
-      const a = asignacion[num] || null;
-      const b = asignacionInicial[num] || null;
-      if ((a || null) !== (b || null)) return true;
+      const a = serializeIdsMonitor(asignacion[num]);
+      const b = serializeIdsMonitor(asignacionInicial[num]);
+      if (a !== b) return true;
       const pa = asignacionPerfil[num] || 'none';
       const pb = asignacionPerfilInicial[num] || 'none';
       if (pa !== pb) return true;
@@ -205,9 +219,22 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     return false;
   }, [asignacion, asignacionInicial, asignacionPerfil, asignacionPerfilInicial, asignacionListaGuarniciones, asignacionListaGuarnicionesInicial]);
 
-  const cambiarCocinero = (numero, valor) => {
-    const cid = valor === SIN_ASIGNAR ? null : valor;
-    setAsignacion((prev) => ({ ...prev, [numero]: cid }));
+  const agregarCocineroMonitor = (numero, valor) => {
+    if (!valor) return;
+    const id = String(valor);
+    setAsignacion((prev) => {
+      const actual = idsDeMonitor(prev[numero]);
+      if (actual.includes(id)) return prev;
+      return { ...prev, [numero]: [...actual, id] };
+    });
+    setMensaje(null);
+  };
+
+  const quitarCocineroMonitor = (numero, idQuitar) => {
+    setAsignacion((prev) => ({
+      ...prev,
+      [numero]: idsDeMonitor(prev[numero]).filter((id) => id !== String(idQuitar)),
+    }));
     setMensaje(null);
   };
 
@@ -231,10 +258,12 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       const items = MONITORES_PASIVOS.map((num) => {
         const p = pantallaPorNumero[num];
         if (!p) return null;
+        const ids = idsDeMonitor(asignacion[num]);
         return {
           id: p._id,
-          cocineroId: asignacion[num] || null,
-          modoVista: asignacion[num] ? 'completo' : 'personalizado',
+          cocineroId: ids[0] || null,
+          cocineroIds: ids,
+          modoVista: ids.length ? 'completo' : 'personalizado',
           perfilAplicar: asignacionPerfil[num] || 'none',
           listaGuarniciones: asignacionListaGuarniciones[num] === true,
         };
@@ -251,7 +280,20 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       setAsignacionInicial({ ...asignacion });
       setAsignacionPerfilInicial({ ...asignacionPerfil });
       setAsignacionListaGuarnicionesInicial({ ...asignacionListaGuarniciones });
-      setMensaje('Distribución guardada correctamente.');
+      const enviado = await enviarAMonitorHub({ fromSave: true });
+      if (enviado?.ok) {
+        setMensaje({
+          tipo: 'ok',
+          texto: `Distribución guardada y enviada al Monitor Hub (${enviado.slots} monitores). En el Hub pulsa Desplegar ventanas.`,
+        });
+      } else if (enviado?.error) {
+        setMensaje({
+          tipo: 'ok',
+          texto: `Distribución guardada. No se pudo enviar al Hub: ${enviado.error}`,
+        });
+      } else {
+        setMensaje('Distribución guardada correctamente.');
+      }
     } catch (err) {
       console.warn('[DistribuirCocina] Error guardando:', err.message);
       setError('No se pudo guardar: ' + (err.response?.data?.error || err.message));
@@ -263,9 +305,10 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const abrirOActualizarVentana = async (numero) => {
     const pantalla = pantallaPorNumero[numero];
     if (!pantalla) return;
-    const cocineroId = asignacion[numero] || '';
+    const ids = idsDeMonitor(asignacion[numero]);
+    const cocineroId = serializeIdsMonitor(ids);
     const existente = ventanas[numero];
-    if (!cocineroId) {
+    if (!ids.length) {
       if (existente && !existente.closed) cerrarVentanaMonitor(existente);
       setVentanas((prev) => { const n = { ...prev }; delete n[numero]; return n; });
       return;
@@ -315,7 +358,8 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   // abra/posicione las ventanas en los monitores fisicos. Requiere que el
   // Hub este corriendo en la misma PC (servidor http://127.0.0.1:7331/import).
   const [enviandoHub, setEnviandoHub] = useState(false);
-  const enviarAMonitorHub = async () => {
+  const enviarAMonitorHub = async (opts = {}) => {
+    const fromSave = opts.fromSave === true;
     const baseUrl = getServerBaseUrl();
     let host = '192.168.50.155';
     let puertoApp = '3001';
@@ -325,38 +369,70 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       puertoApp = window.location.port || '3001';
     } catch { /* noop */ }
     const base = `http://${host}:${puertoApp}`;
+    const nombrePerfil = (num) => {
+      const perfil = asignacionPerfil[num] || 'none';
+      if (perfil === 'none') return 'Sin perfil';
+      if (perfil === 'auto') return 'Perfil del cocinero (auto)';
+      const p = perfiles.find((x) => String(x._id) === String(perfil));
+      return p?.nombre || perfil;
+    };
+    const authHash = getHubAuthHash();
     const slots = MONITORES_PASIVOS
-      .filter((num) => asignacion[num])
-      .map((num) => ({
-        monitorIndex: num,
-        url: `${base}/?monitor=${num}&cocineroId=${asignacion[num]}&modo=completo-fijo${getPerfilSuffixForMonitor(num)}${getListaGuarnicionesSuffixForMonitor(num)}`,
-        mode: 'fullscreen',
-      }));
+      .filter((num) => idsDeMonitor(asignacion[num]).length > 0)
+      .map((num) => {
+        const ids = idsDeMonitor(asignacion[num]);
+        const cid = serializeIdsMonitor(ids);
+        const perfil = asignacionPerfil[num] || 'none';
+        const nombre = ids.map((id) => nombreCocinero(id)).join(' + ');
+        return {
+          monitorIndex: num,
+          url: `${base}/?monitor=${num}&cocineroId=${encodeURIComponent(cid)}&modo=completo-fijo${getPerfilSuffixForMonitor(num)}${getListaGuarnicionesSuffixForMonitor(num)}${authHash}`,
+          mode: 'fullscreen',
+          label: nombre,
+          cocineroId: cid,
+          cocineroNombre: nombre,
+          perfil,
+          perfilNombre: nombrePerfil(num),
+          listaGuarniciones: asignacionListaGuarniciones[num] === true,
+        };
+      });
     if (slots.length === 0) {
-      setMensaje({ tipo: 'error', texto: 'Asigna al menos un cocinero antes de enviar al Hub.' });
-      return;
+      if (!fromSave) {
+        setMensaje({ tipo: 'error', texto: 'Asigna al menos un cocinero antes de enviar al Hub.' });
+      }
+      return { ok: false, slots: 0 };
     }
-    setEnviandoHub(true);
+    if (!fromSave) setEnviandoHub(true);
     const hubUrl = `${getServerBaseUrl()}/api/hub/import`;
     const token = getToken();
     try {
-      const res = await axios.post(hubUrl, {
+      await axios.post(hubUrl, {
         source: 'appcocina',
         profileName: `Cocina ${new Date().toLocaleString()}`,
         slots,
+        authBundle: getHubAuthBundle(),
       }, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 8000,
       });
-      setMensaje({ tipo: 'ok', texto: `Enviado al Monitor Hub (${slots.length} monitores). Abre el Hub y pulsa "Importar desde App Cocina".` });
+      if (!fromSave) {
+        setMensaje({
+          tipo: 'ok',
+          texto: `Enviado al Monitor Hub (${slots.length} monitores). En el Hub pulsa Desplegar ventanas.`,
+        });
+      }
+      return { ok: true, slots: slots.length };
     } catch (e) {
       const detalle = e?.response?.data?.error || e.message;
-      setMensaje({
-        tipo: 'error',
-        texto: `No se pudo enviar al Monitor Hub. ${detalle}`,
-      });
+      if (!fromSave) {
+        setMensaje({
+          tipo: 'error',
+          texto: `No se pudo enviar al Monitor Hub. ${detalle}`,
+        });
+      }
+      return { ok: false, slots: slots.length, error: detalle };
     } finally {
-      setEnviandoHub(false);
+      if (!fromSave) setEnviandoHub(false);
     }
   };
 
@@ -397,16 +473,14 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
 
     // Construir lineas SET por monitor (2..8)
     const setLines = MONITORES_PASIVOS.map((num) => {
-      const cid = asignacion[num] || '';
+      const cid = serializeIdsMonitor(asignacion[num]);
       return `set COCINERO_${num}=${cid}`;
     }).join('\n');
 
-    // Conteo de monitores asignados
-    const asignados = MONITORES_PASIVOS.filter((num) => asignacion[num]).length;
+    const asignados = MONITORES_PASIVOS.filter((num) => idsDeMonitor(asignacion[num]).length > 0).length;
 
-    // Calcular coords de cada monitor asignado
     const monsData = MONITORES_PASIVOS.map((num) => {
-      const cid = asignacion[num];
+      const cid = serializeIdsMonitor(asignacion[num]);
       if (!cid) return null;
       let posX = 0, posY = 0, ancho = 1920, alto = 1080;
       if (monitores && monitores.length >= num) {
@@ -658,10 +732,11 @@ pause
 
       <div className="mb-4 p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">
         <p className="text-cyan-300 text-sm">
-          Desde el <strong>monitor 1</strong> (esta consola) eliges qué cocinero se ve en cada
+          Desde el <strong>monitor 1</strong> (esta consola) eliges qué cocineros se ven en cada
           monitor pasivo (2-8) y qué <strong>perfil de personalización</strong> aplica a cada uno.
-          Cada ventana abre Ver Cocina Completo filtrado por el cocinero asignado. Pulsa{' '}
-          <strong>Aplicar / Desplegar</strong> para guardar y abrir las ventanas.
+          Puedes poner <strong>varios cocineros en el mismo monitor</strong> y repetir un cocinero
+          en varios monitores. Cada ventana abre Ver Cocina Completo filtrado por esos cocineros. Pulsa{' '}
+          <strong>Aplicar / Desplegar</strong> para guardar y enviar al Hub.
         </p>
       </div>
 
@@ -756,10 +831,10 @@ pause
       {!loading && pantallas.length > 0 && (
         <>
           {duplicados.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700/40 rounded-lg text-amber-300 text-sm flex items-center gap-2">
-              <FaExclamationTriangle />
-              Cocineros repetidos en varios monitores: {duplicados.map((cid) => nombreCocinero(cid)).join(', ')}.
-              Revisa si es intencional.
+            <div className="mb-4 p-3 bg-cyan-900/30 border border-cyan-700/40 rounded-lg text-cyan-200 text-sm flex items-center gap-2">
+              <FaUser />
+              Mismo cocinero en varios monitores: {duplicados.map((cid) => nombreCocinero(cid)).join(', ')}.
+              Está permitido.
             </div>
           )}
 
@@ -779,7 +854,7 @@ pause
                   </div>
                 );
               }
-              const cid = asignacion[num] || null;
+              const ids = idsDeMonitor(asignacion[num]);
               const abierta = ventanas[num] && !ventanas[num].closed;
               return (
                 <motion.div key={num} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -799,15 +874,26 @@ pause
                     )}
                   </div>
 
-                  <label className="block text-xs text-gray-400 mb-1">Cocinero a mostrar</label>
+                  <label className="block text-xs text-gray-400 mb-1">Cocineros a mostrar</label>
+                  <div className="flex flex-wrap gap-1 mb-2 min-h-[28px]">
+                    {ids.map((id) => (
+                      <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-900/50 text-cyan-200 text-xs border border-cyan-700/40">
+                        {nombreCocinero(id)}
+                        <button type="button" onClick={() => quitarCocineroMonitor(num, id)} className="hover:text-white" title="Quitar">×</button>
+                      </span>
+                    ))}
+                    {ids.length === 0 && (
+                      <span className="text-xs text-gray-600">Ninguno</span>
+                    )}
+                  </div>
                   <select
-                    value={cid || SIN_ASIGNAR}
-                    onChange={(e) => cambiarCocinero(num, e.target.value)}
+                    value=""
+                    onChange={(e) => { agregarCocineroMonitor(num, e.target.value); e.target.value = ''; }}
                     disabled={loadingCocineros}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500"
                   >
-                    <option value={SIN_ASIGNAR}>Sin asignar</option>
-                    {cocineros.map((c) => (
+                    <option value="">+ Añadir cocinero…</option>
+                    {cocineros.filter((c) => !ids.includes(String(c._id))).map((c) => (
                       <option key={c._id} value={c._id}>{c.alias || c.name}</option>
                     ))}
                   </select>
@@ -818,7 +904,7 @@ pause
                   <select
                     value={asignacionPerfil[num] || 'none'}
                     onChange={(e) => cambiarPerfilMonitor(num, e.target.value)}
-                    disabled={cargandoPerfiles || !cid}
+                    disabled={cargandoPerfiles || ids.length === 0}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50"
                   >
                     <option value="none">Sin perfil (default)</option>
@@ -837,10 +923,10 @@ pause
                       type="checkbox"
                       checked={asignacionListaGuarniciones[num] === true}
                       onChange={(e) => cambiarListaGuarnicionesMonitor(num, e.target.checked)}
-                      disabled={!cid || !flagGuarnicionesGlobal}
+                      disabled={ids.length === 0 || !flagGuarnicionesGlobal}
                       className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-lime-500 focus:ring-lime-500 disabled:opacity-40"
                     />
-                    <span className={(!cid || !flagGuarnicionesGlobal) ? 'opacity-50' : ''}>
+                    <span className={(ids.length === 0 || !flagGuarnicionesGlobal) ? 'opacity-50' : ''}>
                       Lista de guarniciones (split 50/50)
                     </span>
                   </label>
@@ -852,8 +938,8 @@ pause
 
                   <div className="mt-3 text-xs text-gray-400 flex items-center gap-1">
                     <FaUser className="text-gray-500" />
-                    {cid ? (
-                      <span>Mostrando: <span className="text-cyan-300">{nombreCocinero(cid)}</span></span>
+                    {ids.length ? (
+                      <span>Mostrando: <span className="text-cyan-300">{ids.map((id) => nombreCocinero(id)).join(' + ')}</span></span>
                     ) : (
                       <span>No se abrirá ventana</span>
                     )}
@@ -861,7 +947,7 @@ pause
 
                   <button
                     onClick={() => abrirOActualizarVentana(num)}
-                    disabled={!cid}
+                    disabled={ids.length === 0}
                     className="mt-3 w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
                   >
                     <FaPlay /> {abierta ? 'Actualizar' : 'Abrir'}
@@ -932,8 +1018,8 @@ pause
             <div className="space-y-2 mb-4">
               {MONITORES_PASIVOS.map((num) => {
                 const monitor = monitoresDetectados[num - 1];
-                const cid = asignacion[num] || null;
-                const nombre = cid ? nombreCocinero(cid) : '(Sin asignar)';
+                const ids = idsDeMonitor(asignacion[num]);
+                const nombre = ids.length ? ids.map((id) => nombreCocinero(id)).join(' + ') : '(Sin asignar)';
                 return (
                   <div key={num} className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg">
                     <span className="text-sm font-semibold w-20 shrink-0">Monitor {num}</span>
@@ -942,20 +1028,11 @@ pause
                         {monitor.width}×{monitor.height}
                       </span>
                     )}
-                    <select
-                      value={cid || SIN_ASIGNAR}
-                      onChange={(e) => cambiarCocinero(num, e.target.value)}
-                      className="flex-1 min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
-                    >
-                      <option value={SIN_ASIGNAR}>Sin asignar</option>
-                      {cocineros.map((c) => (
-                        <option key={c._id} value={c._id}>{c.alias || c.name}</option>
-                      ))}
-                    </select>
+                    <span className="flex-1 min-w-0 text-sm text-cyan-200 truncate" title={nombre}>{nombre}</span>
                     <select
                       value={asignacionPerfil[num] || 'none'}
                       onChange={(e) => cambiarPerfilMonitor(num, e.target.value)}
-                      disabled={!cid}
+                      disabled={ids.length === 0}
                       title="Perfil de personalización Ver Cocina para este monitor"
                       className="flex-1 min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm disabled:opacity-50"
                     >
@@ -965,7 +1042,6 @@ pause
                         <option key={p._id} value={p._id}>{p.nombre}</option>
                       ))}
                     </select>
-                    <span className="text-xs text-cyan-300 w-24 truncate shrink-0" title={nombre}>{nombre}</span>
                   </div>
                 );
               })}

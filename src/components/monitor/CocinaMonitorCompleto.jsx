@@ -5,6 +5,7 @@ import useCocinaMonitorFilter from '../../hooks/useCocinaMonitorFilter';
 import useCocinerosLista from '../../hooks/useCocinerosLista';
 import useBuscadorPlatos from '../../hooks/useBuscadorPlatos';
 import CocinaMonitorLayout from './CocinaMonitorLayout';
+import { parseCocineroIdsFiltro } from '../../utils/cocineroFiltroIds';
 
 const STORAGE_COCINERO_KEY = 'cocinaMonitorCocineroId';
 
@@ -32,10 +33,9 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
     document.title = `monitor-${monitor}`;
   }, [modoFijo]);
 
-  // Filtro por cocinero del selector (null = General). Persiste en localStorage.
-  // En modo kiosk (cocineroIdFijo), se respeta el cocinero asignado y NO se toca localStorage.
   const [cocineroActivoId, setCocineroActivoId] = useState(() => {
-    if (cocineroIdFijo) return cocineroIdFijo;
+    const ids = parseCocineroIdsFiltro(cocineroIdFijo);
+    if (ids) return ids.length === 1 ? ids[0] : ids;
     if (modoFijo) return null;
     try {
       const saved = localStorage.getItem(STORAGE_COCINERO_KEY);
@@ -105,19 +105,22 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
 
   // Nombre del cocinero seleccionado para el empty state contextual
   const nombreCocineroActivo = useMemo(() => {
-    if (!cocineroActivoId) return null;
-    const deLista = cocineros.find(c => String(c._id) === String(cocineroActivoId));
-    if (deLista) return deLista.alias || deLista.name;
-    // Fallback: derivar de las comandas si aún no se cargó la lista
-    for (const c of comandas) {
-      for (const p of c.platos || []) {
-        const pp = p.procesandoPor;
-        if (pp && String(pp.cocineroId) === String(cocineroActivoId)) {
-          return pp.alias || pp.nombre || 'Cocinero';
+    const ids = parseCocineroIdsFiltro(cocineroActivoId);
+    if (!ids) return null;
+    const nombres = ids.map((id) => {
+      const deLista = cocineros.find(c => String(c._id) === String(id));
+      if (deLista) return deLista.alias || deLista.name;
+      for (const c of comandas) {
+        for (const p of c.platos || []) {
+          const pp = p.procesandoPor;
+          if (pp && String(pp.cocineroId) === String(id)) {
+            return pp.alias || pp.nombre || 'Cocinero';
+          }
         }
       }
-    }
-    return 'Cocinero';
+      return 'Cocinero';
+    });
+    return nombres.join(' + ');
   }, [cocineroActivoId, cocineros, comandas]);
 
   // Si el cocinero seleccionado desaparece de la lista (desactivado), volver a General.
@@ -125,8 +128,9 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
   // (el admin debe reasignar o regenerar token si quiere cambiar el TV).
   useEffect(() => {
     if (cocineroIdFijo) return;
-    if (cocineroActivoId && !loadingCocineros && cocineros.length > 0 &&
-        !cocineros.some(c => String(c._id) === String(cocineroActivoId))) {
+    const ids = parseCocineroIdsFiltro(cocineroActivoId);
+    if (ids && !loadingCocineros && cocineros.length > 0 &&
+        ids.some((id) => !cocineros.some(c => String(c._id) === String(id)))) {
       setCocineroActivoId(null);
       try { localStorage.setItem(STORAGE_COCINERO_KEY, 'general'); } catch { /* noop */ }
     }
