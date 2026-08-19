@@ -661,6 +661,36 @@ describe('agrupacion y pronombre', () => {
       .toBe('- Arroz, PFrita, Ensal');
   });
 
+  test('lista junta pronombres del catálogo aunque el snapshot esté vacío', () => {
+    const plato = {
+      nombre: 'Bistec',
+      plato: {
+        nombre: 'Bistec',
+        complementos: [{
+          grupo: 'Guarnición',
+          opciones: [
+            { nombre: 'Arroz', pronombre: 'Arroz' },
+            { nombre: 'papa frit', pronombre: 'P Frita' },
+            { nombre: 'ensalada', pronombre: 'ensal' },
+          ]
+        }]
+      },
+      complementosSeleccionados: [
+        { _id: 'g1', grupo: 'Guarnición', opcion: 'Arroz', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'c1' } },
+        { _id: 'g2', grupo: 'Guarnición', opcion: 'papa frit', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'c1' } },
+        { _id: 'g3', grupo: 'Guarnición', opcion: 'ensalada', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'c1' } },
+      ]
+    };
+    const { recolectarGuarnicionesMonitor, lineaListaGuarniciones } = require('./guarnicionesKds');
+    const items = recolectarGuarnicionesMonitor([{
+      _id: 'com1',
+      platos: [{ _id: 'p1', estado: 'pedido', ...plato }]
+    }], {});
+    const comps = items.map((i) => i.comp);
+    expect(lineaListaGuarniciones(comps, 'Bistec', 'parentesis'))
+      .toBe('- Arroz, P Frita, ensal (Bistec)');
+  });
+
   test('tokenGuarnicion hereda si diferenciar OFF o null', () => {
     expect(tokenGuarnicion({ diferenciarDisenoGuarniciones: false, colorTextoGuarnicion: '#f00' }, 'colorTextoGuarnicion', '#fff')).toBe('#fff');
     expect(tokenGuarnicion({ diferenciarDisenoGuarniciones: true, colorTextoGuarnicion: null }, 'colorTextoGuarnicion', '#fff')).toBe('#fff');

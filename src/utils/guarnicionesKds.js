@@ -62,6 +62,50 @@ export function nombreGuarnicionSolo(comp) {
   return opcion || '';
 }
 
+function catalogoComplementosDePlato(platoPadre) {
+  if (!platoPadre) return [];
+  const catalog = (platoPadre.plato && typeof platoPadre.plato === 'object')
+    ? platoPadre.plato
+    : platoPadre;
+  return Array.isArray(catalog.complementos) ? catalog.complementos : [];
+}
+
+/** Pronombre vigente del menú (platos.html), emparejando grupo + opción. */
+export function pronombreDesdeCatalogo(platoPadre, comp) {
+  if (!comp) return '';
+  const grupos = catalogoComplementosDePlato(platoPadre);
+  if (!grupos.length) return '';
+  const nombreOp = (Array.isArray(comp.opcion) ? (comp.opcion[0] || '') : (comp.opcion || '')).toString().trim().toLowerCase();
+  if (!nombreOp) return '';
+  const grupoKey = String(comp.grupo || '').trim().toLowerCase();
+  const buscarEnGrupo = (grupo) => {
+    const ops = Array.isArray(grupo && grupo.opciones) ? grupo.opciones : [];
+    for (const op of ops) {
+      if (op == null || typeof op === 'string') continue;
+      const nom = String(op.nombre ?? op.opcion ?? '').trim().toLowerCase();
+      if (nom === nombreOp) return String(op.pronombre || '').trim();
+    }
+    return '';
+  };
+  const grupoExact = grupos.find((g) => g && String(g.grupo || '').trim().toLowerCase() === grupoKey);
+  if (grupoExact) {
+    const p = buscarEnGrupo(grupoExact);
+    if (p) return p;
+  }
+  for (const g of grupos) {
+    const p = buscarEnGrupo(g);
+    if (p) return p;
+  }
+  return '';
+}
+
+export function hidratarPronombreComplemento(comp, platoPadre) {
+  if (!comp) return comp;
+  const resolved = String(pronombreDesdeCatalogo(platoPadre, comp) || comp.pronombre || '').trim();
+  if (resolved === String(comp.pronombre || '').trim()) return comp;
+  return { ...comp, pronombre: resolved };
+}
+
 export function agrupacionGuarnicionesOn(flags = {}) {
   return flags.permitirGuarnicionesSeparadas !== false
     && flags.deshabilitarAgrupacionGuarniciones !== true;
@@ -75,9 +119,10 @@ export function tokenGuarnicion(config, key, fallback) {
   return fallback;
 }
 
-export function nombreCocinaComplemento(comp) {
+export function nombreCocinaComplemento(comp, platoPadre) {
   if (!comp) return '';
-  const corto = String(comp.pronombre || '').trim();
+  const corto = (platoPadre ? pronombreDesdeCatalogo(platoPadre, comp) : '')
+    || String(comp.pronombre || '').trim();
   if (corto) return corto;
   return nombreGuarnicionSolo(comp);
 }
@@ -148,10 +193,11 @@ export function expandirUnidadesTrabajo(plato, opts = {}) {
   comps.forEach((comp, index) => {
     if (!comp || comp.eliminado) return;
     if (comp.estadoCocina === 'recoger') return;
+    const hidratado = hidratarPronombreComplemento(comp, plato);
     pendientes.push({
-      comp,
+      comp: hidratado,
       index,
-      compId: comp._id ? String(comp._id) : `idx:${index}`
+      compId: hidratado._id ? String(hidratado._id) : `idx:${index}`
     });
   });
 
@@ -292,13 +338,16 @@ export function guarnicionesPendientes(plato) {
   if (!Array.isArray(comps)) return [];
   return comps
     .filter(c => c && !c.eliminado && c.estadoCocina !== 'recoger')
-    .map(c => ({
-      ...c,
-      compId: c._id ? String(c._id) : null,
-      grupo: c.grupo,
-      opcion: Array.isArray(c.opcion) ? c.opcion.join(', ') : c.opcion,
-      estadoCocina: c.estadoCocina || 'pedido'
-    }));
+    .map(c => {
+      const hidratado = hidratarPronombreComplemento(c, plato);
+      return {
+        ...hidratado,
+        compId: hidratado._id ? String(hidratado._id) : null,
+        grupo: hidratado.grupo,
+        opcion: Array.isArray(hidratado.opcion) ? hidratado.opcion.join(', ') : hidratado.opcion,
+        estadoCocina: hidratado.estadoCocina || 'pedido'
+      };
+    });
 }
 
 /**
