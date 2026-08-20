@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { formatearReferenciaPadre, tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
-import { pronombreReferenciaPrincipal } from '../../utils/notasMonitor';
+import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
+import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 
 /**
  * GuarnicionMonitorRow - Fila de una guarnición en el panel derecho del
@@ -75,12 +76,27 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
         { mostrar: configVisual.mostrarPronombreCocineroGuarnicion !== false },
       );
 
+  const hayNotaCuadro = item.hayNotaCuadro === true || String(item.notasCuadro || '').trim() !== '';
+  const textoNotaCuadro = configVisual.notasJuntoAGuarniciones !== false
+    ? String(item.notasCuadro || '').trim()
+    : '';
+  const estiloPron = tokensEstiloPronombreGuarnicion(configVisual, {
+    color: colorTextoPadre,
+    fontSize: tamanioFuentePadre || tamanioFuenteDetalle,
+    fontFamily: fuenteFamilia,
+  });
+  const forzarCuadroPorNota = configVisual.ocultarCuadroGuarniciones === true
+    && configVisual.cuadroGuarnicionSiHayNota !== false
+    && hayNotaCuadro;
+
   if (configVisual.ocultarCuadroGuarniciones === true) {
     return (
       <GuarnicionListaLinea
         texto={nombresListaGuarniciones(item.comps) || `- ${nombre}`}
         textoPadre={refPadre}
         textoCocinero={textoCocinero}
+        textoNota={textoNotaCuadro}
+        configVisual={configVisual}
         fuenteFamilia={fuenteFamilia}
         tamanioFuente={tamanioFuentePlato}
         pesoFuente={pesoFuentePlato}
@@ -92,6 +108,8 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
         ocultarCronometro={configVisual.ocultarCronometroGuarniciones === true}
         colorCronometro={colorTextoPrincipal}
         tamanioCronometro={tamanioFuenteCronometro}
+        conCuadro={forzarCuadroPorNota}
+        colorCuadro={colorAcento}
       />
     );
   }
@@ -133,7 +151,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
 
       {/* Sub-texto: "de {nombreCocinaPadre}" — referencia al plato padre.
           Usa el nombre de cocina (alias) si existe, no el nombre comercial. */}
-      {(nombrePadre || refPadre) && (
+      {(nombrePadre || refPadre || textoCocinero) && (
         <div
           style={{
             fontSize: `${tamanioFuenteDetalle}px`,
@@ -170,9 +188,11 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
           {textoCocinero ? (
             <span
               style={{
-                fontSize: `${tamanioFuentePadre || tamanioFuenteDetalle}px`,
+                fontSize: `${estiloPron.fontSize}px`,
                 fontWeight: 700,
-                color: colorTextoPadre,
+                color: estiloPron.color,
+                fontFamily: estiloPron.fontFamily,
+                flexShrink: 0,
               }}
             >
               {textoCocinero}
@@ -180,6 +200,11 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
           ) : null}
         </div>
       )}
+      <NotaEnCuadroMonitor
+        texto={textoNotaCuadro}
+        configVisual={configVisual}
+        colorFallback={colorTextoSecundario}
+      />
     </div>
   );
 

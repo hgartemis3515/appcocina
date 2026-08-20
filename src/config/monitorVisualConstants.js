@@ -31,6 +31,18 @@ export const clampColumnas = (n) =>
     Math.max(MONITOR_LAYOUT.COLUMNAS_MIN, Number(n) || MONITOR_LAYOUT.COLUMNAS_DEFAULT)
   );
 
+/** Ancho mínimo de una columna de tarjetas (kiosk vertical / split). */
+export const MIN_ANCHO_COLUMNA_TARJETA = 280;
+
+/**
+ * Cuántas columnas caben sin aplastar tarjetas (un cuadro no queda encima de otro).
+ * En monitor vertical 1080×1920: 1 col si hay split horizontal, 3 si la lista usa el ancho entero.
+ */
+export function columnasQueCaben(anchoDisponible, columnasDeseadas, minAncho = MIN_ANCHO_COLUMNA_TARJETA) {
+  const maxFit = Math.max(1, Math.floor(Math.max(0, Number(anchoDisponible) || 0) / minAncho));
+  return Math.min(clampColumnas(columnasDeseadas), maxFit);
+}
+
 /**
  * Catálogo de animaciones de alerta para tarjetas del monitor Ver Cocina.
  * `value` es el nombre de la keyframe CSS. `duracion` se usa en la propiedad `animation`.

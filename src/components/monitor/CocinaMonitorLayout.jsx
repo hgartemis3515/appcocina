@@ -3,7 +3,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import moment from 'moment-timezone';
 import axios from 'axios';
 import { getServerBaseUrl } from '../../config/apiConfig';
-import { clampColumnas } from '../../config/monitorVisualConstants';
+import { columnasQueCaben } from '../../config/monitorVisualConstants';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
 import MonitorTarjetasGrid from './MonitorTarjetasGrid';
@@ -21,6 +21,8 @@ import { grupoIdEstable } from '../../hooks/useCocinaMonitorFilter';
 // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: helpers para el panel de guarniciones
 import {
   nombreCocinaComplemento,
+  nombreGuarnicionSolo,
+  pronombreDesdeCatalogo,
   tiempoInicioGuarnicion,
   tiempoInicioGrupo,
   recolectarGuarnicionesMonitor,
@@ -35,7 +37,16 @@ import {
 import { obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import { primerCocineroIdFiltro, esUnSoloCocineroFiltro } from '../../utils/cocineroFiltroIds';
 import NotasMonitorFranja from './NotasMonitorFranja';
-import { recolectarNotasMonitor, cocineroDesdeProcesandoPor, pronombreReferenciaPrincipal } from '../../utils/notasMonitor';
+import {
+  recolectarNotasMonitor,
+  cocineroDesdeProcesandoPor,
+  pronombreReferenciaPrincipal,
+  textosNotasDeGrupo,
+  clavesPadreDeItemMonitor,
+  anexarNotasCuadroItems,
+} from '../../utils/notasMonitor';
+import { contarGuarnicionesPorNombre, claveNombreComplemento } from '../../utils/nombreComplementoCanonico';
+import ContadorGuarnicionesBar from './ContadorGuarnicionesBar';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -63,6 +74,7 @@ const DEFAULT_CONFIG = {
   colorAlertaAmarilla: '#fbbf24',
   colorAlertaRoja: '#ef4444',
   colorFilaPlato: '#1a1a28',
+  icono: '🍳',
   espaciadoFilas: 'normal',
   layoutColumnas: 1,
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones
@@ -75,6 +87,13 @@ const DEFAULT_CONFIG = {
   ocultarCronometroGuarniciones: false,
   ocultarCuadroGuarniciones: false,
   ocultarBuscadorPlatos: false,
+  // Si ocultarBuscadorPlatos: el buscador se reemplaza por el contador (misma barra).
+  mostrarContadorGuarniciones: false,
+  contadorGuarnicionesConPronombre: false,
+  colorTextoContadorGuarniciones: null,
+  tamanioFuenteContadorGuarniciones: null,
+  fuenteFamiliaContadorGuarniciones: null,
+  contadorGuarnicionesClaves: ['arroz', 'papa frita', 'ensalada'],
   mostrarTitulosListasSplit: false,
   tituloListaPlatos: 'PLATOS',
   tituloListaGuarniciones: 'Lista de Guarniciones',
@@ -86,6 +105,12 @@ const DEFAULT_CONFIG = {
   pesoTituloListaSplit: '800',
   fuenteFamiliaTituloListaSplit: null,
   mostrarPronombreCocineroGuarnicion: true,
+  heredarEstiloPronombrePadre: true,
+  colorTextoPronombreGuarnicion: null,
+  tamanioFuentePronombreGuarnicion: null,
+  fuenteFamiliaPronombreGuarnicion: null,
+  notasJuntoAGuarniciones: true,
+  cuadroGuarnicionSiHayNota: true,
   mostrarTablaNotas: true,
   tituloTablaNotas: 'Notas:',
   colorTextoNotas: null,
@@ -183,18 +208,25 @@ const DEFAULT_CONFIG = {
 /** Snapshot de Personalizar: todas las claves de DEFAULT_CONFIG + extras del panel. */
 const EXCLUDE_PERFIL_KEYS = new Set(['deshabilitarOrdenSecuencialGuarniciones']);
 
+const esValorPerfil = (v) => {
+  if (v === null || ['boolean', 'number', 'string'].includes(typeof v)) return true;
+  return Array.isArray(v) && v.every((x) => typeof x === 'string' || x === null);
+};
+
 const snapshotConfigPerfil = (configVisual) => {
   const out = {};
   if (!configVisual || typeof configVisual !== 'object') return out;
   for (const k of Object.keys(DEFAULT_CONFIG)) {
     if (EXCLUDE_PERFIL_KEYS.has(k)) continue;
-    out[k] = Object.prototype.hasOwnProperty.call(configVisual, k)
+    const v = Object.prototype.hasOwnProperty.call(configVisual, k)
       ? configVisual[k]
       : DEFAULT_CONFIG[k];
+    if (esValorPerfil(v)) out[k] = v;
   }
   for (const k of Object.keys(configVisual)) {
-    if (EXCLUDE_PERFIL_KEYS.has(k)) continue;
-    if (!(k in out)) out[k] = configVisual[k];
+    if (EXCLUDE_PERFIL_KEYS.has(k) || k in out) continue;
+    const v = configVisual[k];
+    if (esValorPerfil(v)) out[k] = v;
   }
   return out;
 };
@@ -262,7 +294,10 @@ const CocinaMonitorLayout = ({
   comandas = null,
 }) => {
   const tick = useCocinaMonitorTimer();
-  const [reloj, setReloj] = useState(moment().tz('America/Lima').format('HH:mm:ss'));
+  const reloj = useMemo(
+    () => moment().tz('America/Lima').format('HH:mm:ss'),
+    [tick]
+  );
 
   // Estado de configuración local (editable en barra superior).
   // Merge: defaults < config de la vista < config local guardada en localStorage.
@@ -329,20 +364,24 @@ const CocinaMonitorLayout = ({
     return () => { mounted = false; };
   }, [getToken]);
 
-  // Config visual final combinada
-  const configVisual = {
+  const configVisual = useMemo(() => ({
     ...DEFAULT_CONFIG,
     ...configVistaProp,
     ...localDesign,
     deshabilitarOrdenSecuencialGuarniciones: deshabilitarOrdenGuarniciones,
-  };
+  }), [configVistaProp, localDesign, deshabilitarOrdenGuarniciones]);
 
+  // Viewport real del kiosk (Monitor Hub: monitores verticales 1080×1920).
+  const [viewport, setViewport] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1080,
+    h: typeof window !== 'undefined' ? window.innerHeight : 1920,
+  }));
   useEffect(() => {
-    const interval = setInterval(() => {
-      setReloj(moment().tz('America/Lima').format('HH:mm:ss'));
-    }, 1000);
-    return () => clearInterval(interval);
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
+  const isPortrait = viewport.h > viewport.w;
 
   // Sincronizar personalización entre ventanas/pestañas (misma PC, varios monitores)
   useEffect(() => {
@@ -741,17 +780,21 @@ const CocinaMonitorLayout = ({
 
   const icono = configVisual.icono || '🍳';
   const iconoEmoji = ICONO_MAP[icono] || icono || '🍳';
-  const layoutColumnas = clampColumnas(configVisual.layoutColumnas || 1);
+  const splitActivo = listaGuarnicionesOn && flagGuarnicionesGlobal;
+  const anchoListaPlatos = splitActivo && !isPortrait
+    ? Math.floor(viewport.w / 2)
+    : viewport.w;
+  const layoutColumnas = columnasQueCaben(anchoListaPlatos, configVisual.layoutColumnas || 1);
   const esGrid = layoutColumnas > 1;
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones.
   // Si NO se activa "diferenciar diseño", las guarniciones heredan las columnas
   // de los platos principales (mismo diseño de lista).
   const diferenciarDiseno = configVisual.diferenciarDisenoGuarniciones === true;
-  const layoutColumnasGuarniciones = clampColumnas(
-    diferenciarDiseno ? (configVisual.layoutColumnasGuarniciones || 1) : (configVisual.layoutColumnas || 1)
+  const layoutColumnasGuarniciones = columnasQueCaben(
+    anchoListaPlatos,
+    diferenciarDiseno ? (configVisual.layoutColumnasGuarniciones || 1) : (configVisual.layoutColumnas || 1),
   );
   const esGridGuarniciones = layoutColumnasGuarniciones > 1;
-  const splitActivo = listaGuarnicionesOn && flagGuarnicionesGlobal;
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas: flagGuarnicionesGlobal,
     deshabilitarAgrupacionGuarniciones,
@@ -805,12 +848,50 @@ const CocinaMonitorLayout = ({
     ? primerCocineroIdFiltro(cocineroActivoId)
     : null;
 
-  // Panel derecho: agrupación ON = 1 ítem por plato; OFF = 1 ítem por extra.
+  const mostrarContadorGuarniciones = configVisual.ocultarBuscadorPlatos === true;
+
+  const itemsGuarnicionRaw = useMemo(
+    () => {
+      if (!splitActivo && !mostrarContadorGuarniciones) return [];
+      return recolectarGuarnicionesMonitor(Array.isArray(comandas) ? comandas : [], {
+        cocineroIdFiltrado: cocineroActivoId,
+      });
+    },
+    [comandas, cocineroActivoId, splitActivo, mostrarContadorGuarniciones]
+  );
+
+  const filasContadorGuarniciones = useMemo(() => {
+    if (!mostrarContadorGuarniciones) return [];
+    const filas = itemsGuarnicionRaw.map(({ plato, comp }) => ({
+      nombre: nombreGuarnicionSolo(comp),
+      cantidad: Number(comp && comp.cantidad) || 1,
+      pronombre: pronombreDesdeCatalogo(plato, comp) || String((comp && comp.pronombre) || '').trim(),
+    }));
+    return contarGuarnicionesPorNombre(filas, {
+      conPronombre: configVisual.contadorGuarnicionesConPronombre === true,
+      claves: configVisual.contadorGuarnicionesClaves,
+    });
+  }, [itemsGuarnicionRaw, mostrarContadorGuarniciones, configVisual.contadorGuarnicionesConPronombre, configVisual.contadorGuarnicionesClaves]);
+
+  const opcionesContadorLive = useMemo(() => {
+    const map = new Map();
+    for (const { comp } of itemsGuarnicionRaw) {
+      const nombre = nombreGuarnicionSolo(comp);
+      const clave = claveNombreComplemento(nombre);
+      if (!clave) continue;
+      const prev = map.get(clave);
+      map.set(clave, {
+        clave,
+        nombre: (prev && prev.nombre) || nombre,
+        platos: (prev ? prev.platos : 0) + (Number(comp && comp.cantidad) || 1),
+      });
+    }
+    return [...map.values()].sort((a, b) => b.platos - a.platos || a.nombre.localeCompare(b.nombre, 'es'));
+  }, [itemsGuarnicionRaw]);
+
   const guarnicionesPanel = useMemo(() => {
     if (!splitActivo) return [];
-    const items = recolectarGuarnicionesMonitor(Array.isArray(comandas) ? comandas : [], {
-      cocineroIdFiltrado: cocineroActivoId,
-    });
+    const items = itemsGuarnicionRaw;
     const gruposMap = new Map();
     for (const item of items) {
       const { comanda, plato, platoIndex, comp } = item;
@@ -909,6 +990,8 @@ const CocinaMonitorLayout = ({
           : [];
       }
       if (ocultarCronometroG) timers = [];
+      const notasGrupo = textosNotasDeGrupo({ platos: rest.platos });
+      const notasEnTarjeta = configVisual.notasJuntoAGuarniciones !== false;
       return {
         ...rest,
         nombre,
@@ -916,6 +999,8 @@ const CocinaMonitorLayout = ({
         cantidadTotal: agrupacionOn ? 1 : rest.cantidadTotal,
         tiempoInicio,
         timers,
+        comandaId,
+        platoIndex,
         subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
         lineaLista: lineaListaGuarniciones(comps, padreTxt, modoRefPadre),
         nombrePadre: padreTxt,
@@ -923,8 +1008,9 @@ const CocinaMonitorLayout = ({
         pronombrePrincipal: pronombreReferenciaPrincipal(rest.cocineroPrincipal, {
           mapaCocineros: mapaPronombresCocinero,
           mostrar: mostrarPronombreRef,
-          ocultarSiIds: [ocultarPronombreSiId],
         }),
+        hayNotaCuadro: notasGrupo.length > 0,
+        notasCuadro: notasEnTarjeta ? notasGrupo.join(' · ') : '',
       };
     });
     grupos.sort((a, b) => {
@@ -933,27 +1019,47 @@ const CocinaMonitorLayout = ({
       return ta - tb;
     });
     return modoCocineros ? asignarNumeroGlobal(grupos) : grupos;
-  }, [splitActivo, comandas, modoCocineros, cocineroActivoId, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, ocultarPronombreSiId]);
+  }, [splitActivo, itemsGuarnicionRaw, modoCocineros, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, configVisual.notasJuntoAGuarniciones]);
+
+  const mostrarPieNotas = configVisual.notasJuntoAGuarniciones === false
+    && configVisual.mostrarTablaNotas !== false;
+
+  const clavesGuarnicionPanel = useMemo(() => {
+    const s = new Set();
+    for (const g of guarnicionesPanel) {
+      for (const k of clavesPadreDeItemMonitor(g)) s.add(k);
+    }
+    return s;
+  }, [guarnicionesPanel]);
+
+  const platosParaVista = useMemo(
+    () => anexarNotasCuadroItems(
+      platosPendientes,
+      clavesGuarnicionPanel,
+      configVisual.notasJuntoAGuarniciones !== false,
+    ),
+    [platosPendientes, clavesGuarnicionPanel, configVisual.notasJuntoAGuarniciones],
+  );
 
   const notasPlatos = useMemo(() => {
-    if (configVisual.mostrarTablaNotas === false) return [];
+    if (!mostrarPieNotas) return [];
     return recolectarNotasMonitor(platosPendientes, {
       mapaCocineros: mapaPronombresCocinero,
       nombrePlatoFn: (p) => obtenerNombreDisplayCocina(p, { forzar: true }) || p?.nombre || 'Plato',
       mostrarPronombre: mostrarPronombreRef,
       ocultarSiCocineroId: ocultarPronombreSiId,
     });
-  }, [platosPendientes, mapaPronombresCocinero, configVisual.mostrarTablaNotas, mostrarPronombreRef, ocultarPronombreSiId]);
+  }, [platosPendientes, mapaPronombresCocinero, mostrarPieNotas, mostrarPronombreRef, ocultarPronombreSiId]);
 
   const notasGuarniciones = useMemo(() => {
-    if (configVisual.mostrarTablaNotas === false) return [];
+    if (!mostrarPieNotas) return [];
     return recolectarNotasMonitor(guarnicionesPanel, {
       mapaCocineros: mapaPronombresCocinero,
       nombrePlatoFn: (p) => obtenerNombreDisplayCocina(p, { forzar: true }) || p?.nombre || 'Plato',
       mostrarPronombre: mostrarPronombreRef,
       ocultarSiCocineroId: ocultarPronombreSiId,
     });
-  }, [guarnicionesPanel, mapaPronombresCocinero, configVisual.mostrarTablaNotas, mostrarPronombreRef, ocultarPronombreSiId]);
+  }, [guarnicionesPanel, mapaPronombresCocinero, mostrarPieNotas, mostrarPronombreRef, ocultarPronombreSiId]);
 
   // Modo de agrupación visual efectivo:
   // - tarjetas independientes si multi-columna O config.modoAgrupacion === 'tarjetas'
@@ -970,7 +1076,7 @@ const CocinaMonitorLayout = ({
   const bloquesCocinero = useMemo(() => {
     if (!modoCocineros) return [];
     const map = new Map();
-    for (const item of platosPendientes) {
+    for (const item of platosParaVista) {
       const cid = item.cocinero?.id || '_sin_cocinero';
       const alias = item.cocinero?.alias || 'Cocinero';
       const nombre = item.cocinero?.nombre || '';
@@ -1002,12 +1108,12 @@ const CocinaMonitorLayout = ({
       ...b,
       tarjetas: asignarNumeroGlobal(b.tarjetas),
     }));
-  }, [platosPendientes, modoCocineros, configVisual.tiempoAmarillo, configVisual.tiempoRojo]);
+  }, [platosParaVista, modoCocineros, configVisual.tiempoAmarillo, configVisual.tiempoRojo]);
 
   // Lista plana: numeración global de timers en toda la vista
   const platosConTimersNumerados = useMemo(
-    () => (modoCocineros ? asignarNumeroGlobal(platosPendientes) : platosPendientes),
-    [platosPendientes, modoCocineros],
+    () => (modoCocineros ? asignarNumeroGlobal(platosParaVista) : platosParaVista),
+    [platosParaVista, modoCocineros],
   );
 
   // Cocineros activos (para la barra superior cuando se "quita" el nombre de las tarjetas)
@@ -1031,7 +1137,7 @@ const CocinaMonitorLayout = ({
   }, [platosPendientes, modoCocineros]);
 
   const animOn = configVisual.animacionesTarjetas !== false;
-  const presenceMode = animOn ? 'popLayout' : undefined;
+  const presenceMode = (animOn && !modoFijo) ? 'popLayout' : undefined;
 
   // === AutoAgrandamiento ===
   // Factor de escala según cantidad de platos en pantalla. Cuantos menos platos,
@@ -1306,13 +1412,14 @@ const CocinaMonitorLayout = ({
               onSobrescribirPerfil={sobrescribirPerfil}
               onEliminarPerfil={eliminarPerfil}
               onRecargarPerfiles={cargarPerfiles}
+              getToken={getToken}
+              opcionesContadorLive={opcionesContadorLive}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Barra unificada: selector compacto de cocinero + buscador de platos
-          (solo Ver Cocina Completo, no fijo) */}
+      {/* Barra: selector a la izquierda + buscador o contador (misma ranura) */}
       {cocineros && !modoFijo && onCambiarCocinero && (
         <div
           style={{
@@ -1326,18 +1433,6 @@ const CocinaMonitorLayout = ({
             minHeight: '48px',
           }}
         >
-          <span
-            style={{
-              fontSize: '12px',
-              color: colorTextoSecundario,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              flexShrink: 0,
-            }}
-          >
-            Cocinero
-          </span>
           <CocineroSelectorDropdown
             cocineros={cocineros}
             valor={cocineroActivoId}
@@ -1348,37 +1443,59 @@ const CocinaMonitorLayout = ({
             colorAcento={colorAcento}
             ancho={220}
           />
-          {onSearchChange && !configVisual.ocultarBuscadorPlatos && (
-            <>
-              <div
-                style={{
-                  width: '1px',
-                  alignSelf: 'stretch',
-                  background: `${colorAcento}22`,
-                  margin: '0 4px',
-                  flexShrink: 0,
-                }}
-              />
-              <SearchBar
-                variant="monitor"
-                compact
-                placeholder="Buscar plato por nombre o código (L1, M23...)..."
-                onSearch={onSearchChange}
-                totalPlatosEncontrados={totalPlatosEncontrados}
-                totalComandasEncontradas={totalComandasEncontradas}
-                hayFiltroActivo={hayFiltroBusqueda}
-                sugerencias={sugerenciasBusqueda}
-                onSugerenciaClick={onSugerenciaClick}
-                monitorTheme={{
-                  colorFondo,
-                  colorTextoPrincipal,
-                  colorTextoSecundario,
-                  colorAcento,
-                  colorAlertaAmarilla,
-                }}
-              />
-            </>
-          )}
+          <div
+            style={{
+              width: '1px',
+              alignSelf: 'stretch',
+              background: `${colorAcento}22`,
+              margin: '0 4px',
+              flexShrink: 0,
+            }}
+          />
+          {configVisual.ocultarBuscadorPlatos === true ? (
+            <ContadorGuarnicionesBar
+              filas={filasContadorGuarniciones}
+              configVisual={configVisual}
+              colorTextoSecundario={colorTextoSecundario}
+            />
+          ) : onSearchChange ? (
+            <SearchBar
+              variant="monitor"
+              compact
+              placeholder="Buscar plato por nombre o código (L1, M23...)..."
+              onSearch={onSearchChange}
+              totalPlatosEncontrados={totalPlatosEncontrados}
+              totalComandasEncontradas={totalComandasEncontradas}
+              hayFiltroActivo={hayFiltroBusqueda}
+              sugerencias={sugerenciasBusqueda}
+              onSugerenciaClick={onSugerenciaClick}
+              monitorTheme={{
+                colorFondo,
+                colorTextoPrincipal,
+                colorTextoSecundario,
+                colorAcento,
+                colorAlertaAmarilla,
+              }}
+            />
+          ) : null}
+        </div>
+      )}
+      {modoFijo && configVisual.ocultarBuscadorPlatos === true && (
+        <div
+          style={{
+            padding: '8px 24px',
+            borderBottom: `1px solid ${colorAcento}11`,
+            display: 'flex',
+            alignItems: 'center',
+            flexShrink: 0,
+            minHeight: '48px',
+          }}
+        >
+          <ContadorGuarnicionesBar
+            filas={filasContadorGuarniciones}
+            configVisual={configVisual}
+            colorTextoSecundario={colorTextoSecundario}
+          />
         </div>
       )}
 
@@ -1458,11 +1575,23 @@ const CocinaMonitorLayout = ({
         // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: split 50/50 cuando "Lista
         // complementos" está activo. Izquierda = platos principales, derecha =
         // panel de guarniciones.
-        ...(splitActivo ? { display: 'flex', flexDirection: 'row', overflow: 'hidden' } : {}),
+        ...(splitActivo ? {
+          display: 'flex',
+          flexDirection: isPortrait ? 'column' : 'row',
+          overflow: 'hidden',
+        } : {}),
       }}>
         {/* Panel izquierdo: platos principales (ancho 50% cuando split activo) */}
         <div style={splitActivo
-          ? { flex: '1 1 50%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: `${grosorSeparador}px solid ${colorSeparador}` }
+          ? {
+              flex: '1 1 50%',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              ...(isPortrait
+                ? { borderBottom: `${grosorSeparador}px solid ${colorSeparador}` }
+                : { borderRight: `${grosorSeparador}px solid ${colorSeparador}` }),
+            }
           : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {mostrarTitulosSplit && (
           <div style={estiloTituloSplit}>
@@ -1504,6 +1633,7 @@ const CocinaMonitorLayout = ({
             zoom={zoomLista}
             aprovecharEspacio={aprovecharEspacioOn}
             presenceMode={presenceMode}
+            masonryEnabled={!isPortrait}
           >
             {platosConTimersNumerados.map((item) => (
               <CocineroPlatoCard
@@ -1525,8 +1655,9 @@ const CocinaMonitorLayout = ({
             zoom={zoomLista}
             aprovecharEspacio={aprovecharEspacioOn}
             presenceMode={presenceMode}
+            masonryEnabled={!isPortrait}
           >
-            {platosPendientes.map((item) => (
+            {platosParaVista.map((item) => (
               <PlatoMonitorRow
                 key={item.grupoId || item.key}
                 item={item}
@@ -1538,7 +1669,7 @@ const CocinaMonitorLayout = ({
           </MonitorTarjetasGrid>
         )}
         </div>
-        {configVisual.mostrarTablaNotas !== false && (
+        {mostrarPieNotas && (
           <NotasMonitorFranja
             lineas={notasPlatos}
             titulo={configVisual.tituloTablaNotas || 'Notas:'}
@@ -1579,6 +1710,7 @@ const CocinaMonitorLayout = ({
                 zoom={zoomLista}
                 aprovecharEspacio={aprovecharEspacioOn}
                 presenceMode={presenceMode}
+                masonryEnabled={!isPortrait}
                 stackedStyle={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -1602,7 +1734,7 @@ const CocinaMonitorLayout = ({
               </MonitorTarjetasGrid>
             )}
             </div>
-            {configVisual.mostrarTablaNotas !== false && (
+            {mostrarPieNotas && (
               <NotasMonitorFranja
                 lineas={notasGuarniciones}
                 titulo={configVisual.tituloTablaNotas || 'Notas:'}
@@ -1673,7 +1805,14 @@ const BloqueCocinero = React.forwardRef(({ bloque, configVisual, tick }, ref) =>
             animate={{ height: 'auto', opacity: 1 }}
             exit={animOn ? { height: 0, opacity: 0 } : { opacity: 0, transition: { duration: 0 } }}
             transition={{ duration: animOn ? 0.22 : 0 }}
-            style={{ overflow: 'hidden' }}
+            style={{
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: configVisual.espaciadoFilas === 'unido' ? 0
+                : configVisual.espaciadoFilas === 'compacto' ? 8
+                : configVisual.espaciadoFilas === 'amplio' ? 20 : 12,
+            }}
           >
             <LayoutGroup>
               <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>

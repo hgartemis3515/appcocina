@@ -1,12 +1,23 @@
 const {
   lineaNotaMonitor,
+  formatoNotaEnCuadro,
   textoFranjaNotas,
   recolectarNotasMonitor,
   pronombreCocineroDe,
   pronombreReferenciaPrincipal,
+  textosNotasDeGrupo,
+  anexarNotasCuadroItems,
+  tokensEstiloPronombreGuarnicion,
 } = require('./notasMonitor');
 
 describe('notasMonitor', () => {
+  test('formatoNotaEnCuadro usa prefijo -Nota:', () => {
+    expect(formatoNotaEnCuadro('Pepe')).toBe('-Nota: Pepe');
+    expect(formatoNotaEnCuadro('-Nota: Pepe')).toBe('-Nota: Pepe');
+    expect(formatoNotaEnCuadro('- pepe')).toBe('-Nota: pepe');
+    expect(formatoNotaEnCuadro('')).toBe('');
+  });
+
   test('linea junta texto, plato y pronombre', () => {
     expect(lineaNotaMonitor({
       texto: 'Piña para el bistec',
@@ -57,6 +68,16 @@ describe('notasMonitor', () => {
     expect(pronombreCocineroDe({ id: 'cook1', pronombre: 'C1' }, mapa)).toBe('C1');
   });
 
+  test('tokensEstiloPronombreGuarnicion hereda o personaliza', () => {
+    const base = { color: '#aaa', fontSize: 18, fontFamily: 'Inter' };
+    expect(tokensEstiloPronombreGuarnicion({}, base)).toEqual(base);
+    expect(tokensEstiloPronombreGuarnicion({ heredarEstiloPronombrePadre: false, colorTextoPronombreGuarnicion: '#f00', tamanioFuentePronombreGuarnicion: 22, fuenteFamiliaPronombreGuarnicion: 'Arial' }, base)).toEqual({
+      color: '#f00',
+      fontSize: 22,
+      fontFamily: 'Arial',
+    });
+  });
+
   test('pronombreReferenciaPrincipal es el del principal y se oculta al mismo cocinero', () => {
     const principal = { id: 'cook1', pronombre: 'C1' };
     expect(pronombreReferenciaPrincipal(principal)).toBe('C1');
@@ -86,5 +107,34 @@ describe('notasMonitor', () => {
     expect(recolectarNotasMonitor(grupos, { mostrarPronombre: false })).toEqual([
       '- Piña para el bistec (Bistec)',
     ]);
+  });
+
+  test('textosNotasDeGrupo junta nota especial y observación', () => {
+    expect(textosNotasDeGrupo({
+      platos: [{
+        plato: { notaEspecial: 'Piña' },
+        comanda: { _id: 'c1', observaciones: 'Mesa apurada' },
+      }],
+    })).toEqual(['Piña', 'Mesa apurada']);
+  });
+
+  test('anexarNotasCuadroItems: sin guarnición la nota va al plato', () => {
+    const plato = {
+      timers: [{ comandaId: 'c1', platoIndex: 0 }],
+      platos: [{ plato: { notaEspecial: 'Sin cebolla' }, comanda: { _id: 'c1' } }],
+    };
+    const out = anexarNotasCuadroItems([plato], new Set(), true);
+    expect(out[0].notasCuadro).toBe('Sin cebolla');
+    expect(out[0].hayNotaCuadro).toBe(true);
+  });
+
+  test('anexarNotasCuadroItems: con guarnición la nota no se duplica en el plato', () => {
+    const plato = {
+      timers: [{ comandaId: 'c1', platoIndex: 0 }],
+      platos: [{ plato: { notaEspecial: 'Sin cebolla' }, comanda: { _id: 'c1' } }],
+    };
+    const out = anexarNotasCuadroItems([plato], new Set(['c1:0']), true);
+    expect(out[0].notasCuadro).toBe('');
+    expect(out[0].hayNotaCuadro).toBe(true);
   });
 });

@@ -12,6 +12,7 @@
 
 import { platoCoincideCocineroFiltro } from './cocineroFiltroIds';
 import { platoCoincideId, normalizarId } from './platoHelpers';
+import { claveNombreComplemento } from './nombreComplementoCanonico';
 
 /**
  * Normaliza `grupo::opcion` a clave canónica (trim + lowercase).
@@ -84,6 +85,9 @@ export function pronombreDesdeCatalogo(platoPadre, comp) {
       if (op == null || typeof op === 'string') continue;
       const nom = String(op.nombre ?? op.opcion ?? '').trim().toLowerCase();
       if (nom === nombreOp) return String(op.pronombre || '').trim();
+      if (claveNombreComplemento(nom) === claveNombreComplemento(nombreOp)) {
+        return String(op.pronombre || '').trim();
+      }
     }
     return '';
   };

@@ -5,9 +5,10 @@ import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION } from '../../con
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
+import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
-import { pronombreReferenciaPrincipal } from '../../utils/notasMonitor';
+import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -235,6 +236,15 @@ const CocineroPlatoCard = React.forwardRef(({
   const esAlerta = alertaMaxima === 'amarillo';
   const colorCocinero = usarColorCocinero ? colorAcentoPorCocinero(cocinero?.alias) : colorAcento;
 
+  const hayNotaCuadro = item.hayNotaCuadro === true || String(item.notasCuadro || '').trim() !== '';
+  const textoNotaCuadro = configVisual.notasJuntoAGuarniciones !== false
+    ? String(item.notasCuadro || '').trim()
+    : '';
+  const forzarCuadroPorNota = esGuarnicion
+    && configVisual.ocultarCuadroGuarniciones === true
+    && configVisual.cuadroGuarnicionSiHayNota !== false
+    && hayNotaCuadro;
+
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = nombresListaGuarniciones(item.comps) || `- ${nombre}`;
     return (
@@ -242,6 +252,8 @@ const CocineroPlatoCard = React.forwardRef(({
         texto={textoNombres}
         textoPadre={item.subtitulo || ''}
         textoCocinero={textoPronombreRef}
+        textoNota={textoNotaCuadro}
+        configVisual={configVisual}
         fuenteFamilia={fuenteFamilia}
         tamanioFuente={tamanioFuentePlato}
         pesoFuente={pesoFuentePlato}
@@ -253,6 +265,8 @@ const CocineroPlatoCard = React.forwardRef(({
         ocultarCronometro={configVisual.ocultarCronometroGuarniciones === true}
         colorCronometro={colorTextoPrincipal}
         tamanioCronometro={tamanioFuenteCronometro}
+        conCuadro={forzarCuadroPorNota}
+        colorCuadro={colorAcento}
       />
     );
   }
@@ -277,8 +291,6 @@ const CocineroPlatoCard = React.forwardRef(({
   let complementosTexto = '';
   if (esGuarnicion) {
     complementosTexto = item.subtitulo || '';
-    const pron = textoPronombreRef;
-    if (pron) complementosTexto = [complementosTexto, pron].filter(Boolean).join(' ');
   } else {
     const complementosSet = new Set();
     const platoRef = platos[0]?.plato;
@@ -293,11 +305,19 @@ const CocineroPlatoCard = React.forwardRef(({
         const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
         if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
       });
-      const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
-      if (obs) complementosSet.add(obs);
+      if (configVisual.notasJuntoAGuarniciones === false) {
+        const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
+        if (obs) complementosSet.add(obs);
+      }
     }
     complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');
   }
+  const fsPadreBase = tamanioFuentePadre || tamanioFuenteDetalle;
+  const estiloPron = tokensEstiloPronombreGuarnicion(configVisual, {
+    color: colorTextoPadre,
+    fontSize: fsPadreBase,
+    fontFamily: fuenteFamilia,
+  });
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
   const hayParaLlevar = platos.some(p => p.comanda.tipoServicio === 'para_llevar');
 
@@ -395,6 +415,9 @@ const CocineroPlatoCard = React.forwardRef(({
     height: alturaAlContenido ? 'auto' : undefined,
     alignSelf: aprovecharEspacio ? 'start' : 'stretch',
     position: 'relative',
+    width: '100%',
+    flexShrink: 0,
+    zIndex: 0,
   };
 
   // Inner: visual + animación de alerta (incluye transform sin chocar con framer).
@@ -499,12 +522,49 @@ const CocineroPlatoCard = React.forwardRef(({
         </span>
       </div>
 
-      {/* Complementos / sabores / notas */}
-      {(esGuarnicion || mostrarComplementos) && complementosTexto && (
+      {/* Complementos / sabores / referencia (Bistec) C1 */}
+      {esGuarnicion && (item.subtitulo || textoPronombreRef) ? (
         <div
           style={{
-            fontSize: `${esGuarnicion ? (tamanioFuentePadre || fsDetalleAcomodado) : fsDetalleAcomodado}px`,
-            color: esGuarnicion ? colorTextoPadre : colorTextoSecundario,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+            gap: '6px',
+            minWidth: 0,
+          }}
+        >
+          {item.subtitulo ? (
+            <span
+              style={{
+                fontSize: `${tamanioFuentePadre || fsDetalleAcomodado}px`,
+                color: colorTextoPadre,
+                fontWeight: 500,
+                minWidth: 0,
+              }}
+            >
+              {item.subtitulo}
+            </span>
+          ) : null}
+          {textoPronombreRef ? (
+            <span
+              style={{
+                fontSize: `${estiloPron.fontSize}px`,
+                fontWeight: 700,
+                color: estiloPron.color,
+                fontFamily: estiloPron.fontFamily,
+                flexShrink: 0,
+              }}
+            >
+              {textoPronombreRef}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {!esGuarnicion && mostrarComplementos && complementosTexto ? (
+        <div
+          style={{
+            fontSize: `${fsDetalleAcomodado}px`,
+            color: colorTextoSecundario,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -513,7 +573,13 @@ const CocineroPlatoCard = React.forwardRef(({
         >
           {complementosTexto}
         </div>
-      )}
+      ) : null}
+
+      <NotaEnCuadroMonitor
+        texto={textoNotaCuadro}
+        configVisual={configVisual}
+        colorFallback={colorTextoSecundario}
+      />
 
       {/* Espaciador solo si hay pie (mesas / urgente). En guarnición, compacto
           y aprovecharEspacio no se estira: evita el hueco vacío bajo el nombre. */}

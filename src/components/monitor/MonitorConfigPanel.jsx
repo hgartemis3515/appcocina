@@ -1,4 +1,13 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { getServerBaseUrl } from '../../config/apiConfig';
+import {
+  CLAVES_CONTADOR_DEFAULT,
+  ETIQUETAS_CONTADOR_DEFAULT,
+  MAX_CLAVES_CONTADOR,
+  claveNombreComplemento,
+  normalizarClavesContador,
+} from '../../utils/nombreComplementoCanonico';
 import {
   MONITOR_LAYOUT,
   MONITOR_TIPOGRAFIA,
@@ -163,12 +172,12 @@ const ColorG = ({ k, label, fallback, configVisual, guardar, lbl, inp, colorAcen
   );
 };
 
-const CheckG = ({ k, label, help, configVisual, guardar, lbl, colorAcento, colorTextoPrincipal, colorTextoSecundario }) => (
+const CheckG = ({ k, label, help, defaultOn = false, configVisual, guardar, lbl, colorAcento, colorTextoPrincipal, colorTextoSecundario }) => (
   <label style={{ ...lbl, flexDirection: 'column', alignItems: 'flex-start', minWidth: '220px' }}>
     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
       <input
         type="checkbox"
-        checked={configVisual[k] === true}
+        checked={defaultOn ? configVisual[k] !== false : configVisual[k] === true}
         onChange={(e) => guardar({ [k]: e.target.checked })}
         style={{ width: '16px', height: '16px', accentColor: colorAcento, cursor: 'pointer' }}
       />
@@ -247,6 +256,143 @@ const PreviewAnimacion = ({ nombre, color, colorFondo, colorTexto, colorAcento, 
   );
 };
 
+const SelectorContadorComplementos = ({
+  configVisual,
+  guardar,
+  getToken,
+  opcionesLive = [],
+  colorAcento,
+  colorTextoPrincipal,
+  colorTextoSecundario,
+  lbl,
+  inp,
+}) => {
+  const [catalogo, setCatalogo] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const clavesSel = normalizarClavesContador(configVisual.contadorGuarnicionesClaves);
+
+  useEffect(() => {
+    if (!getToken) return undefined;
+    let cancel = false;
+    (async () => {
+      try {
+        const token = typeof getToken === 'function' ? getToken() : null;
+        if (!token) return;
+        const res = await axios.get(`${getServerBaseUrl()}/api/complementos-plantilla/opciones-catalogo`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const ops = res.data?.opciones || [];
+        if (!cancel && Array.isArray(ops)) setCatalogo(ops);
+      } catch {
+        /* se usa el listado en vivo */
+      }
+    })();
+    return () => { cancel = true; };
+  }, [getToken]);
+
+  const opciones = useMemo(() => {
+    const map = new Map();
+    for (const k of CLAVES_CONTADOR_DEFAULT) {
+      map.set(k, { clave: k, nombre: ETIQUETAS_CONTADOR_DEFAULT[k] || k, platos: 0, destacado: true });
+    }
+    for (const o of catalogo) {
+      const clave = o.clave || claveNombreComplemento(o.nombre);
+      if (!clave) continue;
+      map.set(clave, {
+        clave,
+        nombre: o.nombre || ETIQUETAS_CONTADOR_DEFAULT[clave] || clave,
+        platos: Number(o.platos) || 0,
+        destacado: CLAVES_CONTADOR_DEFAULT.includes(clave),
+      });
+    }
+    for (const o of opcionesLive) {
+      const clave = o.clave || claveNombreComplemento(o.nombre);
+      if (!clave) continue;
+      const prev = map.get(clave);
+      map.set(clave, {
+        clave,
+        nombre: (prev && prev.nombre) || o.nombre || clave,
+        platos: Math.max(prev ? prev.platos : 0, Number(o.platos) || 0),
+        destacado: CLAVES_CONTADOR_DEFAULT.includes(clave) || (prev && prev.destacado),
+      });
+    }
+    const q = busqueda.trim().toLowerCase();
+    return [...map.values()]
+      .filter((o) => !q || o.nombre.toLowerCase().includes(q) || o.clave.includes(q))
+      .sort((a, b) => Number(b.destacado) - Number(a.destacado) || b.platos - a.platos || a.nombre.localeCompare(b.nombre, 'es'));
+  }, [catalogo, opcionesLive, busqueda]);
+
+  const toggle = (clave) => {
+    const has = clavesSel.includes(clave);
+    if (has) {
+      if (clavesSel.length <= 1) return;
+      guardar({ contadorGuarnicionesClaves: clavesSel.filter((k) => k !== clave) });
+      return;
+    }
+    if (clavesSel.length >= MAX_CLAVES_CONTADOR) return;
+    guardar({ contadorGuarnicionesClaves: [...clavesSel, clave] });
+  };
+
+  return (
+    <div style={{ ...lbl, flexDirection: 'column', alignItems: 'stretch', minWidth: '280px', flex: '1 1 280px' }}>
+      <span>Complementos del contador ({clavesSel.length}/{MAX_CLAVES_CONTADOR})</span>
+      <span style={{ fontSize: '11px', color: colorTextoSecundario, fontWeight: 400 }}>
+        Elige 1, 2 o 3. Arroz, Papa frita y Ensalada vienen marcados. Se guarda en el perfil.
+      </span>
+      <input
+        type="search"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar complemento…"
+        style={{ ...inp, width: '100%' }}
+      />
+      <div
+        style={{
+          maxHeight: '160px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          padding: '4px 0',
+        }}
+      >
+        {opciones.map((o) => {
+          const on = clavesSel.includes(o.clave);
+          const lleno = !on && clavesSel.length >= MAX_CLAVES_CONTADOR;
+          const ultimo = on && clavesSel.length <= 1;
+          const bloqueado = lleno || ultimo;
+          return (
+            <label
+              key={o.clave}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: bloqueado ? 'not-allowed' : 'pointer',
+                opacity: lleno ? 0.45 : 1,
+                fontSize: '12px',
+                color: colorTextoPrincipal,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={on}
+                disabled={bloqueado}
+                onChange={() => toggle(o.clave)}
+                style={{ width: '16px', height: '16px', accentColor: colorAcento }}
+              />
+              <span style={{ fontWeight: o.destacado ? 700 : 500 }}>{o.nombre}</span>
+              <span style={{ marginLeft: 'auto', fontSize: '11px', color: colorTextoSecundario }}>
+                {o.platos ? `${o.platos} plato(s)` : (o.destacado ? 'sugerido' : '')}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 /**
  * Panel de personalización visual para Ver Cocina (Completo y Personalizado).
  */
@@ -272,8 +418,12 @@ const MonitorConfigPanel = ({
   onSobrescribirPerfil = null,
   onEliminarPerfil = null,
   onRecargarPerfiles = null,
+  getToken = null,
+  opcionesContadorLive = [],
 }) => {
-  const guardar = (patch) => onChange({ ...localDesign, ...patch });
+  // Snapshot visible: Guardar perfil / Guardar como / Sobrescribir / auto-save
+  // persisten lo que el panel muestra, no un subconjunto de localDesign.
+  const guardar = (patch) => onChange({ ...configVisual, ...localDesign, ...patch });
 
   const ajustarTamanio = (campo, delta, min, max) => {
     const actual = configVisual[campo] || 20;
@@ -594,10 +744,121 @@ const MonitorConfigPanel = ({
         <Section title="Guarniciones" colorAcento={colorAcento}>
           <CheckG k="ocultarCronometroGuarniciones" label="Ocultar cronómetro de guarniciones" help="Solo el panel derecho. Los platos principales conservan su reloj." {...checkGProps} />
           <CheckG k="ocultarCuadroGuarniciones" label="Quitar cuadro de la tarjeta" help="Lista de letras: - Arroz, PFrita, Ensal (Bistec)" {...checkGProps} />
-          <CheckG k="ocultarBuscadorPlatos" label="Ocultar buscador de platos" help="El selector de cocinero se queda." {...checkGProps} />
+          {configVisual.ocultarCuadroGuarniciones === true && (
+            <CheckG
+              k="cuadroGuarnicionSiHayNota"
+              label="Poner cuadro si hay nota especial"
+              help="La guarnición con observación o nota especial vuelve a tarjeta con marco; las que no tienen nota siguen juntas en lista."
+              {...checkGProps}
+              defaultOn
+            />
+          )}
+          <CheckG
+            k="ocultarBuscadorPlatos"
+            label="Quitar buscador de platos y poner contador de guarniciones"
+            help="Misma barra: el selector se queda a la izquierda. En el lugar del buscador aparece Arroz x1, Papa frita x3, Ensalada x2. Se guarda en el perfil."
+            {...checkGProps}
+            guardar={(patch) => guardar({
+              ...patch,
+              mostrarContadorGuarniciones: patch.ocultarBuscadorPlatos === true,
+            })}
+          />
+          {configVisual.ocultarBuscadorPlatos === true && (
+            <>
+              <CheckG
+                k="contadorGuarnicionesConPronombre"
+                label="Contador con pronombre"
+                help="Usa el apodo del complemento (PFrita, Ensal) en vez del nombre largo."
+                {...checkGProps}
+              />
+              <ColorG
+                key="colorTextoContadorGuarniciones"
+                k="colorTextoContadorGuarniciones"
+                label="Color contador"
+                fallback={colorTextoSecundario}
+                {...colorGProps}
+              />
+              <label style={lbl}>
+                Tamaño contador (px)
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <BtnStep
+                    onClick={() => guardar({
+                      tamanioFuenteContadorGuarniciones: Math.max(
+                        10,
+                        (Number(configVisual.tamanioFuenteContadorGuarniciones) || 13) - 1
+                      ),
+                    })}
+                    colorAcento={colorAcento}
+                    colorTexto={colorTextoPrincipal}
+                  >−</BtnStep>
+                  <input
+                    type="number"
+                    min={10}
+                    max={36}
+                    value={configVisual.tamanioFuenteContadorGuarniciones ?? 13}
+                    onChange={(e) => guardar({
+                      tamanioFuenteContadorGuarniciones: Math.min(36, Math.max(10, Number(e.target.value) || 13)),
+                    })}
+                    style={{ ...inp, width: '56px', textAlign: 'center' }}
+                  />
+                  <BtnStep
+                    onClick={() => guardar({
+                      tamanioFuenteContadorGuarniciones: Math.min(
+                        36,
+                        (Number(configVisual.tamanioFuenteContadorGuarniciones) || 13) + 1
+                      ),
+                    })}
+                    colorAcento={colorAcento}
+                    colorTexto={colorTextoPrincipal}
+                  >+</BtnStep>
+                  <button
+                    type="button"
+                    onClick={() => guardar({ tamanioFuenteContadorGuarniciones: null })}
+                    title="Tamaño automático"
+                    style={{ ...inp, cursor: 'pointer', padding: '6px 8px' }}
+                  >
+                    Auto
+                  </button>
+                </div>
+              </label>
+              <label style={lbl}>
+                Fuente contador
+                <select
+                  value={configVisual.fuenteFamiliaContadorGuarniciones || ''}
+                  onChange={(e) => guardar({ fuenteFamiliaContadorGuarniciones: e.target.value || null })}
+                  style={{ ...inp, minWidth: '160px' }}
+                >
+                  <option value="">Heredar</option>
+                  {FUENTES_DISPONIBLES.map((f) => (
+                    <option key={f.id} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              <SelectorContadorComplementos
+                configVisual={configVisual}
+                guardar={guardar}
+                getToken={getToken}
+                opcionesLive={opcionesContadorLive}
+                colorAcento={colorAcento}
+                colorTextoPrincipal={colorTextoPrincipal}
+                colorTextoSecundario={colorTextoSecundario}
+                lbl={lbl}
+                inp={inp}
+              />
+            </>
+          )}
           <CheckG k="mostrarTitulosListasSplit" label="Mostrar títulos de listas" help="Barras PLATOS / Lista de Guarniciones. Solo con split 50/50." {...checkGProps} />
-          <CheckG k="mostrarPronombreCocineroGuarnicion" label="Pronombre del cocinero junto al plato referencial" help="En guarniciones y notas: (Bistec) C1 es quien atiende el plato principal, no la guarnición. Se oculta si el monitor está filtrado a ese mismo cocinero. El código (C1) se edita en Personalizar cocineros." {...checkGProps} />
-          <CheckG k="mostrarTablaNotas" label="Mostrar notas del mozo al pie" help="Franja fija abajo: Notas: - Piña (Bistec) C1. Observaciones de comanda y nota especial del plato." {...checkGProps} />
+          <CheckG k="mostrarPronombreCocineroGuarnicion" label="Pronombre del cocinero junto al plato referencial" help="Siempre a la derecha: (Bistec) C1. Es quien atiende el plato principal, no la guarnición. El código (C1) se edita en Personalizar cocineros. Se guarda en el perfil." {...checkGProps} defaultOn />
+          <CheckG
+            k="notasJuntoAGuarniciones"
+            label="Nota especial junto a las guarniciones"
+            help="Marcado por defecto. La observación o nota del plato va en el cuadro de guarniciones. Si el plato no tiene guarnición, va junto al cuadro del plato. Oculta la franja de notas al pie."
+            {...checkGProps}
+            defaultOn
+          />
+          {configVisual.notasJuntoAGuarniciones === false && (
+            <CheckG k="mostrarTablaNotas" label="Mostrar notas del mozo al pie" help="Franja fija abajo: Notas: - Piña (Bistec) C1. Observaciones de comanda y nota especial del plato. Se guarda en el perfil." {...checkGProps} defaultOn />
+          )}
           <label style={lbl}>
             Grosor línea split (px)
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -707,8 +968,9 @@ const MonitorConfigPanel = ({
               </label>
             </>
           )}
-          {configVisual.mostrarTablaNotas !== false && (
+          {(configVisual.notasJuntoAGuarniciones !== false || configVisual.mostrarTablaNotas !== false) && (
             <>
+              {configVisual.notasJuntoAGuarniciones === false && (
               <label style={lbl}>
                 Prefijo notas
                 <input
@@ -718,6 +980,7 @@ const MonitorConfigPanel = ({
                   style={{ ...inp, minWidth: '100px' }}
                 />
               </label>
+              )}
               <ColorG key="colorTextoNotas" k="colorTextoNotas" label="Color notas" fallback={colorTextoSecundario} {...colorGProps} />
               <label style={lbl}>
                 Tamaño notas (px)
@@ -756,6 +1019,20 @@ const MonitorConfigPanel = ({
                 </select>
               </label>
               <label style={lbl}>
+                Fuente notas
+                <select
+                  value={configVisual.fuenteFamiliaNotas || ''}
+                  onChange={(e) => guardar({ fuenteFamiliaNotas: e.target.value || null })}
+                  style={{ ...inp, minWidth: '160px' }}
+                >
+                  <option value="">Heredar</option>
+                  {FUENTES_DISPONIBLES.map((f) => (
+                    <option key={f.id} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              {configVisual.notasJuntoAGuarniciones === false && (
+              <label style={lbl}>
                 Alinear notas
                 <select
                   value={configVisual.alinearTablaNotas || 'izquierda'}
@@ -767,6 +1044,7 @@ const MonitorConfigPanel = ({
                   <option value="derecha">Derecha</option>
                 </select>
               </label>
+              )}
             </>
           )}
           <label style={lbl}>
@@ -838,6 +1116,79 @@ const MonitorConfigPanel = ({
               Independiente del nombre de la guarnición. Se guarda en el perfil.
             </span>
           </label>
+          {configVisual.mostrarPronombreCocineroGuarnicion !== false && (
+            <>
+              <CheckG
+                k="heredarEstiloPronombrePadre"
+                label="Pronombre con el mismo estilo que el plato referencial"
+                help="Marcado: C1 usa color, tamaño y fuente de (Bistec). Destildar para personalizarlos aparte."
+                {...checkGProps}
+                defaultOn
+              />
+              {configVisual.heredarEstiloPronombrePadre === false && (
+                <>
+                  <ColorG
+                    key="colorTextoPronombreGuarnicion"
+                    k="colorTextoPronombreGuarnicion"
+                    label="Color pronombre (C1)"
+                    fallback={configVisual.colorTextoPadreGuarnicion || colorTextoSecundario}
+                    {...colorGProps}
+                  />
+                  <label style={lbl}>
+                    Tamaño pronombre (px)
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <BtnStep
+                        onClick={() => guardar({
+                          tamanioFuentePronombreGuarnicion: Math.max(
+                            MONITOR_TIPOGRAFIA.DETALLE_MIN,
+                            (Number(configVisual.tamanioFuentePronombreGuarnicion) || Number(configVisual.tamanioFuentePadreGuarnicion) || Number(configVisual.tamanioFuenteDetalle) || 20) - 2
+                          ),
+                        })}
+                        colorAcento={colorAcento}
+                        colorTexto={colorTextoPrincipal}
+                      >−</BtnStep>
+                      <input
+                        type="number"
+                        min={MONITOR_TIPOGRAFIA.DETALLE_MIN}
+                        max={MONITOR_TIPOGRAFIA.DETALLE_MAX}
+                        value={configVisual.tamanioFuentePronombreGuarnicion ?? configVisual.tamanioFuentePadreGuarnicion ?? configVisual.tamanioFuenteDetalle ?? 20}
+                        onChange={(e) => guardar({
+                          tamanioFuentePronombreGuarnicion: Math.min(
+                            MONITOR_TIPOGRAFIA.DETALLE_MAX,
+                            Math.max(MONITOR_TIPOGRAFIA.DETALLE_MIN, Number(e.target.value) || MONITOR_TIPOGRAFIA.DETALLE_MIN)
+                          ),
+                        })}
+                        style={{ ...inp, width: '64px', textAlign: 'center' }}
+                      />
+                      <BtnStep
+                        onClick={() => guardar({
+                          tamanioFuentePronombreGuarnicion: Math.min(
+                            MONITOR_TIPOGRAFIA.DETALLE_MAX,
+                            (Number(configVisual.tamanioFuentePronombreGuarnicion) || Number(configVisual.tamanioFuentePadreGuarnicion) || Number(configVisual.tamanioFuenteDetalle) || 20) + 2
+                          ),
+                        })}
+                        colorAcento={colorAcento}
+                        colorTexto={colorTextoPrincipal}
+                      >+</BtnStep>
+                    </div>
+                  </label>
+                  <label style={lbl}>
+                    Fuente pronombre
+                    <select
+                      value={configVisual.fuenteFamiliaPronombreGuarnicion || ''}
+                      onChange={(e) => guardar({ fuenteFamiliaPronombreGuarnicion: e.target.value || null })}
+                      style={{ ...inp, minWidth: '160px' }}
+                    >
+                      <option value="">Heredar</option>
+                      {FUENTES_DISPONIBLES.map((f) => (
+                        <option key={f.id} value={f.value}>{f.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+            </>
+          )}
           <div style={{ marginTop: '6px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${colorAcento}33`, background: `${colorAcento}0d`, width: '100%' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: diferenciarDiseno ? '8px' : '0' }}>
               <input
@@ -1327,6 +1678,31 @@ const MonitorConfigPanel = ({
               />
             </label>
           ))}
+          <label style={lbl}>
+            Fondo tarjeta
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="color"
+                value={(configVisual.colorFondoTarjeta || configVisual.colorFilaPlato || '#1a1a28').toString().slice(0, 7)}
+                onChange={(e) => guardar({ colorFondoTarjeta: e.target.value })}
+                style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              />
+              <button
+                type="button"
+                onClick={() => guardar({ colorFondoTarjeta: null })}
+                title="Usar color de fila"
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                  background: !configVisual.colorFondoTarjeta ? `${colorAcento}33` : undefined,
+                  borderColor: !configVisual.colorFondoTarjeta ? colorAcento : undefined,
+                }}
+              >
+                Auto
+              </button>
+            </div>
+          </label>
           <label style={lbl}>
             Color degradado tarjeta
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -2076,8 +2452,9 @@ const MonitorConfigPanel = ({
             </p>
           )}
           <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '4px 0 0', width: '100%' }}>
-            Los perfiles guardan todas las opciones de Personalizar (tipografía, colores, tarjetas,
-            cronómetros, animaciones y guarniciones: referencia al plato, color/tamaño del padre, títulos, split).
+            Guardar como / Sobrescribir / Guardar perfil del cocinero copian todas las opciones
+            de Personalizar: tipografía, colores, tarjetas, cronómetros, animaciones, notas junto
+            a guarniciones, cuadro si hay nota, y pronombre (C1) con estilo propio o heredado.
             Se aplican a los monitores desde Distribuir Cocina.
           </p>
         </Section>

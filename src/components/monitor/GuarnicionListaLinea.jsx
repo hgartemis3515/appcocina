@@ -1,5 +1,7 @@
 import React from 'react';
 import { calcularSegundos, formatearCronometro } from '../../hooks/useCocinaMonitorTimer';
+import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
+import { tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 
 /**
  * Línea de lista (cuadro OFF) para el panel derecho de Ver Cocina Completo.
@@ -22,12 +24,23 @@ const GuarnicionListaLinea = ({
   ocultarCronometro = true,
   colorCronometro,
   tamanioCronometro,
+  textoNota = '',
+  configVisual = {},
+  conCuadro = false,
+  colorCuadro,
 }) => {
   const gap = GAP[espaciado] ?? GAP.normal;
   const mostrarReloj = !ocultarCronometro && cronometroIso;
   const crono = mostrarReloj
     ? formatearCronometro(calcularSegundos(cronometroIso))
     : '';
+  const colorMarco = colorCuadro || colorTexto;
+  const fsPadre = tamanioPadre || Math.max(10, Math.round((tamanioFuente || 18) * 0.75));
+  const estiloPron = tokensEstiloPronombreGuarnicion(configVisual, {
+    color: colorPadre || colorTexto,
+    fontSize: fsPadre,
+    fontFamily: fuenteFamilia,
+  });
 
   return (
     <div
@@ -35,8 +48,9 @@ const GuarnicionListaLinea = ({
         display: 'block',
         padding: `${gap}px 8px`,
         background: 'transparent',
-        border: 'none',
-        borderRadius: 0,
+        border: conCuadro ? `2px solid ${colorMarco}` : 'none',
+        borderRadius: conCuadro ? 8 : 0,
+        boxSizing: 'border-box',
         fontFamily: fuenteFamilia,
       }}
     >
@@ -64,7 +78,7 @@ const GuarnicionListaLinea = ({
               {' '}
               <span
                 style={{
-                  fontSize: `${tamanioPadre || Math.max(10, Math.round((tamanioFuente || 18) * 0.75))}px`,
+                  fontSize: `${fsPadre}px`,
                   fontWeight: 500,
                   color: colorPadre || colorTexto,
                 }}
@@ -78,10 +92,11 @@ const GuarnicionListaLinea = ({
               {' '}
               <span
                 style={{
-                  fontSize: `${tamanioPadre || Math.max(10, Math.round((tamanioFuente || 18) * 0.75))}px`,
+                  fontSize: `${estiloPron.fontSize}px`,
                   fontWeight: 700,
-                  color: colorPadre || colorTexto,
-                  opacity: 0.9,
+                  color: estiloPron.color,
+                  fontFamily: estiloPron.fontFamily,
+                  flexShrink: 0,
                 }}
               >
                 {textoCocinero}
@@ -103,6 +118,11 @@ const GuarnicionListaLinea = ({
           </span>
         )}
       </div>
+      <NotaEnCuadroMonitor
+        texto={textoNota}
+        configVisual={configVisual}
+        colorFallback={colorPadre || colorTexto}
+      />
     </div>
   );
 };

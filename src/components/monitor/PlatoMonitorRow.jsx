@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
+import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 
 /**
  * PlatoMonitorRow - Fila AGRUPADA de un plato en el monitor Ver Cocina
@@ -82,8 +83,10 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
       const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
       if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
     });
-    const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
-    if (obs) complementosSet.add(obs);
+    if (configVisual.notasJuntoAGuarniciones === false) {
+      const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
+      if (obs) complementosSet.add(obs);
+    }
   }
   const complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');
 
@@ -156,6 +159,12 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           {complementosTexto}
         </div>
       )}
+
+      <NotaEnCuadroMonitor
+        texto={configVisual.notasJuntoAGuarniciones !== false ? item.notasCuadro : ''}
+        configVisual={configVisual}
+        colorFallback={colorTextoSecundario}
+      />
 
       <div
         style={{

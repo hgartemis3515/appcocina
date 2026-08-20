@@ -55,6 +55,32 @@ export function pronombreReferenciaPrincipal(principal, opts = {}) {
   return texto;
 }
 
+/** Color / tamaño / fuente del C1 junto a (Bistec). Por defecto hereda el plato referencial. */
+export function tokensEstiloPronombreGuarnicion(configVisual, base = {}) {
+  const heredar = configVisual?.heredarEstiloPronombrePadre !== false;
+  const color = base.color;
+  const fontSize = base.fontSize;
+  const fontFamily = base.fontFamily;
+  if (heredar) return { color, fontSize, fontFamily };
+  const tam = configVisual?.tamanioFuentePronombreGuarnicion;
+  return {
+    color: configVisual?.colorTextoPronombreGuarnicion || color,
+    fontSize: (tam != null && tam !== '') ? Number(tam) : fontSize,
+    fontFamily: configVisual?.fuenteFamiliaPronombreGuarnicion || fontFamily,
+  };
+}
+
+/** Texto de nota en tarjeta / lista: "-Nota: Pepe" */
+export function formatoNotaEnCuadro(texto) {
+  const t = String(texto || '').trim();
+  if (!t) return '';
+  if (/^-\s*nota\s*:/i.test(t)) {
+    return t.replace(/^-\s*nota\s*:/i, '-Nota:');
+  }
+  const limpio = t.replace(/^-\s+/, '').trim();
+  return limpio ? `-Nota: ${limpio}` : '';
+}
+
 export function lineaNotaMonitor({ texto, nombrePlato, pronombreCocinero } = {}) {
   const t = String(texto || '').trim();
   if (!t) return '';
@@ -134,4 +160,61 @@ export function recolectarNotasMonitor(grupos, opts = {}) {
     }
   }
   return lineas;
+}
+
+/** Textos crudos (nota especial + observación) de un grupo, sin el formato de franja. */
+export function textosNotasDeGrupo(grupo) {
+  const seen = new Set();
+  const out = [];
+  for (const item of (grupo?.platos || [])) {
+    const plato = item?.plato || item;
+    const comanda = item?.comanda;
+    const nota = String(plato?.notaEspecial || plato?.nota || '').trim();
+    if (nota && !seen.has(`n:${nota}`)) {
+      seen.add(`n:${nota}`);
+      out.push(nota);
+    }
+    const obs = String(comanda?.observaciones || '').trim();
+    if (obs && !seen.has(`o:${obs}`)) {
+      seen.add(`o:${obs}`);
+      out.push(obs);
+    }
+  }
+  return out;
+}
+
+export function clavePadreMonitor(comandaId, platoIndex) {
+  if (comandaId == null || comandaId === '' || platoIndex == null || platoIndex === '' || platoIndex < 0) {
+    return '';
+  }
+  return `${String(comandaId)}:${platoIndex}`;
+}
+
+export function clavesPadreDeItemMonitor(item) {
+  const s = new Set();
+  if (!item) return s;
+  const propia = clavePadreMonitor(item.comandaId, item.platoIndex);
+  if (propia) s.add(propia);
+  for (const t of item.timers || []) {
+    const k = clavePadreMonitor(t.comandaId, t.platoIndex);
+    if (k) s.add(k);
+  }
+  return s;
+}
+
+/**
+ * En platos: la nota va al cuadro solo si ese plato no tiene guarnición en el panel derecho.
+ * hayNotaCuadro queda siempre (sirve para forzar marco con cuadros apagados).
+ */
+export function anexarNotasCuadroItems(items, clavesGuarnicion, mostrarEnTarjeta) {
+  const setG = clavesGuarnicion instanceof Set ? clavesGuarnicion : new Set(clavesGuarnicion || []);
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const notas = textosNotasDeGrupo(item);
+    const hayNotaCuadro = notas.length > 0;
+    if (!hayNotaCuadro) return item;
+    const keys = clavesPadreDeItemMonitor(item);
+    const tieneGuarnicion = keys.size > 0 && [...keys].some((k) => setG.has(k));
+    const notasCuadro = (mostrarEnTarjeta && !tieneGuarnicion) ? notas.join(' · ') : '';
+    return { ...item, hayNotaCuadro, notasCuadro };
+  });
 }

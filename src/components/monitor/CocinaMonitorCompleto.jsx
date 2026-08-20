@@ -196,7 +196,7 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
         nombreVista="Ver Cocina — Completo"
         modoFijo={modoFijo}
         onVolver={modoFijo ? null : onGoToMenu}
-        cocineros={modoFijo ? null : cocineros}
+        cocineros={cocineros}
         cocineroActivoId={cocineroActivoId}
         onCambiarCocinero={modoFijo ? null : cambiarCocinero}
         nombreCocineroActivo={nombreCocineroActivo}
