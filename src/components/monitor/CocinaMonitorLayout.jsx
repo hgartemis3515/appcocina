@@ -4,6 +4,8 @@ import moment from 'moment-timezone';
 import axios from 'axios';
 import { getServerBaseUrl } from '../../config/apiConfig';
 import { columnasQueCaben } from '../../config/monitorVisualConstants';
+import { esModoFijoUrl, numeroMonitorDesdeUrl, suscribirDisenoMonitor } from '../../utils/monitorDesignSync';
+import { useHubChromeZoom } from '../../hooks/useHubChromeZoom';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
 import MonitorTarjetasGrid from './MonitorTarjetasGrid';
@@ -294,8 +296,10 @@ const CocinaMonitorLayout = ({
   // Comandas crudas: el panel de guarniciones las recorre para mostrar
   // extras asignados aunque el plato padre no esté en platosPendientes.
   comandas = null,
+  remoteMonitorDesign = null,
 }) => {
   const tick = useCocinaMonitorTimer();
+  useHubChromeZoom();
   const reloj = useMemo(
     () => moment().tz('America/Lima').format('HH:mm:ss'),
     [tick]
@@ -304,6 +308,7 @@ const CocinaMonitorLayout = ({
   // Estado de configuración local (editable en barra superior).
   // Merge: defaults < config de la vista < config local guardada en localStorage.
   const [localDesign, setLocalDesign] = useState(() => {
+    if (esModoFijoUrl()) return snapshotConfigPerfil(DEFAULT_CONFIG);
     try {
       const saved = localStorage.getItem(STORAGE_DESIGN_KEY);
       const parsed = saved ? JSON.parse(saved) : {};
@@ -334,6 +339,7 @@ const CocinaMonitorLayout = ({
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
   const [perfilMensaje, setPerfilMensaje] = useState(null);
   const [perfilAutoAplicado, setPerfilAutoAplicado] = useState(false);
+  const lastVisualTsRef = useRef(null);
   // Auto-save debounced del localDesign al perfil auto del cocinero (MongoDB).
   // skip: evita guardar justo después de cargar un perfil (load → setLocalDesign).
   const autoSaveSkipRef = useRef(true); // true al montar para no guardar el estado inicial
@@ -387,9 +393,9 @@ const CocinaMonitorLayout = ({
 
   // Sincronizar personalización entre ventanas/pestañas (misma PC, varios monitores)
   useEffect(() => {
+    if (modoFijo) return undefined;
     const onStorage = (e) => {
       if (e.key !== STORAGE_DESIGN_KEY) return;
-      // La otra ventana ya persistió; evitar auto-save redundante acá.
       autoSaveSkipRef.current = true;
       try {
         setLocalDesign(e.newValue ? JSON.parse(e.newValue) : {});
@@ -399,7 +405,7 @@ const CocinaMonitorLayout = ({
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [modoFijo]);
 
   // Detectar platos nuevos o aumento de cantidad para "Entra plato ####"
   useEffect(() => {
@@ -678,51 +684,105 @@ const CocinaMonitorLayout = ({
     }
   }, [getToken, perfiles, perfilSelId, cargarPerfiles]);
 
-  // Cargar perfil del cocinero desde backend cuando la URL trae ?perfil=auto
-  // o un perfil con nombre vía ?perfilId=<id> (ventanas hijas del flujo
-  // "Distribuir Cocina en monitores").
-  useEffect(() => {
-    if (perfilAutoAplicado) return;
-    if (!modoFijo) return;
+  // Cargar diseño del monitor despegado: override por pantalla > perfil URL > default.
+  const cargarPerfilDesdeUrl = useCallback(async () => {
+    if (!getToken) return;
     let perfilId = null;
     let perfilAuto = false;
     try {
       const params = new URLSearchParams(window.location.search);
       perfilId = params.get('perfilId');
       perfilAuto = params.get('perfil') === 'auto';
-      if (!perfilId && !perfilAuto) return;
-      if (!perfilId && perfilAuto && !primerCocineroIdFiltro(cocineroActivoId)) return;
     } catch { return; }
-    if (!getToken) return;
-    setPerfilAutoAplicado(true);
-    (async () => {
+    if (!perfilId && !perfilAuto) return;
+    if (!perfilId && perfilAuto && !primerCocineroIdFiltro(cocineroActivoId)) return;
+    try {
+      const baseUrl = getServerBaseUrl();
+      const token = getToken();
+      if (perfilId) {
+        const res = await axios.get(
+          `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const perfil = res.data?.data?.config;
+        if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
+          aplicarConfigPerfil(perfil);
+        }
+      } else {
+        const res = await axios.get(
+          `${baseUrl}/api/cocineros/${primerCocineroIdFiltro(cocineroActivoId)}/perfil-ver-cocina`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const perfil = res.data?.data;
+        if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
+          aplicarConfigPerfil(perfil);
+        }
+      }
+    } catch (err) {
+      console.warn('[CocinaMonitorLayout] No se pudo cargar perfil ver-cocina:', err.message);
+    }
+  }, [getToken, cocineroActivoId, aplicarConfigPerfil]);
+
+  const cargarDisenoMonitorFijo = useCallback(async ({ silencioso = false } = {}) => {
+    if (!modoFijo || !getToken) return;
+    const numero = numeroMonitorDesdeUrl();
+    const token = getToken();
+    const baseUrl = getServerBaseUrl();
+    if (numero) {
       try {
-        const baseUrl = getServerBaseUrl();
-        const token = getToken();
-        if (perfilId) {
-          const res = await axios.get(
-            `${baseUrl}/api/perfiles-ver-cocina/${perfilId}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          const perfil = res.data?.data?.config;
-          if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
-            aplicarConfigPerfil(perfil);
-          }
-        } else {
-          const res = await axios.get(
-            `${baseUrl}/api/cocineros/${primerCocineroIdFiltro(cocineroActivoId)}/perfil-ver-cocina`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          const perfil = res.data?.data;
-          if (perfil && typeof perfil === 'object' && Object.keys(perfil).length > 0) {
-            aplicarConfigPerfil(perfil);
-          }
+        const res = await axios.get(`${baseUrl}/api/pantallas-cocina/${numero}/config-visual`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000,
+        });
+        const data = res.data?.data;
+        const ts = data?.updatedAt || null;
+        if (silencioso && ts && lastVisualTsRef.current && String(ts) === String(lastVisualTsRef.current)) {
+          return;
+        }
+        lastVisualTsRef.current = ts;
+        if (data?.tieneOverride && data.config && Object.keys(data.config).length > 0) {
+          aplicarConfigPerfil(data.config);
+          setPerfilAutoAplicado(true);
+          return;
         }
       } catch (err) {
-        console.warn('[CocinaMonitorLayout] No se pudo cargar perfil ver-cocina:', err.message);
+        if (!silencioso) {
+          console.warn('[CocinaMonitorLayout] config-visual:', err.message);
+        }
       }
-    })();
-  }, [modoFijo, cocineroActivoId, getToken, perfilAutoAplicado]);
+    }
+    await cargarPerfilDesdeUrl();
+    setPerfilAutoAplicado(true);
+  }, [modoFijo, getToken, aplicarConfigPerfil, cargarPerfilDesdeUrl]);
+
+  useEffect(() => {
+    if (!modoFijo) return undefined;
+    cargarDisenoMonitorFijo();
+    const numero = numeroMonitorDesdeUrl();
+    const unsub = numero
+      ? suscribirDisenoMonitor(numero, (cfg) => {
+        if (cfg && Object.keys(cfg).length > 0) aplicarConfigPerfil(cfg);
+        else cargarDisenoMonitorFijo();
+      })
+      : () => {};
+    const poll = setInterval(() => cargarDisenoMonitorFijo({ silencioso: true }), 1200);
+    return () => {
+      unsub();
+      clearInterval(poll);
+    };
+  }, [modoFijo, cargarDisenoMonitorFijo, aplicarConfigPerfil]);
+
+  useEffect(() => {
+    if (!modoFijo || !remoteMonitorDesign) return;
+    const num = numeroMonitorDesdeUrl();
+    if (num == null || Number(remoteMonitorDesign.numeroPantalla) !== Number(num)) return;
+    const cfg = remoteMonitorDesign.config;
+    if (cfg && typeof cfg === 'object' && Object.keys(cfg).length > 0) {
+      aplicarConfigPerfil(cfg);
+    } else {
+      cargarDisenoMonitorFijo();
+    }
+  }, [remoteMonitorDesign, modoFijo, aplicarConfigPerfil, cargarDisenoMonitorFijo]);
 
   // ===== Auto-save debounced del localDesign al perfil auto del cocinero (MongoDB) =====
   // Persiste la personalización del panel "Personalizar" en el backend automáticamente,
@@ -1845,4 +1905,5 @@ const BloqueCocinero = React.forwardRef(({ bloque, configVisual, tick }, ref) =>
 
 BloqueCocinero.displayName = 'BloqueCocinero';
 
+export { DEFAULT_CONFIG, snapshotConfigPerfil };
 export default CocinaMonitorLayout;

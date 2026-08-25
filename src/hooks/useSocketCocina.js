@@ -76,9 +76,10 @@ const useSocketCocina = ({
   onPlatoCanceladoUrgente,
   onPlatoAnulado,
   onComandaAnulada,
-  onConfigCocineroActualizada,
-  onPlatoMenuActualizado,
-  obtenerComandas,
+    onConfigCocineroActualizada,
+    onPlatoMenuActualizado,
+    onMonitorConfigVisual,
+    obtenerComandas,
   token, // Token obligatorio para autenticación
   cocineroId // TEMA 1: ID del cocinero para room personal
 }) => {
@@ -106,6 +107,7 @@ const useSocketCocina = ({
     onComandaAnulada,
     onConfigCocineroActualizada,
     onPlatoMenuActualizado,
+    onMonitorConfigVisual,
     obtenerComandas
   };
 
@@ -593,6 +595,13 @@ const useSocketCocina = ({
 
       if (handlersRef.current.onConfigCocineroActualizada) {
         handlersRef.current.onConfigCocineroActualizada(data);
+      }
+    });
+
+    socket.on('monitor-config-visual', (data) => {
+      ultimoPingRef.current = Date.now();
+      if (handlersRef.current.onMonitorConfigVisual) {
+        handlersRef.current.onMonitorConfigVisual(data);
       }
     });
 

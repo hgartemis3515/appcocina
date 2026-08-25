@@ -78,6 +78,12 @@ function fusionarComandaSinRegresarListo(local, incoming) {
 
 const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
   const [comandas, setComandas] = useState([]);
+  const [remoteMonitorDesign, setRemoteMonitorDesign] = useState(null);
+
+  const onMonitorConfigVisual = useCallback((data) => {
+    if (!data) return;
+    setRemoteMonitorDesign(data);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -254,6 +260,7 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
     obtenerComandas,
     token: getToken() || null,
     cocineroId,
+    onMonitorConfigVisual,
   });
 
   useEffect(() => {
@@ -278,6 +285,7 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
     connected,
     connectionStatus,
     refrescar: obtenerComandas,
+    remoteMonitorDesign,
   };
 };
 

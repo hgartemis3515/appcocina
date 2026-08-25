@@ -61,7 +61,7 @@ const CocinaMonitorPersonalizado = ({ onGoToMenu, modoFijo = false, vistaIdInici
   const vistaActiva = vistasCocina.find(v => v._id === vistaActivaId) || null;
 
   // Datos de comandas
-  const { comandas, loading, error, refrescar } = useCocinaMonitorData({
+  const { comandas, loading, error, refrescar, remoteMonitorDesign } = useCocinaMonitorData({
     getToken,
     cocineroId: user?.id,
   });
@@ -166,6 +166,8 @@ const CocinaMonitorPersonalizado = ({ onGoToMenu, modoFijo = false, vistaIdInici
       vistaActivaId={vistaActivaId}
       onCambiarVista={modoFijo ? null : cambiarVista}
       comandas={comandas}
+      getToken={getToken}
+      remoteMonitorDesign={remoteMonitorDesign}
     />
   );
 };

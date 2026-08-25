@@ -19,7 +19,7 @@ const STORAGE_COCINERO_KEY = 'cocinaMonitorCocineroId';
  */
 const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = null }) => {
   const { getToken, user } = useAuth();
-  const { comandas, loading, error, refrescar } = useCocinaMonitorData({
+  const { comandas, loading, error, refrescar, remoteMonitorDesign } = useCocinaMonitorData({
     getToken,
     cocineroId: user?.id,
   });
@@ -209,6 +209,7 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
         onSugerenciaClick={setSearchTerm}
         getToken={getToken}
         comandas={comandasParaMonitor}
+        remoteMonitorDesign={remoteMonitorDesign}
       />
     </>
   );

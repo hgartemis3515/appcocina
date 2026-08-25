@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import {
   FaArrowLeft, FaDesktop, FaPlay, FaStop, FaSync,
-  FaCheck, FaExclamationTriangle, FaUser, FaFileDownload,
+  FaCheck, FaExclamationTriangle, FaUser, FaFileDownload, FaCog,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import { getServerBaseUrl } from '../../config/apiConfig';
@@ -13,10 +13,11 @@ import {
   abrirMonitorCocinero, redirigirVentanaMonitor, cerrarVentanaMonitor,
   obtenerMonitores, soportaMultiMonitor,
 } from '../../utils/monitorWindowManager';
+import { MONITORES_PASIVOS } from '../../utils/monitorDesignSync';
+import PersonalizarMonitorRemoto from '../monitor/PersonalizarMonitorRemoto';
 
 // Flujo "Distribuir Cocina en monitores (1 PC x 8 pantallas)".
 const MONITOR_PRINCIPAL = 1;
-const MONITORES_PASIVOS = [2, 3, 4, 5, 6, 7, 8];
 
 function idsDeMonitor(valor) {
   if (!valor) return [];
@@ -53,9 +54,21 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   const [wmAutorizado, setWmAutorizado] = useState(false); // Window Management API
   const [monitoresDetectados, setMonitoresDetectados] = useState([]); // lista de monitores físicos
   const [showBatModal, setShowBatModal] = useState(false); // modal de configuración .bat
+  const [personalizarMonitor, setPersonalizarMonitor] = useState(null);
   const [batGenerando, setBatGenerando] = useState(false);
   const [perfiles, setPerfiles] = useState([]);
   const [cargandoPerfiles, setCargandoPerfiles] = useState(false);
+  const [persistStatus, setPersistStatus] = useState('');
+  const loadedRef = useRef(false);
+  const persistTimerRef = useRef(null);
+  const asignacionRef = useRef(asignacion);
+  const asignacionPerfilRef = useRef(asignacionPerfil);
+  const asignacionListaRef = useRef(asignacionListaGuarniciones);
+  const pantallasRef = useRef(pantallas);
+  asignacionRef.current = asignacion;
+  asignacionPerfilRef.current = asignacionPerfil;
+  asignacionListaRef.current = asignacionListaGuarniciones;
+  pantallasRef.current = pantallas;
 
   // Opciones de perfil para pasar a monitorWindowManager según el monitor.
   const getPerfilOptsForMonitor = useCallback((numero) => {
@@ -101,6 +114,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
 
   const cargarDatos = useCallback(async () => {
     try {
+      loadedRef.current = false;
       setLoading(true);
       setError(null);
       const token = getToken();
@@ -139,6 +153,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       setAsignacionListaGuarniciones(mapLista);
       setAsignacionListaGuarnicionesInicial(mapLista);
       setMensaje(null);
+      loadedRef.current = true;
 
       // Flag global (para deshabilitar el checkbox si está OFF).
       try {
@@ -167,25 +182,9 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
         setWmAutorizado(true);
         setMonitoresDetectados(monitores);
         console.log('[DistribuirCocina] Window Management autorizado, monitores:', monitores.length);
-        // Auto-asignar cocineros a monitores pasivos si hay cocineros disponibles
-        // y no hay asignación previa. Distribuye 1 cocinero por monitor (2..8).
-        setAsignacion((prev) => {
-          const nueva = { ...prev };
-          const monitoresPasivosDetectados = Math.max(0, monitores.length - 1); // monitor 1 = principal
-          const cocinerosDisponibles = cocineros.filter((c) => c.activo !== false);
-          let cocineroIdx = 0;
-          for (let i = 0; i < monitoresPasivosDetectados && i < 7 && cocineroIdx < cocinerosDisponibles.length; i++) {
-            const numMonitor = i + 2; // monitores 2..8
-            if (idsDeMonitor(nueva[numMonitor]).length === 0) {
-              nueva[numMonitor] = [String(cocinerosDisponibles[cocineroIdx]._id)];
-              cocineroIdx++;
-            }
-          }
-          return nueva;
-        });
       }
     });
-  }, [cocineros]);
+  }, []);
 
   const pantallaPorNumero = useMemo(() => {
     const map = {};
@@ -219,67 +218,114 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     return false;
   }, [asignacion, asignacionInicial, asignacionPerfil, asignacionPerfilInicial, asignacionListaGuarniciones, asignacionListaGuarnicionesInicial]);
 
+  const persistirDistribucion = useCallback(async () => {
+    const token = getToken();
+    if (!token) return false;
+    const pantallasMap = {};
+    for (const p of pantallasRef.current) pantallasMap[p.numeroPantalla] = p;
+    const asig = asignacionRef.current;
+    const perf = asignacionPerfilRef.current;
+    const lista = asignacionListaRef.current;
+    const items = MONITORES_PASIVOS.map((num) => {
+      const p = pantallasMap[num];
+      if (!p) return null;
+      const ids = idsDeMonitor(asig[num]);
+      return {
+        id: p._id,
+        cocineroId: ids[0] || null,
+        cocineroIds: ids,
+        modoVista: ids.length ? 'completo' : 'personalizado',
+        perfilAplicar: perf[num] || 'none',
+        listaGuarniciones: lista[num] === true,
+      };
+    }).filter(Boolean);
+    if (items.length === 0) return false;
+    await axios.put(
+      `${getServerBaseUrl()}/api/distribucion-monitores-cocina`,
+      { items },
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+    );
+    setAsignacionInicial({ ...asig });
+    setAsignacionPerfilInicial({ ...perf });
+    setAsignacionListaGuarnicionesInicial({ ...lista });
+    setPersistStatus('Guardado');
+    return true;
+  }, [getToken]);
+
+  const programarPersistencia = useCallback(() => {
+    if (!loadedRef.current) return;
+    setPersistStatus('Guardando…');
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      void persistirDistribucion().catch((err) => {
+        console.warn('[DistribuirCocina] Auto-guardado:', err.message);
+        setPersistStatus('No se pudo guardar');
+        setError('No se pudo guardar: ' + (err.response?.data?.error || err.message));
+      });
+    }, 350);
+  }, [persistirDistribucion]);
+
+  useEffect(() => () => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+  }, []);
+
   const agregarCocineroMonitor = (numero, valor) => {
     if (!valor) return;
     const id = String(valor);
     setAsignacion((prev) => {
       const actual = idsDeMonitor(prev[numero]);
       if (actual.includes(id)) return prev;
-      return { ...prev, [numero]: [...actual, id] };
+      const next = { ...prev, [numero]: [...actual, id] };
+      asignacionRef.current = next;
+      return next;
     });
     setMensaje(null);
+    programarPersistencia();
   };
 
   const quitarCocineroMonitor = (numero, idQuitar) => {
-    setAsignacion((prev) => ({
-      ...prev,
-      [numero]: idsDeMonitor(prev[numero]).filter((id) => id !== String(idQuitar)),
-    }));
+    setAsignacion((prev) => {
+      const next = {
+        ...prev,
+        [numero]: idsDeMonitor(prev[numero]).filter((id) => id !== String(idQuitar)),
+      };
+      asignacionRef.current = next;
+      return next;
+    });
     setMensaje(null);
+    programarPersistencia();
   };
 
   const cambiarPerfilMonitor = (numero, valor) => {
-    setAsignacionPerfil((prev) => ({ ...prev, [numero]: valor || 'none' }));
+    setAsignacionPerfil((prev) => {
+      const next = { ...prev, [numero]: valor || 'none' };
+      asignacionPerfilRef.current = next;
+      return next;
+    });
     setMensaje(null);
+    programarPersistencia();
   };
 
   // PLAN GUARNICIONES_SEPARADAS v1.1 §11.3
   const cambiarListaGuarnicionesMonitor = (numero, valor) => {
-    setAsignacionListaGuarniciones((prev) => ({ ...prev, [numero]: !!valor }));
+    setAsignacionListaGuarniciones((prev) => {
+      const next = { ...prev, [numero]: !!valor };
+      asignacionListaRef.current = next;
+      return next;
+    });
     setMensaje(null);
+    programarPersistencia();
   };
 
   const guardarDistribucion = async () => {
     try {
       setSaving(true);
       setError(null);
-      const token = getToken();
-      if (!token) return;
-      const items = MONITORES_PASIVOS.map((num) => {
-        const p = pantallaPorNumero[num];
-        if (!p) return null;
-        const ids = idsDeMonitor(asignacion[num]);
-        return {
-          id: p._id,
-          cocineroId: ids[0] || null,
-          cocineroIds: ids,
-          modoVista: ids.length ? 'completo' : 'personalizado',
-          perfilAplicar: asignacionPerfil[num] || 'none',
-          listaGuarniciones: asignacionListaGuarniciones[num] === true,
-        };
-      }).filter(Boolean);
-      if (items.length === 0) {
-        setError('No hay pantallas 2-8 configuradas. Cree pantallas desde el panel admin.');
+      const ok = await persistirDistribucion();
+      if (!ok) {
+        setError('No hay pantallas 2-9 configuradas. Cree pantallas desde el panel admin.');
         return;
       }
-      await axios.put(
-        `${getServerBaseUrl()}/api/pantallas-cocina/distribucion`,
-        { items },
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
-      );
-      setAsignacionInicial({ ...asignacion });
-      setAsignacionPerfilInicial({ ...asignacionPerfil });
-      setAsignacionListaGuarnicionesInicial({ ...asignacionListaGuarniciones });
       const enviado = await enviarAMonitorHub({ fromSave: true });
       if (enviado?.ok) {
         setMensaje({
@@ -471,7 +517,7 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       monitores = await obtenerMonitores();
     } catch { /* noop */ }
 
-    // Construir lineas SET por monitor (2..8)
+    // Construir lineas SET por monitor (2..9)
     const setLines = MONITORES_PASIVOS.map((num) => {
       const cid = serializeIdsMonitor(asignacion[num]);
       return `set COCINERO_${num}=${cid}`;
@@ -736,11 +782,15 @@ pause
       <div className="mb-4 p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">
         <p className="text-cyan-300 text-sm">
           Desde el <strong>monitor 1</strong> (esta consola) eliges qué cocineros se ven en cada
-          monitor pasivo (2-8) y qué <strong>perfil de personalización</strong> aplica a cada uno.
+          monitor pasivo (2-9). Cada tarjeta tiene <strong>Personalizar vista</strong> para cambiar
+          tipografía, columnas y colores de ese monitor (despegado por la app o el Monitor Hub)
+          desde aquí (monitor 1), con la ventana abierta o cerrada: si está abierta, se ve en vivo.
+          El <strong>perfil de personalización</strong> es el punto de partida.
           El perfil incluye <strong>todas</strong> las opciones de Personalizar (tipografía, colores,
           guarniciones, títulos, cronómetros, etc.). Puedes poner <strong>varios cocineros en el mismo
           monitor</strong> y repetir un cocinero en varios. Cada ventana abre Ver Cocina Completo
-          filtrado por esos cocineros. Pulsa <strong>Aplicar / Desplegar</strong> para guardar y enviar al Hub.
+          filtrado por esos cocineros. Cocinero y perfil se guardan al elegirlos. Pulsa
+          <strong> Aplicar / Desplegar</strong> para abrir ventanas y enviar al Hub.
         </p>
       </div>
 
@@ -828,7 +878,7 @@ pause
         <div className="text-center py-12">
           <FaDesktop className="text-5xl text-gray-600 mx-auto mb-4" />
           <p className="text-gray-400 text-xl mb-2">No hay pantallas configuradas</p>
-          <p className="text-gray-500">Cree las pantallas 1-8 desde el panel admin (Cocineros → Personalizar vista).</p>
+          <p className="text-gray-500">Cree las pantallas 1-9 desde el panel admin (Cocineros → Personalizar vista).</p>
         </div>
       )}
 
@@ -950,9 +1000,17 @@ pause
                   </div>
 
                   <button
+                    type="button"
+                    onClick={() => setPersonalizarMonitor(num)}
+                    className="mt-2 w-full px-3 py-2 bg-amber-700/80 hover:bg-amber-600 rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
+                    title="Personalizar Ver Cocina Completo de este monitor desde el monitor 1"
+                  >
+                    <FaCog /> Personalizar vista
+                  </button>
+                  <button
                     onClick={() => abrirOActualizarVentana(num)}
                     disabled={ids.length === 0}
-                    className="mt-3 w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
+                    className="mt-2 w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
                   >
                     <FaPlay /> {abierta ? 'Actualizar' : 'Abrir'}
                   </button>
@@ -964,7 +1022,7 @@ pause
           <div className="flex flex-wrap gap-3 items-center">
             <button
               onClick={aplicarYDesplegar}
-              disabled={saving || !hayCambios}
+              disabled={saving}
               className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg font-semibold hover:shadow-lg hover:shadow-cyan-500/30 flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? (
@@ -976,8 +1034,13 @@ pause
                 <><FaCheck /> Aplicar / Desplegar</>
               )}
             </button>
+            {persistStatus && (
+              <span className={`text-xs ${persistStatus === 'No se pudo guardar' ? 'text-red-400' : 'text-gray-400'}`}>
+                {persistStatus}
+              </span>
+            )}
             <span className="text-xs text-gray-500">
-              {hayCambios ? 'Hay cambios sin guardar.' : 'Sin cambios pendientes.'}
+              {hayCambios ? 'Guardando selección…' : 'Cocinero y perfil quedan guardados al elegirlos.'}
             </span>
           </div>
         </>
@@ -1081,6 +1144,16 @@ pause
             </div>
           </div>
         </div>
+      )}
+      {personalizarMonitor != null && (
+        <PersonalizarMonitorRemoto
+          numero={personalizarMonitor}
+          getToken={getToken}
+          ventanaHija={ventanas[personalizarMonitor] || null}
+          perfilAplicar={asignacionPerfil[personalizarMonitor] || 'none'}
+          cocineroId={idsDeMonitor(asignacion[personalizarMonitor])}
+          onClose={() => setPersonalizarMonitor(null)}
+        />
       )}
     </div>
   );
