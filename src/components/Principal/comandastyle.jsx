@@ -32,6 +32,7 @@ import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import PpaSidebar from "./PpaSidebar";
+import ReservaSidebar from "./ReservaSidebar";
 import KdsTopBar from "./KdsTopBar";
 import HistorialModal from "./HistorialModal";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
@@ -42,10 +43,12 @@ import useKdsBehavior from "../../hooks/useKdsBehavior";
 import useProcesamiento from "../../hooks/useProcesamiento";
 import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
 import useTablaAprobacion from "../../hooks/useTablaAprobacion";
+import useReservasProgramadas from "../../hooks/useReservasProgramadas";
 import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
+import { esComandaReserva } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
 import {
   expandirUnidadesTrabajo,
@@ -241,6 +244,7 @@ const ComandaStyle = ({
 
   // 🔥 PPA Sidebar state
   const [ppaSidebarOpen, setPpaSidebarOpen] = useState(false);
+  const [reservaSidebarOpen, setReservaSidebarOpen] = useState(false);
   
   const previousComandasRef = useRef([]);
   const reconnectTimeoutRef = useRef(null);
@@ -1179,6 +1183,8 @@ const ComandaStyle = ({
 
   // Badge PPA en barra superior (misma fuente que la bandeja; reutiliza socket KDS)
   const { cantidadPendientes: ppaCount } = useTablaAprobacion({ socket: cocinaSocket });
+  const { reservas: reservasProgramadas } = useReservasProgramadas(cocinaSocket);
+  const reservadasCount = reservasProgramadas?.length || 0;
 
   // PLAN OBLIGAR_ORDEN: cuando el admin aprueba, marcar override local
   // (socket plato-override-orden + solicitud-gestion-actualizada) y hidratar desde API.
@@ -1880,14 +1886,17 @@ const ComandaStyle = ({
   // Contadores (solo en_espera - ya no mostramos recoger)
   const totalComandas = enEspera.length;
 
-  // PARRAFO 4 - REORDEN: Sort prioritario v5.5 - prioridadOrden primero (más reciente arriba), luego por createdAt
+  // PARRAFO 4 - REORDEN: Sort — reservas primero (siempre), luego prioridadOrden, luego createdAt
   const todasComandas = [...enEspera].sort((a, b) => {
+    const ra = esComandaReserva(a) ? 1 : 0;
+    const rb = esComandaReserva(b) ? 1 : 0;
+    if (ra !== rb) return rb - ra;
     const prioA = a.prioridadOrden || 0;
     const prioB = b.prioridadOrden || 0;
-    if (prioA !== prioB) return prioB - prioA; // Mayor prioridadOrden arriba
+    if (prioA !== prioB) return prioB - prioA;
     const tiempoA = a.createdAt ? moment(a.createdAt).valueOf() : 0;
     const tiempoB = b.createdAt ? moment(b.createdAt).valueOf() : 0;
-    return tiempoA - tiempoB; // Más antiguas primero si igual prioridad
+    return tiempoA - tiempoB;
   });
 
   // Paginación: basada en configuración de diseño (cols * rows)
@@ -4091,6 +4100,7 @@ const ComandaStyle = ({
         socketAuthError={socketAuthError}
         isFullscreen={isFullscreen}
         ppaCount={ppaCount}
+        reservadasCount={reservadasCount}
         nightMode={nightMode}
         onToggleSearch={() => setShowSearch(!showSearch)}
         onShowReports={() => setShowReports(true)}
@@ -4099,7 +4109,14 @@ const ComandaStyle = ({
         onShowHistorial={() => setShowHistorial(true)}
         onToggleFullscreen={toggleFullscreen}
         onGoToMenu={handleGoToMenu}
-        onTogglePpa={() => setPpaSidebarOpen(prev => !prev)}
+        onTogglePpa={() => {
+          setReservaSidebarOpen(false);
+          setPpaSidebarOpen(prev => !prev);
+        }}
+        onToggleReserva={() => {
+          setPpaSidebarOpen(false);
+          setReservaSidebarOpen(prev => !prev);
+        }}
       />
 
       {/* Barra de búsqueda (opcional, se puede ocultar) */}
@@ -5176,6 +5193,11 @@ const ComandaStyle = ({
           <PpaSidebar socket={cocinaSocket} onClose={() => setPpaSidebarOpen(false)} />
         </div>
       )}
+      {reservaSidebarOpen && (
+        <div className="fixed top-0 right-0 h-full z-[100]">
+          <ReservaSidebar socket={cocinaSocket} onClose={() => setReservaSidebarOpen(false)} />
+        </div>
+      )}
     </div>
   );
 };
@@ -5332,9 +5354,10 @@ const SicarComandaCard = ({
     ? platosEliminadosConNombres 
     : platosEliminados;
   // Calcular color de fondo según tiempo (actualizado en tiempo real) - Colores mejorados
+  const esReserva = esComandaReserva(comanda);
   const [minutosActuales, setMinutosActuales] = useState(tiempo.minutos);
-  const [bgColor, setBgColor] = useState("bg-gray-500");
-  const [borderColor, setBorderColor] = useState("border-gray-500");
+  const [bgColor, setBgColor] = useState(esReserva ? "bg-purple-700" : "bg-gray-500");
+  const [borderColor, setBorderColor] = useState(esReserva ? "border-purple-700" : "border-gray-500");
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -5344,6 +5367,11 @@ const SicarComandaCard = ({
       const diffMinutos = ahora.diff(creacion, "minutes");
       setMinutosActuales(diffMinutos);
       
+      if (esReserva) {
+        setBgColor("bg-purple-700");
+        setBorderColor("border-purple-700");
+        return;
+      }
       // Actualizar colores según tiempo - Borde y encabezado con el mismo color
       if (diffMinutos >= alertRedMinutes) {
         setBgColor("bg-red-700");
@@ -5357,10 +5385,15 @@ const SicarComandaCard = ({
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [comanda.createdAt, alertYellowMinutes, alertRedMinutes]);
+  }, [comanda.createdAt, alertYellowMinutes, alertRedMinutes, esReserva]);
 
   // Inicializar colores - Borde y encabezado con el mismo color
   useEffect(() => {
+    if (esReserva) {
+      setBgColor("bg-purple-700");
+      setBorderColor("border-purple-700");
+      return;
+    }
     if (minutosActuales >= alertRedMinutes) {
       setBgColor("bg-red-700");
       setBorderColor("border-red-700");
@@ -5371,7 +5404,7 @@ const SicarComandaCard = ({
       setBgColor("bg-gray-500");
       setBorderColor("border-gray-500");
     }
-  }, [minutosActuales, alertYellowMinutes, alertRedMinutes]);
+  }, [minutosActuales, alertYellowMinutes, alertRedMinutes, esReserva]);
 
 
   // Agrupar platos en dos secciones: EN PREPARACIÓN y PLATOS LISTOS
@@ -5506,516 +5539,3 @@ const SicarComandaCard = ({
   // - No supervisor: solo si la tiene él
   const puedeMostrarEstados = isSupervisorView ? estaTomada : laTengoYo;
   
-  if (puedeMostrarEstados) {
-    if (comandaState === 'dejar') {
-      // Estado DEJAR: contorno rojo
-      borderStyle = '4px solid #ef4444';
-      shadowStyle = '0 8px 32px rgba(239, 68, 68, 0.5)';
-      backgroundStyle = `linear-gradient(135deg, rgba(239,68,68,0.3), rgba(239,68,68,0.1))`;
-    } else if (comandaState === 'finalizar') {
-      // Estado FINALIZAR: contorno verde
-      borderStyle = '4px solid #22c55e';
-      shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.5)';
-      backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.3), rgba(34,197,94,0.1))`;
-    }
-  } else if (esDesdeDashboard) {
-    // Creada desde dashboard (comandas.html): contorno verde distintivo
-    borderStyle = '4px solid #16a34a';
-    shadowStyle = '0 8px 32px rgba(22, 163, 74, 0.45)';
-    backgroundStyle = `linear-gradient(135deg, rgba(22,163,74,0.18), rgba(22,163,74,0.05))`;
-  } else if (isSelected) {
-    // Comanda seleccionada (no tomada)
-    borderStyle = '4px solid #22c55e';
-    shadowStyle = '0 8px 32px rgba(34, 197, 94, 0.4)';
-    backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
-  }
-
-  return (
-    <motion.div 
-      layoutId={`order-${comandaId}`}
-      className={`${bgColor} ${borderColor} flex flex-col relative cursor-pointer`}
-      style={{
-        fontFamily: 'Arial, sans-serif',
-        width: '300px',
-        height: '500px',
-        borderRadius: '12px',
-        boxShadow: shadowStyle,
-        border: borderStyle,
-        background: backgroundStyle
-      }}
-      initial={{ opacity: 0, scale: 0.8, y: 100 }}
-      animate={{ 
-        opacity: 1, 
-        scale: 1,
-        y: 0
-      }}
-      exit={{ opacity: 0, scale: 0.8, y: -50 }}
-      whileHover={{ scale: 1.03, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
-      transition={{ 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 24
-      }}
-    >
-      {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) - Zona Click 1 */}
-      <div className={`relative p-3 ${bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`} onClick={onToggleSelect}>
-        {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
-        {/* Solo mostrar cuando está en estado 'finalizar' (contorno verde) */}
-        <AnimatePresence>
-          {puedeMostrarEstados && comandaState === 'finalizar' && (
-            <motion.div
-              className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ 
-                type: "spring", 
-                stiffness: 500, 
-                damping: 15 
-              }}
-            >
-              <div 
-                className="text-white text-4xl font-bold" 
-                style={{ 
-                  textShadow: '0 0 20px rgba(34, 197, 94, 0.8), 2px 2px 4px rgba(0,0,0,0.8)',
-                  fontFamily: 'Arial, sans-serif',
-                  filter: 'drop-shadow(0 0 20px rgba(34, 197, 94, 0.8))',
-                  animation: 'glow 2s ease-in-out infinite'
-                }}
-              >
-                ✓
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <div className="flex items-start justify-between mb-2">
-          {/* Izquierda: Orden # y número de tarjeta */}
-          <div>
-            <div className="text-white font-bold text-xl mb-1" style={{ 
-              fontFamily: 'Arial, sans-serif'
-            }}>
-              Orden #{comanda.comandaNumber || "N/A"}
-            </div>
-            <div className="text-white font-semibold text-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {cardNumber}
-            </div>
-          </div>
-
-          {/* Derecha: Mesa # y Cronómetro */}
-          <div className="flex flex-col items-end">
-            <div className="text-white font-semibold text-lg mb-1" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {obtenerNombreMesa ? obtenerNombreMesa(comanda.mesas) : (comanda.mesas?.nombreCombinado || `M${comanda.mesas?.nummesa || 'N/A'}`)}
-            </div>
-            <div className="flex items-center gap-1">
-              <FaClock className="text-white text-sm" />
-              <div className={`text-white font-bold text-base ${minutosActuales >= alertRedMinutes ? 'text-red-200' : minutosActuales >= alertYellowMinutes ? 'text-yellow-200' : 'text-white'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                {tiempoFormateado}
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Mozo y badges inline en header - Compacto */}
-        <div className="flex items-center justify-between text-white text-xs flex-wrap gap-1">
-          <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
-            👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
-          </span>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Badge: creada desde dashboard/backend */}
-            {comanda.origenCreacion === 'dashboard' && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-600 text-white flex items-center gap-1"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-                title="Creada desde el backend (comandas.html)"
-              >
-                <FaDesktop className="text-[10px]" />
-                Backend{comanda.areaNombre || comanda.mesas?.area?.nombre ? ` · ${comanda.areaNombre || comanda.mesas?.area?.nombre}` : ''}
-              </motion.span>
-            )}
-            {/* v7.4: Badge del cocinero que está procesando la comanda */}
-            {comanda.procesandoPor?.cocineroId && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                  comanda.procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
-                    ? 'bg-yellow-500 text-black' // Mi comanda - amarillo
-                    : 'bg-gray-600 text-white' // Comanda de otro
-                }`}
-                style={{ fontFamily: 'Arial, sans-serif' }}
-              >
-                👨‍🍳 {comanda.procesandoPor.alias || comanda.procesandoPor.nombre || 'Cocinero'}
-              </motion.span>
-            )}
-            {/* Badge Espera X/Total (Y elim) */}
-            {platosPreparacion.length > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="px-1.5 py-0.5 bg-gray-600/70 rounded text-xs font-semibold"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-                title={platosEliminadosFinal.length > 0 ? `Prep ${platosPreparacion.length}/${totalPlatos} (${platosEliminadosFinal.length} elim)` : `Prep ${platosPreparacion.length}/${totalPlatos}`}
-              >
-                Prep {platosPreparacion.length}/{totalPlatos}
-                {platosEliminadosFinal.length > 0 && ` (${platosEliminadosFinal.length} elim)`}
-              </motion.span>
-            )}
-            {/* Badge Listos Y */}
-            {platosListos.length > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="px-1.5 py-0.5 bg-green-500 rounded text-xs font-bold"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-              >
-                Listos {platosListos.length}
-              </motion.span>
-            )}
-            {/* Badge urgente si >20min */}
-            {minutosActuales >= alertRedMinutes && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="px-1.5 py-0.5 bg-red-600 rounded text-xs font-bold"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-              >
-                ¡Urgente!
-              </motion.span>
-            )}
-            {/* PARRAFO 5 - ICONO 🚀 rojo v5.5: Si comanda tiene prioridadOrden > 0 */}
-            {comanda.prioridadOrden > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-                className="ml-2 text-red-500 text-base font-bold"
-                title="Prioridad Alta"
-              >
-                🚀
-              </motion.span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Badges movidos al header - ya no hay sección "EN ESPERA" separada */}
-      {estadoColumna === "recoger" && (
-        <div className="absolute top-0 left-0 right-0 bg-green-500 text-white font-bold text-base py-2 text-center rounded-t-lg" style={{ 
-          fontFamily: 'Arial, sans-serif',
-          textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
-        }}>
-          LISTO
-        </div>
-      )}
-
-      {/* Lista de platos vertical */}
-      <div className={`flex-1 overflow-y-auto ${bgPlatos}`}>
-        <div className="flex flex-col h-full">
-          {/* Observaciones del mozo - se muestra solo si hay contenido */}
-          {typeof comanda.observaciones === 'string' && comanda.observaciones.trim() !== '' && (
-            <div
-              className={`flex-shrink-0 px-3 py-2 border-b flex items-start gap-2 ${nightMode ? 'bg-yellow-900/40 border-yellow-700' : 'bg-yellow-100 border-yellow-300'}`}
-              title="Observaciones del mozo"
-            >
-              <span className="text-sm leading-tight flex-shrink-0">📝</span>
-              <div className="flex-1 min-w-0">
-                <div className={`text-[10px] uppercase font-bold tracking-wider mb-0.5 ${nightMode ? 'text-yellow-300' : 'text-yellow-700'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                  Observaciones
-                </div>
-                <div className={`text-sm font-semibold leading-tight break-words whitespace-pre-wrap ${nightMode ? 'text-yellow-100' : 'text-yellow-900'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                  {comanda.observaciones.trim()}
-                </div>
-              </div>
-            </div>
-          )}
-          {/* NUEVA SECCIÓN EN PREPARACIÓN - Arquitectura limpia, zero bubbling */}
-          {platosPreparacion.length > 0 && (
-            <div className="flex-shrink-0 cursor-default">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={onToggleSelect}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onToggleSelect();
-                  }
-                }}
-                className={`h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors border-b ${nightMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border-gray-600' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-gray-300'}`}
-              >
-                <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                  📋 EN PREPARACIÓN
-                </span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${nightMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-800'}`}>
-                  {platosPreparacion.length}/{totalPlatos}
-                </span>
-              </div>
-              <div className="px-2 py-2 space-y-1">
-                {platosPreparacion.flatMap((plato, index) => {
-                  const platoObj = plato.plato || plato;
-                  // 🔥 FIX buscador: no usar indexOf sobre copias { ...plato, _puntuacion }
-                  const platoIndex = resolverIndicePlato(comanda, plato);
-                  if (platoIndex < 0) {
-                    console.warn(`[KDS] No se pudo resolver índice del plato en comanda #${comanda.comandaNumber}`);
-                    return [];
-                  }
-                  const cantidad = comanda.cantidades?.[platoIndex] || 1;
-                  const platoId = platoObj?._id || plato._id || platoIndex;
-
-                  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: expandir en unidades.
-                  // Con flag ON y plato en preparación → principal + guarniciones.
-                  // Con plato ya en recoger/salio/entregado → una sola tarjeta fusionada.
-                  const unidades = expandirUnidadesTrabajo(plato, {
-                    flagOn: permitirGuarnicionesSeparadas,
-                    agrupacionOn,
-                    usarAlias: usarNombreCocinaEnTablaKds
-                  });
-
-                  return unidades.map((unidad, uIdx) => {
-                    if (esTipoGuarnicionKds(unidad.tipo)) {
-                      const gKey = `${comandaId}-${platoIndex}-g-${unidad.compId}`;
-                      const estadoVisualLocal = platoStates.get(gKey) || 'normal';
-                      const comp = unidad.comp;
-                      let estadoVisualG = estadoVisualLocal;
-                      const procBase = unidad.tipo === 'grupo_guarniciones'
-                        ? (unidad.comps || []).find(c => c.procesandoPor?.cocineroId)?.procesandoPor || comp.procesandoPor
-                        : comp.procesandoPor;
-                      const tsGrupo = unidad.tipo === 'grupo_guarniciones' ? tiempoInicioGrupo(unidad.comps) : null;
-                      const proc = tsGrupo ? { ...(procBase || {}), timestamp: tsGrupo } : procBase;
-                      if (proc?.cocineroId && estadoVisualLocal === 'normal') {
-                        estadoVisualG = 'procesando';
-                      }
-                      const alerta = estadoAlertaGuarnicion(comp, tiemposGuarnicion);
-                      const prio = prioridadUnidad(comanda);
-                      const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
-                      const cantG = unidad.tipo === 'grupo_guarniciones'
-                        ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
-                        : (comp.cantidad || 1);
-                      return (
-                        <PlatoPreparacion
-                          key={gKey}
-                          plato={plato}
-                          comandaId={comandaId}
-                          platoId={platoId}
-                          platoIndex={platoIndex}
-                          cantidad={cantG}
-                          nombre={unidad.nombreGuarnicion}
-                          estadoVisual={estadoVisualG}
-                          nightMode={nightMode}
-                          isEliminado={comp.eliminado === true}
-                          onToggle={togglePlatoCheck}
-                          complementosSeleccionados={[]}
-                          procesandoPor={proc}
-                          usuarioActualId={usuarioActualId}
-                          isSupervisorView={isSupervisorView}
-                          tipoServicio={plato.tipoServicio || 'mesa'}
-                          tipoUnidad="guarnicion"
-                          ocultarComplementos
-                          compId={unidad.compId}
-                          numeroColaCocinero={deshabilitarOrdenSecuencialGuarniciones ? null : (mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null)}
-                          estadoAlerta={alerta}
-                          etiquetaPrioridad={etiquetaPrioridad}
-                        />
-                      );
-                    }
-                    // Tarjeta principal (oculta complementos si está partida; fusionada si recoger).
-                    const platoKey = `${comandaId}-${platoIndex}`;
-                    const estadoVisualLocal = platoStates.get(platoKey) || 'normal';
-                    let estadoVisual = estadoVisualLocal;
-                    if (plato.procesandoPor?.cocineroId && estadoVisualLocal === 'normal') {
-                      estadoVisual = 'procesando';
-                    }
-                    const nombrePlato = obtenerNombreDisplayCocina(plato, {
-                      habilitadoEnKds: usarNombreCocinaEnTablaKds
-                    }) || 'Sin nombre';
-                    return (
-                      <PlatoPreparacion
-                        key={platoKey}
-                        plato={plato}
-                        comandaId={comandaId}
-                        platoId={platoId}
-                        platoIndex={platoIndex}
-                        cantidad={cantidad}
-                        nombre={nombrePlato}
-                        estadoVisual={estadoVisual}
-                        nightMode={nightMode}
-                        isEliminado={plato.eliminado === true}
-                        onToggle={togglePlatoCheck}
-                        complementosSeleccionados={plato.complementosSeleccionados || []}
-                        procesandoPor={plato.procesandoPor}
-                        usuarioActualId={usuarioActualId}
-                        isSupervisorView={isSupervisorView}
-                        tipoServicio={plato.tipoServicio || 'mesa'}
-                        mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
-                        resumenComplementosImpresion={plato.resumenComplementosImpresion || null}
-                        numeroColaCocinero={mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null}
-                        tipoUnidad="principal"
-                        ocultarComplementos={unidad.ocultarComplementos === true && !unidad.fusionado}
-                        fusionado={unidad.fusionado === true}
-                      />
-                    );
-                  });
-                })}
-                {platosEliminadosFinal.map((platoEliminado, index) => {
-                  const timestamp = platoEliminado.timestamp ? moment(platoEliminado.timestamp).tz("America/Lima").format('HH:mm') : '';
-                  const nombreMozo = platoEliminado.nombreMozo || 'Mozo';
-                  const tooltipText = `Eliminado por ${nombreMozo} ${timestamp ? `a las ${timestamp}` : ''}`;
-                  return (
-                    <div
-                      key={`eliminado-${platoEliminado.platoId}-${index}`}
-                      className="font-semibold leading-tight px-3 py-2 rounded-lg flex items-center gap-3 bg-red-500/15 text-red-400 line-through opacity-60 cursor-not-allowed"
-                      style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px' }}
-                      title={tooltipText}
-                    >
-                      <div className="w-8 h-8 border-2 rounded flex items-center justify-center bg-gray-800 border-gray-500 opacity-50 flex-shrink-0">
-                        <span className="text-red-500 text-xs">🗑️</span>
-                      </div>
-                      <span className="flex-1">{platoEliminado.cantidad} {platoEliminado.nombre}</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/30 text-red-400 border border-red-500/50">
-                        🔴 {nombreMozo}{timestamp ? ` ${timestamp}` : ''}
-                      </span>
-                    </div>
-                  );
-                })}
-                {/* 🔥 NUEVO: Platos anulados desde cocina */}
-                {platosAnulados.map((plato, index) => {
-                  const platoObj = plato.plato || plato;
-                  const cantidad = comanda.cantidades?.[comanda.platos.indexOf(plato)] || 1;
-                  const nombre = platoObj?.nombre || 'Plato desconocido';
-                  const timestamp = plato.anuladoAt ? moment(plato.anuladoAt).tz("America/Lima").format('HH:mm') : '';
-                  const motivo = plato.anuladoRazon || plato.tipoAnulacion || 'Sin motivo';
-                  const tipoAnulacion = plato.tipoAnulacion || '';
-                  const tooltipText = `Anulado por Cocina - ${motivo}${timestamp ? ` a las ${timestamp}` : ''}`;
-                  return (
-                    <div
-                      key={`anulado-${plato.platoId}-${index}`}
-                      className="font-semibold leading-tight px-3 py-2 rounded-lg flex items-center gap-3 bg-orange-500/15 text-orange-400 line-through opacity-60 cursor-not-allowed"
-                      style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px' }}
-                      title={tooltipText}
-                    >
-                      <div className="w-8 h-8 border-2 rounded flex items-center justify-center bg-gray-800 border-orange-500/50 opacity-50 flex-shrink-0">
-                        <span className="text-orange-500 text-xs">❌</span>
-                      </div>
-                      <span className="flex-1">{cantidad} {nombre}</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/30 text-orange-400 border border-orange-500/50">
-                        ❌ ANULADO{timestamp ? ` ${timestamp}` : ''}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Separador visual entre secciones */}
-          {platosPreparacion.length > 0 && platosListos.length > 0 && (
-            <div className={`h-px ${nightMode ? 'bg-gray-600' : 'bg-gray-300'} mx-4 my-2`} />
-          )}
-
-          {/* Sección 2: PREPARADOS - Zona Click 3 (Wrapper Preparados) */}
-          {platosListos.length > 0 && (
-            <div className="flex-shrink-0 cursor-pointer hover:bg-opacity-80 hover:shadow-md hover:scale-[1.01] transition-all" onClick={onToggleSelect}>
-              {/* Header de sección PREPARADOS - Compacto h-8 */}
-              <div className={`h-8 px-3 flex items-center gap-2 ${nightMode ? 'bg-green-900/50' : 'bg-green-100'} border-b ${nightMode ? 'border-green-700' : 'border-green-300'}`}>
-                <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-green-300' : 'text-green-700'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                  ✅ PREPARADOS
-                </span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${nightMode ? 'bg-green-800 text-green-200' : 'bg-green-200 text-green-800'}`}>
-                  {platosListos.length}/{totalPlatos}
-                </span>
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="text-sm ml-auto"
-                >
-                  🏆
-                </motion.span>
-              </div>
-              {/* Lista de platos listos */}
-              <div className={`px-4 py-2 space-y-1.5 ${nightMode ? 'bg-green-900/20' : 'bg-green-50'}`}>
-                <AnimatePresence>
-                  {platosListos.map((plato, index) => {
-                    const platoObj = plato.plato || plato;
-                    // 🔥 FIX buscador: resolver índice real (no indexOf sobre copia filtrada)
-                    const platoIndex = resolverIndicePlato(comanda, plato);
-                    if (platoIndex < 0) return null;
-                    const cantidad = comanda.cantidades?.[platoIndex] || 1;
-                    // FIX: revertir multi-plato similar - Priorizar plato._id (subdocumento único)
-                    const platoIdUnico = plato._id?.toString() || platoObj?._id || platoIndex;
-                    const estadoRealPlato = plato.estado || 'recoger';
-                    // SALIO: Estado visual de selección para entregar del pass
-                    const platoKeyListo = `${comandaId}-${platoIndex}`;
-                    const seleccionadoEntregar = platoStates.get(platoKeyListo) === 'entregando';
-                    
-                    return (
-                      <motion.div
-                        key={`listo-${platoIdUnico}-${platoIndex}`}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.3 }}
-                        onClick={(e) => {
-                          // SALIO: Selección individual del plato para confirmar salida del pass.
-                          // stopPropagation evita seleccionar la comanda completa.
-                          e.stopPropagation();
-                          togglePlatoCheck(comandaId, platoIndex);
-                        }}
-                        className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 cursor-pointer border-2 ${
-                          seleccionadoEntregar
-                            ? 'bg-red-600/40 border-red-500 text-white'
-                            : nightMode ? 'bg-green-900/30 border-transparent text-green-300' : 'bg-green-100 border-transparent text-green-800'
-                        }`}
-                        whileHover={{ scale: 1.02, x: 4 }}
-                        style={{ 
-                          fontFamily: 'Arial, sans-serif',
-                          fontSize: '18px'
-                        }}
-                        title={seleccionadoEntregar ? 'Click para deseleccionar' : 'Click para marcar salida de cocina'}
-                      >
-                        {/* Checkbox: verde si listo, rojo si seleccionado para entregar */}
-                        <div 
-                          className={`w-6 h-6 border-2 rounded flex items-center justify-center pointer-events-none ${
-                            seleccionadoEntregar
-                              ? 'bg-red-600 border-red-400'
-                              : nightMode ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-600'
-                          }`}
-                        >
-                          <motion.svg
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                            className="w-4 h-4 text-white font-bold"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </motion.svg>
-                        </div>
-                        
-                        <span className="flex items-center gap-2 flex-1 font-bold pointer-events-none">
-                          <span className={seleccionadoEntregar ? 'text-white' : nightMode ? 'text-green-300' : 'text-green-700'}>
-                            {seleccionadoEntregar ? '🚶' : '✓'}
-                          </span>
-                          <span>
-                            {cantidad} {platoObj?.nombre || "Sin nombre"}
-                          </span>
-                        </span>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-              </div>
-            </div>
-          )}
-
-          {/* Platos eliminados ahora se muestran inline en Preparación con strike-through rojo */}
-        </div>
-      </div>
-
-    </motion.div>
-  );
-};
-
-export default ComandaStyle;

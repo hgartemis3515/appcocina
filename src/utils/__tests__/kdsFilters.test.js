@@ -10,7 +10,8 @@ import {
   aplicarFiltrosAComandas,
   filtrarPlatosDeComanda,
   calcularEstadisticasFiltrado,
-  getConfiguracionEfectiva
+  getConfiguracionEfectiva,
+  esComandaReserva
 } from '../kdsFilters';
 
 // ============================================================
@@ -379,5 +380,14 @@ describe('getConfiguracionEfectiva', () => {
     expect(result.alertRedMinutes).toBe(20);
     expect(result.soundEnabled).toBe(true);
     expect(result.nightMode).toBe(true);
+  });
+});
+
+describe('esComandaReserva', () => {
+  test('detecta reserva por origenCreacion u origenReserva', () => {
+    expect(esComandaReserva({ origenCreacion: 'reserva' })).toBe(true);
+    expect(esComandaReserva({ origenReserva: 'abc' })).toBe(true);
+    expect(esComandaReserva({ origenCreacion: 'mozos' })).toBe(false);
+    expect(esComandaReserva(null)).toBe(false);
   });
 });

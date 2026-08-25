@@ -847,6 +847,17 @@ const MonitorConfigPanel = ({
               />
             </>
           )}
+          <label style={lbl}>
+            Partición platos / guarniciones
+            <select
+              value={configVisual.orientacionSplit || 'vertical'}
+              onChange={(e) => guardar({ orientacionSplit: e.target.value === 'horizontal' ? 'horizontal' : 'vertical' })}
+              style={{ ...inp, minWidth: '220px' }}
+            >
+              <option value="vertical">Vertical (lado a lado, por defecto)</option>
+              <option value="horizontal">Horizontal (una debajo de la otra)</option>
+            </select>
+          </label>
           <CheckG k="mostrarTitulosListasSplit" label="Mostrar títulos de listas" help="Barras PLATOS / Lista de Guarniciones. Solo con split 50/50." {...checkGProps} />
           <CheckG k="mostrarPronombreCocineroGuarnicion" label="Pronombre del cocinero junto al plato referencial" help="Siempre a la derecha: (Bistec) C1. Es quien atiende el plato principal, no la guarnición. El código (C1) se edita en Personalizar cocineros. Se guarda en el perfil." {...checkGProps} defaultOn />
           <CheckG

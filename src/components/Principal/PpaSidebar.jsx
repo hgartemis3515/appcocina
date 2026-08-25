@@ -18,7 +18,8 @@ const formatTime = (dateStr) => {
   return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
 };
 
-const tipoBadge = (tipo) => {
+const tipoBadge = (tipo, origen) => {
+  if (origen === 'reserva') return { label: 'RESERVA', bg: 'bg-purple-500/30 text-purple-300' };
   const t = String(tipo || '').toLowerCase();
   if (t === 'comanda_completa' || t === 'comanda') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300' };
   if (t === 'pago_parcial') return { label: 'PAGO PARCIAL', bg: 'bg-amber-500/30 text-amber-300' };
@@ -51,7 +52,7 @@ export default function PpaSidebar({ socket, onClose }) {
     try {
       const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
       const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
-      const ticketTipo = ticket.tipo === 'pago_adelantado' ? 'ADELANTADO' : 'COMANDA';
+      const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.origen === 'reserva') ? 'ADELANTADO' : 'COMANDA';
       const result = await aprobarItem(ticketId, ticketTipo, userId, userName);
       if (result?.alreadyApproved || result?.skipped) return;
     } catch (err) {
@@ -161,8 +162,9 @@ export default function PpaSidebar({ socket, onClose }) {
 
         <AnimatePresence>
           {pendientes.map((ticket) => {
-            const badge = tipoBadge(ticket.tipo);
-            const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
+            const esReserva = ticket.origen === 'reserva';
+            const badge = tipoBadge(ticket.tipo, ticket.origen);
+            const isComanda = !esReserva && (ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA');
             const isPagoParcial = ticket.tipo === 'pago_parcial';
             const comandaLabel = getComandaDisplayLabel(ticket);
             const cantidadComandasTicket = getCantidadComandas(ticket);
@@ -209,6 +211,14 @@ export default function PpaSidebar({ socket, onClose }) {
                       Mesa {ticket.numMesa || '?'}
                     </span>
                   </div>
+                  {esReserva && ticket.clienteNombre && (
+                    <div className="flex items-center gap-2 mb-1">
+                      <FaUser className="text-gray-400 text-xs" />
+                      <span className="text-purple-300 text-xs">
+                        Cliente: {ticket.clienteNombre}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <FaUser className="text-gray-400 text-xs" />
                     <span className="text-gray-400 text-xs">
@@ -230,7 +240,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     <div className="flex items-center gap-1">
                       <FaMoneyBill className="text-green-400 text-xs" />
                       <span className="text-white text-sm font-bold">
-                        {formatCurrency(ticket.total)}
+                        {esReserva && !(Number(ticket.total) > 0) ? 'Sin adelanto' : formatCurrency(ticket.total)}
                       </span>
                     </div>
                     {ticket.voucherId && (
@@ -372,7 +382,9 @@ export default function PpaSidebar({ socket, onClose }) {
             >
               <h4 className="text-white font-bold mb-1">Motivo de rechazo</h4>
               <p className="text-gray-400 text-xs mb-2">
-                Obligatorio. La comanda se eliminará y quedará registrada en auditoría.
+                {items.find((t) => t._id === showRechazarModal)?.origen === 'reserva'
+                  ? 'La reserva se anula y la mesa vuelve a libre.'
+                  : 'Obligatorio. La comanda se eliminará y quedará registrada en auditoría.'}
               </p>
               <textarea
                 value={rechazarMotivo[showRechazarModal] || ''}

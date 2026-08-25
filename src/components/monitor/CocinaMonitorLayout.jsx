@@ -97,6 +97,8 @@ const DEFAULT_CONFIG = {
   mostrarTitulosListasSplit: false,
   tituloListaPlatos: 'PLATOS',
   tituloListaGuarniciones: 'Lista de Guarniciones',
+  // vertical = lista platos | lista guarniciones (lado a lado). horizontal = una debajo de la otra.
+  orientacionSplit: 'vertical',
   grosorSeparadorSplit: 2,
   colorSeparadorSplit: null,
   alinearTituloListaSplit: 'izquierda',
@@ -781,7 +783,8 @@ const CocinaMonitorLayout = ({
   const icono = configVisual.icono || '🍳';
   const iconoEmoji = ICONO_MAP[icono] || icono || '🍳';
   const splitActivo = listaGuarnicionesOn && flagGuarnicionesGlobal;
-  const anchoListaPlatos = splitActivo && !isPortrait
+  const splitVertical = splitActivo && (configVisual.orientacionSplit || 'vertical') !== 'horizontal';
+  const anchoListaPlatos = splitVertical
     ? Math.floor(viewport.w / 2)
     : viewport.w;
   const layoutColumnas = columnasQueCaben(anchoListaPlatos, configVisual.layoutColumnas || 1);
@@ -1577,20 +1580,23 @@ const CocinaMonitorLayout = ({
         // panel de guarniciones.
         ...(splitActivo ? {
           display: 'flex',
-          flexDirection: isPortrait ? 'column' : 'row',
+          flexDirection: splitVertical ? 'row' : 'column',
+          flexWrap: 'nowrap',
           overflow: 'hidden',
         } : {}),
       }}>
-        {/* Panel izquierdo: platos principales (ancho 50% cuando split activo) */}
+        {/* Panel izquierdo: platos principales (50% cuando split activo) */}
         <div style={splitActivo
           ? {
               flex: '1 1 50%',
+              minWidth: splitVertical ? 0 : undefined,
+              minHeight: splitVertical ? undefined : 0,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              ...(isPortrait
-                ? { borderBottom: `${grosorSeparador}px solid ${colorSeparador}` }
-                : { borderRight: `${grosorSeparador}px solid ${colorSeparador}` }),
+              ...(splitVertical
+                ? { borderRight: `${grosorSeparador}px solid ${colorSeparador}` }
+                : { borderBottom: `${grosorSeparador}px solid ${colorSeparador}` }),
             }
           : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {mostrarTitulosSplit && (
@@ -1684,6 +1690,8 @@ const CocinaMonitorLayout = ({
         {splitActivo && (
           <div style={{
             flex: '1 1 50%',
+            minWidth: splitVertical ? 0 : undefined,
+            minHeight: splitVertical ? undefined : 0,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',

@@ -831,6 +831,11 @@ export function getConfigParaModal(configEfectiva) {
   };
 }
 
+/** Comanda que nació de una reserva (KDS: header morado + prioridad). */
+export function esComandaReserva(comanda) {
+  return comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva;
+}
+
 // ============================================================
 // EXPORT DEFAULT
 // ============================================================
@@ -843,5 +848,6 @@ export default {
   calcularEstadisticasFiltrado,
   generarReporteFiltrado,
   getConfiguracionEfectiva,
-  getConfigParaModal
+  getConfigParaModal,
+  esComandaReserva
 };

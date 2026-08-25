@@ -36,7 +36,7 @@ export const MIN_ANCHO_COLUMNA_TARJETA = 280;
 
 /**
  * Cuántas columnas caben sin aplastar tarjetas (un cuadro no queda encima de otro).
- * En monitor vertical 1080×1920: 1 col si hay split horizontal, 3 si la lista usa el ancho entero.
+ * En monitor vertical 1080×1920 con split lado a lado (~540px): 1 col. Sin split: 3.
  */
 export function columnasQueCaben(anchoDisponible, columnasDeseadas, minAncho = MIN_ANCHO_COLUMNA_TARJETA) {
   const maxFit = Math.max(1, Math.floor(Math.max(0, Number(anchoDisponible) || 0) / minAncho));
