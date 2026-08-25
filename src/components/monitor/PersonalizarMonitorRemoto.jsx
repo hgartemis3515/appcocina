@@ -24,6 +24,15 @@ const PersonalizarMonitorRemoto = ({
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const saveTimerRef = useRef(null);
+  const localDesignRef = useRef(localDesign);
+  localDesignRef.current = localDesign;
+
+  const [perfiles, setPerfiles] = useState([]);
+  const [perfilSelId, setPerfilSelId] = useState(null);
+  const [cargandoPerfiles, setCargandoPerfiles] = useState(false);
+  const [cargandoPerfilId, setCargandoPerfilId] = useState(null);
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+  const [perfilMensaje, setPerfilMensaje] = useState(null);
 
   const aplicarYPublicar = useCallback((config) => {
     const completa = snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...(config || {}) });
@@ -49,6 +58,152 @@ const PersonalizarMonitorRemoto = ({
     }
   }, [getToken, numero]);
 
+  const authHeaders = useCallback(() => ({ Authorization: `Bearer ${getToken?.()}` }), [getToken]);
+
+  const cargarPerfiles = useCallback(async () => {
+    if (!getToken) return;
+    try {
+      setCargandoPerfiles(true);
+      const res = await axios.get(`${getServerBaseUrl()}/api/perfiles-ver-cocina`, {
+        headers: authHeaders(),
+        timeout: 5000,
+      });
+      setPerfiles(res.data?.data || []);
+    } catch (err) {
+      console.warn('[PersonalizarMonitorRemoto] perfiles:', err.message);
+    } finally {
+      setCargandoPerfiles(false);
+    }
+  }, [getToken, authHeaders]);
+
+  useEffect(() => {
+    cargarPerfiles();
+  }, [cargarPerfiles]);
+
+  const flashPerfil = (tipo, texto) => {
+    setPerfilMensaje({ tipo, texto });
+    setTimeout(() => setPerfilMensaje(null), 3000);
+  };
+
+  const seleccionarPerfil = useCallback(async (perfilId) => {
+    if (!perfilId) { setPerfilSelId(null); return; }
+    if (!getToken) return;
+    setCargandoPerfilId(perfilId);
+    try {
+      const res = await axios.get(`${getServerBaseUrl()}/api/perfiles-ver-cocina/${perfilId}`, {
+        headers: authHeaders(),
+        timeout: 5000,
+      });
+      const perfil = res.data?.data;
+      const config = perfil?.config;
+      if (config && typeof config === 'object') {
+        const completa = aplicarYPublicar(config);
+        await persistir(completa);
+        setPerfilSelId(perfilId);
+        flashPerfil('ok', `Perfil "${perfil?.nombre || 'Perfil'}" cargado ✓`);
+      } else {
+        flashPerfil('error', 'El perfil no tiene configuración válida');
+      }
+    } catch (err) {
+      flashPerfil('error', err?.response?.data?.error || 'Error al cargar perfil');
+    } finally {
+      setCargandoPerfilId(null);
+    }
+  }, [getToken, authHeaders, aplicarYPublicar, persistir]);
+
+  const snapshotActual = useCallback(
+    () => snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...localDesignRef.current }),
+    [],
+  );
+
+  const guardarPerfilComo = useCallback(async (nombre) => {
+    if (!getToken) return;
+    const nom = (nombre || '').trim();
+    if (!nom) {
+      flashPerfil('error', 'Ingresa un nombre para el perfil');
+      return false;
+    }
+    try {
+      setGuardandoPerfil(true);
+      const res = await axios.post(
+        `${getServerBaseUrl()}/api/perfiles-ver-cocina`,
+        { nombre: nom, config: snapshotActual() },
+        { headers: authHeaders() }
+      );
+      const creado = res.data?.data;
+      flashPerfil('ok', `Perfil "${nom}" guardado ✓`);
+      await cargarPerfiles();
+      if (creado?._id) setPerfilSelId(creado._id);
+      return true;
+    } catch (err) {
+      flashPerfil('error', err?.response?.data?.error || 'Error al guardar perfil');
+      return false;
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [getToken, authHeaders, snapshotActual, cargarPerfiles]);
+
+  const sobrescribirPerfil = useCallback(async (perfilId) => {
+    if (!perfilId || !getToken) return;
+    const p = perfiles.find((x) => String(x._id) === String(perfilId));
+    if (!p) return;
+    try {
+      setGuardandoPerfil(true);
+      await axios.put(
+        `${getServerBaseUrl()}/api/perfiles-ver-cocina/${perfilId}`,
+        { config: snapshotActual() },
+        { headers: authHeaders() }
+      );
+      flashPerfil('ok', `Perfil "${p.nombre}" actualizado ✓`);
+      await cargarPerfiles();
+    } catch (err) {
+      flashPerfil('error', err?.response?.data?.error || 'Error al actualizar perfil');
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [getToken, authHeaders, perfiles, snapshotActual, cargarPerfiles]);
+
+  const eliminarPerfil = useCallback(async (perfilId) => {
+    if (!perfilId || !getToken) return;
+    const p = perfiles.find((x) => String(x._id) === String(perfilId));
+    if (!p) return;
+    try {
+      setGuardandoPerfil(true);
+      await axios.delete(`${getServerBaseUrl()}/api/perfiles-ver-cocina/${perfilId}`, {
+        headers: authHeaders(),
+      });
+      flashPerfil('ok', `Perfil "${p.nombre}" eliminado`);
+      if (String(perfilSelId) === String(perfilId)) setPerfilSelId(null);
+      await cargarPerfiles();
+    } catch (err) {
+      flashPerfil('error', err?.response?.data?.error || 'Error al eliminar perfil');
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [getToken, authHeaders, perfiles, perfilSelId, cargarPerfiles]);
+
+  const guardarPerfilCocinero = useCallback(async () => {
+    const idPerfil = primerCocineroIdFiltro(cocineroId);
+    if (!idPerfil) {
+      flashPerfil('error', 'Asigna un cocinero a este monitor para guardar su perfil auto');
+      return;
+    }
+    if (!getToken) return;
+    try {
+      setGuardandoPerfil(true);
+      await axios.put(
+        `${getServerBaseUrl()}/api/cocineros/${idPerfil}/perfil-ver-cocina`,
+        { config: snapshotActual() },
+        { headers: authHeaders() }
+      );
+      flashPerfil('ok', 'Perfil del cocinero (auto) guardado ✓');
+    } catch (err) {
+      flashPerfil('error', err?.response?.data?.error || 'Error al guardar perfil del cocinero');
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }, [cocineroId, getToken, authHeaders, snapshotActual]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -70,7 +225,10 @@ const PersonalizarMonitorRemoto = ({
           const res = await axios.get(`${base}/api/perfiles-ver-cocina/${perfilAplicar}`, {
             headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
           });
-          if (alive) aplicarYPublicar(res.data?.data?.config || {});
+          if (alive) {
+            aplicarYPublicar(res.data?.data?.config || {});
+            setPerfilSelId(perfilAplicar);
+          }
           return;
         }
         const cid = primerCocineroIdFiltro(cocineroId);
@@ -117,6 +275,7 @@ const PersonalizarMonitorRemoto = ({
         { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
       );
       publicarDisenoMonitor(numero, null, ventanaHija);
+      setPerfilSelId(null);
       setMensaje({ tipo: 'ok', texto: 'Monitor restaurado al perfil asignado' });
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err?.response?.data?.error || 'No se pudo restaurar' });
@@ -131,6 +290,7 @@ const PersonalizarMonitorRemoto = ({
   const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#9ca3af';
   const colorAcento = configVisual.colorAcento || '#d4af37';
+  const cidAsignado = primerCocineroIdFiltro(cocineroId);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70" onClick={onClose}>
@@ -166,10 +326,22 @@ const PersonalizarMonitorRemoto = ({
               localDesign={localDesign}
               onChange={onChange}
               onReset={onReset}
+              onSaveProfile={cidAsignado ? guardarPerfilCocinero : undefined}
+              guardandoPerfil={guardandoPerfil}
+              perfilMensaje={perfilMensaje}
               colorFondo={colorFondo}
               colorTextoPrincipal={colorTextoPrincipal}
               colorTextoSecundario={colorTextoSecundario}
               colorAcento={colorAcento}
+              perfiles={perfiles}
+              perfilSelId={perfilSelId}
+              cargandoPerfiles={cargandoPerfiles}
+              cargandoPerfilId={cargandoPerfilId}
+              onSeleccionarPerfil={seleccionarPerfil}
+              onGuardarPerfilComo={guardarPerfilComo}
+              onSobrescribirPerfil={sobrescribirPerfil}
+              onEliminarPerfil={eliminarPerfil}
+              onRecargarPerfiles={cargarPerfiles}
               getToken={getToken}
             />
           )}

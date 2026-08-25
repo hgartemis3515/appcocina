@@ -218,6 +218,7 @@ const CocineroPlatoCard = React.forwardRef(({
   const mostrarIconoCocinero = configVisual.mostrarIconoCocinero !== false;
   const mostrarEtiquetaPlato = configVisual.mostrarEtiquetaPlato === true;
   const estiloTemporizador = configVisual.estiloTemporizador || 'vertical';
+  const disposicionVertical = modoTarjeta && (configVisual.disposicionTarjeta || 'vertical') === 'vertical';
   // Nuevas herramientas
   const quitarNombreCocinero = configVisual.quitarNombreCocineroTarjeta === true;
   const ocultarAtencionUrgente = configVisual.ocultarAtencionUrgente === true;
@@ -411,12 +412,13 @@ const CocineroPlatoCard = React.forwardRef(({
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
+    maxWidth: '100%',
     minHeight: (modoTarjeta && !alturaAlContenido) ? '130px' : 'auto',
     height: alturaAlContenido ? 'auto' : undefined,
     alignSelf: aprovecharEspacio ? 'start' : 'stretch',
     position: 'relative',
     width: '100%',
-    flexShrink: 0,
+    flexShrink: 1,
     zIndex: 0,
   };
 
@@ -429,8 +431,8 @@ const CocineroPlatoCard = React.forwardRef(({
     padding: paddingTarjeta,
     fontFamily: fuenteFamilia,
     display: 'flex',
-    flexDirection: 'row',
-    alignItems: compacto ? 'center' : 'stretch',
+    flexDirection: disposicionVertical ? 'column' : 'row',
+    alignItems: disposicionVertical ? 'stretch' : (compacto ? 'center' : 'stretch'),
     gap: `${gapTarjeta}px`,
     minWidth: 0,
     flex: alturaAlContenido ? '0 0 auto' : 1,
@@ -660,11 +662,12 @@ const CocineroPlatoCard = React.forwardRef(({
     <div
       style={{
         flex: '0 0 auto',
-        minWidth: estiloTemporizador === 'vertical' ? '110px' : 'auto',
-        maxWidth: estiloTemporizador === 'vertical' ? '160px' : 'none',
+        minWidth: 0,
+        maxWidth: disposicionVertical ? 'none' : (estiloTemporizador === 'vertical' ? '160px' : 'none'),
+        width: disposicionVertical ? '100%' : undefined,
         display: 'flex',
         alignItems: compacto ? 'center' : 'flex-start',
-        justifyContent: 'flex-end',
+        justifyContent: disposicionVertical ? 'flex-start' : 'flex-end',
       }}
     >
       <TemporizadorChips
@@ -693,8 +696,8 @@ const CocineroPlatoCard = React.forwardRef(({
           position: 'relative',
           zIndex: 1,
           display: 'flex',
-          flexDirection: 'row',
-          alignItems: compacto ? 'center' : 'stretch',
+          flexDirection: disposicionVertical ? 'column' : 'row',
+          alignItems: disposicionVertical ? 'stretch' : (compacto ? 'center' : 'stretch'),
           gap: `${gapTarjeta}px`,
           flex: 1,
           minWidth: 0,

@@ -1011,8 +1011,9 @@ pause
                     onClick={() => abrirOActualizarVentana(num)}
                     disabled={ids.length === 0}
                     className="mt-2 w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
+                    title={abierta ? 'Actualiza la ventana de este monitor' : 'Despega solo este monitor'}
                   >
-                    <FaPlay /> {abierta ? 'Actualizar' : 'Abrir'}
+                    <FaPlay /> {abierta ? 'Actualizar' : 'Despegar este monitor'}
                   </button>
                 </motion.div>
               );

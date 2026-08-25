@@ -35,8 +35,8 @@ export const clampColumnas = (n) =>
 export const MIN_ANCHO_COLUMNA_TARJETA = 280;
 
 /**
- * Cuántas columnas caben sin aplastar tarjetas (un cuadro no queda encima de otro).
- * En monitor vertical 1080×1920 con split lado a lado (~540px): 1 col. Sin split: 3.
+ * Tope físico opcional (p. ej. previews). El layout Ver Cocina usa `clampColumnas`
+ * para respetar la elección del operador; el grid CSS encoge las tarjetas.
  */
 export function columnasQueCaben(anchoDisponible, columnasDeseadas, minAncho = MIN_ANCHO_COLUMNA_TARJETA) {
   const maxFit = Math.max(1, Math.floor(Math.max(0, Number(anchoDisponible) || 0) / minAncho));

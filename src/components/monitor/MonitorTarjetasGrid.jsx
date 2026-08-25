@@ -74,6 +74,8 @@ export default function MonitorTarjetasGrid({
         alignContent: 'start',
         alignItems: aprovecharEspacio ? 'start' : 'stretch',
         zoom,
+        width: '100%',
+        minWidth: 0,
       } : (stackedStyle || defaultStacked)}
     >
       <LayoutGroup>

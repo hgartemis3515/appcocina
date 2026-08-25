@@ -234,14 +234,18 @@ const TemporizadorChips = ({ timers = [], configVisual = {}, tick = 0, ocultarNu
 
   let visibles = calculados;
   let ocultos = 0;
+  const maxVis = Math.max(2, Math.min(20, Number(configVisual.maxTimersVisibles) || 6));
   if (modoResumido && calculados.length > 1) {
     visibles = [calculados[0]];
     ocultos = calculados.length - 1;
+  } else if (calculados.length > maxVis) {
+    visibles = calculados.slice(0, maxVis);
+    ocultos = calculados.length - maxVis;
   }
 
   if (orientacion === 'vertical') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap, width: anchoChip ? `${anchoChip}px` : '100%', minWidth: anchoChip ? `${anchoChip}px` : '140px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap, width: anchoChip ? `${anchoChip}px` : '100%', minWidth: 0 }}>
         <AnimatePresence initial={false} mode={animOn ? 'popLayout' : undefined}>
           {visibles.map((t, i) => renderBloqueVertical(t, i))}
         </AnimatePresence>

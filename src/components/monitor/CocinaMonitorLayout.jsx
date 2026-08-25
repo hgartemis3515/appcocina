@@ -3,7 +3,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import moment from 'moment-timezone';
 import axios from 'axios';
 import { getServerBaseUrl } from '../../config/apiConfig';
-import { columnasQueCaben } from '../../config/monitorVisualConstants';
+import { clampColumnas } from '../../config/monitorVisualConstants';
 import { esModoFijoUrl, numeroMonitorDesdeUrl, suscribirDisenoMonitor } from '../../utils/monitorDesignSync';
 import { useHubChromeZoom } from '../../hooks/useHubChromeZoom';
 import PlatoMonitorRow from './PlatoMonitorRow';
@@ -231,6 +231,10 @@ const snapshotConfigPerfil = (configVisual) => {
     if (EXCLUDE_PERFIL_KEYS.has(k) || k in out) continue;
     const v = configVisual[k];
     if (esValorPerfil(v)) out[k] = v;
+  }
+  if (out.layoutColumnas != null) out.layoutColumnas = clampColumnas(out.layoutColumnas);
+  if (out.layoutColumnasGuarniciones != null) {
+    out.layoutColumnasGuarniciones = clampColumnas(out.layoutColumnasGuarniciones);
   }
   return out;
 };
@@ -844,18 +848,14 @@ const CocinaMonitorLayout = ({
   const iconoEmoji = ICONO_MAP[icono] || icono || '🍳';
   const splitActivo = listaGuarnicionesOn && flagGuarnicionesGlobal;
   const splitVertical = splitActivo && (configVisual.orientacionSplit || 'vertical') !== 'horizontal';
-  const anchoListaPlatos = splitVertical
-    ? Math.floor(viewport.w / 2)
-    : viewport.w;
-  const layoutColumnas = columnasQueCaben(anchoListaPlatos, configVisual.layoutColumnas || 1);
+  // Honrar 1–10 del panel Personalizar. CSS grid (`minmax(0,1fr)`) encoge las
+  // tarjetas; no recortar por ancho mínimo (en kiosk 1080 / split ~540 eso
+  // dejaba siempre 1 columna y el control parecía roto).
+  const layoutColumnas = clampColumnas(configVisual.layoutColumnas);
   const esGrid = layoutColumnas > 1;
-  // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: columnas del panel de guarniciones.
-  // Si NO se activa "diferenciar diseño", las guarniciones heredan las columnas
-  // de los platos principales (mismo diseño de lista).
   const diferenciarDiseno = configVisual.diferenciarDisenoGuarniciones === true;
-  const layoutColumnasGuarniciones = columnasQueCaben(
-    anchoListaPlatos,
-    diferenciarDiseno ? (configVisual.layoutColumnasGuarniciones || 1) : (configVisual.layoutColumnas || 1),
+  const layoutColumnasGuarniciones = clampColumnas(
+    diferenciarDiseno ? configVisual.layoutColumnasGuarniciones : configVisual.layoutColumnas,
   );
   const esGridGuarniciones = layoutColumnasGuarniciones > 1;
   const agrupacionOn = agrupacionGuarnicionesOn({
