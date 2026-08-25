@@ -9,6 +9,8 @@ import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaUserPlus, FaUserMinus, FaSpinner, FaUser } from 'react-icons/fa';
 
+const idOf = (v) => (v == null ? '' : String(v._id || v.id || v));
+
 const AsignarCocineroModal = ({
   isOpen,
   onClose,
@@ -17,7 +19,8 @@ const AsignarCocineroModal = ({
   asignando,
   onAsignar,
   platoActual,
-  comandaActual
+  comandaActual,
+  usuarioActual = null
 }) => {
   const inputRef = useRef(null);
   
@@ -39,8 +42,12 @@ const AsignarCocineroModal = ({
   };
 
   // Cocinero actualmente asignado
-  const cocineroActualId = platoActual?.asignadoA?._id || platoActual?.asignadoA || 
-                           comandaActual?.asignadoA?._id || comandaActual?.asignadoA;
+  const cocineroActualId = idOf(platoActual?.asignadoA?._id || platoActual?.asignadoA ||
+                           comandaActual?.asignadoA?._id || comandaActual?.asignadoA);
+  const yoId = idOf(usuarioActual);
+  const yoNombre = usuarioActual?.alias || usuarioActual?.nombre || 'Yo';
+  const otros = (cocineros || []).filter((c) => idOf(c) !== yoId);
+  const yoEsActual = yoId && cocineroActualId === yoId;
 
   return (
     <AnimatePresence>
@@ -91,7 +98,7 @@ const AsignarCocineroModal = ({
                   <FaSpinner className="animate-spin text-3xl text-orange-500 mb-3" />
                   <p className="text-gray-400">Cargando cocineros...</p>
                 </div>
-              ) : cocineros.length === 0 ? (
+              ) : (!yoId && otros.length === 0) ? (
                 <div className="text-center py-8">
                   <FaUser className="text-4xl text-gray-600 mb-3 mx-auto" />
                   <p className="text-gray-400">No hay cocineros disponibles</p>
@@ -118,20 +125,48 @@ const AsignarCocineroModal = ({
                     </button>
                   )}
 
+                  {yoId && (
+                    <button
+                      ref={!yoEsActual ? inputRef : null}
+                      onClick={() => onAsignar(yoId)}
+                      disabled={asignando || yoEsActual}
+                      className={`w-full p-3 rounded-xl transition-all flex items-center gap-3
+                        ${yoEsActual
+                          ? 'bg-amber-900/30 border border-amber-500/60'
+                          : 'bg-amber-900/25 border border-amber-500/50 hover:bg-amber-800/40 hover:border-amber-400'}
+                        ${asignando ? 'opacity-50' : ''}
+                      `}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center font-bold text-sm text-gray-900">
+                        {yoNombre.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="text-amber-200 font-semibold">Asignarme el plato</p>
+                        <p className="text-amber-200/70 text-xs">Tú · {yoNombre}</p>
+                        {yoEsActual && (
+                          <span className="inline-block text-xs bg-amber-600/30 text-amber-200 px-2 py-0.5 rounded mt-1">
+                            Asignado actualmente
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  )}
+
                   {/* Lista de cocineros */}
+                  {otros.length > 0 && (
                   <div className="pt-2">
                     <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 px-1">
                       Seleccionar cocinero
                     </p>
-                    {cocineros.map((cocinero) => {
-                      const esActual = cocineroActualId === cocinero._id;
+                    {otros.map((cocinero) => {
+                      const esActual = cocineroActualId === idOf(cocinero);
                       return (
                         <button
                           key={cocinero._id}
                           ref={esActual ? inputRef : null}
                           onClick={() => onAsignar(cocinero._id)}
                           disabled={asignando || esActual}
-                          className={`w-full p-3 rounded-xl transition-all flex items-center gap-3
+                          className={`w-full p-3 rounded-xl transition-all flex items-center gap-3 mb-2
                             ${esActual 
                               ? 'bg-purple-900/30 border border-purple-600' 
                               : 'bg-gray-800/50 border border-gray-700 hover:bg-purple-900/20 hover:border-purple-700'}
@@ -142,7 +177,8 @@ const AsignarCocineroModal = ({
                             ${esActual 
                               ? 'bg-purple-600 text-white' 
                               : 'bg-gray-700 text-gray-300'}
-                          `}>
+                          `}
+                          >
                             {cocinero.alias?.charAt(0)?.toUpperCase() || 
                              cocinero.nombre?.charAt(0)?.toUpperCase() || '?'}
                           </div>
@@ -166,6 +202,7 @@ const AsignarCocineroModal = ({
                       );
                     })}
                   </div>
+                  )}
                 </div>
               )}
             </div>

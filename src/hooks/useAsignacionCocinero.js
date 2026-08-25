@@ -21,7 +21,7 @@ import { getServerBaseUrl } from '../config/apiConfig';
  * @param {Function} options.onAsignacionActualizada - Callback cuando se actualiza asignación
  * @returns {Object} Estado y funciones de asignación
  */
-const useAsignacionCocinero = ({ getToken, showToast, onAsignacionActualizada }) => {
+const useAsignacionCocinero = ({ getToken, showToast, onAsignacionActualizada, usuarioActual = null }) => {
   const [cocineros, setCocineros] = useState([]);
   const [loadingCocineros, setLoadingCocineros] = useState(false);
   const [asignando, setAsignando] = useState(false);
@@ -128,7 +128,11 @@ const useAsignacionCocinero = ({ getToken, showToast, onAsignacionActualizada })
       const baseUrl = getServerBaseUrl();
       const apiUrl = `${baseUrl}/api/comanda/${comandaSeleccionada._id}/asignar`;
       const token = getToken?.();
-      const cocinero = cocineroId ? cocineros.find(c => c._id === cocineroId) : null;
+      const cocinero = cocineroId ? cocineros.find(c => String(c._id) === String(cocineroId)) : null;
+      const esYo = !!(cocineroId && usuarioActual && String(cocineroId) === String(usuarioActual._id));
+      const nombreMostrar = esYo
+        ? (usuarioActual.alias || usuarioActual.nombre || 'tú')
+        : (cocinero?.nombre || cocinero?.alias || 'Cocinero');
 
       const payload = platoSeleccionado
         ? { platoId: platoSeleccionado._id || platoSeleccionado.platoId, cocineroId }
@@ -144,9 +148,13 @@ const useAsignacionCocinero = ({ getToken, showToast, onAsignacionActualizada })
 
       // Notificar éxito
       const mensaje = cocineroId
-        ? platoSeleccionado
-          ? `${cocinero?.nombre || cocinero?.alias || 'Cocinero'} asignado a ${platoSeleccionado.plato?.nombre || platoSeleccionado.nombre}`
-          : `${cocinero?.nombre || cocinero?.alias || 'Cocinero'} asignado a Comanda #${comandaSeleccionada.comandaNumber}`
+        ? esYo
+          ? (platoSeleccionado
+            ? `Te asignaste ${platoSeleccionado.plato?.nombre || platoSeleccionado.nombre || 'el plato'}`
+            : `Te asignaste la Comanda #${comandaSeleccionada.comandaNumber}`)
+          : (platoSeleccionado
+            ? `${nombreMostrar} asignado a ${platoSeleccionado.plato?.nombre || platoSeleccionado.nombre}`
+            : `${nombreMostrar} asignado a Comanda #${comandaSeleccionada.comandaNumber}`)
         : 'Asignación removida';
 
       showToast?.({
@@ -159,7 +167,9 @@ const useAsignacionCocinero = ({ getToken, showToast, onAsignacionActualizada })
         comandaId: comandaSeleccionada._id,
         platoId: platoSeleccionado?._id || platoSeleccionado?.platoId,
         cocineroId,
-        cocinero: cocinero ? { _id: cocinero._id, nombre: cocinero.nombre, alias: cocinero.alias } : null
+        cocinero: esYo
+          ? { _id: usuarioActual._id, nombre: usuarioActual.nombre, alias: usuarioActual.alias }
+          : (cocinero ? { _id: cocinero._id, nombre: cocinero.nombre, alias: cocinero.alias } : null)
       });
 
       cerrarModal();
@@ -172,7 +182,7 @@ const useAsignacionCocinero = ({ getToken, showToast, onAsignacionActualizada })
     } finally {
       setAsignando(false);
     }
-  }, [comandaSeleccionada, platoSeleccionado, cocineros, getToken, showToast, onAsignacionActualizada, cerrarModal]);
+  }, [comandaSeleccionada, platoSeleccionado, cocineros, getToken, showToast, onAsignacionActualizada, cerrarModal, usuarioActual]);
 
   return {
     // Estado

@@ -7,7 +7,9 @@
 
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaUserCheck, FaSpinner, FaUser, FaUtensils } from 'react-icons/fa';
+import { FaTimes, FaUserCheck, FaSpinner, FaUser } from 'react-icons/fa';
+
+const idOf = (v) => (v == null ? '' : String(v._id || v.id || v));
 
 const TomarCocineroModal = ({
   isOpen,
@@ -17,10 +19,14 @@ const TomarCocineroModal = ({
   procesando,
   onConfirmar,
   platosSeleccionados = [],
-  comandaSeleccionada = null
+  comandaSeleccionada = null,
+  usuarioActual = null
 }) => {
   const inputRef = useRef(null);
-  
+  const yoId = idOf(usuarioActual);
+  const otros = (cocineros || []).filter((c) => idOf(c) !== yoId);
+  const yoNombre = usuarioActual?.alias || usuarioActual?.nombre || 'Yo';
+
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
@@ -39,13 +45,19 @@ const TomarCocineroModal = ({
 
   const getDescripcion = () => {
     if (comandaSeleccionada) {
-      return `Selecciona el cocinero que preparará toda la comanda`;
+      return `Selecciona quién preparará toda la comanda`;
     }
     if (platosSeleccionados?.length === 1) {
-      return `Selecciona el cocinero que preparará este plato`;
+      return `Selecciona quién preparará este plato`;
     }
-    return `Selecciona el cocinero que preparará estos platos`;
+    return `Selecciona quién preparará estos platos`;
   };
+
+  const etiquetaYo = comandaSeleccionada
+    ? 'Asignarme la comanda'
+    : (platosSeleccionados?.length > 1 ? 'Asignarme los platos' : 'Asignarme el plato');
+
+  const vacio = !yoId && otros.length === 0;
 
   return (
     <AnimatePresence>
@@ -101,7 +113,7 @@ const TomarCocineroModal = ({
                   <FaSpinner className="animate-spin text-3xl text-green-500 mb-3" />
                   <p className="text-gray-400">Cargando cocineros...</p>
                 </div>
-              ) : cocineros.length === 0 ? (
+              ) : vacio ? (
                 <div className="text-center py-8">
                   <FaUser className="text-4xl text-gray-600 mb-3 mx-auto" />
                   <p className="text-gray-400">No hay cocineros disponibles</p>
@@ -111,16 +123,39 @@ const TomarCocineroModal = ({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {cocineros.map((cocinero) => (
+                  {yoId && (
+                    <button
+                      ref={inputRef}
+                      onClick={() => onConfirmar(yoId)}
+                      disabled={procesando}
+                      className="w-full p-3 rounded-xl bg-amber-900/25 border border-amber-500/50 hover:bg-amber-800/40 hover:border-amber-400 transition-all flex items-center gap-3 disabled:opacity-50"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center font-bold text-sm text-gray-900">
+                        {yoNombre.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="text-amber-200 font-semibold">{etiquetaYo}</p>
+                        <p className="text-amber-200/70 text-xs">Tú · {yoNombre}</p>
+                      </div>
+                      {procesando && (
+                        <FaSpinner className="animate-spin text-amber-300" />
+                      )}
+                    </button>
+                  )}
+                  {otros.length > 0 && (
+                    <p className="text-xs text-gray-500 uppercase tracking-wider pt-2 px-1">
+                      Asignar a un cocinero
+                    </p>
+                  )}
+                  {otros.map((cocinero) => (
                     <button
                       key={cocinero._id}
-                      ref={inputRef}
                       onClick={() => onConfirmar(cocinero._id)}
                       disabled={procesando}
                       className="w-full p-3 rounded-xl bg-gray-800/50 border border-gray-700 hover:bg-green-900/30 hover:border-green-600 transition-all flex items-center gap-3 disabled:opacity-50"
                     >
                       <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center font-bold text-sm text-white">
-                        {cocinero.alias?.charAt(0)?.toUpperCase() || 
+                        {cocinero.alias?.charAt(0)?.toUpperCase() ||
                          cocinero.nombre?.charAt(0)?.toUpperCase() || '?'}
                       </div>
                       <div className="text-left flex-1">

@@ -27,7 +27,14 @@ import { esTipoGuarnicionKds } from '../../utils/guarnicionesKds';
  * Componente wrapper que extiende ComandaStyle con funcionalidades de supervisor
  */
 const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
-  const { hasRole, hasPermission, getToken, userId } = useAuth();
+  const { hasRole, hasPermission, getToken, userId, userName, cocineroConfig } = useAuth();
+  const usuarioActual = userId
+    ? {
+        _id: String(userId),
+        nombre: userName || 'Supervisor',
+        alias: cocineroConfig?.aliasCocinero || userName || 'Yo'
+      }
+    : null;
 
   // Verificar permisos de supervisor (por rol del sistema o por permiso)
   const tienePermiso = hasRole(['supervisor', 'admin']) || hasPermission('ver-vista-supervisor-cocina');
@@ -63,6 +70,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
     asignarCocinero
   } = useAsignacionCocinero({
     getToken,
+    usuarioActual,
     showToast: (msg) => setToastLocal({ ...msg, duration: 3000 }),
     onAsignacionActualizada: (data) => {
       console.log('[Supervi] Asignación actualizada:', data);
@@ -191,9 +199,10 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       // forzar=true para permitir reasignación como supervisor
       const result = await tomarComanda(datos.comandaId, cocineroId, true);
       if (result.success) {
+        const esYo = String(cocineroId) === String(userId);
         setToastLocal({
           type: 'success',
-          text: `👨‍🍳 Comanda asignada al cocinero`,
+          text: esYo ? 'Te asignaste la comanda' : 'Comanda asignada al cocinero',
           duration: 3000
         });
         // Forzar reseteo de selección
@@ -229,9 +238,12 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         if (result.success) exitosos++;
       }
       if (exitosos > 0) {
+        const esYo = String(cocineroId) === String(userId);
         setToastLocal({
           type: 'success',
-          text: `👨‍🍳 ${exitosos} unidad${exitosos > 1 ? 'es' : ''} asignada${exitosos > 1 ? 's' : ''}`,
+          text: esYo
+            ? `Te asignaste ${exitosos} unidad${exitosos > 1 ? 'es' : ''}`
+            : `👨‍🍳 ${exitosos} unidad${exitosos > 1 ? 'es' : ''} asignada${exitosos > 1 ? 's' : ''}`,
           duration: 3000
         });
         // Forzar reseteo de selección
@@ -242,7 +254,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       setTipoToma(null);
       setAccionPendiente(null);
     }
-  }, [accionPendiente, tomarPlato, tomarGuarnicion, tomarComanda]);
+  }, [accionPendiente, tomarPlato, tomarGuarnicion, tomarComanda, userId]);
 
   /**
    * Ejecuta la liberación con motivo
@@ -468,6 +480,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         loading={loadingCocineros}
         procesando={procesando}
         onConfirmar={handleConfirmarToma}
+        usuarioActual={usuarioActual}
         platosSeleccionados={tipoToma === 'platos' && accionPendiente?.datos ? accionPendiente.datos : []}
         comandaSeleccionada={tipoToma === 'comanda' && accionPendiente?.datos ? { _id: accionPendiente.datos.comandaId } : null}
       />
@@ -564,6 +577,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
         loading={loadingCocineros}
         asignando={asignando}
         onAsignar={asignarCocinero}
+        usuarioActual={usuarioActual}
         platoActual={platoSeleccionado}
         comandaActual={comandaSeleccionada}
       />
