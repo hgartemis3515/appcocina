@@ -54,29 +54,7 @@ import {
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
-
-// Sonido de notificación
-const playNotificationSound = () => {
-  try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.3);
-  } catch (error) {
-    console.log("No se pudo reproducir el sonido:", error);
-  }
-};
+import { playNotificationSound } from "../../utils/kdsNotificationSounds";
 
 const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage

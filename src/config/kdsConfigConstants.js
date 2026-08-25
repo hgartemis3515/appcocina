@@ -281,6 +281,8 @@ export const DEFAULT_KDS_CONFIG = {
   cacheDatos: true,
   limiteComandasMemoria: 100,
   soundEnabled: true,
+  timbreClave: 'beep_clasico',
+  timbreVolumen: 70,
   repetirSonido: false,
   nightMode: true,
   autoPrint: false,
@@ -425,6 +427,8 @@ export const aplicarPerfil = (perfilId, currentConfig = {}) => {
     perfilActivo: perfilId,
   };
   if (currentConfig.soundEnabled !== undefined) newConfig.soundEnabled = currentConfig.soundEnabled;
+  if (currentConfig.timbreClave !== undefined) newConfig.timbreClave = currentConfig.timbreClave;
+  if (currentConfig.timbreVolumen !== undefined) newConfig.timbreVolumen = currentConfig.timbreVolumen;
   if (currentConfig.nightMode !== undefined) newConfig.nightMode = currentConfig.nightMode;
   return newConfig;
 };

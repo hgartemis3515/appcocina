@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPalette, FaClock, FaSave, FaFolderOpen, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaPalette, FaClock, FaSave, FaFolderOpen, FaTrash, FaPlus, FaBell, FaPlay, FaVolumeUp, FaVolumeDown } from 'react-icons/fa';
 import { useConfig } from '../../contexts/ConfigContext';
 import {
   TIEMPOS_ALERTA,
@@ -8,6 +8,13 @@ import {
   ORDENAMIENTO,
   PERFILES_PREDEFINIDOS,
 } from '../../config/kdsConfigConstants';
+import {
+  KDS_TIMBRES,
+  TIMBRE_DEFAULT,
+  TIMBRE_VOLUMEN_DEFAULT,
+  resolverTimbreClave,
+  playKdsNotificationSound,
+} from '../../utils/kdsNotificationSounds';
 
 /**
  * Pestaña unificada Vista + Alertas de las tablas KDS,
@@ -405,6 +412,100 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
         </div>
         {config.alertRedMinutes <= config.alertYellowMinutes && (
           <p className="text-red-400 text-sm mt-3">La alerta roja debe ser mayor que la amarilla.</p>
+        )}
+      </section>
+
+      <section className={`rounded-xl border ${borderModal} ${cardBg} p-4`}>
+        <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+          <div>
+            <h3 className={`text-lg font-bold ${textModal} flex items-center gap-2`}>
+              <FaBell className="text-amber-400" />
+              Timbre de nueva comanda
+            </h3>
+            <p className={`${textSecondary} text-xs mt-0.5`}>
+              Reemplaza el beep al entrar una comanda. Elige un timbre y el volumen.
+              Si el sonido está apagado en General, no suena en el tablero.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => playKdsNotificationSound({
+              clave: resolverTimbreClave(config.timbreClave),
+              volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+              force: true,
+            })}
+            className="px-3 py-2 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-2"
+          >
+            <FaPlay className="text-xs" /> Probar
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            type="button"
+            aria-label="Bajar volumen"
+            onClick={() => updateConfig({
+              timbreVolumen: Math.max(0, (Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT) - 10),
+            })}
+            className={`p-2 rounded-lg ${nightMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+          >
+            <FaVolumeDown className={textModal} />
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT}
+            onChange={(e) => updateConfig({ timbreVolumen: parseInt(e.target.value, 10) || 0 })}
+            className="flex-1 accent-amber-500"
+            aria-label="Volumen del timbre"
+          />
+          <button
+            type="button"
+            aria-label="Subir volumen"
+            onClick={() => updateConfig({
+              timbreVolumen: Math.min(100, (Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT) + 10),
+            })}
+            className={`p-2 rounded-lg ${nightMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+          >
+            <FaVolumeUp className={textModal} />
+          </button>
+          <span className={`${textModal} text-sm font-bold w-12 text-right tabular-nums`}>
+            {Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT}%
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {KDS_TIMBRES.map((t) => {
+            const activo = resolverTimbreClave(config.timbreClave) === t.clave;
+            return (
+              <button
+                key={t.clave}
+                type="button"
+                onClick={() => {
+                  updateConfig({ timbreClave: t.clave });
+                  playKdsNotificationSound({
+                    clave: t.clave,
+                    volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+                    force: true,
+                  });
+                }}
+                className={`text-left rounded-lg border px-3 py-2 transition-colors ${
+                  activo
+                    ? 'border-amber-400 bg-amber-500/20'
+                    : `${borderModal} ${nightMode ? 'bg-gray-800/80 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'}`
+                }`}
+              >
+                <span className={`block text-sm font-semibold ${activo ? 'text-amber-300' : textModal}`}>
+                  {t.nombre}
+                </span>
+                <span className={`block text-[11px] ${textSecondary}`}>{t.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+        {resolverTimbreClave(config.timbreClave) === TIMBRE_DEFAULT && (
+          <p className={`${textSecondary} text-xs mt-3`}>Beep clásico es el tono que ya usaba el tablero.</p>
         )}
       </section>
     </div>

@@ -254,7 +254,8 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                     </span>
                   </label>
                   <p className={`${textSecondary} text-sm mt-1 ml-8`}>
-                    Reproduce un sonido cuando llegue una nueva comanda
+                    Reproduce un sonido cuando llegue una nueva comanda.
+                    El timbre y el volumen se eligen en la pestaña Vista y alertas.
                   </p>
                 </div>
 

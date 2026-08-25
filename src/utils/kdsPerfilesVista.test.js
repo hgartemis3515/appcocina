@@ -15,12 +15,16 @@ describe('kdsPerfilesVista', () => {
       mostrarBadgeGuarnicion: false,
       usarNombreCocinaEnTablaKds: false,
       alertYellowMinutes: 10,
+      timbreClave: 'ding_dong',
+      timbreVolumen: 40,
       nightMode: true,
       soundEnabled: false,
     });
     expect(snap.tamanoFuente).toBe(18);
     expect(snap.mostrarBadgeGuarnicion).toBe(false);
     expect(snap.usarNombreCocinaEnTablaKds).toBe(false);
+    expect(snap.timbreClave).toBe('ding_dong');
+    expect(snap.timbreVolumen).toBe(40);
     expect(snap.nightMode).toBeUndefined();
     expect(snap.soundEnabled).toBeUndefined();
   });

@@ -21,6 +21,8 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'alertYellowMinutes',
   'alertRedMinutes',
   'alertCriticalMinutes',
+  'timbreClave',
+  'timbreVolumen',
 ];
 
 export function snapshotPerfilVista(config = {}) {

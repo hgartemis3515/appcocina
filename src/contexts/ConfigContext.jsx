@@ -19,6 +19,7 @@ import {
   perfilVistaDifiere,
   TIPO_PERFIL_TABLAS_KDS,
 } from '../utils/kdsPerfilesVista';
+import { syncKdsNotificationSound } from '../utils/kdsNotificationSounds';
 import { apiGet, apiPost, apiPut, apiDelete } from '../config/apiClient';
 
 /**
@@ -70,6 +71,10 @@ export const ConfigProvider = ({ children }) => {
   useEffect(() => {
     perfilesVistaRef.current = perfilesVista;
   }, [perfilesVista]);
+
+  useEffect(() => {
+    syncKdsNotificationSound(config);
+  }, [config.soundEnabled, config.timbreClave, config.timbreVolumen]);
 
   /**
    * Ejecuta limpieza automática si es necesaria
