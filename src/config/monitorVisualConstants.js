@@ -25,6 +25,28 @@ export const MONITOR_TIPOGRAFIA = {
 export const escalaDetalle = (tamanioDetalle, factor = 1) =>
   Math.max(10, Math.round((tamanioDetalle || 20) * factor));
 
+export function colorNombrePlatoMonitor(configVisual = {}) {
+  return configVisual.colorTextoPlato || configVisual.colorTextoPrincipal || '#ffffff';
+}
+
+export function colorDetallePlatoMonitor(configVisual = {}) {
+  return configVisual.colorTextoDetalle || configVisual.colorTextoSecundario || '#9ca3af';
+}
+
+/** Guarniciones en la tarjeta del plato: siempre wrap, nunca "Arr…". */
+export function estiloDetalleGuarnicionPlato(fontSizePx, color) {
+  return {
+    fontSize: `${fontSizePx}px`,
+    color,
+    whiteSpace: 'normal',
+    overflow: 'visible',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    fontWeight: 500,
+    lineHeight: 1.25,
+  };
+}
+
 export const clampColumnas = (n) =>
   Math.min(
     MONITOR_LAYOUT.COLUMNAS_MAX,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION } from '../../config/monitorVisualConstants';
+import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION, colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
@@ -206,6 +206,8 @@ const CocineroPlatoCard = React.forwardRef(({
   const pesoFuentePlato = pickG('pesoFuenteGuarnicion', configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT);
   const colorTextoPrincipal = pickG('colorTextoGuarnicion', configVisual.colorTextoPrincipal || '#ffffff');
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#b8a8c8';
+  const colorNombrePlato = esGuarnicion ? colorTextoPrincipal : colorNombrePlatoMonitor(configVisual);
+  const colorDetallePlato = colorDetallePlatoMonitor(configVisual);
   const colorTextoPadre = (esGuarnicion && configVisual.colorTextoPadreGuarnicion)
     ? configVisual.colorTextoPadreGuarnicion
     : colorTextoSecundario;
@@ -311,7 +313,7 @@ const CocineroPlatoCard = React.forwardRef(({
         if (obs) complementosSet.add(obs);
       }
     }
-    complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');
+    complementosTexto = Array.from(complementosSet).join(' · ');
   }
   const fsPadreBase = tamanioFuentePadre || tamanioFuenteDetalle;
   const estiloPron = tokensEstiloPronombreGuarnicion(configVisual, {
@@ -355,7 +357,7 @@ const CocineroPlatoCard = React.forwardRef(({
   // Cada tarjeta escala su fuente/padding según el largo del texto, así las
   // tarjetas con más letras se agrandan y las con menos se reducen — pero
   // respetando el grid de N columnas y llenando el 100% del espacio.
-  const longitudContenido = (nombre?.length || 0) + (complementosTexto?.length || 0);
+  const longitudContenido = (nombre?.length || 0);
   const factorContenido = (() => {
     if (!autoAcomodamiento) return 1;
     if (longitudContenido <= 8) return 0.82;
@@ -404,7 +406,8 @@ const CocineroPlatoCard = React.forwardRef(({
   // (sin minHeight 130 ni spacer vacío que estira la tarjeta).
   const compacto = esUnido || espaciado === 'compacto' || esGuarnicion;
   const aprovecharEspacio = configVisual.aprovecharEspacio === true;
-  const alturaAlContenido = compacto || aprovecharEspacio;
+  const hayDetallesGuarnicion = !esGuarnicion && mostrarComplementos && !!complementosTexto;
+  const alturaAlContenido = compacto || aprovecharEspacio || hayDetallesGuarnicion;
   const hayPie = (!ocultarAtencionUrgente && (esCritico || esAlerta))
     || hayParaLlevar
     || (configVisual.mostrarMesas !== false && !esGuarnicion);
@@ -438,7 +441,7 @@ const CocineroPlatoCard = React.forwardRef(({
     flex: alturaAlContenido ? '0 0 auto' : 1,
     boxShadow: esUnido ? 'none' : glowBorde,
     position: 'relative',
-    overflow: 'hidden',
+    overflow: hayDetallesGuarnicion ? 'visible' : 'hidden',
     '--kds-alerta-color': colorAlertaParaVar,
     '--kds-fondo-base': FONDO_VINO,
     animation: animacionAlerta,
@@ -512,8 +515,11 @@ const CocineroPlatoCard = React.forwardRef(({
             fontSize: `${fsPlatoAcomodado}px`,
             fontWeight: pesoFuentePlato,
             lineHeight: 1.05,
-            color: colorTextoPrincipal,
+            color: colorNombrePlato,
             textShadow: '0 2px 8px rgba(0,0,0,0.45)',
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
+            whiteSpace: 'normal',
           }}
         >
           {nombre}
@@ -563,16 +569,7 @@ const CocineroPlatoCard = React.forwardRef(({
         </div>
       ) : null}
       {!esGuarnicion && mostrarComplementos && complementosTexto ? (
-        <div
-          style={{
-            fontSize: `${fsDetalleAcomodado}px`,
-            color: colorTextoSecundario,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            fontWeight: 500,
-          }}
-        >
+        <div style={estiloDetalleGuarnicionPlato(fsDetalleAcomodado, colorDetallePlato)}>
           {complementosTexto}
         </div>
       ) : null}

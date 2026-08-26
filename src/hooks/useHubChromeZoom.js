@@ -17,7 +17,19 @@ function zoomDesdeUrl() {
   }
 }
 
-function aplicarZoom(percent) {
+function limpiarZoomCss() {
+  try {
+    const r = document.documentElement;
+    r.style.zoom = '';
+    r.style.transform = '';
+    r.style.width = '';
+    r.style.height = '';
+    if (document.body) document.body.style.zoom = '';
+  } catch { /* noop */ }
+}
+
+/** Fallback si el Hub/CDP no está: escala visual (no cambia innerWidth). */
+function aplicarZoomCss(percent) {
   const z = clampZoom(percent);
   try {
     document.documentElement.style.zoom = String(z / 100);
@@ -26,23 +38,27 @@ function aplicarZoom(percent) {
 }
 
 /**
- * Zoom de página que controla el Monitor Hub (slider en vivo).
- * Lee ?hubZoom= y consulta http://127.0.0.1:7331/zoom/:monitor.
+ * Zoom de página que controla el Monitor Hub.
+ * Con Hub activo el zoom lo aplica Chrome (CDP = Ctrl +/-).
+ * Sin Hub, usa ?hubZoom= como CSS zoom de respaldo.
  */
 export function useHubChromeZoom() {
   useEffect(() => {
-    aplicarZoom(zoomDesdeUrl());
+    aplicarZoomCss(zoomDesdeUrl());
     const numero = numeroMonitorDesdeUrl();
     if (!numero) return undefined;
     let stop = false;
+    let hubActivo = false;
     const tick = async () => {
       try {
         const r = await fetch(`${HUB_ZOOM_URL}/zoom/${numero}`, { cache: 'no-store' });
         if (!r.ok || stop) return;
         const d = await r.json();
-        if (d?.zoom != null) aplicarZoom(d.zoom);
+        if (d?.zoom == null) return;
+        hubActivo = true;
+        limpiarZoomCss();
       } catch {
-        /* Hub no está en esta PC */
+        if (!hubActivo && !stop) aplicarZoomCss(zoomDesdeUrl());
       }
     };
     const id = setInterval(tick, 800);

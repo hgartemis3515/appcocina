@@ -1674,7 +1674,6 @@ const MonitorConfigPanel = ({
             ['colorFondo', 'Fondo'],
             ['colorFilaPlato', 'Fila / tarjeta'],
             ['colorTextoPrincipal', 'Texto principal'],
-            ['colorTextoSecundario', 'Texto secundario'],
             ['colorAcento', 'Acento'],
             ['colorAlertaAmarilla', 'Alerta amarilla'],
             ['colorAlertaRoja', 'Alerta roja'],
@@ -1683,12 +1682,69 @@ const MonitorConfigPanel = ({
               {text}
               <input
                 type="color"
-                value={configVisual[key]}
+                value={String(configVisual[key] || '#ffffff').slice(0, 7)}
                 onChange={e => guardar({ [key]: e.target.value })}
                 style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
               />
             </label>
           ))}
+          <label style={lbl}>
+            Nombre del plato
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="color"
+                value={String(configVisual.colorTextoPlato || configVisual.colorTextoPrincipal || '#ffffff').slice(0, 7)}
+                onChange={e => guardar({ colorTextoPlato: e.target.value })}
+                style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              />
+              <button
+                type="button"
+                onClick={() => guardar({ colorTextoPlato: null })}
+                title="Usar texto principal"
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                  background: !configVisual.colorTextoPlato ? `${colorAcento}33` : undefined,
+                }}
+              >
+                Auto
+              </button>
+            </div>
+          </label>
+          <label style={lbl}>
+            Detalle (guarniciones)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="color"
+                value={String(configVisual.colorTextoDetalle || configVisual.colorTextoSecundario || '#9ca3af').slice(0, 7)}
+                onChange={e => guardar({ colorTextoDetalle: e.target.value })}
+                style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              />
+              <button
+                type="button"
+                onClick={() => guardar({ colorTextoDetalle: null })}
+                title="Usar texto secundario"
+                style={{
+                  ...inp,
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                  background: !configVisual.colorTextoDetalle ? `${colorAcento}33` : undefined,
+                }}
+              >
+                Auto
+              </button>
+            </div>
+          </label>
+          <label style={lbl}>
+            Texto secundario
+            <input
+              type="color"
+              value={String(configVisual.colorTextoSecundario || '#9ca3af').slice(0, 7)}
+              onChange={e => guardar({ colorTextoSecundario: e.target.value })}
+              style={{ width: '48px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+            />
+          </label>
           <label style={lbl}>
             Fondo tarjeta
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -2513,7 +2569,8 @@ const MonitorConfigPanel = ({
           <span style={{
             fontSize: `${Math.min(configVisual.tamanioFuentePlato, 28)}px`,
             fontWeight: configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT,
-            color: configVisual.colorTextoPrincipal,
+            color: configVisual.colorTextoPlato || configVisual.colorTextoPrincipal,
+            wordBreak: 'break-word',
           }}>
             Pachamanca
           </span>
@@ -2528,6 +2585,18 @@ const MonitorConfigPanel = ({
             ×4
           </span>
         </div>
+        {configVisual.mostrarComplementos !== false && (
+          <div style={{
+            fontSize: `${Math.min(configVisual.tamanioFuenteDetalle || 18, 18)}px`,
+            color: configVisual.colorTextoDetalle || configVisual.colorTextoSecundario,
+            fontWeight: 500,
+            lineHeight: 1.25,
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          }}>
+            Arroz · Papa frita · Ensalada
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: `${Math.min(configVisual.tamanioFuenteCronometro * 1.15, 22)}px`, fontWeight: 900, color: configVisual.colorAcento }}>
             ⏱(

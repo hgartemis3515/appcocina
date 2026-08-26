@@ -1,4 +1,9 @@
-const { clampColumnas, columnasQueCaben } = require('./monitorVisualConstants');
+const {
+  clampColumnas,
+  columnasQueCaben,
+  colorNombrePlatoMonitor,
+  colorDetallePlatoMonitor,
+} = require('./monitorVisualConstants');
 
 describe('clampColumnas', () => {
   test('honra 1–10 para Personalizar vista (sin recortar por ancho de monitor)', () => {
@@ -24,5 +29,16 @@ describe('columnasQueCaben', () => {
 
   test('respeta el tope de clampColumnas', () => {
     expect(columnasQueCaben(4000, 99)).toBe(clampColumnas(99));
+  });
+});
+
+describe('colores plato / detalle', () => {
+  test('nombre del plato usa colorTextoPlato o cae a principal', () => {
+    expect(colorNombrePlatoMonitor({ colorTextoPlato: '#aabbcc' })).toBe('#aabbcc');
+    expect(colorNombrePlatoMonitor({ colorTextoPrincipal: '#112233' })).toBe('#112233');
+  });
+  test('detalle usa colorTextoDetalle o cae a secundario', () => {
+    expect(colorDetallePlatoMonitor({ colorTextoDetalle: '#99aa00' })).toBe('#99aa00');
+    expect(colorDetallePlatoMonitor({ colorTextoSecundario: '#445566' })).toBe('#445566');
   });
 });

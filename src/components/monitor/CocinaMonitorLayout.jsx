@@ -71,6 +71,8 @@ const DEFAULT_CONFIG = {
   tamanioFuenteCocinero: 28,
   colorFondo: '#0a0a0f',
   colorTextoPrincipal: '#ffffff',
+  colorTextoPlato: null,
+  colorTextoDetalle: null,
   colorTextoSecundario: '#9ca3af',
   colorAcento: '#d4af37',
   colorAlertaAmarilla: '#fbbf24',

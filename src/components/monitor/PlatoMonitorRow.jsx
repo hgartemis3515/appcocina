@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
+import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 
 /**
@@ -88,7 +89,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
       if (obs) complementosSet.add(obs);
     }
   }
-  const complementosTexto = Array.from(complementosSet).slice(0, 6).join(' · ');
+  const complementosTexto = Array.from(complementosSet).join(' · ');
 
   // Detectar si alguno es para llevar
   const hayParaLlevar = platos.some(p => p.comanda.tipoServicio === 'para_llevar');
@@ -100,6 +101,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
   const tamanioFuenteCronometro = configVisual.tamanioFuenteCronometro || 28;
   const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
   const colorTextoSecundario = configVisual.colorTextoSecundario || '#9ca3af';
+  const colorNombrePlato = colorNombrePlatoMonitor(configVisual);
+  const colorDetallePlato = colorDetallePlatoMonitor(configVisual);
   const colorAcento = configVisual.colorAcento || '#d4af37';
   const colorAlertaAmarilla = configVisual.colorAlertaAmarilla || '#fbbf24';
   const colorAlertaRoja = configVisual.colorAlertaRoja || '#ef4444';
@@ -128,17 +131,17 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           fontSize: `${tamanioFuentePlato}px`,
           fontWeight: pesoFuentePlato,
           lineHeight: 1.15,
-          whiteSpace: disposicionVertical ? 'normal' : 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          wordBreak: disposicionVertical ? 'break-word' : undefined,
+          whiteSpace: 'normal',
+          overflow: 'visible',
+          wordBreak: 'break-word',
+          overflowWrap: 'anywhere',
           display: 'flex',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '8px',
         }}
       >
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
+        <span style={{ minWidth: 0, color: colorNombrePlato }}>{nombre}</span>
         <span style={estiloCantidadBadge(configVisual)}>
           ×{cantidadTotal}
         </span>
@@ -147,13 +150,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
       {mostrarComplementos && complementosTexto && (
         <div
           style={{
-            fontSize: `${tamanioFuenteDetalle}px`,
-            color: colorTextoSecundario,
+            ...estiloDetalleGuarnicionPlato(tamanioFuenteDetalle, colorDetallePlato),
             marginTop: '4px',
-            whiteSpace: disposicionVertical ? 'normal' : 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            wordBreak: disposicionVertical ? 'break-word' : undefined,
           }}
         >
           {complementosTexto}
@@ -246,8 +244,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
     flexDirection: disposicionVertical ? 'column' : 'row',
     alignItems: disposicionVertical ? 'stretch' : 'center',
     justifyContent: disposicionVertical ? 'flex-start' : 'space-between',
-    minHeight: (modoTarjeta && configVisual.aprovecharEspacio !== true) ? '120px' : (modoTarjeta ? 'auto' : '72px'),
-    height: (modoTarjeta && configVisual.aprovecharEspacio !== true) ? '100%' : undefined,
+    minHeight: (modoTarjeta && configVisual.aprovecharEspacio !== true && !(mostrarComplementos && complementosTexto)) ? '120px' : (modoTarjeta ? 'auto' : '72px'),
+    height: (modoTarjeta && configVisual.aprovecharEspacio !== true && !(mostrarComplementos && complementosTexto)) ? '100%' : undefined,
     boxShadow: esUnido ? 'none' : (modoTarjeta ? `0 2px 12px ${colorAcento}11` : 'none'),
     minWidth: 0,
   };
