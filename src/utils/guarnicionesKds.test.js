@@ -5,6 +5,7 @@
 const {
   normalizarGuarnicionKey,
   esGuarnicionSeparable,
+  platoUneComplementos,
   nombrePlatoPadre,
   nombreGuarnicionConPadre,
   expandirUnidadesTrabajo,
@@ -35,6 +36,21 @@ describe('esGuarnicionSeparable', () => {
   test('flag ON sin complementos', () => {
     expect(esGuarnicionSeparable({ complementosSeleccionados: [] }, true)).toBe(false);
     expect(esGuarnicionSeparable({}, true)).toBe(false);
+  });
+  test('unidos al plato: no separable aunque flag ON y haya extras', () => {
+    const plato = {
+      complementosUnidosAlPlato: true,
+      complementosSeleccionados: [{ grupo: 'Sabor', opcion: 'Pollo' }]
+    };
+    expect(platoUneComplementos(plato)).toBe(true);
+    expect(esGuarnicionSeparable(plato, true)).toBe(false);
+  });
+  test('fallback catálogo populado si no hay snapshot', () => {
+    const plato = {
+      complementosSeleccionados: [{ grupo: 'Sabor', opcion: 'Cordero' }],
+      plato: { complementosUnidosAlPlato: true, nombre: 'Pachamanca' }
+    };
+    expect(esGuarnicionSeparable(plato, true)).toBe(false);
   });
 });
 
@@ -104,6 +120,21 @@ describe('expandirUnidadesTrabajo', () => {
 
   test('flag ON + sin complementos: solo principal, sin ocultarComplementos', () => {
     const plato = { nombre: 'Ceviche', complementosSeleccionados: [] };
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true });
+    expect(unidades).toHaveLength(1);
+    expect(unidades[0].tipo).toBe('principal');
+    expect(unidades[0].ocultarComplementos).toBeUndefined();
+  });
+
+  test('unidos al plato: una sola unidad principal y se pintan los extras', () => {
+    const plato = {
+      nombre: 'Pachamanca',
+      complementosUnidosAlPlato: true,
+      complementosSeleccionados: [
+        { grupo: 'Sabor', opcion: 'Pollo', _id: 'c1' },
+        { grupo: 'Sabor', opcion: 'Cerdo', _id: 'c2' }
+      ]
+    };
     const unidades = expandirUnidadesTrabajo(plato, { flagOn: true });
     expect(unidades).toHaveLength(1);
     expect(unidades[0].tipo).toBe('principal');
@@ -217,6 +248,20 @@ describe('claveAgrupacionUnidad', () => {
     const u2 = { tipo: 'guarnicion', comp: { grupo: 'Acomp', opcion: 'Papas' }, nombrePadre: 'Lomo' };
     expect(claveAgrupacionUnidad(u1, true)).toBe(claveAgrupacionUnidad(u2, true));
   });
+  test('principales unidos no colisionan si el sabor es distinto', () => {
+    const p1 = {
+      nombre: 'Pachamanca',
+      complementosUnidosAlPlato: true,
+      complementosSeleccionados: [{ grupo: 'Sabor', opcion: 'Pollo' }]
+    };
+    const p2 = {
+      nombre: 'Pachamanca',
+      complementosUnidosAlPlato: true,
+      complementosSeleccionados: [{ grupo: 'Sabor', opcion: 'Cordero' }]
+    };
+    expect(claveAgrupacionUnidad({ tipo: 'principal', plato: p1 }, true))
+      .not.toBe(claveAgrupacionUnidad({ tipo: 'principal', plato: p2 }, true));
+  });
 });
 
 describe('estadoAlertaGuarnicion', () => {
@@ -304,6 +349,15 @@ describe('guarnicionesPendientes', () => {
     expect(pend).toHaveLength(1);
     expect(pend[0].compId).toBe('c2');
     expect(pend[0].opcion).toBe('Arroz');
+  });
+  test('unidos al plato no salen como pendientes de lista', () => {
+    const plato = {
+      complementosUnidosAlPlato: true,
+      complementosSeleccionados: [
+        { _id: 'c2', grupo: 'Sabor', opcion: 'Pollo', estadoCocina: 'en_espera' }
+      ]
+    };
+    expect(guarnicionesPendientes(plato)).toEqual([]);
   });
 });
 
@@ -478,6 +532,22 @@ describe('aplicarEventoGuarnicion (Ver Cocina live patch)', () => {
       padresVisibles: new Set(['com1:0'])
     });
     expect(items).toHaveLength(0);
+  });
+
+  test('recolectar: plato unidos no entra a lista de guarniciones', () => {
+    const { recolectarGuarnicionesMonitor } = require('./guarnicionesKds');
+    const comandas = [{
+      _id: 'com1',
+      platos: [{
+        _id: 'p1',
+        estado: 'pedido',
+        complementosUnidosAlPlato: true,
+        complementosSeleccionados: [
+          { _id: 'g1', opcion: 'Pollo', estadoCocina: 'en_espera', procesandoPor: { cocineroId: 'cook2' } }
+        ]
+      }]
+    }];
+    expect(recolectarGuarnicionesMonitor(comandas, {})).toHaveLength(0);
   });
 
   test('liberar con complementoIds limpia todas las extras del grupo', () => {

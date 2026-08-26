@@ -25,10 +25,23 @@ export function normalizarGuarnicionKey(grupo, opcion) {
 }
 
 /**
- * ¿El plato tiene guarniciones separables? (flag ON + complementosSeleccionados no vacío)
+ * Complementos unidos al principal (sabores / detalle), no unidad KDS aparte.
+ * Snapshot en la línea; si no hay boolean, catálogo populado en plato.plato.
+ */
+export function platoUneComplementos(plato) {
+  if (!plato) return false;
+  if (plato.complementosUnidosAlPlato === true) return true;
+  if (plato.complementosUnidosAlPlato === false) return false;
+  const cat = plato.plato;
+  return !!(cat && typeof cat === 'object' && cat.complementosUnidosAlPlato === true);
+}
+
+/**
+ * ¿El plato tiene guarniciones separables? (flag ON + complementos + no unidos al plato)
  */
 export function esGuarnicionSeparable(plato, flagOn) {
   if (!flagOn) return false;
+  if (platoUneComplementos(plato)) return false;
   const comps = plato?.complementosSeleccionados || plato?.complementos || [];
   return Array.isArray(comps) && comps.length > 0;
 }
@@ -235,9 +248,9 @@ export function expandirUnidadesTrabajo(plato, opts = {}) {
 }
 
 /**
- * Clave de agrupación para KDS. Con flag ON, el principal se agrupa SIN extras
- * (no fusionar guarniciones de platos distintos). Cada guarnición se agrupa por
- * guarnicionKey + nombrePadre.
+ * Clave de agrupación para KDS. Si el plato se parte (flag ON y no unidos),
+ * el principal se agrupa SIN extras. Si van unidos al plato, la clave incluye
+ * los complementos (p. ej. sabores de pachamanca no se mezclan).
  */
 export function claveAgrupacionUnidad(unidad, flagOn) {
   if (!unidad) return '';
@@ -245,7 +258,10 @@ export function claveAgrupacionUnidad(unidad, flagOn) {
     // Con flag ON, el principal se agrupa solo por nombre (sin extras en la clave).
     const p = unidad.plato;
     const base = (p?.nombreCocina || p?.nombre || p?.plato?.nombre || '') + (p?.notaEspecial || '');
-    return flagOn ? `principal::${base}` : `principal::${base}::${(p?.complementosSeleccionados || []).map(c => c.grupo + c.opcion).join(',')}`;
+    const splitKey = esGuarnicionSeparable(p, flagOn);
+    return splitKey
+      ? `principal::${base}`
+      : `principal::${base}::${(p?.complementosSeleccionados || []).map(c => c.grupo + c.opcion).join(',')}`;
   }
   if (unidad.tipo === 'guarnicion') {
     const key = normalizarGuarnicionKey(unidad.comp?.grupo, unidad.comp?.opcion);
@@ -329,6 +345,7 @@ export function estadoAlertaGuarnicion(comp, tiemposConfig) {
  * Si el plato no tiene complementos, devuelve true (no hay nada que esperar).
  */
 export function todasGuarnicionesListas(plato) {
+  if (platoUneComplementos(plato)) return true;
   const comps = plato?.complementosSeleccionados || plato?.complementos || [];
   if (!Array.isArray(comps) || comps.length === 0) return true;
   return comps.every(c => !c || c.eliminado || c.estadoCocina === 'recoger');
@@ -338,6 +355,7 @@ export function todasGuarnicionesListas(plato) {
  * Devuelve las guarniciones pendientes (no recoger, no eliminadas).
  */
 export function guarnicionesPendientes(plato) {
+  if (platoUneComplementos(plato)) return [];
   const comps = plato?.complementosSeleccionados || plato?.complementos || [];
   if (!Array.isArray(comps)) return [];
   return comps
@@ -417,6 +435,7 @@ export function recolectarGuarnicionesMonitor(comandas, opts = {}) {
     for (let platoIndex = 0; platoIndex < platos.length; platoIndex++) {
       const plato = platos[platoIndex];
       if (!plato || plato.anulado || plato.eliminado || plato.eliminar) continue;
+      if (platoUneComplementos(plato)) continue;
       const estado = plato.estado || '';
       if (estado && !['pedido', 'en_espera'].includes(estado)) continue;
       const comps = guarnicionesPendientes(plato);
