@@ -2069,7 +2069,7 @@ const MonitorConfigPanel = ({
             Mostrar nombres de guarniciones en el plato principal
           </label>
           <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '-2px 0 6px', width: '100%' }}>
-            En Ver Cocina, la tarjeta del plato (ej. Bistec) lista Arroz, papa frita, ensalada. Desactívalo para dejar solo el nombre del plato. No afecta la lista de guarniciones del panel derecho.
+            En Ver Cocina y Distribuir, la tarjeta del plato lista solo el nombre de cada extra (Res), no el grupo (Sabores). Desactívalo para dejar solo el nombre del plato. No afecta la lista de guarniciones del panel derecho.
           </p>
           <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
             <input

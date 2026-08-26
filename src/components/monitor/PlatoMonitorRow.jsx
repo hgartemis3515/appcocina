@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
+import { textoGuarnicionEnPrincipal } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 
 /**
@@ -71,18 +72,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
   if (platoRef) {
     const comps = platoRef.complementosSeleccionados || platoRef.complementos || [];
     comps.forEach(c => {
-      if (typeof c === 'string') {
-        complementosSet.add(c);
-        return;
-      }
-      // PLAN GUARNICIONES_SEPARADAS v1.1.1: para guarniciones mostrar solo el
-      // nombre de la opción ("Arroz"), sin el título del grupo ("Guarnicion:").
-      const grupoRaw = (c.grupo || '').trim();
-      const esGuarnicion = /^guarnici[oó]n(es)?$/i.test(grupoRaw);
-      const grupo = (grupoRaw && !esGuarnicion) ? `${grupoRaw}: ` : '';
-      const opcion = c.opcion || c.nombre || '';
-      const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
-      if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
+      const texto = textoGuarnicionEnPrincipal(c);
+      if (texto) complementosSet.add(texto);
     });
     if (configVisual.notasJuntoAGuarniciones === false) {
       const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;

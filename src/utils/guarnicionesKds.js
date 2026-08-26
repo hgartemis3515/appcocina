@@ -26,12 +26,11 @@ export function normalizarGuarnicionKey(grupo, opcion) {
 
 /**
  * Complementos unidos al principal (sabores / detalle), no unidad KDS aparte.
- * Snapshot en la línea; si no hay boolean, catálogo populado en plato.plato.
+ * True si el snapshot O el catálogo populado lo marca (el menú aplica a tickets abiertos).
  */
 export function platoUneComplementos(plato) {
   if (!plato) return false;
   if (plato.complementosUnidosAlPlato === true) return true;
-  if (plato.complementosUnidosAlPlato === false) return false;
   const cat = plato.plato;
   return !!(cat && typeof cat === 'object' && cat.complementosUnidosAlPlato === true);
 }
@@ -74,6 +73,20 @@ export function nombreGuarnicionConPadre(comp, nombrePadre) {
 export function nombreGuarnicionSolo(comp) {
   const opcion = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || '');
   return opcion || '';
+}
+
+/**
+ * Texto bajo el plato principal (Ver Cocina / Distribuir): solo el nombre
+ * de la opción ("Res"), nunca el grupo ("Sabores: Res").
+ */
+export function textoGuarnicionEnPrincipal(comp) {
+  if (comp == null) return '';
+  if (typeof comp === 'string') return comp.trim();
+  if (comp.eliminado) return '';
+  const opcion = nombreGuarnicionSolo(comp) || String(comp.nombre || '').trim();
+  if (!opcion) return '';
+  const cant = Number(comp.cantidad) || 1;
+  return cant > 1 ? `${opcion} ×${cant}` : opcion;
 }
 
 function catalogoComplementosDePlato(platoPadre) {

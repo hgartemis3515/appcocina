@@ -7,7 +7,7 @@ import MesaChips from './MesaChips';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
-import { tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
+import { tokenGuarnicion, nombresListaGuarniciones, textoGuarnicionEnPrincipal } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 
 /**
@@ -300,13 +300,8 @@ const CocineroPlatoCard = React.forwardRef(({
     if (platoRef) {
       const comps = platoRef.complementosSeleccionados || platoRef.complementos || [];
       comps.forEach(c => {
-        if (typeof c === 'string') { complementosSet.add(c); return; }
-        const grupoRaw = (c.grupo || '').trim();
-        const esGrupoGuarnicion = /^guarnici[oó]n(es)?$/i.test(grupoRaw);
-        const grupo = (grupoRaw && !esGrupoGuarnicion) ? `${grupoRaw}: ` : '';
-        const opcion = c.opcion || c.nombre || '';
-        const cant = c.cantidad > 1 ? ` ×${c.cantidad}` : '';
-        if (opcion) complementosSet.add(`${grupo}${opcion}${cant}`.trim());
+        const texto = textoGuarnicionEnPrincipal(c);
+        if (texto) complementosSet.add(texto);
       });
       if (configVisual.notasJuntoAGuarniciones === false) {
         const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;

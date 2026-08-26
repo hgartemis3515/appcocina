@@ -52,6 +52,15 @@ describe('esGuarnicionSeparable', () => {
     };
     expect(esGuarnicionSeparable(plato, true)).toBe(false);
   });
+  test('catálogo true une aunque snapshot de línea sea false', () => {
+    const plato = {
+      complementosUnidosAlPlato: false,
+      complementosSeleccionados: [{ grupo: 'Sabor', opcion: 'Pollo' }],
+      plato: { complementosUnidosAlPlato: true, nombre: 'Pachamanca 1 sabor' }
+    };
+    expect(platoUneComplementos(plato)).toBe(true);
+    expect(esGuarnicionSeparable(plato, true)).toBe(false);
+  });
 });
 
 describe('nombreGuarnicionConPadre', () => {
@@ -83,6 +92,21 @@ describe('nombreGuarnicionSolo', () => {
   });
   test('sin opción devuelve string vacío', () => {
     expect(nombreGuarnicionSolo({})).toBe('');
+  });
+});
+
+const { textoGuarnicionEnPrincipal } = require('./guarnicionesKds');
+
+describe('textoGuarnicionEnPrincipal', () => {
+  test('solo la opción, nunca el grupo', () => {
+    expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Res' })).toBe('Res');
+    expect(textoGuarnicionEnPrincipal({ grupo: 'Guarnición', opcion: 'Arroz' })).toBe('Arroz');
+  });
+  test('cantidad > 1 añade ×N', () => {
+    expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Pollo', cantidad: 2 })).toBe('Pollo ×2');
+  });
+  test('eliminado no se muestra', () => {
+    expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Res', eliminado: true })).toBe('');
   });
 });
 
@@ -136,6 +160,20 @@ describe('expandirUnidadesTrabajo', () => {
       ]
     };
     const unidades = expandirUnidadesTrabajo(plato, { flagOn: true });
+    expect(unidades).toHaveLength(1);
+    expect(unidades[0].tipo).toBe('principal');
+    expect(unidades[0].ocultarComplementos).toBeUndefined();
+  });
+
+  test('unidos vía catálogo (snapshot false): una tarjeta, extras visibles, agrupación no parte', () => {
+    const plato = {
+      nombre: 'Pachamanca 1 sabor',
+      estado: 'pedido',
+      complementosUnidosAlPlato: false,
+      complementosSeleccionados: [{ grupo: 'Sabor', opcion: 'Pollo', _id: 'c1' }],
+      plato: { complementosUnidosAlPlato: true, nombre: 'Pachamanca 1 sabor' }
+    };
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: true });
     expect(unidades).toHaveLength(1);
     expect(unidades[0].tipo).toBe('principal');
     expect(unidades[0].ocultarComplementos).toBeUndefined();
