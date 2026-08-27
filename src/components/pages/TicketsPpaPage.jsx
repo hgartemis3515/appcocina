@@ -453,6 +453,13 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           </span>
                         </div>
                       </div>
+                      {Number(ticket.montoDescuento) > 0 && (
+                        <div className="mt-1.5 text-xs text-red-400">
+                          Descuento: -{formatCurrency(ticket.montoDescuento)}
+                          {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                          {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
+                        </div>
+                      )}
                       {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&
                         (ticket.montoRecibido != null || ticket.vuelto != null) && (
                         <div className="mt-2 flex items-center justify-between text-xs bg-gray-900/50 rounded px-2 py-1.5">

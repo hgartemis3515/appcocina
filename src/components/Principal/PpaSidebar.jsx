@@ -252,6 +252,12 @@ export default function PpaSidebar({ socket, onClose }) {
                       {ticket.moneda || 'Soles'} · {labelPagoTicket(ticket)}
                     </span>
                   </div>
+                  {Number(ticket.montoDescuento) > 0 && (
+                    <div className="mt-1 text-[11px] text-red-400">
+                      Descuento: -{formatCurrency(ticket.montoDescuento)}
+                      {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                    </div>
+                  )}
                 </div>
 
                 {/* Acciones */}
