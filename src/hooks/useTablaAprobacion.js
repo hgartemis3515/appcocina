@@ -457,7 +457,21 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
     try {
       await imprimirComandaDesdeTicket(ticket, {
         serverOrigin: getServerBaseUrl(),
-        fetchJson: (url) => apiGet(url),
+        fetchJson: async (url) => {
+          const u = String(url);
+          const qIdx = u.indexOf('?');
+          const path = qIdx >= 0 ? u.slice(0, qIdx) : u;
+          const params = {};
+          if (qIdx >= 0) {
+            new URLSearchParams(u.slice(qIdx + 1)).forEach((v, k) => { params[k] = v; });
+          }
+          try {
+            return await apiGet(path, params);
+          } catch {
+            const alt = path.replace(/^\/api/, '') || path;
+            return apiGet(alt.startsWith('/') ? alt : `/${alt}`, params);
+          }
+        },
       });
     } catch (err) {
       console.error('Error al imprimir comanda:', err.message);
