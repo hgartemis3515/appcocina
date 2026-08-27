@@ -63,6 +63,7 @@ import {
   tiempoInicioGrupo
 } from "../../utils/guarnicionesKds";
 import { playNotificationSound } from "../../utils/kdsNotificationSounds";
+import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
 
 const ComandaStyle = ({ 
   onGoToMenu, 
@@ -97,7 +98,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado } = useConfiguracionCocina(getToken);
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
     deshabilitarAgrupacionGuarniciones
@@ -1535,7 +1536,7 @@ const ComandaStyle = ({
               const esMio = plato.procesandoPor.cocineroId.toString() === miUsuarioId;
               if (esMio || isSupervisorView) {
                 const key = `${comanda._id}-${index}`;
-                if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
+                if (!nuevo.has(key)) {
                   nuevo.set(key, 'procesando');
                   cambios = true;
                 }
@@ -1898,10 +1899,10 @@ const ComandaStyle = ({
     });
   };
 
-  // Toggle checkbox de plato individual - Ciclo de 3 estados según contexto
-  // v7.2: Ciclo diferente según si el plato está tomado por el cocinero actual
+  // Toggle checkbox de plato individual
   // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
-  // - Plato tomado por mí: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+  // - Plato asignado/tomado: Amarillo → Dejar (rojo) → Seleccionado (verde) → Amarillo
+  //   (o invertido si primerToqueFinalizarAsignado)
   // - Plato tomado por otro: NO se puede interactuar (ignorar click)
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: acepta opts {tipo:'guarnicion', compId}
   //   para operar sobre el subdoc complemento (clave de estado propia).
@@ -1927,16 +1928,10 @@ const ComandaStyle = ({
         const tomado = isSupervisorView
           ? (comp.procesandoPor?.cocineroId != null)
           : (comp.procesandoPor?.cocineroId?.toString() === userId?.toString());
-        let nuevoEstado;
-        if (tomado) {
-          if (estadoActual === 'normal') nuevoEstado = 'dejar';
-          else if (estadoActual === 'dejar') nuevoEstado = 'seleccionado';
-          else nuevoEstado = 'normal';
-        } else {
-          if (estadoActual === 'normal') nuevoEstado = 'procesando';
-          else if (estadoActual === 'procesando') nuevoEstado = 'seleccionado';
-          else nuevoEstado = 'normal';
-        }
+        const nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
+          tomado,
+          primerToqueFinalizar: primerToqueFinalizarAsignado
+        });
         nuevo.set(key, nuevoEstado);
         return nuevo;
       });
@@ -1986,23 +1981,12 @@ const ComandaStyle = ({
       
       let nuevoEstado;
       if (platoTomado) {
-        // Ciclo para platos que están tomados (por mí o supervisor): Normal → Dejar (rojo) → Seleccionado (verde) → Normal
-        if (estadoActual === 'normal') {
-          nuevoEstado = 'dejar'; // → Rojo ↩️ (para liberar)
-        } else if (estadoActual === 'dejar') {
-          nuevoEstado = 'seleccionado'; // → Verde ✓ (para finalizar / solicitar orden)
-        } else {
-          nuevoEstado = 'normal'; // Reset
-        }
+        nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
+          tomado: true,
+          primerToqueFinalizar: primerToqueFinalizarAsignado
+        });
       } else {
-        // Ciclo normal: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
-        if (estadoActual === 'normal') {
-          nuevoEstado = 'procesando'; // → Amarillo ⏳
-        } else if (estadoActual === 'procesando') {
-          nuevoEstado = 'seleccionado'; // → Verde ✓
-        } else {
-          nuevoEstado = 'normal'; // Reset
-        }
+        nuevoEstado = siguienteEstadoToquePlato(estadoActual, { tomado: false });
       }
       
       nuevo.set(key, nuevoEstado);
@@ -2025,7 +2009,7 @@ const ComandaStyle = ({
       
       return nuevo;
     });
-  }, [comandas, userId, isSupervisorView]);
+  }, [comandas, userId, isSupervisorView, primerToqueFinalizarAsignado]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {

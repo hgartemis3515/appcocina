@@ -55,6 +55,7 @@ import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, pl
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playNotificationSound } from "../../utils/kdsNotificationSounds";
+import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
 
 const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
@@ -83,7 +84,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
-  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion } = useConfiguracionCocina(getToken);
+  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado } = useConfiguracionCocina(getToken);
   const { config: kdsVistaConfig } = useConfig();
   const usarNombreCocinaEnTablaKds = kdsVistaConfig.usarNombreCocinaEnTablaKds !== false;
   const agrupacionOn = agrupacionGuarnicionesOn({ permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones });
@@ -1525,7 +1526,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               const esMio = plato.procesandoPor.cocineroId.toString() === miUsuarioId;
               if (esMio) {
                 const key = `${comanda._id}-${index}`;
-                if (!nuevo.has(key) || nuevo.get(key) !== 'procesando') {
+                if (!nuevo.has(key)) {
                   nuevo.set(key, 'procesando');
                   cambios = true;
                 }
@@ -1911,16 +1912,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
         const tomado = comp.procesandoPor?.cocineroId?.toString() === userId?.toString();
-        let nuevoEstado;
-        if (tomado) {
-          if (estadoActual === 'normal') nuevoEstado = 'dejar';
-          else if (estadoActual === 'dejar') nuevoEstado = 'seleccionado';
-          else nuevoEstado = 'normal';
-        } else {
-          if (estadoActual === 'normal') nuevoEstado = 'procesando';
-          else if (estadoActual === 'procesando') nuevoEstado = 'seleccionado';
-          else nuevoEstado = 'normal';
-        }
+        const nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
+          tomado,
+          primerToqueFinalizar: primerToqueFinalizarAsignado
+        });
         nuevo.set(key, nuevoEstado);
         return nuevo;
       });
@@ -1962,23 +1957,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       let nuevoEstado;
       if (tomadoPorMi) {
-        // Ciclo para platos que YO tomé: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
-        if (estadoActual === 'normal') {
-          nuevoEstado = 'dejar'; // → Rojo ↩️ (para liberar)
-        } else if (estadoActual === 'dejar') {
-          nuevoEstado = 'seleccionado'; // → Verde ✓ (para finalizar)
-        } else {
-          nuevoEstado = 'normal'; // Reset
-        }
+        nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
+          tomado: true,
+          primerToqueFinalizar: primerToqueFinalizarAsignado
+        });
       } else {
-        // Ciclo normal: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
-        if (estadoActual === 'normal') {
-          nuevoEstado = 'procesando'; // → Amarillo ⏳
-        } else if (estadoActual === 'procesando') {
-          nuevoEstado = 'seleccionado'; // → Verde ✓
-        } else {
-          nuevoEstado = 'normal'; // Reset
-        }
+        nuevoEstado = siguienteEstadoToquePlato(estadoActual, { tomado: false });
       }
       
       nuevo.set(key, nuevoEstado);
@@ -2001,7 +1985,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       return nuevo;
     });
-  }, [comandas, userId]);
+  }, [comandas, userId, primerToqueFinalizarAsignado]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
