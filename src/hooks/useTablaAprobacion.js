@@ -279,6 +279,10 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
       fetchItemsDebounced();
     };
 
+    const handleTicketActualizado = () => {
+      fetchItemsDebounced();
+    };
+
     if (externalSocket) {
       // Reutilizar socket externo (ej. del KDS). No lo creamos ni lo destruimos.
       activeSocket = externalSocket;
@@ -304,6 +308,7 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
       activeSocket.on('ticket-ppa-actualizado', handlePpaActualizado);
       activeSocket.on('ticket-ppa-aprobado', handlePpaAprobado);
       activeSocket.on('ticket-ppa-rechazado', handlePpaRechazado);
+      activeSocket.on('ticket-actualizado', handleTicketActualizado);
     } else {
       // Sin socket externo: crear uno propio (caso TicketsPpaPage standalone)
       const getStoredToken = () => {
@@ -348,6 +353,7 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
       newSocket.on('ticket-ppa-actualizado', handlePpaActualizado);
       newSocket.on('ticket-ppa-aprobado', handlePpaAprobado);
       newSocket.on('ticket-ppa-rechazado', handlePpaRechazado);
+      newSocket.on('ticket-actualizado', handleTicketActualizado);
     }
 
     socketRef.current = activeSocket;
@@ -366,6 +372,7 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
       s.off('ticket-ppa-actualizado', handlePpaActualizado);
       s.off('ticket-ppa-aprobado', handlePpaAprobado);
       s.off('ticket-ppa-rechazado', handlePpaRechazado);
+      s.off('ticket-actualizado', handleTicketActualizado);
 
       if (ownsSocketRef.current) {
         console.log('[TablaAprobacion] Desconectando socket propio');
