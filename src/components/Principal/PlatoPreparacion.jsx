@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useConfig } from '../../contexts/ConfigContext';
 import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNumeroOrdenKds';
+import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
 
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
@@ -54,6 +55,7 @@ const PlatoPreparacion = ({
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
   const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
+  const estiloCantidad = estiloCantidadPlatoKds(kdsConfig);
   
   const handleClick = (e) => {
     e.stopPropagation();
@@ -297,7 +299,12 @@ const PlatoPreparacion = ({
       </div>
       <div className="flex-1 pointer-events-none">
         <div className="flex items-center gap-2 flex-wrap">
-          <span>{cantidad} {nombre}</span>
+          <span className="inline-flex items-center gap-1.5 min-w-0">
+            <span style={estiloCantidad} title={`Cantidad: ${cantidad}`}>
+              {cantidad}
+            </span>
+            <span>{nombre}</span>
+          </span>
 
           {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
           {tipoServicio === 'para_llevar' && (

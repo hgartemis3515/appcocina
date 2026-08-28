@@ -18,6 +18,9 @@ describe('kdsPerfilesVista', () => {
       ordenColaColor: '#ffcc00',
       ordenColaCuadroColor: '#dc2626',
       ordenColaCuadroTamano: 28,
+      cantidadPlatoColor: '#111111',
+      cantidadPlatoFondo: '#facc15',
+      cantidadPlatoTamano: 18,
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -31,6 +34,9 @@ describe('kdsPerfilesVista', () => {
     expect(snap.ordenColaColor).toBe('#ffcc00');
     expect(snap.ordenColaCuadroColor).toBe('#dc2626');
     expect(snap.ordenColaCuadroTamano).toBe(28);
+    expect(snap.cantidadPlatoColor).toBe('#111111');
+    expect(snap.cantidadPlatoFondo).toBe('#facc15');
+    expect(snap.cantidadPlatoTamano).toBe(18);
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.nightMode).toBeUndefined();

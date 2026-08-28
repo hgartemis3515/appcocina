@@ -20,6 +20,12 @@ import {
   hexParaColorPicker,
 } from '../../utils/estiloNumeroOrdenKds';
 import {
+  CANTIDAD_PLATO_DEFAULT,
+  CANTIDAD_PLATO_TAMANO_MIN,
+  CANTIDAD_PLATO_TAMANO_MAX,
+  estiloCantidadPlatoKds,
+} from '../../utils/estiloCantidadPlatoKds';
+import {
   KDS_TIMBRES,
   TIMBRE_DEFAULT,
   TIMBRE_VOLUMEN_DEFAULT,
@@ -441,6 +447,71 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
             </span>
           </fieldset>
 
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Cantidad del plato</legend>
+            <p className={`${textSecondary} text-xs`}>
+              El número que indica cuántas unidades van en esa línea (el “1” delante del nombre).
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.cantidadPlatoColor, CANTIDAD_PLATO_DEFAULT.cantidadPlatoColor)}
+                    onChange={(e) => updateConfig({ cantidadPlatoColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de la letra de la cantidad"
+                  />
+                  <input
+                    type="text"
+                    value={config.cantidadPlatoColor || CANTIDAD_PLATO_DEFAULT.cantidadPlatoColor}
+                    onChange={(e) => updateConfig({ cantidadPlatoColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de fondo</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.cantidadPlatoFondo, CANTIDAD_PLATO_DEFAULT.cantidadPlatoFondo)}
+                    onChange={(e) => updateConfig({ cantidadPlatoFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo de la cantidad"
+                  />
+                  <input
+                    type="text"
+                    value={config.cantidadPlatoFondo || CANTIDAD_PLATO_DEFAULT.cantidadPlatoFondo}
+                    onChange={(e) => updateConfig({ cantidadPlatoFondo: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block col-span-2 sm:col-span-1">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño</span>
+                <select
+                  value={config.cantidadPlatoTamano || CANTIDAD_PLATO_DEFAULT.cantidadPlatoTamano}
+                  onChange={(e) => updateConfig({ cantidadPlatoTamano: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: CANTIDAD_PLATO_TAMANO_MAX - CANTIDAD_PLATO_TAMANO_MIN + 1 },
+                    (_, i) => CANTIDAD_PLATO_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <span style={estiloCantidadPlatoKds(config)}>1</span>
+          </fieldset>
+
           <div className={`${nightMode ? 'bg-gray-950' : 'bg-white'} rounded-lg border ${borderModal} p-3 mt-auto`}>
             <p className={`${textSecondary} text-[10px] uppercase tracking-wide mb-2`}>Preview</p>
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-2 w-[132px]">
@@ -448,6 +519,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               <div className="text-red-400 font-bold" style={{ fontSize: `${Math.max(10, (config.tamanoFuente || 15) - 4)}px` }}>ORDEN #1</div>
               <div className="text-white text-xs">MESA #2</div>
               <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
+                <span style={estiloCantidadPlatoKds(config)}>1</span>
                 {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
                 <span
                   className="rounded-full"
