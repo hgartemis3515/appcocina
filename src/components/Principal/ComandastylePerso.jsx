@@ -1892,7 +1892,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Toggle checkbox de plato individual - Ciclo de 3 estados según contexto
   // v7.2: Ciclo diferente según si el plato está tomado por el cocinero actual
   // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
-  // - Plato tomado por mí: Normal → Dejar (rojo) → Seleccionado (verde) → Normal
+  // - Plato tomado por mí: Amarillo → Seleccionado (verde) → Dejar (rojo) → Amarillo
   // - Plato tomado por otro: NO se puede interactuar (ignorar click)
   const togglePlatoCheck = useCallback((comandaId, platoIndex, opts) => {
     if (opts && opts.tipo === 'guarnicion') {

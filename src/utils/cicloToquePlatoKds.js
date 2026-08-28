@@ -3,14 +3,14 @@
  *
  * Plato libre: normal → procesando (amarillo) → seleccionado (verde) → normal
  * Plato asignado/tomado (empieza en amarillo):
- *   default: procesando → dejar (rojo) → seleccionado (verde) → procesando
- *   primerToqueFinalizar: procesando → seleccionado → dejar → procesando
+ *   default: procesando → seleccionado (verde) → dejar (rojo) → procesando
+ *   primerToqueFinalizar false: procesando → dejar → seleccionado → procesando
  */
 
 export function siguienteEstadoToquePlato(estadoActual, opts = {}) {
   const actual = estadoActual || 'normal';
   const tomado = !!opts.tomado;
-  const primerToqueFinalizar = !!opts.primerToqueFinalizar;
+  const primerToqueFinalizar = opts.primerToqueFinalizar !== false;
 
   if (!tomado) {
     if (actual === 'normal') return 'procesando';

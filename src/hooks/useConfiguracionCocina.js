@@ -19,7 +19,7 @@ const DEFAULT = {
     permitirGuarnicionesSeparadas: true,
     deshabilitarOrdenSecuencialGuarniciones: true,
     deshabilitarAgrupacionGuarniciones: false,
-    primerToqueFinalizarAsignado: false,
+    primerToqueFinalizarAsignado: true,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -52,7 +52,7 @@ export async function fetchConfiguracionCocina(getToken) {
                 permitirGuarnicionesSeparadas: cfg.permitirGuarnicionesSeparadas !== false,
                 deshabilitarOrdenSecuencialGuarniciones: cfg.deshabilitarOrdenSecuencialGuarniciones !== false,
                 deshabilitarAgrupacionGuarniciones: cfg.deshabilitarAgrupacionGuarniciones === true,
-                primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado === true,
+                primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado !== false,
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,

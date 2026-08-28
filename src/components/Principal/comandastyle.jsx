@@ -1901,8 +1901,8 @@ const ComandaStyle = ({
 
   // Toggle checkbox de plato individual
   // - Plato sin tomar: Normal → Procesando (amarillo) → Seleccionado (verde) → Normal
-  // - Plato asignado/tomado: Amarillo → Dejar (rojo) → Seleccionado (verde) → Amarillo
-  //   (o invertido si primerToqueFinalizarAsignado)
+  // - Plato asignado/tomado: Amarillo → Seleccionado (verde) → Dejar (rojo) → Amarillo
+  //   (o invertido si primerToqueFinalizarAsignado=false)
   // - Plato tomado por otro: NO se puede interactuar (ignorar click)
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: acepta opts {tipo:'guarnicion', compId}
   //   para operar sobre el subdoc complemento (clave de estado propia).
