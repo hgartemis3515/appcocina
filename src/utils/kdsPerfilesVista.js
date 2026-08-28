@@ -1,7 +1,7 @@
 /**
  * Snapshot de Vista y alertas de las tablas KDS.
- * Los perfiles con nombre se guardan en el servidor (misma colección que Ver Cocina,
- * tipo tablas_kds) para verse en cualquier dispositivo.
+ * Siempre se guarda en este dispositivo. Si el servidor está encendido,
+ * también se copia (tipo tablas_kds) para verse en otros equipos.
  */
 
 import { STORAGE_KEYS } from '../config/kdsConfigConstants';
@@ -32,6 +32,11 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'alertCriticalMinutes',
   'timbreClave',
   'timbreVolumen',
+  'sonidoNuevaComanda',
+  'sonidoFinalizar',
+  'sonidoEntregar',
+  'timbreFinalizarClave',
+  'timbreEntregarClave',
 ];
 
 export function snapshotPerfilVista(config = {}) {
@@ -90,6 +95,7 @@ export function leerPerfilesVista() {
       .map((p) => ({
         id: String(p.id),
         nombre: sanitizarNombrePerfil(p.nombre),
+        tipo: TIPO_PERFIL_TABLAS_KDS,
         config: snapshotPerfilVista(p.config || {}),
         createdAt: p.createdAt || null,
         updatedAt: p.updatedAt || null,
@@ -108,6 +114,25 @@ export function guardarPerfilesVista(lista) {
   } catch (e) {
     console.warn('[kdsPerfilesVista] No se pudo guardar:', e);
   }
+}
+
+export function esIdPerfilLocal(id) {
+  return String(id || '').startsWith('local-');
+}
+
+export function nuevoIdPerfilLocal() {
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function mergePerfilesVista(locales, servidor) {
+  const map = new Map();
+  (Array.isArray(locales) ? locales : []).forEach((p) => {
+    if (p?.id) map.set(String(p.id), { ...p, tipo: TIPO_PERFIL_TABLAS_KDS });
+  });
+  (Array.isArray(servidor) ? servidor : []).forEach((p) => {
+    if (p?.id) map.set(String(p.id), p);
+  });
+  return Array.from(map.values());
 }
 
 export function perfilVistaDifiere(configActual, snapshot) {

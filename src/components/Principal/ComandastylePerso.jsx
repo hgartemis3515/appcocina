@@ -54,7 +54,7 @@ import {
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
-import { playNotificationSound } from "../../utils/kdsNotificationSounds";
+import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
 import {
   PERMISO_ENTREGAR_PLATO_ENTERO_KDS,
@@ -91,7 +91,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
-  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado } = useConfiguracionCocina(getToken);
+  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
   const { config: kdsVistaConfig } = useConfig();
   const usarNombreCocinaEnTablaKds = kdsVistaConfig.usarNombreCocinaEnTablaKds !== false;
   const agrupacionOn = agrupacionGuarnicionesOn({ permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones });
@@ -468,9 +468,20 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
   }, []);
 
-  // Guardar configuración en localStorage
+  // No pisar kdsConfig del ConfigContext: merge y omitir el primer render (defaults).
+  const skipNextKdsSaveRef = useRef(true);
   useEffect(() => {
-    localStorage.setItem('kdsConfig', JSON.stringify(config));
+    if (skipNextKdsSaveRef.current) {
+      skipNextKdsSaveRef.current = false;
+      return;
+    }
+    try {
+      const raw = localStorage.getItem('kdsConfig');
+      const prev = raw ? JSON.parse(raw) : {};
+      localStorage.setItem('kdsConfig', JSON.stringify({ ...prev, ...config }));
+    } catch (e) {
+      console.warn('⚠️ Error guardando configuración KDS:', e);
+    }
   }, [config]);
 
   // Cargar estados de platos desde localStorage al montar
@@ -697,7 +708,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       }
       
       // Detectar nuevas comandas para reproducir sonido y animación (solo de comandas válidas)
-      if (config.soundEnabled && previousComandasRef.current.length > 0) {
+      if (previousComandasRef.current.length > 0) {
         const nuevasComandas = comandasValidas.filter(
           nueva => !previousComandasRef.current.some(
             anterior => anterior._id === nueva._id
@@ -709,7 +720,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         );
         
         if (nuevasIngresantes.length > 0) {
-          playNotificationSound();
+          playKdsEventSound('nuevaComanda');
           // Marcar nuevas comandas para animación
           nuevasIngresantes.forEach(c => {
             newComandasRef.current.add(c._id);
@@ -864,10 +875,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       }
     }
     
-    // Reproducir sonido si está habilitado
-    if (config.soundEnabled) {
-      playNotificationSound();
-    }
+    playKdsEventSound('nuevaComanda');
     
     // Marcar para animación
     newComandasRef.current.add(nuevaId);
@@ -965,9 +973,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           duration: 4000
         });
         
-        if (config.soundEnabled) {
-          playNotificationSound();
-        }
+        playKdsEventSound('finalizar');
         
         // Remover de auto-completadas para permitir re-procesamiento si es necesario
         setComandasAutoCompletadas(prev => {
@@ -1350,10 +1356,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       nuevaComanda.platos = nuevosPlatos;
       nuevasComandas[comandaIndex] = nuevaComanda;
       
-      // Reproducir sonido si está habilitado
-      if (config.soundEnabled) {
-        playNotificationSound();
-      }
+      playKdsSoundForPlatoEstado(data.nuevoEstado);
       
       // FIX: revertir multi-plato similar - Encontrar el índice del plato usando el subdocumento _id
       // El Socket envía platoId = subdocumento._id, pero platoStates usa platoIndex como key
@@ -1429,11 +1432,6 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       message: '⚙️ Tu configuración KDS ha sido actualizada',
       duration: 4000
     });
-    
-    // Reproducir sonido si está habilitado
-    if (config.soundEnabled) {
-      playNotificationSound();
-    }
   }, [updateCocineroConfig, loadCocineroConfig, config.soundEnabled]);
 
   // Handler: plato del menú actualizado desde el admin (platos.html).
@@ -1914,11 +1912,14 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       if (!comp || comp.estadoCocina === 'recoger') return;
       const tomadoPorOtro = comp.procesandoPor?.cocineroId
         && comp.procesandoPor.cocineroId.toString() !== userId?.toString();
-      if (tomadoPorOtro) return;
+      const permitirAjeno = entregarPlatoEnteroAbsoluto !== false;
+      if (tomadoPorOtro && !permitirAjeno) return;
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
-        const tomado = comp.procesandoPor?.cocineroId?.toString() === userId?.toString();
+        const tomado = permitirAjeno
+          ? (comp.procesandoPor?.cocineroId != null)
+          : (comp.procesandoPor?.cocineroId?.toString() === userId?.toString());
         const nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
           tomado,
           primerToqueFinalizar: primerToqueFinalizarAsignado
@@ -1951,19 +1952,23 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // 🔥 FIX: Si el plato está tomado por OTRO cocinero, ignorar el click
     const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
                           plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
-    if (tomadoPorOtro) {
+    const permitirAjeno = entregarPlatoEnteroAbsoluto !== false;
+    if (tomadoPorOtro && !permitirAjeno) {
       console.log(`[togglePlatoCheck] Plato ${platoIndex} tomado por otro cocinero, ignorando click`);
-      return; // No hacer nada
+      return;
     }
     
     const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
+    const platoParaToque = permitirAjeno
+      ? (plato?.procesandoPor?.cocineroId != null)
+      : tomadoPorMi;
     
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
       const estadoActual = nuevo.get(key) || 'normal';
       
       let nuevoEstado;
-      if (tomadoPorMi) {
+      if (platoParaToque) {
         nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
           tomado: true,
           primerToqueFinalizar: primerToqueFinalizarAsignado
@@ -1992,7 +1997,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       return nuevo;
     });
-  }, [comandas, userId, primerToqueFinalizarAsignado]);
+  }, [comandas, userId, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -2089,10 +2094,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               duration: 3000
             });
             
-            // Sonido de confirmación
-            if (config.soundEnabled) {
-              playNotificationSound();
-            }
+            playKdsEventSound('finalizar');
           } catch (error) {
             // Manejar error idempotente silenciosamente (ya está en 'recoger')
             const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || '';
@@ -2391,10 +2393,6 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           message: `👨‍🍳 Tomaste ${exitosos} plato${exitosos > 1 ? 's' : ''} para preparar`,
           duration: 3000
         });
-        
-        if (config.soundEnabled) {
-          playNotificationSound();
-        }
       }
       
       if (fallidos > 0) {
@@ -2500,7 +2498,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // Función genérica para batch finalizar platos (unifica lógica FinalizarPlatos y FinalizarComanda)
   // REGLA COCINA: Siempre usa 'recoger', nunca 'entregado' (exclusivo de mozos)
-  const batchFinalizarPlatos = useCallback(async (platosParaProcesar) => {
+  const batchFinalizarPlatos = useCallback(async (platosParaProcesar, opts = {}) => {
     if (platosParaProcesar.length === 0) {
       return { exitosos: 0, fallidos: 0, resultados: [] };
     }
@@ -2552,9 +2550,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
           
           // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
+          const token = typeof getToken === 'function' ? getToken() : null;
+          const body = { nuevoEstado: "recoger" };
+          if (opts.entregarEnteroAbsoluto) {
+            body.entregarEnteroAbsoluto = true;
+            if (userId) body.cocineroId = userId;
+          }
           const response = await axios.put(
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
-            { nuevoEstado: "recoger" }
+            body,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           );
           
           console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
@@ -2908,7 +2913,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       platoStates,
       comandas,
       userId,
-      isSupervisorView: false
+      isSupervisorView: false,
+      permitirOtroCocinero: entregarPlatoEnteroAbsoluto !== false
     });
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
@@ -2928,7 +2934,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         userId,
         finalizarGuarnicion: (g) => finalizarGuarnicion(g.comandaId, g.platoId, g.compId, userId),
         batchFinalizarPlatos,
-        entregarPlato
+        entregarPlato,
+        absoluto: entregarPlatoEnteroAbsoluto !== false
       });
 
       if (keysLimpiar.length > 0) {
@@ -2942,7 +2949,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       if (exitosos > 0) {
         setToastMessage({
           type: 'success',
-          message: `🚶 ${exitosos} plato(s) entregado(s) enteros — salió de cocina`,
+          message: entregarPlatoEnteroAbsoluto !== false
+            ? `🚶 ${exitosos} plato(s) entregados al comensal`
+            : `🚶 ${exitosos} plato(s) entregado(s) enteros — salió de cocina`,
           duration: 4000
         });
       }
@@ -2959,7 +2968,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     userId,
     finalizarGuarnicion,
     batchFinalizarPlatos,
-    entregarPlato
+    entregarPlato,
+    entregarPlatoEnteroAbsoluto
   ]);
 
   const handleBotonContextual = useCallback(async () => {
@@ -3092,9 +3102,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         duration: 3000
       });
 
-      if (config.soundEnabled) {
-        playNotificationSound();
-      }
+      playKdsEventSound('finalizar');
 
       console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente - Estado: 'recoger'`);
       console.log(`ℹ️ Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén listos`);
@@ -3322,9 +3330,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         return nuevo;
       });
       
-      if (config.soundEnabled) {
-        playNotificationSound();
-      }
+      playKdsEventSound('finalizar');
     }
   }, [userId, finalizarComanda, comandas, setPlatoStates, setPlatosChecked, setSelectedOrders, config.soundEnabled]);
 
@@ -3354,7 +3360,6 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           ? `✅ #${comanda.comandaNumber} prioridad cancelada` 
           : `✅ #${comanda.comandaNumber} priorizada`
       });
-      if (config.soundEnabled) playNotificationSound();
     } catch (err) {
       console.error('Error al priorizar:', err);
       setToastMessage({ type: 'error', message: '⚠️ Error al priorizar' });
@@ -3929,14 +3934,20 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 {(() => {
                   const { modo, platos } = determinarAccionBoton();
                   const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
+                  const absoluto = entregarPlatoEnteroAbsoluto !== false;
+                  let nSel = 0;
+                  platoStates.forEach((e) => {
+                    if (e === 'seleccionado' || e === 'entregando') nSel += 1;
+                  });
                   return (
                     <BotonEntregarPlatoEntero
                       visible={hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)}
-                      enabled={botonEntregarPlatoEnteroHabilitado(modo)}
+                      enabled={botonEntregarPlatoEnteroHabilitado(modo, { absoluto, haySeleccion: nSel > 0 })}
                       loading={isLoading}
                       nightMode={nightMode}
                       onClick={handleEntregarPlatoEntero}
-                      count={platos?.length || 0}
+                      count={nSel || platos?.length || 0}
+                      absoluto={absoluto}
                     />
                   );
                 })()}

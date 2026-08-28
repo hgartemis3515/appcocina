@@ -70,7 +70,7 @@ import {
   agrupacionGuarnicionesOn,
   tiempoInicioGrupo
 } from "../../utils/guarnicionesKds";
-import { playNotificationSound } from "../../utils/kdsNotificationSounds";
+import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
 
 const ComandaStyle = ({ 
@@ -106,7 +106,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
     deshabilitarAgrupacionGuarniciones
@@ -431,7 +431,7 @@ const ComandaStyle = ({
       }
       
       // Detectar nuevas comandas para reproducir sonido y animación (solo de comandas válidas)
-      if (config.soundEnabled && previousComandasRef.current.length > 0) {
+      if (previousComandasRef.current.length > 0) {
         const nuevasComandas = comandasValidas.filter(
           nueva => !previousComandasRef.current.some(
             anterior => anterior._id === nueva._id
@@ -443,7 +443,7 @@ const ComandaStyle = ({
         );
         
         if (nuevasIngresantes.length > 0) {
-          playNotificationSound();
+          playKdsEventSound('nuevaComanda');
           // Marcar nuevas comandas para animación
           nuevasIngresantes.forEach(c => {
             newComandasRef.current.add(c._id);
@@ -529,10 +529,7 @@ const ComandaStyle = ({
       }
     }
     
-    // Reproducir sonido si está habilitado
-    if (config.soundEnabled) {
-      playNotificationSound();
-    }
+    playKdsEventSound('nuevaComanda');
     
     // Marcar para animación
     newComandasRef.current.add(nuevaId);
@@ -618,9 +615,7 @@ const ComandaStyle = ({
           duration: 4000
         });
         
-        if (config.soundEnabled) {
-          playNotificationSound();
-        }
+        playKdsEventSound('finalizar');
         
         // Remover de auto-completadas para permitir re-procesamiento si es necesario
         setComandasAutoCompletadas(prev => {
@@ -1068,10 +1063,7 @@ const ComandaStyle = ({
       nuevaComanda.platos = nuevosPlatos;
       nuevasComandas[comandaIndex] = nuevaComanda;
       
-      // Reproducir sonido si está habilitado
-      if (config.soundEnabled) {
-        playNotificationSound();
-      }
+      playKdsSoundForPlatoEstado(data.nuevoEstado);
       
       // FIX: revertir multi-plato similar - Encontrar el índice del plato usando el subdocumento _id
       // El Socket envía platoId = subdocumento._id, pero platoStates usa platoIndex como key
@@ -1894,11 +1886,12 @@ const ComandaStyle = ({
       if (!comp || comp.estadoCocina === 'recoger') return;
       const tomadoPorOtro = comp.procesandoPor?.cocineroId
         && comp.procesandoPor.cocineroId.toString() !== userId?.toString();
-      if (tomadoPorOtro && !isSupervisorView) return; // solo supervisor o titular
+      const permitirAjeno = isSupervisorView || entregarPlatoEnteroAbsoluto !== false;
+      if (tomadoPorOtro && !permitirAjeno) return;
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
-        const tomado = isSupervisorView
+        const tomado = permitirAjeno
           ? (comp.procesandoPor?.cocineroId != null)
           : (comp.procesandoPor?.cocineroId?.toString() === userId?.toString());
         const nuevoEstado = siguienteEstadoToquePlato(estadoActual, {
@@ -1935,14 +1928,16 @@ const ComandaStyle = ({
     // EXCEPCIÓN: En modo supervisor, permitir interactuar con cualquier plato
     const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
                           plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
-    if (tomadoPorOtro && !isSupervisorView) {
+    const permitirAjeno = isSupervisorView || entregarPlatoEnteroAbsoluto !== false;
+    if (tomadoPorOtro && !permitirAjeno) {
       console.log(`[togglePlatoCheck] Plato ${platoIndex} tomado por otro cocinero, ignorando click`);
-      return; // No hacer nada (excepto supervisor)
+      return;
     }
     
     const tomadoPorMi = plato?.procesandoPor?.cocineroId?.toString() === miUsuarioId;
-    // En modo supervisor, cualquier plato tomado puede ser manejado
-    const platoTomado = isSupervisorView ? (plato?.procesandoPor?.cocineroId != null) : tomadoPorMi;
+    const platoTomado = permitirAjeno
+      ? (plato?.procesandoPor?.cocineroId != null)
+      : tomadoPorMi;
 
     // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
     // Se permite marcar #2+ en verde. El botón contextual (izquierda) cambia a
@@ -1982,7 +1977,7 @@ const ComandaStyle = ({
       
       return nuevo;
     });
-  }, [comandas, userId, isSupervisorView, primerToqueFinalizarAsignado]);
+  }, [comandas, userId, isSupervisorView, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -2089,10 +2084,7 @@ const ComandaStyle = ({
               duration: 3000
             });
             
-            // Sonido de confirmación
-            if (config.soundEnabled) {
-              playNotificationSound();
-            }
+            playKdsEventSound('finalizar');
           } catch (error) {
             // Manejar error idempotente silenciosamente (ya está en 'recoger')
             const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || '';
@@ -2151,7 +2143,7 @@ const ComandaStyle = ({
   // REGLA COCINA: Siempre usa 'recoger', nunca 'entregado' (exclusivo de mozos)
   // Prefijo de cola: se envía loteCola y se finaliza en orden ASC (#1→#N) para
   // que backend/cola y sockets vean la secuencia correcta.
-  const batchFinalizarPlatos = useCallback(async (platosParaProcesar) => {
+  const batchFinalizarPlatos = useCallback(async (platosParaProcesar, opts = {}) => {
     if (platosParaProcesar.length === 0) {
       return { exitosos: 0, fallidos: 0, resultados: [] };
     }
@@ -2202,9 +2194,13 @@ const ComandaStyle = ({
           
           console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
           
+          const token = typeof getToken === 'function' ? getToken() : null;
+          const body = { nuevoEstado: "recoger", cocineroId: userId, loteCola };
+          if (opts.entregarEnteroAbsoluto) body.entregarEnteroAbsoluto = true;
           await axios.put(
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
-            { nuevoEstado: "recoger", cocineroId: userId, loteCola }
+            body,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           );
           
           console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
@@ -2638,9 +2634,6 @@ const ComandaStyle = ({
           duration: 3000
         });
 
-        if (config.soundEnabled) {
-          playNotificationSound();
-        }
         // Resetear estado visual de guarniciones tomadas
         guarniciones.forEach(({ comandaId, platoIndex, compId }) => {
           const gKey = `${comandaId}-${platoIndex}-g-${compId}`;
@@ -3237,7 +3230,8 @@ const ComandaStyle = ({
       platoStates,
       comandas,
       userId,
-      isSupervisorView
+      isSupervisorView,
+      permitirOtroCocinero: entregarPlatoEnteroAbsoluto !== false
     });
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
@@ -3270,7 +3264,8 @@ const ComandaStyle = ({
         finalizarGuarnicion: (g) => finalizarGuarnicion(g.comandaId, g.platoId, g.compId, userId),
         batchFinalizarPlatos,
         entregarPlato,
-        filtrarLote
+        filtrarLote,
+        absoluto: entregarPlatoEnteroAbsoluto !== false
       });
 
       if (keysLimpiar.length > 0) {
@@ -3297,7 +3292,9 @@ const ComandaStyle = ({
       } else if (exitosos > 0) {
         setToastMessage({
           type: 'success',
-          message: `🚶 ${exitosos} plato(s) entregado(s) enteros — salió de cocina`,
+          message: entregarPlatoEnteroAbsoluto !== false
+            ? `🚶 ${exitosos} plato(s) entregados al comensal`
+            : `🚶 ${exitosos} plato(s) entregado(s) enteros — salió de cocina`,
           duration: 4000
         });
       }
@@ -3319,7 +3316,8 @@ const ComandaStyle = ({
     platoTieneOverride,
     finalizarGuarnicion,
     batchFinalizarPlatos,
-    entregarPlato
+    entregarPlato,
+    entregarPlatoEnteroAbsoluto
   ]);
 
   /**
@@ -3560,9 +3558,7 @@ const ComandaStyle = ({
         duration: 3000
       });
 
-      if (config.soundEnabled) {
-        playNotificationSound();
-      }
+      playKdsEventSound('finalizar');
 
       console.log(`✅ ${exitosos} plato(s) finalizado(s) exitosamente - Estado: 'recoger'`);
       console.log(`ℹ️ Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén listos`);
@@ -3829,9 +3825,7 @@ const ComandaStyle = ({
         return nuevo;
       });
       
-      if (config.soundEnabled) {
-        playNotificationSound();
-      }
+      playKdsEventSound('finalizar');
     }
   }, [userId, finalizarComanda, comandas, setPlatoStates, setPlatosChecked, setSelectedOrders, config.soundEnabled]);
 
@@ -3861,7 +3855,6 @@ const ComandaStyle = ({
           ? `✅ #${comanda.comandaNumber} prioridad cancelada` 
           : `✅ #${comanda.comandaNumber} priorizada`
       });
-      if (config.soundEnabled) playNotificationSound();
     } catch (err) {
       console.error('Error al priorizar:', err);
       setToastMessage({ type: 'error', message: '⚠️ Error al priorizar' });
@@ -4412,14 +4405,20 @@ const ComandaStyle = ({
                 {(() => {
                   const { modo, platos } = determinarAccionBoton();
                   const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
+                  const absoluto = entregarPlatoEnteroAbsoluto !== false;
+                  let nSel = 0;
+                  platoStates.forEach((e) => {
+                    if (e === 'seleccionado' || e === 'entregando') nSel += 1;
+                  });
                   return (
                     <BotonEntregarPlatoEntero
                       visible={hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)}
-                      enabled={botonEntregarPlatoEnteroHabilitado(modo)}
+                      enabled={botonEntregarPlatoEnteroHabilitado(modo, { absoluto, haySeleccion: nSel > 0 })}
                       loading={isLoading}
                       nightMode={nightMode}
                       onClick={handleEntregarPlatoEntero}
-                      count={platos?.length || 0}
+                      count={nSel || platos?.length || 0}
+                      absoluto={absoluto}
                     />
                   );
                 })()}

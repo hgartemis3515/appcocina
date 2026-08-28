@@ -5,6 +5,8 @@ const {
   nombrePerfilDisponible,
   perfilVistaDifiere,
   mapPerfilVistaDesdeApi,
+  mergePerfilesVista,
+  esIdPerfilLocal,
 } = require('./kdsPerfilesVista');
 
 describe('kdsPerfilesVista', () => {
@@ -24,6 +26,10 @@ describe('kdsPerfilesVista', () => {
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
+      sonidoNuevaComanda: true,
+      sonidoFinalizar: false,
+      sonidoEntregar: false,
+      timbreFinalizarClave: 'campana',
       nightMode: true,
       soundEnabled: false,
     });
@@ -39,6 +45,10 @@ describe('kdsPerfilesVista', () => {
     expect(snap.cantidadPlatoTamano).toBe(18);
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
+    expect(snap.sonidoNuevaComanda).toBe(true);
+    expect(snap.sonidoFinalizar).toBe(false);
+    expect(snap.sonidoEntregar).toBe(false);
+    expect(snap.timbreFinalizarClave).toBe('campana');
     expect(snap.nightMode).toBeUndefined();
     expect(snap.soundEnabled).toBeUndefined();
   });
@@ -81,5 +91,20 @@ describe('kdsPerfilesVista', () => {
       tipo: 'ver_cocina',
       config: { tamanoFuente: 20 },
     })).toBeNull();
+  });
+
+  test('mergePerfilesVista: servidor gana mismo id; se conservan perfiles solo locales', () => {
+    const locales = [
+      { id: 'local-abc', nombre: 'Offline', config: { tamanoFuente: 18 } },
+      { id: 'srv1', nombre: 'Viejo', config: { tamanoFuente: 12 } },
+    ];
+    const servidor = [
+      { id: 'srv1', nombre: 'Nuevo', config: { tamanoFuente: 20 } },
+    ];
+    const merged = mergePerfilesVista(locales, servidor);
+    expect(merged.some((p) => p.id === 'local-abc')).toBe(true);
+    expect(merged.find((p) => p.id === 'srv1').nombre).toBe('Nuevo');
+    expect(esIdPerfilLocal('local-abc')).toBe(true);
+    expect(esIdPerfilLocal('srv1')).toBe(false);
   });
 });

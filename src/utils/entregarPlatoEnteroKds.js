@@ -1,6 +1,7 @@
 /**
- * Atajo KDS "Entregar plato entero": Finalizar (→ recoger) + Entregar pass (→ salio).
- * Permiso de rol: entregar-plato-entero-kds (no es regla restrictiva).
+ * Atajo KDS "Entregar plato entero".
+ * Con config.cocina.entregarPlatoEnteroAbsoluto (default ON): recoger → salio → entregado.
+ * Permiso de rol: entregar-plato-entero-kds.
  */
 
 import { esClaveGuarnicion } from './guarnicionesKds';
@@ -9,8 +10,12 @@ export const PERMISO_ENTREGAR_PLATO_ENTERO_KDS = 'entregar-plato-entero-kds';
 
 const ESTADOS_A_FINALIZAR = new Set(['en_espera', 'ingresante', 'pedido', 'pendiente']);
 
-export function botonEntregarPlatoEnteroHabilitado(modo) {
-  return modo === 'FINALIZAR_PLATO' || modo === 'ENTREGAR_PLATO';
+export function botonEntregarPlatoEnteroHabilitado(modo, opts = {}) {
+  if (modo === 'FINALIZAR_PLATO' || modo === 'ENTREGAR_PLATO') return true;
+  if (opts.absoluto && opts.haySeleccion) {
+    return modo === 'SIN_ACCION' || modo === 'SOLICITAR_ORDEN';
+  }
+  return false;
 }
 
 function parseClavePlato(key) {
@@ -48,7 +53,8 @@ export function recolectarSeleccionEntregarEntero({
   platoStates,
   comandas = [],
   userId,
-  isSupervisorView = false
+  isSupervisorView = false,
+  permitirOtroCocinero = false
 }) {
   const aFinalizar = [];
   const aEntregar = [];
@@ -64,7 +70,7 @@ export function recolectarSeleccionEntregarEntero({
       const comanda = comandas.find((c) => String(c._id) === String(parsed.comandaId));
       const plato = comanda?.platos?.[parsed.platoIndex];
       if (!plato) return;
-      if (tomadoPorOtro(plato, userId) && !isSupervisorView) return;
+      if (tomadoPorOtro(plato, userId) && !isSupervisorView && !permitirOtroCocinero) return;
       const platoId = idPlato(plato);
       if (!platoId) return;
       const comp = (plato.complementosSeleccionados || []).find(
@@ -89,7 +95,7 @@ export function recolectarSeleccionEntregarEntero({
     const comanda = comandas.find((c) => String(c._id) === String(parsed.comandaId));
     const plato = comanda?.platos?.[parsed.platoIndex];
     if (!plato) return;
-    if (tomadoPorOtro(plato, userId) && !isSupervisorView) return;
+    if (tomadoPorOtro(plato, userId) && !isSupervisorView && !permitirOtroCocinero) return;
     const platoId = idPlato(plato);
     if (!platoId) return;
     vistos.add(uniqueKey);
@@ -128,11 +134,13 @@ export async function ejecutarEntregarPlatoEntero({
   finalizarGuarnicion,
   batchFinalizarPlatos,
   entregarPlato,
-  filtrarLote
+  filtrarLote,
+  absoluto = false
 }) {
   const omitidos = [];
   let lote = aFinalizar;
-  if (typeof filtrarLote === 'function' && aFinalizar.length > 0) {
+  // Atajo absoluto (reservas auto-asignadas): no recortar por cola FIFO.
+  if (!absoluto && typeof filtrarLote === 'function' && aFinalizar.length > 0) {
     const r = await filtrarLote(aFinalizar);
     lote = r?.lote || r?.finalizables || [];
     omitidos.push(...(r?.omitidos || r?.bloqueados || []));
@@ -156,6 +164,37 @@ export async function ejecutarEntregarPlatoEntero({
 
   const keysLimpiar = [];
   guarniciones.forEach((g) => keysLimpiar.push(`${g.comandaId}-${g.platoIndex}-g-${g.compId}`));
+
+  if (absoluto) {
+    const loteAbs = [];
+    const seenAbs = new Set();
+    const pushAbs = (p) => {
+      const k = `${p.comandaId}-${p.platoId}`;
+      if (seenAbs.has(k)) return;
+      seenAbs.add(k);
+      loteAbs.push(p);
+    };
+    lote.forEach(pushAbs);
+    aEntregar.forEach(pushAbs);
+    if (loteAbs.length > 0 && typeof batchFinalizarPlatos === 'function') {
+      const { resultados = [] } = await batchFinalizarPlatos(loteAbs, { entregarEnteroAbsoluto: true });
+      let exitosos = 0;
+      let fallidos = 0;
+      resultados.forEach((result) => {
+        const value = result?.value || result;
+        if (result?.status === 'rejected' || value?.exito === false) {
+          fallidos += 1;
+          return;
+        }
+        if (value?.exito) {
+          exitosos += 1;
+          keysLimpiar.push(claveLimpieza(value));
+        }
+      });
+      return { exitosos, fallidos, omitidos, keysLimpiar: [...new Set(keysLimpiar)] };
+    }
+    return { exitosos: 0, fallidos: 0, omitidos, keysLimpiar: [...new Set(keysLimpiar)] };
+  }
 
   if (lote.length > 0 && typeof batchFinalizarPlatos === 'function') {
     const { resultados = [] } = await batchFinalizarPlatos(lote);

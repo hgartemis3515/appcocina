@@ -22,7 +22,7 @@ import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
 import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
 import { platoCoincideId } from '../utils/platoHelpers';
-import { playNotificationSound } from '../utils/kdsNotificationSounds';
+import { playKdsEventSound } from '../utils/kdsNotificationSounds';
 
 /**
  * Hook compartido para la lógica base del tablero KDS
@@ -103,7 +103,7 @@ const useComandastyleCore = ({
       });
       
       // Detectar nuevas comandas para sonido y animación
-      if (soundEnabled && previousComandasRef.current.length > 0) {
+      if (previousComandasRef.current.length > 0) {
         const nuevasComandas = comandasValidas.filter(
           nueva => !previousComandasRef.current.some(anterior => anterior._id === nueva._id)
         );
@@ -113,7 +113,7 @@ const useComandastyleCore = ({
         );
         
         if (nuevasIngresantes.length > 0) {
-          playNotificationSound();
+          playKdsEventSound('nuevaComanda');
           nuevasIngresantes.forEach(c => {
             newComandasRef.current.add(c._id);
             setTimeout(() => newComandasRef.current.delete(c._id), 2000);
@@ -417,7 +417,7 @@ const useComandastyleCore = ({
     // Utilidades
     calcularTiempos,
     getAlertColor,
-    playNotificationSound,
+    playNotificationSound: () => playKdsEventSound('nuevaComanda'),
     
     // Stats
     totalComandas: comandasOrdenadas.length,

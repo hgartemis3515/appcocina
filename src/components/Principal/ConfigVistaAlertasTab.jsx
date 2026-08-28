@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPalette, FaClock, FaSave, FaFolderOpen, FaTrash, FaPlus, FaBell, FaPlay, FaVolumeUp, FaVolumeDown } from 'react-icons/fa';
+import { FaPalette, FaClock, FaSave, FaFolderOpen, FaTrash, FaPlus, FaBell, FaPlay, FaVolumeUp, FaVolumeDown, FaVolumeMute } from 'react-icons/fa';
 import { useConfig } from '../../contexts/ConfigContext';
 import {
   TIEMPOS_ALERTA,
@@ -31,6 +31,7 @@ import {
   TIMBRE_VOLUMEN_DEFAULT,
   resolverTimbreClave,
   playKdsNotificationSound,
+  playKdsEventSound,
 } from '../../utils/kdsNotificationSounds';
 
 /**
@@ -48,6 +49,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
     crearPerfilVista,
     sobrescribirPerfilVista,
     eliminarPerfilVista,
+    persistConfigNow,
     cargandoPerfilesVista,
     guardandoPerfilVista,
   } = useConfig();
@@ -86,22 +88,34 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
       return;
     }
     if (r.perfil?.id) setPerfilSel(r.perfil.id);
-    flash('ok', `Perfil "${r.perfil?.nombre || nombre}" creado`);
+    flash('ok', r.localOnly
+      ? `Perfil "${r.perfil?.nombre || nombre}" guardado en este dispositivo`
+      : `Perfil "${r.perfil?.nombre || nombre}" creado`);
   };
 
   const handleGuardar = async () => {
+    const localOk = persistConfigNow();
     if (!esCustom) {
-      flash('err', 'Elige un perfil de tablas KDS para sobrescribir, o usa Crear perfil');
+      flash(localOk ? 'ok' : 'err', localOk
+        ? 'Configuración guardada en este dispositivo'
+        : 'No se pudo guardar en este dispositivo');
       return;
     }
     const p = perfilesVista.find((x) => x.id === perfilSel);
-    if (!window.confirm(`¿Guardar la vista actual en "${p?.nombre}"?`)) return;
+    if (!window.confirm(`¿Guardar la vista actual en "${p?.nombre}"?`)) {
+      flash(localOk ? 'ok' : 'err', localOk
+        ? 'Configuración guardada en este dispositivo'
+        : 'No se pudo guardar en este dispositivo');
+      return;
+    }
     const r = await sobrescribirPerfilVista(perfilSel);
     if (!r.ok) {
       flash('err', r.error);
       return;
     }
-    flash('ok', 'Perfil guardado');
+    flash('ok', r.localOnly
+      ? 'Guardado en este dispositivo (servidor apagado)'
+      : 'Perfil guardado');
   };
 
   const handleCargar = () => {
@@ -142,8 +156,8 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               Perfiles de vista
             </h3>
             <p className={`${textSecondary} text-xs mt-0.5`}>
-              Guarda en el servidor la tipografía, paginación, nombre de plato, número de orden, aviso de guarnición y alertas.
-              En otro dispositivo aparecen aquí al abrir esta pantalla (solo perfiles de tablas KDS).
+              Siempre se guarda en este dispositivo (aunque el backend esté apagado).
+              Si el servidor está encendido, también se copia para otros equipos.
             </p>
           </div>
           {perfilActivo && (
@@ -179,7 +193,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <button type="button" onClick={handleCrear} disabled={guardandoPerfilVista} className={btn('bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2')}>
             <FaPlus /> Crear perfil
           </button>
-          <button type="button" onClick={handleGuardar} disabled={!esCustom || guardandoPerfilVista} className={btn('bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2')}>
+          <button type="button" onClick={handleGuardar} disabled={guardandoPerfilVista} className={btn('bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2')}>
             <FaSave /> Guardar
           </button>
           <button type="button" onClick={handleCargar} disabled={!perfilSel || guardandoPerfilVista} className={btn(`${nightMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-300 hover:bg-gray-400'} ${textModal} flex items-center gap-2`)}>
@@ -191,7 +205,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
         </div>
 
         {cargandoPerfilesVista && (
-          <p className={`${textSecondary} text-xs mt-2`}>Cargando perfiles del servidor…</p>
+          <p className={`${textSecondary} text-xs mt-2`}>Cargando perfiles…</p>
         )}
         {msg && (
           <p className={`text-sm mt-3 ${msg.tipo === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -618,8 +632,8 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               Timbre de nueva comanda
             </h3>
             <p className={`${textSecondary} text-xs mt-0.5`}>
-              Reemplaza el beep al entrar una comanda. Elige un timbre y el volumen.
-              Si el sonido está apagado en General, no suena en el tablero.
+              Elige el timbre de llegada y qué otros eventos suenan. Por defecto solo suena
+              cuando llega una comanda a la tabla. Si el sonido está apagado en General, no suena nada.
             </p>
           </div>
           <button
@@ -702,6 +716,84 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
         {resolverTimbreClave(config.timbreClave) === TIMBRE_DEFAULT && (
           <p className={`${textSecondary} text-xs mt-3`}>Beep clásico es el tono que ya usaba el tablero.</p>
         )}
+
+        <div className={`mt-5 pt-4 border-t ${borderModal} space-y-3`}>
+          <h4 className={`${textModal} text-sm font-bold flex items-center gap-2`}>
+            <FaVolumeMute className="text-gray-400" />
+            Cuándo suena
+          </h4>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 w-4 h-4"
+              checked={config.sonidoNuevaComanda !== false}
+              onChange={(e) => updateConfig({ sonidoNuevaComanda: e.target.checked })}
+            />
+            <span>
+              <span className={`block text-sm font-semibold ${textModal}`}>Nueva comanda en la tabla</span>
+              <span className={`block text-[11px] ${textSecondary}`}>Cuando llega un pedido al KDS</span>
+            </span>
+          </label>
+          {[
+            {
+              enabledKey: 'sonidoFinalizar',
+              claveKey: 'timbreFinalizarClave',
+              evento: 'finalizar',
+              titulo: 'Finalizar comanda',
+              desc: 'Al marcar listo / recoger',
+            },
+            {
+              enabledKey: 'sonidoEntregar',
+              claveKey: 'timbreEntregarClave',
+              evento: 'entregar',
+              titulo: 'Entregar comanda',
+              desc: 'Al salir o entregar',
+            },
+          ].map((ev) => {
+            const on = config[ev.enabledKey] === true;
+            const clave = resolverTimbreClave(config[ev.claveKey] || config.timbreClave);
+            return (
+              <div key={ev.evento} className={`rounded-lg border ${borderModal} p-3 space-y-2`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 w-4 h-4"
+                    checked={on}
+                    onChange={(e) => updateConfig({ [ev.enabledKey]: e.target.checked })}
+                  />
+                  <span>
+                    <span className={`block text-sm font-semibold ${textModal}`}>{ev.titulo}</span>
+                    <span className={`block text-[11px] ${textSecondary}`}>{ev.desc}</span>
+                  </span>
+                </label>
+                <div className="flex items-center gap-2 pl-7">
+                  <select
+                    value={clave}
+                    disabled={!on}
+                    onChange={(e) => updateConfig({ [ev.claveKey]: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} text-sm disabled:opacity-40`}
+                    aria-label={`Timbre de ${ev.titulo}`}
+                  >
+                    {KDS_TIMBRES.map((t) => (
+                      <option key={t.clave} value={t.clave}>{t.nombre}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => playKdsEventSound(ev.evento, {
+                      clave,
+                      volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+                      force: true,
+                    })}
+                    className="px-3 py-2 rounded-lg text-sm font-semibold bg-gray-600 hover:bg-gray-500 text-white flex items-center gap-1 shrink-0"
+                  >
+                    <FaPlay className="text-xs" /> Probar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
     </div>
   );

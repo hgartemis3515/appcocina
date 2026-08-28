@@ -210,17 +210,66 @@ function playRecipe(clave, vol) {
   }
 }
 
+export const KDS_SONIDO_EVENTOS = {
+  nuevaComanda: {
+    id: 'nuevaComanda',
+    enabledKey: 'sonidoNuevaComanda',
+    claveKey: 'timbreClave',
+    defaultEnabled: true,
+  },
+  finalizar: {
+    id: 'finalizar',
+    enabledKey: 'sonidoFinalizar',
+    claveKey: 'timbreFinalizarClave',
+    defaultEnabled: false,
+  },
+  entregar: {
+    id: 'entregar',
+    enabledKey: 'sonidoEntregar',
+    claveKey: 'timbreEntregarClave',
+    defaultEnabled: false,
+  },
+};
+
 let liveOpts = {
   clave: TIMBRE_DEFAULT,
   volumen: TIMBRE_VOLUMEN_DEFAULT,
   enabled: true,
+  sonidoNuevaComanda: true,
+  sonidoFinalizar: false,
+  sonidoEntregar: false,
+  timbreFinalizarClave: TIMBRE_DEFAULT,
+  timbreEntregarClave: TIMBRE_DEFAULT,
 };
+
+function flagEvento(value, defaultEnabled) {
+  if (value === undefined) return defaultEnabled;
+  return defaultEnabled ? value !== false : value === true;
+}
+
+export function debeReproducirSonidoEvento(config = {}, evento) {
+  if (config.soundEnabled === false) return false;
+  const meta = KDS_SONIDO_EVENTOS[evento];
+  if (!meta) return config.soundEnabled !== false;
+  return flagEvento(config[meta.enabledKey], meta.defaultEnabled);
+}
+
+export function claveTimbreEvento(config = {}, evento) {
+  const meta = KDS_SONIDO_EVENTOS[evento];
+  const propia = meta ? config[meta.claveKey] : null;
+  return resolverTimbreClave(propia || config.timbreClave);
+}
 
 export function syncKdsNotificationSound(config = {}) {
   liveOpts = {
     clave: resolverTimbreClave(config.timbreClave),
     volumen: clampVolumen(config.timbreVolumen),
     enabled: config.soundEnabled !== false,
+    sonidoNuevaComanda: flagEvento(config.sonidoNuevaComanda, true),
+    sonidoFinalizar: flagEvento(config.sonidoFinalizar, false),
+    sonidoEntregar: flagEvento(config.sonidoEntregar, false),
+    timbreFinalizarClave: resolverTimbreClave(config.timbreFinalizarClave || config.timbreClave),
+    timbreEntregarClave: resolverTimbreClave(config.timbreEntregarClave || config.timbreClave),
   };
 }
 
@@ -243,6 +292,33 @@ export function playKdsNotificationSound(override = {}) {
   }
 }
 
+export function playKdsEventSound(evento, override = {}) {
+  const meta = KDS_SONIDO_EVENTOS[evento] || KDS_SONIDO_EVENTOS.nuevaComanda;
+  const force = override.force === true;
+  if (!force) {
+    if (!liveOpts.enabled) return;
+    if (liveOpts[meta.enabledKey] !== true) return;
+  }
+  const claveLive = meta.claveKey === 'timbreClave'
+    ? liveOpts.clave
+    : (liveOpts[meta.claveKey] || liveOpts.clave);
+  playKdsNotificationSound({
+    ...override,
+    clave: override.clave ?? claveLive,
+    force: true,
+  });
+}
+
+export function playKdsSoundForPlatoEstado(nuevoEstado) {
+  if (nuevoEstado === 'recoger') {
+    playKdsEventSound('finalizar');
+    return;
+  }
+  if (nuevoEstado === 'salio' || nuevoEstado === 'entregado') {
+    playKdsEventSound('entregar');
+  }
+}
+
 export function playNotificationSound() {
-  playKdsNotificationSound();
+  playKdsEventSound('nuevaComanda');
 }

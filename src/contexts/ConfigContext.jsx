@@ -17,6 +17,11 @@ import {
   nombrePerfilDisponible,
   mapPerfilVistaDesdeApi,
   perfilVistaDifiere,
+  leerPerfilesVista,
+  guardarPerfilesVista,
+  mergePerfilesVista,
+  esIdPerfilLocal,
+  nuevoIdPerfilLocal,
   TIPO_PERFIL_TABLAS_KDS,
 } from '../utils/kdsPerfilesVista';
 import { syncKdsNotificationSound } from '../utils/kdsNotificationSounds';
@@ -72,9 +77,23 @@ export const ConfigProvider = ({ children }) => {
     perfilesVistaRef.current = perfilesVista;
   }, [perfilesVista]);
 
+  const configRef = useRef(config);
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
   useEffect(() => {
     syncKdsNotificationSound(config);
-  }, [config.soundEnabled, config.timbreClave, config.timbreVolumen]);
+  }, [
+    config.soundEnabled,
+    config.timbreClave,
+    config.timbreVolumen,
+    config.sonidoNuevaComanda,
+    config.sonidoFinalizar,
+    config.sonidoEntregar,
+    config.timbreFinalizarClave,
+    config.timbreEntregarClave,
+  ]);
 
   /**
    * Ejecuta limpieza automática si es necesaria
@@ -99,14 +118,13 @@ export const ConfigProvider = ({ children }) => {
    * Guarda la configuración en localStorage con debounce
    */
   const saveConfig = useCallback((newConfig) => {
-    // Guardar versión actual
     const configToSave = {
       ...newConfig,
       version: KDS_CONFIG_VERSION,
       ultimaModificacion: new Date().toISOString(),
     };
+    configRef.current = configToSave;
 
-    // Debounce para evitar escrituras excesivas
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
@@ -115,7 +133,7 @@ export const ConfigProvider = ({ children }) => {
 
     saveTimeoutRef.current = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
+        localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configRef.current));
         localStorage.setItem(STORAGE_KEYS.CONFIG_VERSION, KDS_CONFIG_VERSION);
         setLastSaved(new Date());
         console.log('[ConfigContext] Configuración guardada');
@@ -125,6 +143,34 @@ export const ConfigProvider = ({ children }) => {
         setIsSaving(false);
       }
     }, 300);
+  }, []);
+
+  /**
+   * Escribe kdsConfig en localStorage ya (sin esperar el debounce).
+   * Funciona con el backend apagado.
+   */
+  const persistConfigNow = useCallback((cfg) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    const configToSave = {
+      ...(cfg || configRef.current),
+      version: KDS_CONFIG_VERSION,
+      ultimaModificacion: new Date().toISOString(),
+    };
+    configRef.current = configToSave;
+    try {
+      localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
+      localStorage.setItem(STORAGE_KEYS.CONFIG_VERSION, KDS_CONFIG_VERSION);
+      setLastSaved(new Date());
+      setIsSaving(false);
+      return true;
+    } catch (e) {
+      console.error('[ConfigContext] Error guardando configuración:', e);
+      setIsSaving(false);
+      return false;
+    }
   }, []);
 
   /**
@@ -228,16 +274,20 @@ export const ConfigProvider = ({ children }) => {
 
   const recargarPerfilesVista = useCallback(async () => {
     setCargandoPerfilesVista(true);
+    const locales = leerPerfilesVista();
     try {
       const res = await apiGet('/api/perfiles-tablas-kds');
-      const lista = (Array.isArray(res?.data) ? res.data : [])
+      const servidor = (Array.isArray(res?.data) ? res.data : [])
         .map(mapPerfilVistaDesdeApi)
         .filter((p) => p && p.tipo === TIPO_PERFIL_TABLAS_KDS);
+      const lista = mergePerfilesVista(locales, servidor);
+      guardarPerfilesVista(lista);
       setPerfilesVista(lista);
       return lista;
     } catch (e) {
-      console.warn('[ConfigContext] No se pudieron cargar perfiles de tablas KDS', e);
-      return perfilesVistaRef.current;
+      console.warn('[ConfigContext] Servidor no disponible; perfiles desde este dispositivo', e);
+      setPerfilesVista(locales);
+      return locales;
     } finally {
       setCargandoPerfilesVista(false);
     }
@@ -253,61 +303,105 @@ export const ConfigProvider = ({ children }) => {
       return { ok: false, error: 'Ya existe un perfil con ese nombre' };
     }
     setGuardandoPerfilVista(true);
+    const snap = snapshotPerfilVista(config);
+    const perfilLocal = {
+      id: nuevoIdPerfilLocal(),
+      nombre,
+      tipo: TIPO_PERFIL_TABLAS_KDS,
+      config: snap,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const listaLocal = [...perfilesVistaRef.current, perfilLocal];
+    guardarPerfilesVista(listaLocal);
+    setPerfilesVista(listaLocal);
+    setPerfilActivoState(perfilLocal.id);
+    setConfigState((prev) => {
+      const newConfig = { ...prev, perfilActivo: perfilLocal.id };
+      persistConfigNow(newConfig);
+      return newConfig;
+    });
     try {
-      const res = await apiPost('/api/perfiles-tablas-kds', {
-        nombre,
-        config: snapshotPerfilVista(config),
-      });
+      const res = await apiPost('/api/perfiles-tablas-kds', { nombre, config: snap });
       const perfil = mapPerfilVistaDesdeApi(res.data);
-      await recargarPerfilesVista();
       if (perfil) {
+        const lista = mergePerfilesVista(
+          listaLocal.filter((p) => p.id !== perfilLocal.id),
+          [perfil]
+        );
+        guardarPerfilesVista(lista);
+        setPerfilesVista(lista);
         setPerfilActivoState(perfil.id);
         setConfigState((prev) => {
           const newConfig = { ...prev, perfilActivo: perfil.id };
-          saveConfig(newConfig);
+          persistConfigNow(newConfig);
           return newConfig;
         });
+        return { ok: true, perfil, localOnly: false };
       }
-      return { ok: true, perfil };
+      return { ok: true, perfil: perfilLocal, localOnly: true };
     } catch (e) {
-      const status = e?.response?.status;
-      const msg = status === 409
-        ? 'Ya existe un perfil con ese nombre'
-        : (e?.response?.data?.error || e?.userMessage || 'No se pudo crear el perfil');
-      return { ok: false, error: msg };
+      return { ok: true, perfil: perfilLocal, localOnly: true };
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [config, recargarPerfilesVista, saveConfig]);
+  }, [config, persistConfigNow]);
 
   /**
    * Sobrescribe un perfil guardado con la vista actual.
    */
   const sobrescribirPerfilVista = useCallback(async (perfilId) => {
     if (!perfilId) return { ok: false, error: 'Perfil no encontrado' };
+    const actual = perfilesVistaRef.current.find((p) => p.id === perfilId);
+    if (!actual) return { ok: false, error: 'Perfil no encontrado' };
     setGuardandoPerfilVista(true);
+    const snap = snapshotPerfilVista(config);
+    const actualizado = {
+      ...actual,
+      tipo: TIPO_PERFIL_TABLAS_KDS,
+      config: snap,
+      updatedAt: new Date().toISOString(),
+    };
+    const listaLocal = perfilesVistaRef.current.map((p) => (p.id === perfilId ? actualizado : p));
+    guardarPerfilesVista(listaLocal);
+    setPerfilesVista(listaLocal);
+    setPerfilActivoState(perfilId);
+    setConfigState((prev) => {
+      const newConfig = { ...prev, perfilActivo: perfilId };
+      persistConfigNow(newConfig);
+      return newConfig;
+    });
     try {
-      await apiPut(`/api/perfiles-tablas-kds/${perfilId}`, {
-        config: snapshotPerfilVista(config),
-      });
-      await recargarPerfilesVista();
-      setPerfilActivoState(perfilId);
-      setConfigState((prev) => {
-        const newConfig = { ...prev, perfilActivo: perfilId };
-        saveConfig(newConfig);
-        return newConfig;
-      });
-      return { ok: true };
+      if (esIdPerfilLocal(perfilId)) {
+        const res = await apiPost('/api/perfiles-tablas-kds', {
+          nombre: actual.nombre,
+          config: snap,
+        });
+        const perfil = mapPerfilVistaDesdeApi(res.data);
+        if (perfil) {
+          const lista = mergePerfilesVista(
+            listaLocal.filter((p) => p.id !== perfilId),
+            [perfil]
+          );
+          guardarPerfilesVista(lista);
+          setPerfilesVista(lista);
+          setPerfilActivoState(perfil.id);
+          setConfigState((prev) => {
+            const newConfig = { ...prev, perfilActivo: perfil.id };
+            persistConfigNow(newConfig);
+            return newConfig;
+          });
+        }
+        return { ok: true, localOnly: false };
+      }
+      await apiPut(`/api/perfiles-tablas-kds/${perfilId}`, { config: snap });
+      return { ok: true, localOnly: false };
     } catch (e) {
-      const status = e?.response?.status;
-      const msg = status === 404
-        ? 'Perfil no encontrado'
-        : (e?.response?.data?.error || e?.userMessage || 'No se pudo guardar el perfil');
-      return { ok: false, error: msg };
+      return { ok: true, localOnly: true };
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [config, recargarPerfilesVista, saveConfig]);
+  }, [config, persistConfigNow]);
 
   /**
    * Elimina un perfil guardado (borrado lógico en servidor).
@@ -315,28 +409,28 @@ export const ConfigProvider = ({ children }) => {
   const eliminarPerfilVista = useCallback(async (perfilId) => {
     if (!perfilId) return { ok: false, error: 'Perfil no encontrado' };
     setGuardandoPerfilVista(true);
+    const listaLocal = perfilesVistaRef.current.filter((p) => p.id !== perfilId);
+    guardarPerfilesVista(listaLocal);
+    setPerfilesVista(listaLocal);
+    if (perfilActivo === perfilId) {
+      setPerfilActivoState(null);
+      setConfigState((prev) => {
+        const newConfig = { ...prev, perfilActivo: null };
+        persistConfigNow(newConfig);
+        return newConfig;
+      });
+    }
     try {
-      await apiDelete(`/api/perfiles-tablas-kds/${perfilId}`);
-      await recargarPerfilesVista();
-      if (perfilActivo === perfilId) {
-        setPerfilActivoState(null);
-        setConfigState((prev) => {
-          const newConfig = { ...prev, perfilActivo: null };
-          saveConfig(newConfig);
-          return newConfig;
-        });
+      if (!esIdPerfilLocal(perfilId)) {
+        await apiDelete(`/api/perfiles-tablas-kds/${perfilId}`);
       }
       return { ok: true };
     } catch (e) {
-      const status = e?.response?.status;
-      const msg = status === 404
-        ? 'Perfil no encontrado'
-        : (e?.response?.data?.error || e?.userMessage || 'No se pudo eliminar el perfil');
-      return { ok: false, error: msg };
+      return { ok: true, localOnly: true };
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [perfilActivo, recargarPerfilesVista, saveConfig]);
+  }, [perfilActivo, persistConfigNow]);
 
   /**
    * Resetea la configuración a valores por defecto
@@ -403,6 +497,7 @@ export const ConfigProvider = ({ children }) => {
     lastSaved,
     
     // Acciones
+    persistConfigNow,
     updateConfig,
     aplicarPerfilPredefinido,
     cargarPerfilVista,

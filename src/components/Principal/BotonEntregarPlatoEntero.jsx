@@ -10,7 +10,8 @@ const BotonEntregarPlatoEntero = ({
   loading,
   nightMode,
   onClick,
-  count = 0
+  count = 0,
+  absoluto = true
 }) => {
   if (!visible) return null;
 
@@ -22,7 +23,9 @@ const BotonEntregarPlatoEntero = ({
       type="button"
       onClick={onClick}
       disabled={!activo}
-      title="Finalizar y confirmar salida de cocina en un paso"
+      title={absoluto
+        ? 'Finalizar, salir de cocina y entregar al comensal en un paso'
+        : 'Finalizar y confirmar salida de cocina en un paso'}
       className={`px-4 py-3 font-bold rounded-lg text-sm shadow-lg flex items-center gap-2 max-w-[11rem] leading-tight text-left ${
         activo
           ? 'bg-teal-700 text-white hover:bg-teal-800 cursor-pointer'

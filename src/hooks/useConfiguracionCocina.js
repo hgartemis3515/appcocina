@@ -20,6 +20,7 @@ const DEFAULT = {
     deshabilitarOrdenSecuencialGuarniciones: true,
     deshabilitarAgrupacionGuarniciones: false,
     primerToqueFinalizarAsignado: true,
+    entregarPlatoEnteroAbsoluto: true,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -53,6 +54,7 @@ export async function fetchConfiguracionCocina(getToken) {
                 deshabilitarOrdenSecuencialGuarniciones: cfg.deshabilitarOrdenSecuencialGuarniciones !== false,
                 deshabilitarAgrupacionGuarniciones: cfg.deshabilitarAgrupacionGuarniciones === true,
                 primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado !== false,
+                entregarPlatoEnteroAbsoluto: cfg.entregarPlatoEnteroAbsoluto !== false,
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,

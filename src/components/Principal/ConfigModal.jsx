@@ -34,6 +34,7 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
     config,
     updateConfig,
     resetConfig,
+    persistConfigNow,
   } = useConfig();
 
   // Estado para tabs
@@ -99,16 +100,13 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
    * Guarda toda la configuración
    */
   const handleSave = () => {
-    // Validar y guardar URL del backend si se proporcionó
-    if (apiUrl && apiUrl.trim() !== '') {
+    persistConfigNow();
+    if (apiUrl && apiUrl.trim() !== '' && apiUrlValid) {
       const result = setApiUrl(apiUrl.trim());
-      
       if (!result.success) {
         setApiUrlError(result.error);
-        return;
       }
     }
-    
     onClose();
   };
 
@@ -254,8 +252,8 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
                     </span>
                   </label>
                   <p className={`${textSecondary} text-sm mt-1 ml-8`}>
-                    Reproduce un sonido cuando llegue una nueva comanda.
-                    El timbre y el volumen se eligen en la pestaña Vista y alertas.
+                    Interruptor general. Qué eventos suenan (llegada, finalizar, entregar)
+                    se elige en la pestaña Vista y alertas.
                   </p>
                 </div>
 
@@ -402,12 +400,7 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
         <div className="flex gap-4 mt-8">
           <button
             onClick={handleSave}
-            disabled={apiUrl && !apiUrlValid}
-            className={`flex-1 font-bold py-3 px-6 rounded-lg transition-colors ${
-              apiUrl && !apiUrlValid
-                ? 'bg-gray-500 cursor-not-allowed text-gray-300'
-                : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
+            className="flex-1 font-bold py-3 px-6 rounded-lg transition-colors bg-green-600 hover:bg-green-700 text-white"
           >
             Guardar Configuración
           </button>

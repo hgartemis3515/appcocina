@@ -292,6 +292,11 @@ export const DEFAULT_KDS_CONFIG = {
   soundEnabled: true,
   timbreClave: 'beep_clasico',
   timbreVolumen: 70,
+  sonidoNuevaComanda: true,
+  sonidoFinalizar: false,
+  sonidoEntregar: false,
+  timbreFinalizarClave: 'beep_clasico',
+  timbreEntregarClave: 'beep_clasico',
   repetirSonido: false,
   nightMode: true,
   autoPrint: false,
@@ -438,6 +443,11 @@ export const aplicarPerfil = (perfilId, currentConfig = {}) => {
   if (currentConfig.soundEnabled !== undefined) newConfig.soundEnabled = currentConfig.soundEnabled;
   if (currentConfig.timbreClave !== undefined) newConfig.timbreClave = currentConfig.timbreClave;
   if (currentConfig.timbreVolumen !== undefined) newConfig.timbreVolumen = currentConfig.timbreVolumen;
+  if (currentConfig.sonidoNuevaComanda !== undefined) newConfig.sonidoNuevaComanda = currentConfig.sonidoNuevaComanda;
+  if (currentConfig.sonidoFinalizar !== undefined) newConfig.sonidoFinalizar = currentConfig.sonidoFinalizar;
+  if (currentConfig.sonidoEntregar !== undefined) newConfig.sonidoEntregar = currentConfig.sonidoEntregar;
+  if (currentConfig.timbreFinalizarClave !== undefined) newConfig.timbreFinalizarClave = currentConfig.timbreFinalizarClave;
+  if (currentConfig.timbreEntregarClave !== undefined) newConfig.timbreEntregarClave = currentConfig.timbreEntregarClave;
   if (currentConfig.nightMode !== undefined) newConfig.nightMode = currentConfig.nightMode;
   return newConfig;
 };
