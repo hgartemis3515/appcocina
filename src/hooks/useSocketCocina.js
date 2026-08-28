@@ -80,12 +80,15 @@ const useSocketCocina = ({
     onPlatoMenuActualizado,
     onMonitorConfigVisual,
     obtenerComandas,
+    onSolicitudGestionActualizada,
+    onNuevaNotificacion,
   token, // Token obligatorio para autenticación
   cocineroId // TEMA 1: ID del cocinero para room personal
 }) => {
   const [connected, setConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('desconectado'); // 'conectado', 'desconectado', 'auth_error'
   const [authError, setAuthError] = useState(null);
+  const [socketInstance, setSocketInstance] = useState(null);
   
   const socketRef = useRef(null);
   const ultimoPingRef = useRef(Date.now());
@@ -108,7 +111,9 @@ const useSocketCocina = ({
     onConfigCocineroActualizada,
     onPlatoMenuActualizado,
     onMonitorConfigVisual,
-    obtenerComandas
+    obtenerComandas,
+    onSolicitudGestionActualizada,
+    onNuevaNotificacion
   };
 
   /**
@@ -131,7 +136,9 @@ const useSocketCocina = ({
     // Desconectar socket y no reintentar
     if (socketRef.current) {
       socketRef.current.disconnect();
+      socketRef.current = null;
     }
+    setSocketInstance(null);
   }, []);
 
   useEffect(() => {
@@ -159,6 +166,7 @@ const useSocketCocina = ({
       setConnectionStatus('desconectado');
       setAuthError(null);
       authFailedRef.current = false; // Resetear para el próximo login
+      setSocketInstance(null);
       return;
     }
 
@@ -213,6 +221,7 @@ const useSocketCocina = ({
     });
 
     socketRef.current = socket;
+    if (!isUnmountedRef.current) setSocketInstance(socket);
 
     // Evento: Conexión establecida
     socket.on('connect', () => {
@@ -712,6 +721,28 @@ const useSocketCocina = ({
       }
     });
 
+    // Solicitar Orden (fuera de secuencia): aprobación / rechazo → toast KDS supervisor
+    socket.on('solicitud-gestion-actualizada', (data) => {
+      ultimoPingRef.current = Date.now();
+      if (handlersRef.current.onSolicitudGestionActualizada) {
+        handlersRef.current.onSolicitudGestionActualizada(data);
+      }
+    });
+    socket.on('nueva-notificacion', (data) => {
+      ultimoPingRef.current = Date.now();
+      if (handlersRef.current.onNuevaNotificacion) {
+        handlersRef.current.onNuevaNotificacion(data);
+      } else if (handlersRef.current.onSolicitudGestionActualizada) {
+        handlersRef.current.onSolicitudGestionActualizada(data);
+      }
+    });
+    socket.on('plato-override-orden', (data) => {
+      ultimoPingRef.current = Date.now();
+      if (handlersRef.current.onSolicitudGestionActualizada) {
+        handlersRef.current.onSolicitudGestionActualizada({ ...data, overrideOrdenCola: true });
+      }
+    });
+
     // Heartbeat para mantener conexión activa
     heartbeatIntervalRef.current = setInterval(() => {
       if (socket.connected) {
@@ -753,11 +784,12 @@ const useSocketCocina = ({
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+      setSocketInstance(null);
     };
   }, [token, handleAuthError, cocineroId]);
 
   return {
-    socket: socketRef.current,
+    socket: socketInstance,
     connected,
     connectionStatus,
     authError

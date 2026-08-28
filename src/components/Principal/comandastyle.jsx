@@ -37,6 +37,7 @@ import KdsTopBar from "./KdsTopBar";
 import HistorialModal from "./HistorialModal";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
 import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden } from "../../utils/ordenColaCocinero";
+import { extraerResolucionSolicitudOrden } from "../../utils/solicitudOrdenKds";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
@@ -167,6 +168,7 @@ const ComandaStyle = ({
   const [comandasAutoCompletadas, setComandasAutoCompletadas] = useState(new Set());
   // Estado para toast notifications simples
   const [toastMessage, setToastMessage] = useState(null);
+  const lastSolicitudOrdenNotifRef = useRef('');
 
   // PLAN OBLIGAR_ORDEN: overrides aprobados por admin (clave comandaId-platoId / comandaId-idx)
   // Persistidos en estado React para que el botón pase a Finalizar aunque el plato en memoria no tenga aún el flag.
@@ -1149,6 +1151,32 @@ const ComandaStyle = ({
     });
   }, []);
 
+  const handleSolicitudGestionActualizada = useCallback((data) => {
+    const r = extraerResolucionSolicitudOrden(data);
+    if (!r) return;
+    const key = `${r.rechazada ? 'rechazo' : 'ok'}-${r.id || r.comandaId || ''}-${r.platoId || r.platoIndex || ''}`;
+    if (r.id && lastSolicitudOrdenNotifRef.current === key) return;
+    if (r.id) lastSolicitudOrdenNotifRef.current = key;
+
+    if (r.aprobada || r.overrideOrdenCola) {
+      if (!r.comandaId) {
+        obtenerComandas();
+        return;
+      }
+      marcarOverrideLocal(r.comandaId, r.platoId, r.platoIndex, true);
+      return;
+    }
+    if (r.rechazada) {
+      setToastMessage({
+        type: 'error',
+        message: `❌ Orden rechazada por admin: "${r.plato}"`,
+        nota: r.nota,
+        detail: r.nota ? null : 'No se puede finalizar fuera de secuencia.',
+        duration: r.nota ? 10000 : 8000
+      });
+    }
+  }, [obtenerComandas, marcarOverrideLocal]);
+
   // Hook Socket.io - REEMPLAZA EL POLLING
   // Se pasa el token para autenticación del handshake
   const { socket: cocinaSocket, connected, connectionStatus, authError: socketAuthError } = useSocketCocina({
@@ -1156,77 +1184,15 @@ const ComandaStyle = ({
     onComandaActualizada: handleComandaActualizada,
     onPlatoActualizado: handlePlatoActualizado,
     onPlatoMenuActualizado: handlePlatoMenuActualizado,
+    onSolicitudGestionActualizada: handleSolicitudGestionActualizada,
     obtenerComandas: obtenerComandas,
-    token: getToken() // Token JWT para autenticación
+    token: getToken()
   });
 
   // Badge PPA en barra superior (misma fuente que la bandeja; reutiliza socket KDS)
   const { cantidadPendientes: ppaCount } = useTablaAprobacion({ socket: cocinaSocket });
   const { reservas: reservasProgramadas } = useReservasProgramadas(cocinaSocket);
   const reservadasCount = reservasProgramadas?.length || 0;
-
-  // PLAN OBLIGAR_ORDEN: cuando el admin aprueba, marcar override local
-  // (socket plato-override-orden + solicitud-gestion-actualizada) y hidratar desde API.
-  useEffect(() => {
-    if (!cocinaSocket) return undefined;
-
-    const aplicarDesdePayload = (data, toast = true) => {
-      const solicitud = data?.solicitud || data;
-      const comandaId = data?.comandaId || solicitud?.comandaId;
-      const platoId = data?.platoId || solicitud?.platoId;
-      const platoIndex = data?.platoIndex ?? solicitud?.platoIndex;
-      if (!comandaId) {
-        obtenerComandas();
-        return;
-      }
-      console.log('[OrdenCola] Override / solicitud actualizada', { comandaId, platoId, platoIndex, estado: solicitud?.estado });
-      if (solicitud?.estado && solicitud.estado !== 'aprobada' && data?.overrideOrdenCola !== true) {
-        return; // solo aplicar si es aprobación / override
-      }
-      marcarOverrideLocal(comandaId, platoId, platoIndex, toast);
-    };
-
-    const onOverride = (data) => aplicarDesdePayload(data, true);
-    const onSolicitud = (data) => {
-      const s = data?.solicitud || data;
-      if (s?.estado === 'aprobada' || data?.overrideOrdenCola === true) {
-        aplicarDesdePayload(data, true);
-        return;
-      }
-      // Rechazo: toast KDS supervisor con la nota/observación del admin (Panel mozos)
-      if (s?.estado === 'rechazada') {
-        const plato = s.platoNombre || data?.platoNombre || 'plato';
-        const notaRaw =
-          s.notaResolucion ??
-          data?.notaResolucion ??
-          s.nota ??
-          data?.nota ??
-          s.mensaje ??
-          data?.mensaje ??
-          null;
-        const nota = notaRaw != null && String(notaRaw).trim()
-          ? String(notaRaw).trim()
-          : null;
-        setToastMessage({
-          type: 'error',
-          message: `❌ Orden rechazada por admin: "${plato}"`,
-          nota: nota,
-          detail: nota
-            ? null
-            : 'No se puede finalizar fuera de secuencia.',
-          duration: nota ? 10000 : 6000
-        });
-      }
-    };
-
-    cocinaSocket.on('plato-override-orden', onOverride);
-    cocinaSocket.on('solicitud-gestion-actualizada', onSolicitud);
-
-    return () => {
-      cocinaSocket.off('plato-override-orden', onOverride);
-      cocinaSocket.off('solicitud-gestion-actualizada', onSolicitud);
-    };
-  }, [cocinaSocket, obtenerComandas, marcarOverrideLocal]);
 
   // Hidratar overrides aprobados vigentes desde API (por si el socket se perdió)
   useEffect(() => {
@@ -5106,7 +5072,7 @@ const ComandaStyle = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.8 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl max-w-[min(92vw,520px)] ${
+            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[220] px-6 py-4 rounded-lg shadow-2xl max-w-[min(92vw,520px)] ${
               toastMessage.type === 'success' 
                 ? 'bg-green-500 text-white' 
                 : toastMessage.type === 'error'

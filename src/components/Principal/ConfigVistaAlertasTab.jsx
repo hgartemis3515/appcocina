@@ -9,6 +9,14 @@ import {
   PERFILES_PREDEFINIDOS,
 } from '../../config/kdsConfigConstants';
 import {
+  ORDEN_COLA_FUENTES,
+  ORDEN_COLA_TAMANO_MIN,
+  ORDEN_COLA_TAMANO_MAX,
+  ORDEN_COLA_DEFAULT,
+  estiloNumeroOrdenKds,
+  textoNumeroOrdenKds,
+} from '../../utils/estiloNumeroOrdenKds';
+import {
   KDS_TIMBRES,
   TIMBRE_DEFAULT,
   TIMBRE_VOLUMEN_DEFAULT,
@@ -125,7 +133,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               Perfiles de vista
             </h3>
             <p className={`${textSecondary} text-xs mt-0.5`}>
-              Guarda en el servidor la tipografía, paginación, nombre de plato, aviso de guarnición y alertas.
+              Guarda en el servidor la tipografía, paginación, nombre de plato, número de orden, aviso de guarnición y alertas.
               En otro dispositivo aparecen aquí al abrir esta pantalla (solo perfiles de tablas KDS).
             </p>
           </div>
@@ -324,14 +332,91 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
             </span>
           </label>
 
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Número de orden del plato</legend>
+            <p className={`${textSecondary} text-xs`}>
+              El #1, #2, #3 de cola en cada plato asignado (tarjeta de comanda). No es el número de la orden.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra</span>
+                <select
+                  value={config.ordenColaFuente || ORDEN_COLA_DEFAULT.ordenColaFuente}
+                  onChange={(e) => updateConfig({ ordenColaFuente: e.target.value })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {ORDEN_COLA_FUENTES.map((f) => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño</span>
+                <select
+                  value={config.ordenColaTamano || ORDEN_COLA_DEFAULT.ordenColaTamano}
+                  onChange={(e) => updateConfig({ ordenColaTamano: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: ORDEN_COLA_TAMANO_MAX - ORDEN_COLA_TAMANO_MIN + 1 },
+                    (_, i) => ORDEN_COLA_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block col-span-2 sm:col-span-1">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={/^#([0-9a-fA-F]{6})$/.test(config.ordenColaColor || '') ? config.ordenColaColor : ORDEN_COLA_DEFAULT.ordenColaColor}
+                    onChange={(e) => updateConfig({ ordenColaColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color del número de orden"
+                  />
+                  <input
+                    type="text"
+                    value={config.ordenColaColor || ORDEN_COLA_DEFAULT.ordenColaColor}
+                    onChange={(e) => updateConfig({ ordenColaColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="flex items-center gap-2 col-span-2 sm:col-span-1 self-end pb-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.ordenColaMostrarHash !== false}
+                  onChange={(e) => updateConfig({ ordenColaMostrarHash: e.target.checked })}
+                  className="w-5 h-5 rounded accent-emerald-500"
+                />
+                <span className={`${textModal} text-sm font-semibold`}>Mostrar “#”</span>
+              </label>
+            </div>
+            <span
+              className="inline-flex px-1.5 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40"
+              style={estiloNumeroOrdenKds(config)}
+            >
+              {textoNumeroOrdenKds(1, config)}
+            </span>
+          </fieldset>
+
           <div className={`${nightMode ? 'bg-gray-950' : 'bg-white'} rounded-lg border ${borderModal} p-3 mt-auto`}>
             <p className={`${textSecondary} text-[10px] uppercase tracking-wide mb-2`}>Preview</p>
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-2 w-[132px]">
               <div className="bg-red-600 text-white text-center text-[10px] font-bold py-0.5 mb-1">ESPERA</div>
               <div className="text-red-400 font-bold" style={{ fontSize: `${Math.max(10, (config.tamanoFuente || 15) - 4)}px` }}>ORDEN #1</div>
               <div className="text-white text-xs">MESA #2</div>
-              <div className="text-lime-200 text-[10px] mt-1 leading-tight">
+              <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
                 {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
+                <span
+                  className="inline-flex px-1 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40"
+                  style={estiloNumeroOrdenKds(config)}
+                >
+                  {textoNumeroOrdenKds(1, config)}
+                </span>
               </div>
               {config.mostrarBadgeGuarnicion !== false && (
                 <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40">

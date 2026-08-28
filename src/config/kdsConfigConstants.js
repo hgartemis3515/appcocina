@@ -266,6 +266,10 @@ export const DEFAULT_KDS_CONFIG = {
   agruparPorMesa: false,
   mostrarBadgeGuarnicion: true,
   usarNombreCocinaEnTablaKds: true,
+  ordenColaFuente: 'inter',
+  ordenColaTamano: 10,
+  ordenColaColor: '#a7f3d0',
+  ordenColaMostrarHash: true,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500

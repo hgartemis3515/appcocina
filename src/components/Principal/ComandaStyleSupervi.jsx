@@ -589,7 +589,7 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg z-50
+            className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg z-[200]
               ${toastLocal.type === 'success' ? 'bg-green-600 text-white' : ''}
               ${toastLocal.type === 'error' ? 'bg-red-600 text-white' : ''}
               ${toastLocal.type === 'warning' ? 'bg-yellow-500 text-gray-900' : ''}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useConfig } from '../../contexts/ConfigContext';
+import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNumeroOrdenKds';
 
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
@@ -51,6 +52,8 @@ const PlatoPreparacion = ({
   const puedeInteractuar = isSupervisorView || !tomadoPorOtro;
   const { config: kdsConfig } = useConfig();
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
+  const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
+  const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
   
   const handleClick = (e) => {
     e.stopPropagation();
@@ -332,10 +335,11 @@ const PlatoPreparacion = ({
               {/* PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero (FIFO por timestamp) */}
               {numeroColaCocinero != null && (
                 <span
-                  className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/25 text-emerald-200 border border-emerald-400/40"
-                  title={`Orden de asignación: #${numeroColaCocinero} (1 = más antiguo)`}
+                  className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40"
+                  style={estiloOrdenCola}
+                  title={`Orden de asignación: ${textoOrdenCola} (1 = más antiguo)`}
                 >
-                  #{numeroColaCocinero}
+                  {textoOrdenCola}
                 </span>
               )}
             </motion.span>
