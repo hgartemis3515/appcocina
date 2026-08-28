@@ -31,6 +31,7 @@ import { getServerBaseUrl } from '../config/apiConfig';
 import { apiGet, apiPut } from '../config/apiClient';
 import { io } from 'socket.io-client';
 import { imprimirComandaDesdeTicket } from '../utils/comandaPrint/comandaPrintWeb';
+import { aplicarTotalNetoTicket } from '../utils/ticketTotales';
 
 const TICKETS_REFRESH_INTERVAL = 30000;
 const TICKETS_FAST_POLLING_INTERVAL = 10000; // cuando socket cae, refrescar más seguido
@@ -44,16 +45,15 @@ const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
 const normalizeTicket = (ticket) => {
   if (!ticket) return ticket;
   const tipo = String(ticket.tipo || '').toUpperCase();
+  let next = ticket;
   if (tipo === 'COMANDA' || tipo === 'COMANDA_COMPLETA') {
-    return { ...ticket, tipo: 'comanda_completa' };
+    next = { ...ticket, tipo: 'comanda_completa' };
+  } else if (tipo === 'PAGO_PARCIAL') {
+    next = { ...ticket, tipo: 'pago_parcial' };
+  } else if (tipo === 'ADELANTADO' || tipo === 'PAGO_ADELANTADO') {
+    next = { ...ticket, tipo: 'pago_adelantado' };
   }
-  if (tipo === 'PAGO_PARCIAL') {
-    return { ...ticket, tipo: 'pago_parcial' };
-  }
-  if (tipo === 'ADELANTADO' || tipo === 'PAGO_ADELANTADO') {
-    return { ...ticket, tipo: 'pago_adelantado' };
-  }
-  return ticket;
+  return aplicarTotalNetoTicket(next);
 };
 
 /**
