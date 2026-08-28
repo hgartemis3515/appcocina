@@ -335,7 +335,7 @@ const PlatoPreparacion = ({
               {/* PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero (FIFO por timestamp) */}
               {numeroColaCocinero != null && (
                 <span
-                  className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40"
+                  className="ml-1 shrink-0"
                   style={estiloOrdenCola}
                   title={`Orden de asignación: ${textoOrdenCola} (1 = más antiguo)`}
                 >

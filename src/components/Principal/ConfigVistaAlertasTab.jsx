@@ -12,9 +12,12 @@ import {
   ORDEN_COLA_FUENTES,
   ORDEN_COLA_TAMANO_MIN,
   ORDEN_COLA_TAMANO_MAX,
+  ORDEN_COLA_CUADRO_TAMANO_MIN,
+  ORDEN_COLA_CUADRO_TAMANO_MAX,
   ORDEN_COLA_DEFAULT,
   estiloNumeroOrdenKds,
   textoNumeroOrdenKds,
+  hexParaColorPicker,
 } from '../../utils/estiloNumeroOrdenKds';
 import {
   KDS_TIMBRES,
@@ -351,7 +354,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 </select>
               </label>
               <label className="block">
-                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño</span>
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño de letra</span>
                 <select
                   value={config.ordenColaTamano || ORDEN_COLA_DEFAULT.ordenColaTamano}
                   onChange={(e) => updateConfig({ ordenColaTamano: parseInt(e.target.value, 10) })}
@@ -365,15 +368,15 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   ))}
                 </select>
               </label>
-              <label className="block col-span-2 sm:col-span-1">
-                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color</span>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={/^#([0-9a-fA-F]{6})$/.test(config.ordenColaColor || '') ? config.ordenColaColor : ORDEN_COLA_DEFAULT.ordenColaColor}
+                    value={hexParaColorPicker(config.ordenColaColor, ORDEN_COLA_DEFAULT.ordenColaColor)}
                     onChange={(e) => updateConfig({ ordenColaColor: e.target.value })}
                     className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
-                    aria-label="Color del número de orden"
+                    aria-label="Color de la letra del número de orden"
                   />
                   <input
                     type="text"
@@ -385,7 +388,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   />
                 </div>
               </label>
-              <label className="flex items-center gap-2 col-span-2 sm:col-span-1 self-end pb-1 cursor-pointer">
+              <label className="flex items-center gap-2 self-end pb-1 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={config.ordenColaMostrarHash !== false}
@@ -394,9 +397,44 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 />
                 <span className={`${textModal} text-sm font-semibold`}>Mostrar “#”</span>
               </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color del cuadro</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.ordenColaCuadroColor, ORDEN_COLA_DEFAULT.ordenColaCuadroColor)}
+                    onChange={(e) => updateConfig({ ordenColaCuadroColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color del cuadro del número de orden"
+                  />
+                  <input
+                    type="text"
+                    value={config.ordenColaCuadroColor || ORDEN_COLA_DEFAULT.ordenColaCuadroColor}
+                    onChange={(e) => updateConfig({ ordenColaCuadroColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño del cuadro</span>
+                <select
+                  value={config.ordenColaCuadroTamano || ORDEN_COLA_DEFAULT.ordenColaCuadroTamano}
+                  onChange={(e) => updateConfig({ ordenColaCuadroTamano: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: ORDEN_COLA_CUADRO_TAMANO_MAX - ORDEN_COLA_CUADRO_TAMANO_MIN + 1 },
+                    (_, i) => ORDEN_COLA_CUADRO_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
             </div>
             <span
-              className="inline-flex px-1.5 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40"
+              className="rounded-full"
               style={estiloNumeroOrdenKds(config)}
             >
               {textoNumeroOrdenKds(1, config)}
@@ -412,7 +450,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
                 {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
                 <span
-                  className="inline-flex px-1 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40"
+                  className="rounded-full"
                   style={estiloNumeroOrdenKds(config)}
                 >
                   {textoNumeroOrdenKds(1, config)}

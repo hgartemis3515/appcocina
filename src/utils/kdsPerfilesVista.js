@@ -22,6 +22,8 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'ordenColaTamano',
   'ordenColaColor',
   'ordenColaMostrarHash',
+  'ordenColaCuadroColor',
+  'ordenColaCuadroTamano',
   'alertYellowMinutes',
   'alertRedMinutes',
   'alertCriticalMinutes',

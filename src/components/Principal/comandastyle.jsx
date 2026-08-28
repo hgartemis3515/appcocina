@@ -38,6 +38,13 @@ import HistorialModal from "./HistorialModal";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
 import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden } from "../../utils/ordenColaCocinero";
 import { extraerResolucionSolicitudOrden } from "../../utils/solicitudOrdenKds";
+import {
+  PERMISO_ENTREGAR_PLATO_ENTERO_KDS,
+  botonEntregarPlatoEnteroHabilitado,
+  recolectarSeleccionEntregarEntero,
+  ejecutarEntregarPlatoEntero
+} from "../../utils/entregarPlatoEnteroKds";
+import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
@@ -3221,6 +3228,100 @@ const ComandaStyle = ({
     }
   }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId, isSupervisorView, onSupervisorEntregarPlato]);
 
+  const [isEntregandoPlatoEntero, setIsEntregandoPlatoEntero] = useState(false);
+  const handleEntregarPlatoEntero = useCallback(async () => {
+    if (isEntregandoPlatoEntero || isFinalizandoPlatos || isEntregandoPlatos) return;
+    if (!hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) return;
+
+    const { aFinalizar, aEntregar, guarniciones } = recolectarSeleccionEntregarEntero({
+      platoStates,
+      comandas,
+      userId,
+      isSupervisorView
+    });
+    if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
+      setToastMessage({
+        type: 'warning',
+        message: 'Selecciona platos tomados para entregar enteros',
+        duration: 4000
+      });
+      return;
+    }
+
+    setIsEntregandoPlatoEntero(true);
+    try {
+      const filtrarLote = async (platosProcesados) => {
+        if (!obligarOrdenAsignacion || puedeOmitirOrden) {
+          return { finalizables: platosProcesados, bloqueados: [] };
+        }
+        if (isSupervisorView && !solicitudOrdenFueraDeCola) {
+          return { finalizables: platosProcesados, bloqueados: [] };
+        }
+        return filtrarLoteRespetandoOrden(platosProcesados, comandas, {
+          tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato)
+        });
+      };
+
+      const { exitosos, omitidos, keysLimpiar } = await ejecutarEntregarPlatoEntero({
+        aFinalizar,
+        aEntregar,
+        guarniciones,
+        userId,
+        finalizarGuarnicion: (g) => finalizarGuarnicion(g.comandaId, g.platoId, g.compId, userId),
+        batchFinalizarPlatos,
+        entregarPlato,
+        filtrarLote
+      });
+
+      if (keysLimpiar.length > 0) {
+        setPlatoStates((prev) => {
+          const nuevo = new Map(prev);
+          keysLimpiar.forEach((k) => nuevo.delete(k));
+          return nuevo;
+        });
+      }
+
+      if (omitidos.length > 0) {
+        const nombres = omitidos.map((o) => {
+          const alias = o.plato?.procesandoPor?.alias || o.plato?.procesandoPor?.nombre || 'cocinero';
+          const nombre = obtenerNombrePlato(o.plato) || 'plato';
+          return `• ${nombre} (#${o.numeroColaActual} de ${alias})`;
+        }).join('\n');
+        setToastMessage({
+          type: 'warning',
+          message: solicitudOrdenFueraDeCola
+            ? `${omitidos.length} plato(s) fuera de secuencia omitidos. Use "Solicitar Orden".`
+            : `Omitido(s) por orden de asignación:\n${nombres}`,
+          duration: 5000
+        });
+      } else if (exitosos > 0) {
+        setToastMessage({
+          type: 'success',
+          message: `🚶 ${exitosos} plato(s) entregado(s) enteros — salió de cocina`,
+          duration: 4000
+        });
+      }
+    } finally {
+      setIsEntregandoPlatoEntero(false);
+    }
+  }, [
+    isEntregandoPlatoEntero,
+    isFinalizandoPlatos,
+    isEntregandoPlatos,
+    hasPermission,
+    platoStates,
+    comandas,
+    userId,
+    isSupervisorView,
+    obligarOrdenAsignacion,
+    puedeOmitirOrden,
+    solicitudOrdenFueraDeCola,
+    platoTieneOverride,
+    finalizarGuarnicion,
+    batchFinalizarPlatos,
+    entregarPlato
+  ]);
+
   /**
    * PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR
    * Handler del botón izquierdo cuando el modo es SOLICITAR_ORDEN.
@@ -4202,7 +4303,7 @@ const ComandaStyle = ({
                   // v7.2: Contar platos con interaccion (amarillo O verde)
                   const platosConInteraccion = obtenerPlatosSeleccionadosInfo();
                   const hayPlatosSeleccionados = platosConInteraccion.length > 0;
-                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || procesamientoLoading;
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
                   
                   // Determinar estilos segun el modo
                   const getButtonStyles = () => {
@@ -4305,6 +4406,21 @@ const ComandaStyle = ({
                         <span className="text-xs text-gray-400 mt-0.5 pl-1">{subMensaje}</span>
                       )}
                     </div>
+                  );
+                })()}
+
+                {(() => {
+                  const { modo, platos } = determinarAccionBoton();
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
+                  return (
+                    <BotonEntregarPlatoEntero
+                      visible={hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)}
+                      enabled={botonEntregarPlatoEnteroHabilitado(modo)}
+                      loading={isLoading}
+                      nightMode={nightMode}
+                      onClick={handleEntregarPlatoEntero}
+                      count={platos?.length || 0}
+                    />
                   );
                 })()}
 

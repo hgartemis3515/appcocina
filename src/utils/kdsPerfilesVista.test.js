@@ -16,6 +16,8 @@ describe('kdsPerfilesVista', () => {
       usarNombreCocinaEnTablaKds: false,
       ordenColaMostrarHash: false,
       ordenColaColor: '#ffcc00',
+      ordenColaCuadroColor: '#dc2626',
+      ordenColaCuadroTamano: 28,
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -27,6 +29,8 @@ describe('kdsPerfilesVista', () => {
     expect(snap.usarNombreCocinaEnTablaKds).toBe(false);
     expect(snap.ordenColaMostrarHash).toBe(false);
     expect(snap.ordenColaColor).toBe('#ffcc00');
+    expect(snap.ordenColaCuadroColor).toBe('#dc2626');
+    expect(snap.ordenColaCuadroTamano).toBe(28);
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.nightMode).toBeUndefined();

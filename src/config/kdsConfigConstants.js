@@ -270,6 +270,8 @@ export const DEFAULT_KDS_CONFIG = {
   ordenColaTamano: 10,
   ordenColaColor: '#a7f3d0',
   ordenColaMostrarHash: true,
+  ordenColaCuadroColor: '#065f46',
+  ordenColaCuadroTamano: 20,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500

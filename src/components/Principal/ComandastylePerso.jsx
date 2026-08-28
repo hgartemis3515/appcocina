@@ -56,6 +56,13 @@ import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, e
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playNotificationSound } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
+import {
+  PERMISO_ENTREGAR_PLATO_ENTERO_KDS,
+  botonEntregarPlatoEnteroHabilitado,
+  recolectarSeleccionEntregarEntero,
+  ejecutarEntregarPlatoEntero
+} from "../../utils/entregarPlatoEnteroKds";
+import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 
 const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
@@ -2892,6 +2899,69 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
   }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId]);
 
+  const [isEntregandoPlatoEntero, setIsEntregandoPlatoEntero] = useState(false);
+  const handleEntregarPlatoEntero = useCallback(async () => {
+    if (isEntregandoPlatoEntero || isFinalizandoPlatos || isEntregandoPlatos) return;
+    if (!hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) return;
+
+    const { aFinalizar, aEntregar, guarniciones } = recolectarSeleccionEntregarEntero({
+      platoStates,
+      comandas,
+      userId,
+      isSupervisorView: false
+    });
+    if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
+      setToastMessage({
+        type: 'warning',
+        message: 'Selecciona platos tomados para entregar enteros',
+        duration: 4000
+      });
+      return;
+    }
+
+    setIsEntregandoPlatoEntero(true);
+    try {
+      const { exitosos, keysLimpiar } = await ejecutarEntregarPlatoEntero({
+        aFinalizar,
+        aEntregar,
+        guarniciones,
+        userId,
+        finalizarGuarnicion: (g) => finalizarGuarnicion(g.comandaId, g.platoId, g.compId, userId),
+        batchFinalizarPlatos,
+        entregarPlato
+      });
+
+      if (keysLimpiar.length > 0) {
+        setPlatoStates((prev) => {
+          const nuevo = new Map(prev);
+          keysLimpiar.forEach((k) => nuevo.delete(k));
+          return nuevo;
+        });
+      }
+
+      if (exitosos > 0) {
+        setToastMessage({
+          type: 'success',
+          message: `🚶 ${exitosos} plato(s) entregado(s) enteros — salió de cocina`,
+          duration: 4000
+        });
+      }
+    } finally {
+      setIsEntregandoPlatoEntero(false);
+    }
+  }, [
+    isEntregandoPlatoEntero,
+    isFinalizandoPlatos,
+    isEntregandoPlatos,
+    hasPermission,
+    platoStates,
+    comandas,
+    userId,
+    finalizarGuarnicion,
+    batchFinalizarPlatos,
+    entregarPlato
+  ]);
+
   const handleBotonContextual = useCallback(async () => {
     const { modo, platos } = determinarAccionBoton();
     
@@ -3755,7 +3825,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   // v7.2: Contar platos con interaccion (amarillo O verde O rojo)
                   const platosConInteraccion = obtenerPlatosSeleccionadosInfo();
                   const hayPlatosSeleccionados = platosConInteraccion.length > 0;
-                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || procesamientoLoading;
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
                   
                   // Determinar estilos segun el modo
                   const getButtonStyles = () => {
@@ -3853,6 +3923,21 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                         <span className="text-xs text-gray-400 mt-0.5 pl-1">{subMensaje}</span>
                       )}
                     </div>
+                  );
+                })()}
+
+                {(() => {
+                  const { modo, platos } = determinarAccionBoton();
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
+                  return (
+                    <BotonEntregarPlatoEntero
+                      visible={hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)}
+                      enabled={botonEntregarPlatoEnteroHabilitado(modo)}
+                      loading={isLoading}
+                      nightMode={nightMode}
+                      onClick={handleEntregarPlatoEntero}
+                      count={platos?.length || 0}
+                    />
                   );
                 })()}
 
