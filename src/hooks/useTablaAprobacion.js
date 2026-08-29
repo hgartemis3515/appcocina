@@ -264,9 +264,11 @@ export default function useTablaAprobacion({
 
     const handlePpaActualizado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA actualizado:', data?.ticketId, data?.estado);
-      if (data?.ticketId && data?.estado) {
+      if (data?.ticketId) {
         setItems((prev) => prev.map((t) => (
-          String(t._id) === String(data.ticketId) ? { ...t, estado: data.estado } : t
+          String(t._id) === String(data.ticketId)
+            ? { ...t, ...(data.ticket || {}), estado: data.estado || data.ticket?.estado || t.estado }
+            : t
         )));
       }
       fetchItemsDebounced();
@@ -297,7 +299,12 @@ export default function useTablaAprobacion({
       fetchItemsDebounced();
     };
 
-    const handleTicketActualizado = () => {
+    const handleTicketActualizado = (data) => {
+      if (data?.ticketId && data?.ticket) {
+        setItems((prev) => prev.map((t) => (
+          String(t._id) === String(data.ticketId) ? { ...t, ...data.ticket } : t
+        )));
+      }
       fetchItemsDebounced();
     };
 

@@ -102,6 +102,11 @@ export default function useTicketsPPA() {
 
     newSocket.on('ticket-ppa-actualizado', (data) => {
       console.log('🎫 [PPA] Ticket actualizado:', data?.ticketId, data?.estado);
+      if (data?.ticketId && data?.ticket && data?.estado === 'pendiente_aprobacion') {
+        setTickets((prev) => prev.map((t) => (
+          String(t._id) === String(data.ticketId) ? { ...t, ...data.ticket } : t
+        )));
+      }
       if (data?.estado === 'aprobado' || data?.estado === 'rechazado') {
         setTickets(prev => prev.filter(t => t._id !== data?.ticketId));
       }
