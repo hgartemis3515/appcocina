@@ -8,6 +8,7 @@ export const MOZO_NOMBRE_DEFAULT = {
   mozoNombreFuente: 'arial',
   mozoNombreTamano: 12,
   mozoNombreColor: '#ffffff',
+  mozoNombreFondo: '#1e3a8a',
 };
 
 export const MOZO_NOMBRE_TAMANO_MIN = 8;
@@ -32,11 +33,25 @@ export function estiloMozoNombreKds(config = {}) {
   const color = hexValidoOrdenCola(config.mozoNombreColor)
     ? config.mozoNombreColor
     : MOZO_NOMBRE_DEFAULT.mozoNombreColor;
+  const fondo = hexValidoOrdenCola(config.mozoNombreFondo)
+    ? config.mozoNombreFondo
+    : MOZO_NOMBRE_DEFAULT.mozoNombreFondo;
+  const padX = Math.max(6, Math.round(tam * 0.4));
+  const padY = Math.max(2, Math.round(tam * 0.15));
   return {
     color,
+    backgroundColor: fondo,
     fontSize: `${tam}px`,
     fontFamily: fuente.css,
     fontWeight: 600,
     lineHeight: 1.2,
+    display: 'inline-flex',
+    alignItems: 'center',
+    paddingLeft: `${padX}px`,
+    paddingRight: `${padX}px`,
+    paddingTop: `${padY}px`,
+    paddingBottom: `${padY}px`,
+    borderRadius: '6px',
+    boxSizing: 'border-box',
   };
 }

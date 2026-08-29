@@ -279,6 +279,7 @@ export const DEFAULT_KDS_CONFIG = {
   mozoNombreFuente: 'arial',
   mozoNombreTamano: 12,
   mozoNombreColor: '#ffffff',
+  mozoNombreFondo: '#1e3a8a',
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500

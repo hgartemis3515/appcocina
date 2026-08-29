@@ -31,6 +31,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'mozoNombreFuente',
   'mozoNombreTamano',
   'mozoNombreColor',
+  'mozoNombreFondo',
   'alertYellowMinutes',
   'alertRedMinutes',
   'alertCriticalMinutes',

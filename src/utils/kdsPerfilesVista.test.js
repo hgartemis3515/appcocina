@@ -27,6 +27,7 @@ describe('kdsPerfilesVista', () => {
       mozoNombreFuente: 'georgia',
       mozoNombreTamano: 16,
       mozoNombreColor: '#fbbf24',
+      mozoNombreFondo: '#1d4ed8',
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -51,6 +52,7 @@ describe('kdsPerfilesVista', () => {
     expect(snap.mozoNombreFuente).toBe('georgia');
     expect(snap.mozoNombreTamano).toBe(16);
     expect(snap.mozoNombreColor).toBe('#fbbf24');
+    expect(snap.mozoNombreFondo).toBe('#1d4ed8');
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.sonidoNuevaComanda).toBe(true);

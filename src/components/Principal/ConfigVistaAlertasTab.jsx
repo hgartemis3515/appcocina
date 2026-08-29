@@ -546,7 +546,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Nombre del mozo</legend>
             <p className={`${textSecondary} text-xs`}>
-              El nombre que aparece en el encabezado de cada tarjeta de comanda (👤).
+              El nombre que aparece en el encabezado de cada tarjeta de comanda (👤), con un recuadro de fondo.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
@@ -576,20 +576,40 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   ))}
                 </select>
               </label>
-              <label className="block col-span-2 sm:col-span-1">
-                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color</span>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
                     value={hexParaColorPicker(config.mozoNombreColor, MOZO_NOMBRE_DEFAULT.mozoNombreColor)}
                     onChange={(e) => updateConfig({ mozoNombreColor: e.target.value })}
                     className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
-                    aria-label="Color del nombre del mozo"
+                    aria-label="Color de letra del nombre del mozo"
                   />
                   <input
                     type="text"
                     value={config.mozoNombreColor || MOZO_NOMBRE_DEFAULT.mozoNombreColor}
                     onChange={(e) => updateConfig({ mozoNombreColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de fondo</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.mozoNombreFondo, MOZO_NOMBRE_DEFAULT.mozoNombreFondo)}
+                    onChange={(e) => updateConfig({ mozoNombreFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo del nombre del mozo"
+                  />
+                  <input
+                    type="text"
+                    value={config.mozoNombreFondo || MOZO_NOMBRE_DEFAULT.mozoNombreFondo}
+                    onChange={(e) => updateConfig({ mozoNombreFondo: e.target.value })}
                     className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
                     maxLength={7}
                     spellCheck={false}
