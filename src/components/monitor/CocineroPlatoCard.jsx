@@ -6,9 +6,11 @@ import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
-import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
-import { tokenGuarnicion, nombresListaGuarniciones, textoGuarnicionEnPrincipal } from '../../utils/guarnicionesKds';
+import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
+import { grupoTieneParaLlevar } from '../../utils/platoHelpers';
+import BadgeParaLlevar from './BadgeParaLlevar';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -249,7 +251,12 @@ const CocineroPlatoCard = React.forwardRef(({
     && hayNotaCuadro;
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
-    const textoNombres = nombresListaGuarniciones(item.comps) || `- ${nombre}`;
+    const textoNombres = nombresListaGuarniciones(
+      item.comps,
+      platoConCantidadDeLinea(platos[0]),
+      platos[0]?.comanda,
+      platos[0]?.platoIndex,
+    ) || `- ${nombre}`;
     return (
       <GuarnicionListaLinea
         texto={textoNombres}
@@ -296,15 +303,13 @@ const CocineroPlatoCard = React.forwardRef(({
     complementosTexto = item.subtitulo || '';
   } else {
     const complementosSet = new Set();
-    const platoRef = platos[0]?.plato;
-    if (platoRef) {
-      const comps = platoRef.complementosSeleccionados || platoRef.complementos || [];
-      comps.forEach(c => {
-        const texto = textoGuarnicionEnPrincipal(c);
-        if (texto) complementosSet.add(texto);
-      });
-      if (configVisual.notasJuntoAGuarniciones === false) {
-        const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
+    for (const texto of textosGuarnicionesDeGrupo(platos)) {
+      complementosSet.add(texto);
+    }
+    if (configVisual.notasJuntoAGuarniciones === false) {
+      for (const p of platos) {
+        const platoRef = p?.plato;
+        const obs = platoRef?.observaciones || platoRef?.nota || platoRef?.notaEspecial;
         if (obs) complementosSet.add(obs);
       }
     }
@@ -317,7 +322,7 @@ const CocineroPlatoCard = React.forwardRef(({
     fontFamily: fuenteFamilia,
   });
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
-  const hayParaLlevar = platos.some(p => p.comanda.tipoServicio === 'para_llevar');
+  const hayParaLlevar = !esGuarnicion && grupoTieneParaLlevar(platos);
 
   const fsUrgente = escalaDetalle(tamanioFuenteDetalle, 0.85);
   const fsAtencion = escalaDetalle(tamanioFuenteDetalle, 0.75);
@@ -404,7 +409,6 @@ const CocineroPlatoCard = React.forwardRef(({
   const hayDetallesGuarnicion = !esGuarnicion && mostrarComplementos && !!complementosTexto;
   const alturaAlContenido = compacto || aprovecharEspacio || hayDetallesGuarnicion;
   const hayPie = (!ocultarAtencionUrgente && (esCritico || esAlerta))
-    || hayParaLlevar
     || (configVisual.mostrarMesas !== false && !esGuarnicion);
   const outerStyle = {
     display: 'flex',
@@ -519,9 +523,12 @@ const CocineroPlatoCard = React.forwardRef(({
         >
           {nombre}
         </div>
+        {hayParaLlevar && (
+          <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
+        )}
         {/* Badge cantidad - personalizable (default blanco) */}
         <span style={estiloCantidadBadge(configVisual)}>
-          ×{cantidadTotal}
+          {textoCantidadBadge(cantidadTotal, configVisual)}
         </span>
       </div>
 
@@ -619,21 +626,6 @@ const CocineroPlatoCard = React.forwardRef(({
             }}
           >
             ⏳ ATENCIÓN
-          </span>
-        )}
-        {hayParaLlevar && (
-          <span
-            style={{
-              padding: '4px 10px',
-              borderRadius: '8px',
-              fontSize: `${fsAtencion}px`,
-              fontWeight: 700,
-              color: colorAcento,
-              background: `${colorAcento}1f`,
-              border: `1px solid ${colorAcento}66`,
-            }}
-          >
-            Para llevar
           </span>
         )}
         {configVisual.mostrarMesas !== false && !esGuarnicion && (

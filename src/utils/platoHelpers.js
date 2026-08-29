@@ -143,3 +143,17 @@ export const resolverIndicePlato = (comanda, plato) => {
 export const tieneNombrePlato = (plato) => {
   return obtenerNombrePlato(plato).length > 0;
 };
+
+/**
+ * tipoServicio vive en la línea de plato (`mesa` | `para_llevar`), no en la comanda.
+ * El item del monitor es `{ plato, comanda }`.
+ */
+export const tipoServicioDePlato = (item) => {
+  if (!item || typeof item !== 'object') return 'mesa';
+  const t = item.tipoServicio || item.plato?.tipoServicio || item.comanda?.tipoServicio;
+  return t === 'para_llevar' ? 'para_llevar' : 'mesa';
+};
+
+export const esPlatoParaLlevar = (item) => tipoServicioDePlato(item) === 'para_llevar';
+
+export const grupoTieneParaLlevar = (platos = []) => platos.some(esPlatoParaLlevar);

@@ -16,8 +16,8 @@ import MonitorConfigPanel from './MonitorConfigPanel';
 import SearchBar from '../additionals/SearchBar';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { asignarNumeroGlobal, colorLineaDesdeId } from '../../utils/numeracionTimersMonitor';
-import { BADGE_DEFAULTS } from '../../utils/monitorBadgeStyles';
+import { asignarNumeroGlobal, colorLineaDesdeId, obtenerCantidadLinea } from '../../utils/numeracionTimersMonitor';
+import { BADGE_DEFAULTS, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { fetchConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
 import { grupoIdEstable } from '../../hooks/useCocinaMonitorFilter';
 // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: helpers para el panel de guarniciones
@@ -33,6 +33,7 @@ import {
   formatearReferenciaPadre,
   lineaListaGuarniciones,
   tokenGuarnicion,
+  cantidadGuarnicionEfectiva,
 } from '../../utils/guarnicionesKds';
 // §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
 // nombre comercial que incluye complementos).
@@ -927,9 +928,9 @@ const CocinaMonitorLayout = ({
 
   const filasContadorGuarniciones = useMemo(() => {
     if (!mostrarContadorGuarniciones) return [];
-    const filas = itemsGuarnicionRaw.map(({ plato, comp }) => ({
+    const filas = itemsGuarnicionRaw.map(({ plato, comanda, platoIndex, comp }) => ({
       nombre: nombreGuarnicionSolo(comp),
-      cantidad: Number(comp && comp.cantidad) || 1,
+      cantidad: cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex),
       pronombre: pronombreDesdeCatalogo(plato, comp) || String((comp && comp.pronombre) || '').trim(),
     }));
     return contarGuarnicionesPorNombre(filas, {
@@ -940,7 +941,7 @@ const CocinaMonitorLayout = ({
 
   const opcionesContadorLive = useMemo(() => {
     const map = new Map();
-    for (const { comp } of itemsGuarnicionRaw) {
+    for (const { plato, comanda, platoIndex, comp } of itemsGuarnicionRaw) {
       const nombre = nombreGuarnicionSolo(comp);
       const clave = claveNombreComplemento(nombre);
       if (!clave) continue;
@@ -948,7 +949,7 @@ const CocinaMonitorLayout = ({
       map.set(clave, {
         clave,
         nombre: (prev && prev.nombre) || nombre,
-        platos: (prev ? prev.platos : 0) + (Number(comp && comp.cantidad) || 1),
+        platos: (prev ? prev.platos : 0) + cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex),
       });
     }
     return [...map.values()].sort((a, b) => b.platos - a.platos || a.nombre.localeCompare(b.nombre, 'es'));
@@ -965,7 +966,7 @@ const CocinaMonitorLayout = ({
       const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
       const comandaNumero = comanda.numero || comanda.numeroMesa || null;
       const nombreG = nombreCocinaComplemento(comp) || 'Guarnición';
-      const qty = Number(comp.cantidad) || 1;
+      const qty = cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex);
       const ppG = comp.procesandoPor;
       const cidG = ppG?.cocineroId;
       const cocinero = (cidG)
@@ -1004,7 +1005,7 @@ const CocinaMonitorLayout = ({
       const g = gruposMap.get(key);
       g.cantidadTotal += qty;
       g.comps.push(comp);
-      g.platos.push({ plato, comanda, cocinero, cocineroPrincipal });
+      g.platos.push({ plato, comanda, platoIndex, cocinero, cocineroPrincipal });
       if (nombrePadre) g.padresSet.add(nombrePadre);
       if (modoCocineros && !g.cocinero && cocinero) g.cocinero = cocinero;
       if (!g.cocineroPrincipal && cocineroPrincipal) g.cocineroPrincipal = cocineroPrincipal;
@@ -1035,7 +1036,14 @@ const CocinaMonitorLayout = ({
       const padres = Array.from(g.padresSet).filter(Boolean);
       const padreTxt = padres.join(' · ');
       const { padresSet, mesaNum, comandaNumero, comandaId, platoIndex, comps, ...rest } = g;
-      const nombre = agrupacionOn ? (tituloGrupoGuarniciones(comps) || rest.nombre) : rest.nombre;
+      const firstItem = rest.platos?.[0];
+      const platoRaw = firstItem?.plato;
+      const idxLinea = firstItem?.platoIndex ?? platoIndex;
+      const nLinea = obtenerCantidadLinea(firstItem?.comanda, platoRaw, idxLinea);
+      const platoRef = platoRaw ? { ...platoRaw, cantidad: nLinea } : platoRaw;
+      const nombre = agrupacionOn
+        ? (tituloGrupoGuarniciones(comps, platoRef, firstItem?.comanda, idxLinea) || rest.nombre)
+        : rest.nombre;
       const tiempoInicio = agrupacionOn ? tiempoInicioGrupo(comps) : rest.tiempoInicio;
       let timers = rest.timers;
       if (agrupacionOn) {
@@ -1061,13 +1069,13 @@ const CocinaMonitorLayout = ({
         ...rest,
         nombre,
         comps,
-        cantidadTotal: agrupacionOn ? 1 : rest.cantidadTotal,
+        cantidadTotal: rest.cantidadTotal,
         tiempoInicio,
         timers,
         comandaId,
         platoIndex,
         subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
-        lineaLista: lineaListaGuarniciones(comps, padreTxt, modoRefPadre),
+        lineaLista: lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea),
         nombrePadre: padreTxt,
         cocineroPrincipal: rest.cocineroPrincipal || null,
         pronombrePrincipal: pronombreReferenciaPrincipal(rest.cocineroPrincipal, {
@@ -1626,7 +1634,7 @@ const CocinaMonitorLayout = ({
             <div style={{ fontSize: '20px', fontWeight: 700, color: colorAlertaAmarilla }}>
               {configVisual.textoNotificacionEntrada || 'Entra plato'}{' '}
               <span style={{ fontWeight: 800 }}>{ultimoPlato.nombre}</span>
-              <span style={{ marginLeft: '8px', color: colorAcento }}>×{ultimoPlato.delta ?? ultimoPlato.cantidadTotal}</span>
+              <span style={{ marginLeft: '8px', color: colorAcento }}>{textoCantidadBadge(ultimoPlato.delta ?? ultimoPlato.cantidadTotal, configVisual)}</span>
             </div>
           </motion.div>
         )}

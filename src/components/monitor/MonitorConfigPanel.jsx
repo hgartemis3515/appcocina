@@ -19,6 +19,8 @@ import {
   estiloNumeroSecuencial,
   textoNumeroSecuencial,
   estiloCantidadBadge,
+  textoCantidadBadge,
+  prefijoCantidadBadge,
 } from '../../utils/monitorBadgeStyles';
 
 const FUENTES_DISPONIBLES = [
@@ -1568,8 +1570,49 @@ const MonitorConfigPanel = ({
           />
         </Section>
 
-        {/* Cantidad ×N */}
-        <Section title="Cantidad (×N)" colorAcento={colorAcento}>
+        {/* Cantidad N (símbolo × personalizable) */}
+        <Section title="Cantidad" colorAcento={colorAcento}>
+          <label style={lbl}>
+            Símbolo (X)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {[
+                { v: '×', t: '×' },
+                { v: 'x', t: 'x' },
+                { v: 'X', t: 'X' },
+                { v: '', t: 'Ninguno' },
+              ].map(({ v, t }) => {
+                const actual = prefijoCantidadBadge(configVisual);
+                const activo = actual === v;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => guardar({ cantidadPrefijo: v })}
+                    title={v === '' ? 'Sin símbolo, solo el número' : `Usar “${v}”`}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      minWidth: v === '' ? '72px' : '36px',
+                      background: activo ? `${colorAcento}33` : 'transparent',
+                      border: activo ? `1px solid ${colorAcento}` : inp.border,
+                    }}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+              <input
+                type="text"
+                maxLength={4}
+                value={prefijoCantidadBadge(configVisual)}
+                placeholder="×"
+                onChange={e => guardar({ cantidadPrefijo: e.target.value })}
+                title="Escribe otro símbolo o déjalo vacío para quitarlo"
+                style={{ ...inp, width: '56px', textAlign: 'center' }}
+              />
+            </div>
+          </label>
           {[
             ['cantidadColor', 'Color texto'],
             ['cantidadContorno', 'Color contorno'],
@@ -1662,7 +1705,7 @@ const MonitorConfigPanel = ({
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginTop: '4px' }}>
             {[1, 2, 4].map(n => (
               <span key={n} style={estiloCantidadBadge(configVisual)}>
-                ×{n}
+                {textoCantidadBadge(n, configVisual)}
               </span>
             ))}
           </div>

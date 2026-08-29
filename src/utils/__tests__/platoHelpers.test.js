@@ -11,6 +11,9 @@ import {
   obtenerNombreDisplayCocina,
   platoCoincideId,
   normalizarId,
+  tipoServicioDePlato,
+  esPlatoParaLlevar,
+  grupoTieneParaLlevar,
 } from '../platoHelpers';
 
 describe('obtenerNombreDisplayCocina', () => {
@@ -86,5 +89,30 @@ describe('platoCoincideId', () => {
     const data = [];
     for (let i = 0; i < hex.length; i += 2) data.push(parseInt(hex.slice(i, i + 2), 16));
     expect(normalizarId({ buffer: { data } })).toBe(hex);
+  });
+});
+
+describe('tipoServicio / PARA LLEVAR', () => {
+  test('lee tipoServicio de la línea, no de la comanda', () => {
+    const item = {
+      plato: { tipoServicio: 'para_llevar', plato: { nombre: 'Lomo' } },
+      comanda: { tipoServicio: undefined },
+    };
+    expect(tipoServicioDePlato(item)).toBe('para_llevar');
+    expect(esPlatoParaLlevar(item)).toBe(true);
+  });
+
+  test('mesa por defecto', () => {
+    expect(tipoServicioDePlato({ plato: { nombre: 'Lomo' }, comanda: {} })).toBe('mesa');
+    expect(esPlatoParaLlevar({ tipoServicio: 'mesa' })).toBe(false);
+  });
+
+  test('grupoTieneParaLlevar en item de monitor', () => {
+    const platos = [
+      { plato: { tipoServicio: 'mesa' }, comanda: {} },
+      { plato: { tipoServicio: 'para_llevar' }, comanda: {} },
+    ];
+    expect(grupoTieneParaLlevar(platos)).toBe(true);
+    expect(grupoTieneParaLlevar([{ plato: { tipoServicio: 'mesa' }, comanda: {} }])).toBe(false);
   });
 });

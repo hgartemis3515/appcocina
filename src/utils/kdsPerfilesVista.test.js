@@ -15,6 +15,7 @@ describe('kdsPerfilesVista', () => {
       tamanoFuente: 18,
       columnasGrid: 4,
       mostrarBadgeGuarnicion: false,
+      juntarGuarnicionesVisualKds: false,
       usarNombreCocinaEnTablaKds: false,
       ordenColaMostrarHash: false,
       ordenColaColor: '#ffcc00',
@@ -23,6 +24,9 @@ describe('kdsPerfilesVista', () => {
       cantidadPlatoColor: '#111111',
       cantidadPlatoFondo: '#facc15',
       cantidadPlatoTamano: 18,
+      mozoNombreFuente: 'georgia',
+      mozoNombreTamano: 16,
+      mozoNombreColor: '#fbbf24',
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -35,6 +39,7 @@ describe('kdsPerfilesVista', () => {
     });
     expect(snap.tamanoFuente).toBe(18);
     expect(snap.mostrarBadgeGuarnicion).toBe(false);
+    expect(snap.juntarGuarnicionesVisualKds).toBe(false);
     expect(snap.usarNombreCocinaEnTablaKds).toBe(false);
     expect(snap.ordenColaMostrarHash).toBe(false);
     expect(snap.ordenColaColor).toBe('#ffcc00');
@@ -43,6 +48,9 @@ describe('kdsPerfilesVista', () => {
     expect(snap.cantidadPlatoColor).toBe('#111111');
     expect(snap.cantidadPlatoFondo).toBe('#facc15');
     expect(snap.cantidadPlatoTamano).toBe(18);
+    expect(snap.mozoNombreFuente).toBe('georgia');
+    expect(snap.mozoNombreTamano).toBe(16);
+    expect(snap.mozoNombreColor).toBe('#fbbf24');
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.sonidoNuevaComanda).toBe(true);
@@ -51,6 +59,17 @@ describe('kdsPerfilesVista', () => {
     expect(snap.timbreFinalizarClave).toBe('campana');
     expect(snap.nightMode).toBeUndefined();
     expect(snap.soundEnabled).toBeUndefined();
+  });
+
+  test('snapshot rellena todas las claves de vista aunque falten en el input', () => {
+    const { KDS_PERFIL_VISTA_KEYS } = require('./kdsPerfilesVista');
+    const snap = snapshotPerfilVista({ tamanoFuente: 18 });
+    KDS_PERFIL_VISTA_KEYS.forEach((k) => {
+      expect(snap[k]).not.toBeUndefined();
+    });
+    expect(snap.tamanoFuente).toBe(18);
+    expect(snap.juntarGuarnicionesVisualKds).toBe(true);
+    expect(snap.nightMode).toBeUndefined();
   });
 
   test('aplicarSnapshotVista no pisa nightMode', () => {

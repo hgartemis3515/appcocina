@@ -32,6 +32,7 @@ import { apiGet, apiPut } from '../config/apiClient';
 import { io } from 'socket.io-client';
 import { imprimirComandaDesdeTicket } from '../utils/comandaPrint/comandaPrintWeb';
 import { aplicarTotalNetoTicket } from '../utils/ticketTotales';
+import { clampRangoFechas } from '../utils/ticketAprobacionUi';
 
 const TICKETS_REFRESH_INTERVAL = 30000;
 const TICKETS_FAST_POLLING_INTERVAL = 10000; // cuando socket cae, refrescar más seguido
@@ -60,8 +61,17 @@ const normalizeTicket = (ticket) => {
  * @param {Object} [options]
  * @param {import('socket.io-client').Socket} [options.socket] Socket /cocina externo.
  *        Si se provee, se reutiliza y NO se crea una segunda conexión (evita duplicados).
+ * @param {string} [options.fechaDesde] YYYY-MM-DD — inicio del historial (vista página).
+ * @param {string} [options.fechaHasta] YYYY-MM-DD — fin del historial.
+ * @param {boolean} [options.incluirHistorial] Si true, carga aprobados/reportados del rango.
+ *        El sidebar KDS deja esto en false (solo pendientes, de cualquier día).
  */
-export default function useTablaAprobacion({ socket: externalSocket } = {}) {
+export default function useTablaAprobacion({
+  socket: externalSocket,
+  fechaDesde,
+  fechaHasta,
+  incluirHistorial = false,
+} = {}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -84,11 +94,8 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
     setLoading(true);
     lastFetchAtRef.current = Date.now();
     try {
-      // Fetch aprobación tickets pendientes (comandas + adelantados unificados)
-      const fechaHoy = getFechaOperativa();
-
-      // Cargar tickets pendientes
-      const data = await apiGet(`/api/aprobacion/pendientes?fecha=${fechaHoy}`);
+      // Pendientes de cualquier día (como comandas.html: no se pierden tickets de jornadas previas).
+      const data = await apiGet('/api/aprobacion/pendientes');
       let pendientes = [];
       if (data?.success && Array.isArray(data.tickets)) {
         pendientes = data.tickets.map(normalizeTicket);
@@ -96,46 +103,42 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
         pendientes = data.map(normalizeTicket);
       }
 
-      // PLAN: también cargar tickets aprobados/rechazados del día
-      // para que la pestaña "Aprobados" funcione.
-      let todos = [];
-      try {
-        const todosData = await apiGet(`/api/aprobacion/fecha/${fechaHoy}`);
-        if (todosData?.success && Array.isArray(todosData.tickets)) {
-          todos = todosData.tickets.map(normalizeTicket);
+      let historial = [];
+      if (incluirHistorial) {
+        const { desde, hasta } = clampRangoFechas(fechaDesde, fechaHasta);
+        try {
+          const todosData = await apiGet(`/api/aprobacion/fecha/${desde}?hasta=${hasta}`);
+          if (todosData?.success && Array.isArray(todosData.tickets)) {
+            historial = todosData.tickets.map(normalizeTicket);
+          }
+        } catch (todosErr) {
+          console.warn('[TablaAprobacion] Error cargando historial de tickets:', todosErr.message);
         }
-      } catch (todosErr) {
-        // Non-critical: si falla, solo tendremos pendientes
-        console.warn('[TablaAprobacion] Error cargando todos los tickets:', todosErr.message);
       }
 
-      // Merge: pendientes (por si el endpoint de todos no trae los PPA) + todos
-      // Evitar duplicados por _id
-      const pendientesMap = new Map(pendientes.map(t => [String(t._id), t]));
-      for (const t of todos) {
-        if (!pendientesMap.has(String(t._id))) {
+      const byId = new Map(pendientes.map((t) => [String(t._id), t]));
+      for (const t of historial) {
+        if (!byId.has(String(t._id))) {
           pendientes.push(t);
-          pendientesMap.set(String(t._id), t);
+          byId.set(String(t._id), t);
         }
       }
 
       setItems(pendientes);
       setError(null);
 
-      // Also fetch PPA tickets for backwards compatibility (legacy endpoint)
       try {
-        const ppaData = await apiGet(`/api/pago-adelantado/pendientes?fecha=${fechaHoy}`);
+        const ppaData = await apiGet('/api/pago-adelantado/pendientes');
         if (ppaData?.success && Array.isArray(ppaData.tickets)) {
-          setItems(prev => {
-            const existingIds = new Set(prev.map(t => t._id));
+          setItems((prev) => {
+            const existingIds = new Set(prev.map((t) => String(t._id)));
             const newPpaTickets = ppaData.tickets
               .map(normalizeTicket)
-              .filter(t => !existingIds.has(t._id));
+              .filter((t) => !existingIds.has(String(t._id)));
             return [...prev, ...newPpaTickets];
           });
         }
       } catch (ppaErr) {
-        // PPA endpoint may not be available; non-critical
         console.warn('[TablaAprobacion] PPA fallback fetch failed:', ppaErr.message);
       }
     } catch (err) {
@@ -144,7 +147,7 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fechaDesde, fechaHasta, incluirHistorial]);
 
   /**
    * fetchItems con debounce: agrupa múltiples disparos de socket en una sola petición.
@@ -261,21 +264,36 @@ export default function useTablaAprobacion({ socket: externalSocket } = {}) {
 
     const handlePpaActualizado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA actualizado:', data?.ticketId, data?.estado);
-      if (data?.estado === 'aprobado' || data?.estado === 'rechazado') {
-        setItems(prev => prev.filter(t => t._id !== data?.ticketId));
+      if (data?.ticketId && data?.estado) {
+        setItems((prev) => prev.map((t) => (
+          String(t._id) === String(data.ticketId) ? { ...t, estado: data.estado } : t
+        )));
       }
       fetchItemsDebounced();
     };
 
     const handlePpaAprobado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA aprobado:', data?.ticketNumber);
-      setItems(prev => prev.filter(t => t._id !== data?.ticketId));
+      setItems((prev) => prev.map((t) => (
+        String(t._id) === String(data?.ticketId)
+          ? {
+            ...t,
+            estado: 'aprobado',
+            aprobadoPorNombre: data?.aprobadoPorNombre,
+            fechaAprobacion: data?.fechaAprobacion || new Date().toISOString(),
+          }
+          : t
+      )));
       fetchItemsDebounced();
     };
 
     const handlePpaRechazado = (data) => {
       console.log('[TablaAprobacion] Ticket PPA rechazado:', data?.ticketNumber);
-      setItems(prev => prev.filter(t => t._id !== data?.ticketId));
+      setItems((prev) => prev.map((t) => (
+        String(t._id) === String(data?.ticketId)
+          ? { ...t, estado: 'rechazado', motivoRechazo: data?.motivo }
+          : t
+      )));
       fetchItemsDebounced();
     };
 

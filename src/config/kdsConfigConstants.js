@@ -265,6 +265,7 @@ export const DEFAULT_KDS_CONFIG = {
   mostrarImagenes: false,
   agruparPorMesa: false,
   mostrarBadgeGuarnicion: true,
+  juntarGuarnicionesVisualKds: true,
   usarNombreCocinaEnTablaKds: true,
   ordenColaFuente: 'inter',
   ordenColaTamano: 10,
@@ -275,6 +276,9 @@ export const DEFAULT_KDS_CONFIG = {
   cantidadPlatoColor: '#ffffff',
   cantidadPlatoFondo: '#b45309',
   cantidadPlatoTamano: 14,
+  mozoNombreFuente: 'arial',
+  mozoNombreTamano: 12,
+  mozoNombreColor: '#ffffff',
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500

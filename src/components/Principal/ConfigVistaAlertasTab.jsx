@@ -26,6 +26,12 @@ import {
   estiloCantidadPlatoKds,
 } from '../../utils/estiloCantidadPlatoKds';
 import {
+  MOZO_NOMBRE_DEFAULT,
+  MOZO_NOMBRE_TAMANO_MIN,
+  MOZO_NOMBRE_TAMANO_MAX,
+  estiloMozoNombreKds,
+} from '../../utils/estiloMozoNombreKds';
+import {
   KDS_TIMBRES,
   TIMBRE_DEFAULT,
   TIMBRE_VOLUMEN_DEFAULT,
@@ -95,27 +101,23 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
 
   const handleGuardar = async () => {
     const localOk = persistConfigNow();
-    if (!esCustom) {
+    const idDestino = esCustom
+      ? perfilSel
+      : (perfilesVista.some((p) => p.id === perfilActivo) ? perfilActivo : '');
+    if (!idDestino) {
       flash(localOk ? 'ok' : 'err', localOk
-        ? 'Configuración guardada en este dispositivo'
-        : 'No se pudo guardar en este dispositivo');
+        ? 'Configuración guardada'
+        : 'No se pudo guardar');
       return;
     }
-    const p = perfilesVista.find((x) => x.id === perfilSel);
-    if (!window.confirm(`¿Guardar la vista actual en "${p?.nombre}"?`)) {
-      flash(localOk ? 'ok' : 'err', localOk
-        ? 'Configuración guardada en este dispositivo'
-        : 'No se pudo guardar en este dispositivo');
-      return;
-    }
-    const r = await sobrescribirPerfilVista(perfilSel);
+    const r = await sobrescribirPerfilVista(idDestino);
     if (!r.ok) {
       flash('err', r.error);
       return;
     }
     flash('ok', r.localOnly
       ? 'Guardado en este dispositivo (servidor apagado)'
-      : 'Perfil guardado');
+      : 'Configuración guardada');
   };
 
   const handleCargar = () => {
@@ -156,8 +158,8 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               Perfiles de vista
             </h3>
             <p className={`${textSecondary} text-xs mt-0.5`}>
-              Siempre se guarda en este dispositivo (aunque el backend esté apagado).
-              Si el servidor está encendido, también se copia para otros equipos.
+              Guardar graba toda la vista y alertas en este dispositivo (aunque el backend esté apagado).
+              Si hay un perfil de tablas KDS, también se actualiza. Con el servidor encendido se copia a otros equipos.
             </p>
           </div>
           {perfilActivo && (
@@ -354,6 +356,21 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               )}
             </span>
           </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.juntarGuarnicionesVisualKds !== false}
+              onChange={(e) => updateConfig({ juntarGuarnicionesVisualKds: e.target.checked })}
+              className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+            />
+            <span>
+              <span className={`${textModal} font-semibold block`}>Juntar platos con guarnición (una sola fila)</span>
+              <span className={`${textSecondary} text-xs block mt-0.5`}>
+                Marcado por defecto. El plato y sus extras se ven juntos en la tabla KDS.
+                No cambia la asignación: las guarniciones pueden seguir yendo a distintas cocineras.
+              </span>
+            </span>
+          </label>
 
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Número de orden del plato</legend>
@@ -526,12 +543,70 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
             <span style={estiloCantidadPlatoKds(config)}>1</span>
           </fieldset>
 
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Nombre del mozo</legend>
+            <p className={`${textSecondary} text-xs`}>
+              El nombre que aparece en el encabezado de cada tarjeta de comanda (👤).
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra</span>
+                <select
+                  value={config.mozoNombreFuente || MOZO_NOMBRE_DEFAULT.mozoNombreFuente}
+                  onChange={(e) => updateConfig({ mozoNombreFuente: e.target.value })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {ORDEN_COLA_FUENTES.map((f) => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño</span>
+                <select
+                  value={config.mozoNombreTamano || MOZO_NOMBRE_DEFAULT.mozoNombreTamano}
+                  onChange={(e) => updateConfig({ mozoNombreTamano: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: MOZO_NOMBRE_TAMANO_MAX - MOZO_NOMBRE_TAMANO_MIN + 1 },
+                    (_, i) => MOZO_NOMBRE_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block col-span-2 sm:col-span-1">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.mozoNombreColor, MOZO_NOMBRE_DEFAULT.mozoNombreColor)}
+                    onChange={(e) => updateConfig({ mozoNombreColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color del nombre del mozo"
+                  />
+                  <input
+                    type="text"
+                    value={config.mozoNombreColor || MOZO_NOMBRE_DEFAULT.mozoNombreColor}
+                    onChange={(e) => updateConfig({ mozoNombreColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            <span style={estiloMozoNombreKds(config)}>👤 Juan Pérez</span>
+          </fieldset>
+
           <div className={`${nightMode ? 'bg-gray-950' : 'bg-white'} rounded-lg border ${borderModal} p-3 mt-auto`}>
             <p className={`${textSecondary} text-[10px] uppercase tracking-wide mb-2`}>Preview</p>
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-2 w-[132px]">
               <div className="bg-red-600 text-white text-center text-[10px] font-bold py-0.5 mb-1">ESPERA</div>
               <div className="text-red-400 font-bold" style={{ fontSize: `${Math.max(10, (config.tamanoFuente || 15) - 4)}px` }}>ORDEN #1</div>
               <div className="text-white text-xs">MESA #2</div>
+              <div style={estiloMozoNombreKds(config)}>👤 Juan</div>
               <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
                 <span style={estiloCantidadPlatoKds(config)}>1</span>
                 {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
@@ -542,7 +617,10 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   {textoNumeroOrdenKds(1, config)}
                 </span>
               </div>
-              {config.mostrarBadgeGuarnicion !== false && (
+              {config.juntarGuarnicionesVisualKds !== false && (
+                <div className="text-gray-400 text-[9px] pl-1 leading-tight">· Papas · Ensalada</div>
+              )}
+              {config.mostrarBadgeGuarnicion !== false && config.juntarGuarnicionesVisualKds === false && (
                 <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40">
                   🥗 Guarnición
                 </span>

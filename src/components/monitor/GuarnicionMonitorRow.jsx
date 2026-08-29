@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { estiloCantidadBadge } from '../../utils/monitorBadgeStyles';
-import { formatearReferenciaPadre, tokenGuarnicion, nombresListaGuarniciones } from '../../utils/guarnicionesKds';
+import { estiloCantidadBadge, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { formatearReferenciaPadre, tokenGuarnicion, nombresListaGuarniciones, platoConCantidadDeLinea } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
@@ -92,7 +92,12 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
   if (configVisual.ocultarCuadroGuarniciones === true) {
     return (
       <GuarnicionListaLinea
-        texto={nombresListaGuarniciones(item.comps) || `- ${nombre}`}
+        texto={nombresListaGuarniciones(
+          item.comps,
+          platoConCantidadDeLinea(item.platos?.[0]),
+          item.platos?.[0]?.comanda,
+          item.platos?.[0]?.platoIndex,
+        ) || `- ${nombre}`}
         textoPadre={refPadre}
         textoCocinero={textoCocinero}
         textoNota={textoNotaCuadro}
@@ -145,7 +150,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
       >
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
         <span style={estiloCantidadBadge(configVisual)}>
-          ×{cantidadTotal}
+          {textoCantidadBadge(cantidadTotal, configVisual)}
         </span>
       </div>
 

@@ -26,6 +26,7 @@ const DEFAULT_CANTIDAD = {
   grosor: 2,
   radio: 10,
   peso: '900',
+  prefijo: '×',
 };
 
 /**
@@ -121,6 +122,24 @@ export function textoNumeroSecuencial(numero, configVisual = {}) {
 }
 
 /**
+ * Prefijo del badge de cantidad (× / x / X / vacío).
+ * false (legado) = ocultar; true / null = default ×; string = tal cual ('' = sin símbolo).
+ */
+export function prefijoCantidadBadge(configVisual = {}) {
+  const raw = configVisual.cantidadPrefijo;
+  if (raw === false) return '';
+  if (raw === true || raw == null) return DEFAULT_CANTIDAD.prefijo;
+  return String(raw);
+}
+
+/**
+ * Texto del badge de cantidad (símbolo opcional + número).
+ */
+export function textoCantidadBadge(cantidad, configVisual = {}) {
+  return `${prefijoCantidadBadge(configVisual)}${cantidad}`;
+}
+
+/**
  * Estilo inline del badge ×N (cantidad).
  * @param {object} configVisual
  */
@@ -180,6 +199,7 @@ export const BADGE_DEFAULTS = {
   cantidadGrosorContorno: DEFAULT_CANTIDAD.grosor,
   cantidadRadio: DEFAULT_CANTIDAD.radio,
   cantidadPeso: DEFAULT_CANTIDAD.peso,
+  cantidadPrefijo: DEFAULT_CANTIDAD.prefijo,
   cantidadSeguirAlerta: false,
 };
 

@@ -35,6 +35,9 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
     updateConfig,
     resetConfig,
     persistConfigNow,
+    perfilActivo,
+    perfilesVista,
+    sobrescribirPerfilVista,
   } = useConfig();
 
   // Estado para tabs
@@ -97,15 +100,21 @@ const ConfigModal = ({ onClose, nightMode = true }) => {
   };
 
   /**
-   * Guarda toda la configuración
+   * Guarda toda la configuración (General + Vista y alertas).
+   * Si hay un perfil de tablas KDS activo, también lo actualiza.
    */
-  const handleSave = () => {
+  const handleSave = async () => {
     persistConfigNow();
     if (apiUrl && apiUrl.trim() !== '' && apiUrlValid) {
       const result = setApiUrl(apiUrl.trim());
       if (!result.success) {
         setApiUrlError(result.error);
       }
+    }
+    const esCustomActivo = Array.isArray(perfilesVista)
+      && perfilesVista.some((p) => p.id === perfilActivo);
+    if (esCustomActivo) {
+      await sobrescribirPerfilVista(perfilActivo);
     }
     onClose();
   };

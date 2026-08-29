@@ -55,6 +55,7 @@ import useReservasProgramadas from "../../hooks/useReservasProgramadas";
 import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
+import { estiloMozoNombreKds } from "../../utils/estiloMozoNombreKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
 import { esComandaReserva } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
@@ -68,7 +69,8 @@ import {
   aplicarEventoGuarnicion,
   esTipoGuarnicionKds,
   agrupacionGuarnicionesOn,
-  tiempoInicioGrupo
+  tiempoInicioGrupo,
+  unidadesParaVistaKds
 } from "../../utils/guarnicionesKds";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
@@ -117,6 +119,7 @@ const ComandaStyle = ({
   // Hook de configuración centralizada (v7.1)
   const { config, updateConfig } = useConfig();
   const usarNombreCocinaEnTablaKds = config.usarNombreCocinaEnTablaKds !== false;
+  const juntarGuarnicionesVisualKds = config.juntarGuarnicionesVisualKds !== false;
   
   // Hook de comportamiento KDS basado en configuración
   const kdsBehavior = useKdsBehavior({
@@ -4274,6 +4277,7 @@ const ComandaStyle = ({
                     agrupacionOn={agrupacionOn}
                     tiemposGuarnicion={tiemposGuarnicion}
                     deshabilitarOrdenSecuencialGuarniciones={deshabilitarOrdenSecuencialGuarniciones}
+                    juntarGuarnicionesVisualKds={juntarGuarnicionesVisualKds}
                   />
                   );
                 })}
@@ -5290,7 +5294,10 @@ const SicarComandaCard = ({
   agrupacionOn = false,
   tiemposGuarnicion = null,
   deshabilitarOrdenSecuencialGuarniciones = true,
+  juntarGuarnicionesVisualKds = true,
 }) => {
+  const { config: kdsMozoConfig } = useConfig();
+  const estiloMozo = estiloMozoNombreKds(kdsMozoConfig);
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
   const platosEliminadosHistorial = React.useMemo(() => {
@@ -5692,7 +5699,7 @@ const SicarComandaCard = ({
         </div>
         {/* Mozo y badges inline en header - Compacto */}
         <div className="flex items-center justify-between text-white text-xs flex-wrap gap-1">
-          <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <span className="font-semibold" style={estiloMozo}>
             👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -5843,11 +5850,20 @@ const SicarComandaCard = ({
                   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3: expandir en unidades.
                   // Con flag ON y plato en preparación → principal + guarniciones.
                   // Con plato ya en recoger/salio/entregado → una sola tarjeta fusionada.
-                  const unidades = expandirUnidadesTrabajo(plato, {
+                  const unidades = unidadesParaVistaKds(
+                    expandirUnidadesTrabajo(plato, {
                     flagOn: permitirGuarnicionesSeparadas,
                     agrupacionOn,
-                    usarAlias: usarNombreCocinaEnTablaKds
-                  });
+                    usarAlias: usarNombreCocinaEnTablaKds,
+                    comanda,
+                    platoIndex
+                    }),
+                    {
+                      juntarVisual: juntarGuarnicionesVisualKds,
+                      cocineroId: usuarioActualId,
+                      isSupervisorView
+                    }
+                  );
 
                   return unidades.map((unidad, uIdx) => {
                     if (esTipoGuarnicionKds(unidad.tipo)) {
@@ -5866,9 +5882,10 @@ const SicarComandaCard = ({
                       const alerta = estadoAlertaGuarnicion(comp, tiemposGuarnicion);
                       const prio = prioridadUnidad(comanda);
                       const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
-                      const cantG = unidad.tipo === 'grupo_guarniciones'
-                        ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
-                        : (comp.cantidad || 1);
+                      const cantG = Number(unidad.cantidadEfectiva)
+                        || (unidad.tipo === 'grupo_guarniciones'
+                          ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
+                          : (comp.cantidad || 1));
                       return (
                         <PlatoPreparacion
                           key={gKey}

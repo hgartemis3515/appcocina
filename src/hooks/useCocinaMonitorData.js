@@ -76,6 +76,40 @@ function fusionarComandaSinRegresarListo(local, incoming) {
   return { ...incoming, platos };
 }
 
+function extraerComandaPayload(payload) {
+  const comandaReplacement = payload?.comanda || payload;
+  const id = comandaReplacement?._id || comandaReplacement?.id
+    || payload?._id || payload?.id || payload?.comandaId;
+  return { comandaReplacement, id };
+}
+
+/**
+ * Fusiona o inserta una comanda en Ver Cocina.
+ * Las reservas programadas no están en el GET inicial; al activarse (T−20)
+ * llega comanda-actualizada y hay que AÑADIRLA, no solo mapear las existentes.
+ */
+export function aplicarComandaActualizadaMonitor(prev, payload) {
+  const list = Array.isArray(prev) ? prev : [];
+  const { comandaReplacement, id } = extraerComandaPayload(payload);
+  if (!id || !comandaReplacement) return list;
+
+  if (comandaReplacement.IsActive === false || comandaReplacement.IsActive === null
+      || comandaReplacement.eliminada === true || comandaReplacement.status === 'cancelado') {
+    return list.filter((c) => idsIguales(c._id || c.id, id) === false);
+  }
+
+  if (!comandaReemplazoValida(comandaReplacement)) return list;
+
+  const idx = list.findIndex((c) => idsIguales(c._id || c.id, id));
+  if (idx === -1) {
+    if (comandaReplacement.programadaPorReserva === true) return list;
+    return [...list, comandaReplacement];
+  }
+  const next = list.slice();
+  next[idx] = fusionarComandaSinRegresarListo(list[idx], comandaReplacement);
+  return next;
+}
+
 const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
   const [comandas, setComandas] = useState([]);
   const [remoteMonitorDesign, setRemoteMonitorDesign] = useState(null);
@@ -152,24 +186,10 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
 
   /**
    * comanda-actualizada: fusionar sin devolver a pedido un plato ya en recoger.
+   * Si la comanda no estaba (reserva recién activada), se inserta.
    */
   const onComandaActualizada = useCallback((payload) => {
-    const comandaReplacement = payload.comanda || payload;
-    const id = comandaReplacement._id || comandaReplacement.id || payload._id || payload.id || payload.comandaId;
-
-    setComandas(prev => {
-      if (comandaReplacement.IsActive === false || comandaReplacement.IsActive === null ||
-          comandaReplacement.eliminada === true || comandaReplacement.status === 'cancelado') {
-        return prev.filter(c => idsIguales(c._id || c.id, id) === false);
-      }
-
-      if (!comandaReemplazoValida(comandaReplacement)) return prev;
-
-      return prev.map(c => {
-        if (!idsIguales(c._id || c.id, id)) return c;
-        return fusionarComandaSinRegresarListo(c, comandaReplacement);
-      });
-    });
+    setComandas((prev) => aplicarComandaActualizadaMonitor(prev, payload));
   }, []);
 
   /**

@@ -120,6 +120,11 @@ export default function ReservaSidebar({ socket, onClose }) {
                     RESERVA
                   </span>
                 </div>
+                {(r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber) ? (
+                  <div className="text-pink-100 text-xs font-mono mt-1">
+                    Comanda #{r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber}
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-1 mt-1 text-gray-300 text-xs">
                   <FaUser className="text-gray-400" />
                   <span>{r.clienteNombre || 'Cliente'}</span>

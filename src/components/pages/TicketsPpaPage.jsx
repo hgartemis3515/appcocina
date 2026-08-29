@@ -15,34 +15,13 @@ import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
+import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets } from '../../utils/ticketSort';
-
-const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
-const formatTime = (dateStr) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-};
-const formatDate = (dateStr) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
-const labelPagoTicket = (ticket) => {
-  if (ticket.estado === 'pendiente_aprobacion') return 'Pago: Pendiente';
-  if (ticket.metodoPago) return ticket.metodoPago;
-  return 'Pago: Pendiente';
-};
-
-// Badge type label + color
-const tipoBadge = (tipo) => {
-  const t = String(tipo || '').toLowerCase();
-  if (t === 'comanda_completa' || t === 'comanda') return { label: 'COMANDA', bg: 'bg-blue-500/30 text-blue-300 border-blue-500/40' };
-  if (t === 'pago_parcial') return { label: 'PAGO PARCIAL', bg: 'bg-amber-500/30 text-amber-300 border-amber-500/40' };
-  if (t === 'pago_adelantado' || t === 'adelantado') return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300 border-violet-500/40' };
-  return { label: tipo || 'OTRO', bg: 'bg-gray-500/30 text-gray-300 border-gray-500/40' };
-};
+import {
+  formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge, estadoTicketMeta,
+  rangoFechasDefault, getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
+  nombreClienteTicket, dniClienteTicket,
+} from '../../utils/ticketAprobacionUi';
 
 // Cuenta cuántos tickets pendientes hay por mesa (para avisar a cocina que aún faltan)
 const countTicketsPendientesByMesa = (items) => {
@@ -95,8 +74,15 @@ function VistaModoToggle({ modo, onChange }) {
 }
 
 export default function TicketsPpaPage({ onGoToMenu }) {
-  const { user, getToken } = useAuth();
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion();
+  const { user } = useAuth();
+  const rangoInicial = rangoFechasDefault();
+  const [fechaDesde, setFechaDesde] = useState(rangoInicial.desde);
+  const [fechaHasta, setFechaHasta] = useState(rangoInicial.hasta);
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({
+    fechaDesde,
+    fechaHasta,
+    incluirHistorial: true,
+  });
   const [filtro, setFiltro] = useState('pendientes'); // pendientes, todos, aprobados, reportados
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
@@ -104,10 +90,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [reportarMotivo, setReportarMotivo] = useState({});
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
-  const [modoVista, setModoVista] = useState('basico'); // basico: tarjetas | avanzado: tabla (próximamente)
+  const [modoVista, setModoVista] = useState(loadModoVistaTickets);
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
   const [filtroMozo, setFiltroMozo] = useState(null);
+
+  const handleModoVista = (modo) => {
+    setModoVista(modo);
+    saveModoVistaTickets(modo);
+  };
 
   const handleAprobar = async (ticket) => {
     if (aprobarLoading[ticket._id]) return;
@@ -169,6 +160,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     if (filtro === 'pendientes') return items.filter(t => t.estado === 'pendiente_aprobacion');
     if (filtro === 'aprobados') return items.filter(t => t.estado === 'aprobado');
     if (filtro === 'reportados') return items.filter(t => t.estado === 'reportado');
+    if (filtro === 'rechazados') return items.filter(t => t.estado === 'rechazado');
     if (filtro === 'comandas') return items.filter(t => t.tipo === 'comanda_completa');
     if (filtro === 'adelantados') return items.filter(t => t.tipo === 'pago_adelantado');
     if (filtro === 'parciales') return items.filter(t => t.tipo === 'pago_parcial');
@@ -221,7 +213,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            <VistaModoToggle modo={modoVista} onChange={setModoVista} />
+            <VistaModoToggle modo={modoVista} onChange={handleModoVista} />
             {cantidadPendientes > 0 && (
               <span className="bg-violet-500 text-white text-sm px-3 py-1 rounded-full font-bold animate-pulse">
                 {cantidadPendientes} pendiente{cantidadPendientes > 1 ? 's' : ''}
@@ -256,13 +248,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
       {/* Filtros + Ordenar */}
       <div className="flex-shrink-0 max-w-7xl w-full mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-800">
-        <div className="flex gap-2 overflow-x-auto min-w-0 flex-1 pb-0.5">
+        <div className="flex gap-2 overflow-x-auto min-w-0 flex-1 pb-0.5 items-center">
           {[
             { key: 'pendientes', label: 'Pendientes', icon: FaClock },
             { key: 'comandas', label: 'Comandas', icon: FaUtensils },
             { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
             { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
             { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
+            { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
             { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
             { key: 'todos', label: 'Todos', icon: FaFilter },
           ].map(({ key, label, icon: Icon }) => (
@@ -279,14 +272,60 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </button>
           ))}
         </div>
-        <TicketSortBar
-          sortBy={sortBy}
-          sortDir={sortDir}
-          onChange={handleSortChange}
-          mozoFilter={filtroMozo}
-          mozosDisponibles={mozosDisponibles}
-          onMozoFilterChange={setFiltroMozo}
-        />
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <label className="flex items-center gap-1 text-xs text-gray-500">
+            Desde
+            <input
+              type="date"
+              value={fechaDesde}
+              max={fechaHasta}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-200"
+            />
+          </label>
+          <label className="flex items-center gap-1 text-xs text-gray-500">
+            Hasta
+            <input
+              type="date"
+              value={fechaHasta}
+              min={fechaDesde}
+              max={getFechaOperativa()}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-200"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              const hoy = getFechaOperativa();
+              setFechaDesde(hoy);
+              setFechaHasta(hoy);
+            }}
+            className="px-2 py-1 rounded-md text-xs bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const r = rangoFechasDefault();
+              setFechaDesde(r.desde);
+              setFechaHasta(r.hasta);
+            }}
+            className="px-2 py-1 rounded-md text-xs bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+            title="Últimos 30 días"
+          >
+            30 días
+          </button>
+          <TicketSortBar
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onChange={handleSortChange}
+            mozoFilter={filtroMozo}
+            mozosDisponibles={mozosDisponibles}
+            onMozoFilterChange={setFiltroMozo}
+          />
+        </div>
       </div>
 
       {/* Error */}
@@ -302,22 +341,31 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-4 py-4">
         {modoVista === 'avanzado' ? (
-          <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 mb-5">
-              <FaFilter className="text-3xl text-violet-400" />
-            </div>
-            <h2 className="text-white text-xl font-bold mb-2">Vista Avanzada — Próximamente</h2>
-            <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">
-              La vista avanzada mostrará las solicitudes en formato de tabla formal,
-              con ordenamiento y columnas para gestionar comandas y pagos adelantados de forma más eficiente.
-            </p>
-            <button
-              onClick={() => setModoVista('basico')}
-              className="mt-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-            >
-              Volver a vista Básica
-            </button>
-          </div>
+          <TicketsAprobacionTable
+            tickets={itemsFiltrados}
+            loading={loading}
+            emptyLabel={
+              filtroMozo
+                ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
+                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`
+            }
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSortChange={handleSortChange}
+            onImprimir={handleImprimir}
+            onAprobar={handleAprobar}
+            onReportar={(ticket) => {
+              setShowReportarModal(ticket._id);
+              setReportarMotivo((prev) => ({ ...prev, [ticket._id]: '' }));
+            }}
+            onRechazar={(ticket) => {
+              setShowRechazarModal(ticket._id);
+              setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
+            }}
+            aprobarLoading={aprobarLoading}
+            reportarLoading={reportarLoading}
+            rechazarLoading={rechazarLoading}
+          />
         ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
             <FaSyncAlt className="text-4xl text-violet-500 mx-auto mb-4 animate-spin" />
@@ -375,16 +423,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
                             {badge.label}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-500/30 text-yellow-300' :
-                            ticket.estado === 'aprobado' ? 'bg-green-500/30 text-green-300' :
-                            ticket.estado === 'reportado' ? 'bg-red-500/30 text-red-300' :
-                            'bg-gray-500/30 text-gray-300'
-                          }`}>
-                            {ticket.estado === 'pendiente_aprobacion' ? '⏳ Pendiente' :
-                             ticket.estado === 'aprobado' ? '✅ Aprobado' :
-                             ticket.estado === 'reportado' ? '🔴 Reportado' :
-                             ticket.estado === 'rechazado' ? '❌ Rechazado' : ticket.estado}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estadoTicketMeta(ticket.estado).bg}`}>
+                            {estadoTicketMeta(ticket.estado).short}
                           </span>
                         </div>
                       </div>
@@ -484,12 +524,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     </div>
 
                     {/* Cliente */}
-                    {(ticket.cliente?.nombre || ticket.nombreCliente || ticket.clienteNombre) && (
+                    {(nombreClienteTicket(ticket) || dniClienteTicket(ticket)) && (
                       <div className="px-3 py-1 border-b border-gray-700 text-xs text-gray-400">
                         <FaUser className="inline mr-1" />
-                        {ticket.cliente?.nombre || ticket.nombreCliente || ticket.clienteNombre || 'Cliente'}
-                        {(ticket.cliente?.dni || ticket.dniCliente || ticket.clienteDni) && (
-                          <span className="ml-2 text-gray-500">DNI: {ticket.cliente?.dni || ticket.dniCliente || ticket.clienteDni}</span>
+                        {nombreClienteTicket(ticket) || 'Cliente'}
+                        {dniClienteTicket(ticket) && (
+                          <span className="ml-2 text-gray-500">DNI: {dniClienteTicket(ticket)}</span>
                         )}
                       </div>
                     )}

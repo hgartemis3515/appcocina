@@ -72,6 +72,11 @@ describe('nombreGuarnicionConPadre', () => {
     const comp = { opcion: 'Papas fritas', cantidad: 3 };
     expect(nombreGuarnicionConPadre(comp, 'Lomo Saltado')).toBe('Papas fritas x3 (Lomo Saltado)');
   });
+  test('1 por unidad × 3 platos añade x3', () => {
+    const comp = { opcion: 'Zarza criolla', cantidad: 1 };
+    expect(nombreGuarnicionConPadre(comp, 'Lomo Saltado', { cantidad: 3 }))
+      .toBe('Zarza criolla x3 (Lomo Saltado)');
+  });
   test('sin padre devuelve solo la guarnición', () => {
     expect(nombreGuarnicionConPadre({ opcion: 'Ensalada', cantidad: 1 }, '')).toBe('Ensalada');
   });
@@ -105,8 +110,152 @@ describe('textoGuarnicionEnPrincipal', () => {
   test('cantidad > 1 añade ×N', () => {
     expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Pollo', cantidad: 2 })).toBe('Pollo ×2');
   });
+  test('3 platos × 1 zarza por unidad = Zarza ×3', () => {
+    expect(textoGuarnicionEnPrincipal(
+      { grupo: 'Guarnición', opcion: 'Zarza criolla', cantidad: 1 },
+      { cantidad: 3 }
+    )).toBe('Zarza criolla ×3');
+  });
   test('eliminado no se muestra', () => {
     expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Res', eliminado: true })).toBe('');
+  });
+});
+
+const { cantidadGuarnicionEfectiva, textosGuarnicionesDeGrupo, tituloGrupoGuarniciones, platoConCantidadDeLinea } = require('./guarnicionesKds');
+
+describe('cantidadGuarnicionEfectiva (por unidad × platos)', () => {
+  const zarza = { grupo: 'Guarnición', opcion: 'Zarza criolla', cantidad: 1 };
+  const pan = { grupo: 'Guarnición', opcion: 'Pan más', cantidad: 1 };
+
+  test('1 zarza + 1 pan × 3 platos = 3 y 3', () => {
+    const plato = { cantidad: 3 };
+    expect(cantidadGuarnicionEfectiva(zarza, plato)).toBe(3);
+    expect(cantidadGuarnicionEfectiva(pan, plato)).toBe(3);
+  });
+
+  test('sin cantidad de plato queda 1×1', () => {
+    expect(cantidadGuarnicionEfectiva(zarza, {})).toBe(1);
+    expect(cantidadGuarnicionEfectiva(zarza)).toBe(1);
+  });
+
+  test('2 extras por unidad × 3 platos = 6', () => {
+    expect(cantidadGuarnicionEfectiva({ opcion: 'Zarza criolla', cantidad: 2 }, { cantidad: 3 })).toBe(6);
+  });
+
+  test('3 pan con huevo: cantidades[i]=3 y 2 pan / 2 jose por unidad = 6 y 6', () => {
+    const comanda = { cantidades: [3], platos: [{ cantidad: 1 }] };
+    const plato = comanda.platos[0];
+    expect(cantidadGuarnicionEfectiva({ opcion: 'Pan', cantidad: 2 }, plato, comanda, 0)).toBe(6);
+    expect(cantidadGuarnicionEfectiva({ opcion: 'Jose', cantidad: 2 }, plato, comanda, 0)).toBe(6);
+  });
+
+  test('expandirUnidadesTrabajo pone cantidadEfectiva 3 en cada guarnición', () => {
+    const plato = {
+      nombre: 'Lomo',
+      cantidad: 3,
+      complementosSeleccionados: [
+        { grupo: 'Guarnición', opcion: 'Zarza criolla', cantidad: 1, _id: 'z1' },
+        { grupo: 'Guarnición', opcion: 'Pan más', cantidad: 1, _id: 'p1' },
+      ],
+    };
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: false });
+    const guarniciones = unidades.filter((u) => u.tipo === 'guarnicion');
+    expect(guarniciones).toHaveLength(2);
+    expect(guarniciones.map((g) => g.cantidadEfectiva)).toEqual([3, 3]);
+  });
+
+  test('grupo de guarniciones: título ×3 y cantidadEfectiva 6', () => {
+    const plato = {
+      _id: 'p1',
+      nombre: 'Lomo',
+      cantidad: 3,
+      complementosSeleccionados: [
+        { grupo: 'Guarnición', opcion: 'Zarza criolla', cantidad: 1, _id: 'z1' },
+        { grupo: 'Guarnición', opcion: 'Pan más', cantidad: 1, _id: 'p1' },
+      ],
+    };
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: true });
+    const grupo = unidades.find((u) => u.tipo === 'grupo_guarniciones');
+    expect(grupo.cantidadEfectiva).toBe(6);
+    expect(grupo.nombreGuarnicion).toBe('Zarza criolla x3 + Pan más x3');
+  });
+
+  test('tituloGrupoGuarniciones multiplica por platos', () => {
+    expect(tituloGrupoGuarniciones([zarza, pan], { cantidad: 3 }))
+      .toBe('Zarza criolla x3 + Pan más x3');
+  });
+
+  test('textosGuarnicionesDeGrupo suma 3 líneas de qty 1', () => {
+    const items = [1, 2, 3].map((n) => ({
+      plato: {
+        cantidad: 1,
+        complementosSeleccionados: [
+          { opcion: 'Zarza criolla', cantidad: 1 },
+          { opcion: 'Pan más', cantidad: 1 },
+        ],
+      },
+    }));
+    expect(textosGuarnicionesDeGrupo(items)).toEqual([
+      'Zarza criolla ×3',
+      'Pan más ×3',
+    ]);
+  });
+
+  test('textosGuarnicionesDeGrupo una línea qty 3', () => {
+    const items = [{
+      plato: {
+        cantidad: 3,
+        complementosSeleccionados: [
+          { opcion: 'Zarza criolla', cantidad: 1 },
+          { opcion: 'Pan más', cantidad: 1 },
+        ],
+      },
+    }];
+    expect(textosGuarnicionesDeGrupo(items)).toEqual([
+      'Zarza criolla ×3',
+      'Pan más ×3',
+    ]);
+  });
+
+  test('textosGuarnicionesDeGrupo usa comanda.cantidades (2 pan × 3 platos = 6)', () => {
+    const plato = {
+      cantidad: 1,
+      complementosSeleccionados: [
+        { opcion: 'Pan', cantidad: 2 },
+        { opcion: 'Jose', cantidad: 2 },
+      ],
+    };
+    const items = [{
+      plato,
+      comanda: { cantidades: [3], platos: [plato] },
+      platoIndex: 0,
+    }];
+    expect(textosGuarnicionesDeGrupo(items)).toEqual(['Pan ×6', 'Jose ×6']);
+  });
+
+  test('textosGuarnicionesDeGrupo sin platoIndex usa comanda.platos', () => {
+    const plato = {
+      _id: 'linea1',
+      cantidad: 1,
+      complementosSeleccionados: [
+        { opcion: 'Pan', cantidad: 2 },
+        { opcion: 'Jose', cantidad: 2 },
+      ],
+    };
+    const items = [{
+      plato,
+      comanda: { cantidades: [3], platos: [plato] },
+    }];
+    expect(textosGuarnicionesDeGrupo(items)).toEqual(['Pan ×6', 'Jose ×6']);
+  });
+
+  test('platoConCantidadDeLinea toma cantidades[i] aunque falte platoIndex', () => {
+    const plato = { _id: 'a', cantidad: 1 };
+    const patched = platoConCantidadDeLinea({
+      plato,
+      comanda: { cantidades: [3], platos: [plato] },
+    });
+    expect(patched.cantidad).toBe(3);
   });
 });
 
@@ -827,5 +976,41 @@ describe('agrupacion y pronombre', () => {
   test('esEventoGuarnicion acepta complementoIds y tipo grupo', () => {
     expect(esEventoGuarnicion({ complementoIds: ['g1', 'g2'] })).toBe(true);
     expect(esEventoGuarnicion({ tipo: 'grupo_guarniciones' })).toBe(true);
+  });
+});
+
+describe('unidadesParaVistaKds (solo visual)', () => {
+  const { expandirUnidadesTrabajo, unidadesParaVistaKds, unidadGuarnicionAsignadaA } = require('./guarnicionesKds');
+  const plato = {
+    _id: 'p1',
+    nombre: 'Bistec',
+    estado: 'pedido',
+    complementosSeleccionados: [
+      { _id: 'c1', opcion: 'arroz', procesandoPor: { cocineroId: 'cook-b' } },
+      { _id: 'c2', opcion: 'Papa frita' },
+    ]
+  };
+
+  test('default junta: oculta guarniciones y muestra extras en el principal', () => {
+    const raw = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: false });
+    expect(raw.length).toBe(3);
+    const vista = unidadesParaVistaKds(raw, { isSupervisorView: true });
+    expect(vista).toHaveLength(1);
+    expect(vista[0].tipo).toBe('principal');
+    expect(vista[0].ocultarComplementos).toBe(false);
+  });
+
+  test('juntarVisual false deja las filas de guarnición (asignación intacta)', () => {
+    const raw = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: false });
+    const vista = unidadesParaVistaKds(raw, { juntarVisual: false, isSupervisorView: true });
+    expect(vista).toHaveLength(3);
+  });
+
+  test('cocinera con guarnición asignada sigue viendo su fila', () => {
+    const raw = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: false });
+    const vista = unidadesParaVistaKds(raw, { cocineroId: 'cook-b', isSupervisorView: false });
+    expect(vista.some((u) => u.tipo === 'guarnicion' && u.compId === 'c1')).toBe(true);
+    expect(vista.some((u) => u.tipo === 'guarnicion' && u.compId === 'c2')).toBe(false);
+    expect(unidadGuarnicionAsignadaA(raw[1], 'cook-b')).toBe(true);
   });
 });

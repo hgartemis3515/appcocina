@@ -303,7 +303,7 @@ export const ConfigProvider = ({ children }) => {
       return { ok: false, error: 'Ya existe un perfil con ese nombre' };
     }
     setGuardandoPerfilVista(true);
-    const snap = snapshotPerfilVista(config);
+    const snap = snapshotPerfilVista(configRef.current);
     const perfilLocal = {
       id: nuevoIdPerfilLocal(),
       nombre,
@@ -345,7 +345,7 @@ export const ConfigProvider = ({ children }) => {
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [config, persistConfigNow]);
+  }, [persistConfigNow]);
 
   /**
    * Sobrescribe un perfil guardado con la vista actual.
@@ -355,7 +355,7 @@ export const ConfigProvider = ({ children }) => {
     const actual = perfilesVistaRef.current.find((p) => p.id === perfilId);
     if (!actual) return { ok: false, error: 'Perfil no encontrado' };
     setGuardandoPerfilVista(true);
-    const snap = snapshotPerfilVista(config);
+    const snap = snapshotPerfilVista(configRef.current);
     const actualizado = {
       ...actual,
       tipo: TIPO_PERFIL_TABLAS_KDS,
@@ -401,7 +401,7 @@ export const ConfigProvider = ({ children }) => {
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [config, persistConfigNow]);
+  }, [persistConfigNow]);
 
   /**
    * Elimina un perfil guardado (borrado lógico en servidor).

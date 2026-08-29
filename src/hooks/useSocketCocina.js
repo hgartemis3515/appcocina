@@ -359,9 +359,26 @@ const useSocketCocina = ({
         if (data.comanda) {
           handlersRef.current.onComandaActualizada(data);
         } else if (data.comandaId && handlersRef.current.obtenerComandas) {
-          handlersRef.current.obtenerComandas();
+          handlersRef.current.obtenerComandas({ silent: true });
         }
       }
+    });
+
+    // Reserva T−20 / aprobación inmediata: Ver Cocina no tenía la comanda
+    // (GET excluye programadaPorReserva). Refresco silencioso = mismo efecto que F5.
+    const refrescarSiReservaEntraACocina = (data) => {
+      ultimoPingRef.current = Date.now();
+      const estado = data?.cambios?.estado || data?.estado;
+      const origen = String(data?.cambios?.origen || data?.origen || '');
+      const esActivacion = estado === 'activa' || origen.includes('activacion') || origen === 'reserva';
+      if (!esActivacion) return;
+      if (handlersRef.current.obtenerComandas) {
+        handlersRef.current.obtenerComandas({ silent: true });
+      }
+    };
+    socket.on('reserva-actualizada', refrescarSiReservaEntraACocina);
+    socket.on('ticket-ppa-aprobado', (data) => {
+      if (data?.origen === 'reserva' || data?.reservaId) refrescarSiReservaEntraACocina(data);
     });
     
     // Evento: Plato eliminado

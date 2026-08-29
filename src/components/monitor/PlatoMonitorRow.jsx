@@ -1,10 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { estiloCantidadBadge, radioForma } from '../../utils/monitorBadgeStyles';
+import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
-import { textoGuarnicionEnPrincipal } from '../../utils/guarnicionesKds';
+import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
+import { grupoTieneParaLlevar } from '../../utils/platoHelpers';
+import BadgeParaLlevar from './BadgeParaLlevar';
 
 /**
  * PlatoMonitorRow - Fila AGRUPADA de un plato en el monitor Ver Cocina
@@ -68,22 +70,20 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
   // Complementos / notas (todos los platos del grupo comparten la misma clave)
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
   const complementosSet = new Set();
-  const platoRef = platos[0]?.plato;
-  if (platoRef) {
-    const comps = platoRef.complementosSeleccionados || platoRef.complementos || [];
-    comps.forEach(c => {
-      const texto = textoGuarnicionEnPrincipal(c);
-      if (texto) complementosSet.add(texto);
-    });
-    if (configVisual.notasJuntoAGuarniciones === false) {
-      const obs = platoRef.observaciones || platoRef.nota || platoRef.notaEspecial;
+  for (const texto of textosGuarnicionesDeGrupo(platos)) {
+    complementosSet.add(texto);
+  }
+  if (configVisual.notasJuntoAGuarniciones === false) {
+    for (const p of platos) {
+      const platoRef = p?.plato;
+      const obs = platoRef?.observaciones || platoRef?.nota || platoRef?.notaEspecial;
       if (obs) complementosSet.add(obs);
     }
   }
   const complementosTexto = Array.from(complementosSet).join(' · ');
 
   // Detectar si alguno es para llevar
-  const hayParaLlevar = platos.some(p => p.comanda.tipoServicio === 'para_llevar');
+  const hayParaLlevar = grupoTieneParaLlevar(platos);
 
   // Config visual
   const fuenteFamilia = configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif';
@@ -133,8 +133,11 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
         }}
       >
         <span style={{ minWidth: 0, color: colorNombrePlato }}>{nombre}</span>
+        {hayParaLlevar && (
+          <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
+        )}
         <span style={estiloCantidadBadge(configVisual)}>
-          ×{cantidadTotal}
+          {textoCantidadBadge(cantidadTotal, configVisual)}
         </span>
       </div>
 
@@ -167,7 +170,6 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
         }}
       >
         {mesasTexto && <span>Mesa(s): {mesasTexto}</span>}
-        {hayParaLlevar && <span style={{ color: colorAcento }}>· Para llevar</span>}
         {mostrarCocinero && cocinerosTexto && (
           <span style={{ color: colorAcento, fontWeight: 600 }}>
             👨‍🍳 {cocinerosTexto}

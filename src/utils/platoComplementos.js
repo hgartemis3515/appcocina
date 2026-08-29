@@ -6,12 +6,13 @@ export function getComplementosDePlato(plato) {
   if (!plato) return [];
   const raw = plato.complementosSeleccionados ?? plato.complementos ?? [];
   if (!Array.isArray(raw)) return [];
+  const nPlatos = Math.max(1, Number(plato.cantidad) || 1);
 
   return raw
     .map((comp) => {
       const opcion = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || '');
       const grupo = comp.grupo || '';
-      const cantidad = comp.cantidad || 1;
+      const cantidad = (Math.max(1, Number(comp.cantidad) || 1)) * nPlatos;
       const precio = comp.precio != null ? Number(comp.precio) : null;
 
       return {

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useConfig } from '../../contexts/ConfigContext';
 import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNumeroOrdenKds';
 import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
+import { cantidadGuarnicionEfectiva } from '../../utils/guarnicionesKds';
 
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
@@ -411,7 +412,7 @@ const PlatoPreparacion = ({
             {complementosSeleccionados.map((comp, i) => {
               // v2.0: Mostrar siempre la cantidad del complemento
               const opcionTexto = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion;
-              const cantidadComp = comp.cantidad || 1;
+              const cantidadComp = cantidadGuarnicionEfectiva(comp, { ...plato, cantidad });
               
               return (
                 <span
@@ -436,9 +437,9 @@ const PlatoPreparacion = ({
           let totalUnidades = 0;
           let extra = 0;
           for (const c of complementosSeleccionados) {
-            const cant = Math.max(1, Number(c.cantidad) || 1);
+            const cant = cantidadGuarnicionEfectiva(c, { ...plato, cantidad });
             totalUnidades += cant;
-            extra += (Number(c.precio) || 0) * cant;
+            extra += (Number(c.precio) || 0) * (Math.max(1, Number(c.cantidad) || 1));
           }
           if (totalUnidades === 0) return null;
           const partes = [];

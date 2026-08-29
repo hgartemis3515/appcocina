@@ -95,7 +95,8 @@ function claveGrupoPlato(plato, nombre) {
   const platoTipoId = obtenerPlatoTipoId(plato);
   const nombreNorm = (nombre || '').trim().toLowerCase();
   const obs = (plato.observaciones || plato.nota || plato.notaEspecial || '').trim().toLowerCase();
-  return `${platoTipoId}::${nombreNorm}::${claveComplementos(plato)}::${obs}`;
+  const tipoServicio = (plato.tipoServicio === 'para_llevar') ? 'para_llevar' : 'mesa';
+  return `${platoTipoId}::${nombreNorm}::${claveComplementos(plato)}::${obs}::${tipoServicio}`;
 }
 
 /** ID corto y estable para React key (evita colisiones con caracteres especiales). */
@@ -199,7 +200,8 @@ const useCocinaMonitorFilter = (
     const aplanados = [];
     for (const comanda of comandas) {
       if (!comanda.platos) continue;
-      for (const plato of comanda.platos) {
+      for (let pi = 0; pi < comanda.platos.length; pi++) {
+        const plato = comanda.platos[pi];
         if (!ESTADOS_NO_LISTOS.includes(plato.estado)) continue;
         if (plato.anulado || plato.eliminado || plato.eliminar) continue;
         if (!platoTomadoPorCocinero(plato)) continue;
@@ -209,6 +211,7 @@ const useCocinaMonitorFilter = (
         aplanados.push({
           plato,
           comanda,
+          platoIndex: pi,
           tiempoInicio: obtenerTiempoInicio(plato),
           nombre: obtenerNombrePlato(plato),
           cocinero: obtenerCocineroDePlato(plato),
@@ -235,17 +238,14 @@ const useCocinaMonitorFilter = (
         });
       }
       const grupo = gruposMap.get(key);
-      const platoIndex = Array.isArray(item.comanda.platos)
-        ? item.comanda.platos.indexOf(item.plato)
-        : -1;
-      const qty = obtenerCantidadLinea(item.comanda, item.plato, platoIndex);
+      const qty = obtenerCantidadLinea(item.comanda, item.plato, item.platoIndex);
       grupo.cantidadTotal += qty;
       grupo.platos.push(item);
 
       // N timers por unidad de cantidad; misma línea → mismo contorno (lineaId)
       const mesaNum = obtenerMesaDeComanda(item.comanda);
       const comandaId = String(item.comanda._id || item.comanda.id || item.comanda.numero || '');
-      const lineaId = `${comandaId}:${platoIndex >= 0 ? platoIndex : item.nombre}`;
+      const lineaId = `${comandaId}:${item.platoIndex >= 0 ? item.platoIndex : item.nombre}`;
       const colorLinea = colorLineaDesdeId(lineaId);
       const comandaNumero = item.comanda.numero || item.comanda.numeroMesa || null;
 
@@ -256,7 +256,7 @@ const useCocinaMonitorFilter = (
           mesa: mesaNum,
           comandaNumero,
           comandaId,
-          platoIndex,
+          platoIndex: item.platoIndex,
           unidadIndex: u,
           lineaId,
           colorLinea,

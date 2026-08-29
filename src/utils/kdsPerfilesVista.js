@@ -4,7 +4,7 @@
  * también se copia (tipo tablas_kds) para verse en otros equipos.
  */
 
-import { STORAGE_KEYS } from '../config/kdsConfigConstants';
+import { STORAGE_KEYS, DEFAULT_KDS_CONFIG } from '../config/kdsConfigConstants';
 
 export const TIPO_PERFIL_TABLAS_KDS = 'tablas_kds';
 
@@ -17,6 +17,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'ordenamientoDefault',
   'modoVista',
   'mostrarBadgeGuarnicion',
+  'juntarGuarnicionesVisualKds',
   'usarNombreCocinaEnTablaKds',
   'ordenColaFuente',
   'ordenColaTamano',
@@ -27,6 +28,9 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'cantidadPlatoColor',
   'cantidadPlatoFondo',
   'cantidadPlatoTamano',
+  'mozoNombreFuente',
+  'mozoNombreTamano',
+  'mozoNombreColor',
   'alertYellowMinutes',
   'alertRedMinutes',
   'alertCriticalMinutes',
@@ -43,6 +47,7 @@ export function snapshotPerfilVista(config = {}) {
   const out = {};
   KDS_PERFIL_VISTA_KEYS.forEach((k) => {
     if (config[k] !== undefined) out[k] = config[k];
+    else if (DEFAULT_KDS_CONFIG[k] !== undefined) out[k] = DEFAULT_KDS_CONFIG[k];
   });
   return out;
 }

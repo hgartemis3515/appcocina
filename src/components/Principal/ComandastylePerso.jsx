@@ -44,6 +44,7 @@ import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { useConfig } from "../../contexts/ConfigContext";
+import { estiloMozoNombreKds } from "../../utils/estiloMozoNombreKds";
 import { 
   aplicarFiltrosAComandas, 
   debeMostrarComanda, 
@@ -52,7 +53,7 @@ import {
   esComandaReserva
 } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
-import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo } from "../../utils/guarnicionesKds";
+import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
@@ -94,6 +95,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
   const { config: kdsVistaConfig } = useConfig();
   const usarNombreCocinaEnTablaKds = kdsVistaConfig.usarNombreCocinaEnTablaKds !== false;
+  const juntarGuarnicionesVisualKds = kdsVistaConfig.juntarGuarnicionesVisualKds !== false;
   const agrupacionOn = agrupacionGuarnicionesOn({ permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones });
   
   const [comandas, setComandas] = useState([]);
@@ -3808,6 +3810,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     permitirGuarnicionesSeparadas={permitirGuarnicionesSeparadas}
                     agrupacionOn={agrupacionOn}
                     tiemposGuarnicion={tiemposGuarnicion}
+                    juntarGuarnicionesVisualKds={juntarGuarnicionesVisualKds}
                   />
                   );
                 })}
@@ -4780,7 +4783,10 @@ const SicarComandaCard = ({
   permitirGuarnicionesSeparadas = false,
   agrupacionOn = false,
   tiemposGuarnicion = null,
+  juntarGuarnicionesVisualKds = true,
 }) => {
+  const { config: kdsMozoConfig } = useConfig();
+  const estiloMozo = estiloMozoNombreKds(kdsMozoConfig);
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
   const platosEliminadosHistorial = React.useMemo(() => {
@@ -5170,7 +5176,7 @@ const SicarComandaCard = ({
         </div>
         {/* Mozo y badges inline en header - Compacto */}
         <div className="flex items-center justify-between text-white text-xs flex-wrap gap-1">
-          <span className="font-semibold" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <span className="font-semibold" style={estiloMozo}>
             👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -5316,11 +5322,20 @@ const SicarComandaCard = ({
                   }
                   const cantidad = comanda.cantidades?.[platoIndex] || 1;
                   const platoId = platoObj?._id || plato._id || platoIndex;
-                  const unidades = expandirUnidadesTrabajo(plato, {
+                  const unidades = unidadesParaVistaKds(
+                    expandirUnidadesTrabajo(plato, {
                     flagOn: permitirGuarnicionesSeparadas,
                     agrupacionOn,
-                    usarAlias: usarNombreCocinaEnTablaKds
-                  });
+                    usarAlias: usarNombreCocinaEnTablaKds,
+                    comanda,
+                    platoIndex
+                    }),
+                    {
+                      juntarVisual: juntarGuarnicionesVisualKds,
+                      cocineroId: usuarioActualId,
+                      isSupervisorView: false
+                    }
+                  );
                   return unidades.map((unidad) => {
                     if (esTipoGuarnicionKds(unidad.tipo)) {
                       const gKey = `${comandaId}-${platoIndex}-g-${unidad.compId}`;
@@ -5336,9 +5351,10 @@ const SicarComandaCard = ({
                       const alerta = estadoAlertaGuarnicion(comp, tiemposGuarnicion);
                       const prio = prioridadUnidad(comanda);
                       const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
-                      const cantG = unidad.tipo === 'grupo_guarniciones'
-                        ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
-                        : (comp.cantidad || 1);
+                      const cantG = Number(unidad.cantidadEfectiva)
+                        || (unidad.tipo === 'grupo_guarniciones'
+                          ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
+                          : (comp.cantidad || 1));
                       return (
                         <PlatoPreparacion
                           key={gKey}

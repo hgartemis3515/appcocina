@@ -131,6 +131,11 @@ export default function ReservadasPage({ onGoToMenu }) {
                             RESERVA
                           </span>
                         </div>
+                        {(r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber) ? (
+                          <div className="text-indigo-100 text-xs font-mono mt-1">
+                            Comanda #{r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber}
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-3 mt-1">
                           <div className="flex items-center gap-1 text-gray-300 text-xs">
                             <FaUser className="text-gray-400" />
@@ -168,6 +173,11 @@ export default function ReservadasPage({ onGoToMenu }) {
                         {(r.platos || []).map((p, i) => (
                           <div key={i} className="text-sm text-gray-200 py-0.5">
                             <span className="font-medium">{p.cantidad || 1}×</span> {p.plato?.nombre || 'Plato'}
+                            {p.tipoServicio === 'para_llevar' ? (
+                              <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                🥡 Llevar
+                              </span>
+                            ) : null}
                             {p.notaEspecial ? <span className="text-gray-500 text-xs"> · {p.notaEspecial}</span> : null}
                           </div>
                         ))}
