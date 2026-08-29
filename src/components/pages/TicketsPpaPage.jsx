@@ -16,7 +16,7 @@ import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda 
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
-import { sortTickets, filterTicketsByMozo, getMozosFromTickets } from '../../utils/ticketSort';
+import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero } from '../../utils/ticketSort';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge, estadoTicketMeta,
   rangoFechasDefault, getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
@@ -174,8 +174,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
   const itemsFiltrados = useMemo(() => {
     const porMozo = filterTicketsByMozo(itemsPorEstado, filtroMozo);
+    if (filtro === 'todos') {
+      return sortTicketsPendientesPrimero(porMozo, sortBy, sortDir);
+    }
     return sortTickets(porMozo, sortBy, sortDir);
-  }, [itemsPorEstado, filtroMozo, sortBy, sortDir]);
+  }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro]);
 
   const handleSortChange = (field, dir) => {
     setSortBy(field);
@@ -246,33 +249,51 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         </div>
       </header>
 
-      {/* Filtros + Ordenar */}
-      <div className="flex-shrink-0 max-w-7xl w-full mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-800">
-        <div className="flex gap-2 overflow-x-auto min-w-0 flex-1 pb-0.5 items-center">
-          {[
-            { key: 'pendientes', label: 'Pendientes', icon: FaClock },
-            { key: 'comandas', label: 'Comandas', icon: FaUtensils },
-            { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
-            { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
-            { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
-            { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
-            { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
-            { key: 'todos', label: 'Todos', icon: FaFilter },
-          ].map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setFiltro(key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
-                ${filtro === key
-                  ? 'bg-violet-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
-            >
-              <Icon className="text-xs" />
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+      {/* Filtros de estado (siempre visibles) + fechas abajo (siempre visibles) */}
+      <div className="flex-shrink-0 z-40 bg-gray-900/95 border-b border-gray-800">
+        <div className="max-w-7xl w-full mx-auto px-4 py-2 space-y-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            {[
+              { key: 'pendientes', label: 'Pendientes', icon: FaClock },
+              { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
+              { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
+              { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
+              { key: 'todos', label: 'Todos', icon: FaFilter },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFiltro(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
+                  ${filtro === key
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
+              >
+                <Icon className="text-xs" />
+                {label}
+              </button>
+            ))}
+            <span className="hidden sm:inline w-px h-5 bg-gray-700 mx-0.5" />
+            {[
+              { key: 'comandas', label: 'Comandas', icon: FaUtensils },
+              { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
+              { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFiltro(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
+                  ${filtro === key
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
+              >
+                <Icon className="text-xs" />
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1 text-xs text-gray-500">
             Desde
             <input
@@ -325,6 +346,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             mozosDisponibles={mozosDisponibles}
             onMozoFilterChange={setFiltroMozo}
           />
+          </div>
         </div>
       </div>
 

@@ -107,7 +107,7 @@ export default function useTablaAprobacion({
       if (incluirHistorial) {
         const { desde, hasta } = clampRangoFechas(fechaDesde, fechaHasta);
         try {
-          const todosData = await apiGet(`/api/aprobacion/fecha/${desde}?hasta=${hasta}`);
+          const todosData = await apiGet(`/api/aprobacion/fecha/${desde}`, { hasta });
           if (todosData?.success && Array.isArray(todosData.tickets)) {
             historial = todosData.tickets.map(normalizeTicket);
           }
@@ -116,15 +116,20 @@ export default function useTablaAprobacion({
         }
       }
 
-      const byId = new Map(pendientes.map((t) => [String(t._id), t]));
+      const byId = new Map();
       for (const t of historial) {
-        if (!byId.has(String(t._id))) {
-          pendientes.push(t);
-          byId.set(String(t._id), t);
+        if (t?._id) byId.set(String(t._id), t);
+      }
+      for (const t of pendientes) {
+        if (!t?._id) continue;
+        const id = String(t._id);
+        const prev = byId.get(id);
+        if (!prev || t.estado === 'pendiente_aprobacion') {
+          byId.set(id, t);
         }
       }
 
-      setItems(pendientes);
+      setItems([...byId.values()]);
       setError(null);
 
       try {

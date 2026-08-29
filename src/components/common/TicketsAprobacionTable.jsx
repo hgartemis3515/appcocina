@@ -129,7 +129,7 @@ export default function TicketsAprobacionTable({
 
   return (
     <div className="bg-gray-900/60 border border-gray-700 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto max-h-[calc(100vh-220px)]">
+      <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[980px]">
           <thead className="sticky top-0 z-10 bg-gray-900 border-b border-gray-700">
             <tr className="text-[10px] uppercase tracking-wider text-gray-400">

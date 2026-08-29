@@ -97,6 +97,16 @@ export function sortTickets(tickets, sortBy = 'fecha', sortDir = 'desc') {
   });
 }
 
+/** En «Todos», los pendientes van primero para que no queden bajo el historial aprobado. */
+export function sortTicketsPendientesPrimero(tickets, sortBy = 'fecha', sortDir = 'desc') {
+  const sorted = sortTickets(tickets, sortBy, sortDir);
+  return [...sorted].sort((a, b) => {
+    const pa = a?.estado === 'pendiente_aprobacion' ? 0 : 1;
+    const pb = b?.estado === 'pendiente_aprobacion' ? 0 : 1;
+    return pa - pb;
+  });
+}
+
 export function getDefaultSortDir(sortBy) {
   return TICKET_SORT_OPTIONS.find((o) => o.key === sortBy)?.defaultDir || 'desc';
 }
