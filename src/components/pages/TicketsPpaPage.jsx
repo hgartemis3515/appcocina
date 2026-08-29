@@ -454,10 +454,20 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         </div>
                       </div>
                       {Number(ticket.montoDescuento) > 0 && (
-                        <div className="mt-1.5 text-xs text-red-400">
-                          Descuento: -{formatCurrency(ticket.montoDescuento)}
-                          {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
-                          {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
+                        <div className="mt-1.5 space-y-0.5 text-xs">
+                          <div className="flex justify-between text-gray-400">
+                            <span>Subtotal</span>
+                            <span>{formatCurrency(ticket.totalSinDescuento || ticket.subtotal || ticket.total)}</span>
+                          </div>
+                          <div className="text-red-400">
+                            Descuento: -{formatCurrency(ticket.montoDescuento)}
+                            {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                            {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
+                          </div>
+                          <div className="flex justify-between text-white font-semibold">
+                            <span>TOTAL</span>
+                            <span>{formatCurrency(ticket.total)}</span>
+                          </div>
                         </div>
                       )}
                       {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&

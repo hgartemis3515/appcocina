@@ -240,7 +240,9 @@ export default function PpaSidebar({ socket, onClose }) {
                     <div className="flex items-center gap-1">
                       <FaMoneyBill className="text-green-400 text-xs" />
                       <span className="text-white text-sm font-bold">
-                        {esReserva && !(Number(ticket.total) > 0) ? 'Sin adelanto' : formatCurrency(ticket.total)}
+                        {esReserva && !(Number(ticket.total) > 0) && !(Number(ticket.montoDescuento) > 0)
+                          ? 'Sin adelanto'
+                          : formatCurrency(ticket.total)}
                       </span>
                     </div>
                     {ticket.voucherId && (
@@ -253,9 +255,19 @@ export default function PpaSidebar({ socket, onClose }) {
                     </span>
                   </div>
                   {Number(ticket.montoDescuento) > 0 && (
-                    <div className="mt-1 text-[11px] text-red-400">
-                      Descuento: -{formatCurrency(ticket.montoDescuento)}
-                      {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                    <div className="mt-1 space-y-0.5 text-[11px]">
+                      <div className="flex justify-between text-gray-400">
+                        <span>Subtotal</span>
+                        <span>{formatCurrency(ticket.totalSinDescuento || ticket.subtotal || ticket.total)}</span>
+                      </div>
+                      <div className="text-red-400">
+                        Descuento: -{formatCurrency(ticket.montoDescuento)}
+                        {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                      </div>
+                      <div className="flex justify-between text-white font-semibold">
+                        <span>TOTAL</span>
+                        <span>{formatCurrency(ticket.total)}</span>
+                      </div>
                     </div>
                   )}
                 </div>
