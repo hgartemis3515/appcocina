@@ -155,7 +155,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       document.removeEventListener('visibilitychange', onVis);
     };
     // Solo al montar: aplicarTurnos lee el periodo actual al responder.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setPeriodo = (id) => {
