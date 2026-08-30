@@ -267,6 +267,8 @@ export const DEFAULT_KDS_CONFIG = {
   mostrarBadgeGuarnicion: true,
   juntarGuarnicionesVisualKds: true,
   usarNombreCocinaEnTablaKds: true,
+  nombrePlatoFuente: 'arial',
+  nombrePlatoColor: '#ffffff',
   ordenColaFuente: 'inter',
   ordenColaTamano: 10,
   ordenColaColor: '#a7f3d0',
@@ -283,7 +285,7 @@ export const DEFAULT_KDS_CONFIG = {
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500
-  tamanoFuentePlatos: DISENO_GRID.FUENTE_DEFAULT,
+  tamanoFuentePlatos: 18,
   espaciadoGrid: ESPACIADO_GRID.MD,
   densidadPlatos: DENSIDAD_PLATOS.NORMAL,
   forzarUnaColumnaMovil: true,
@@ -304,6 +306,8 @@ export const DEFAULT_KDS_CONFIG = {
   timbreEntregarClave: 'beep_clasico',
   repetirSonido: false,
   nightMode: true,
+  fondoConjuntoTarjetas: '#030712',
+  fondoConjuntoTarjetasClaro: '#f3f4f6',
   autoPrint: false,
 
   design: {
@@ -422,8 +426,7 @@ export const normalizarConfiguracion = (partialConfig = {}) => {
     }
   });
 
-  // Sync design con tipografía/paginación
-  if (!partialConfig.tamanoFuentePlatos) config.tamanoFuentePlatos = config.tamanoFuente;
+  if (!partialConfig.tamanoFuentePlatos) config.tamanoFuentePlatos = 18;
 
   config.design = {
     fontSize: config.tamanoFuente,
@@ -454,8 +457,35 @@ export const aplicarPerfil = (perfilId, currentConfig = {}) => {
   if (currentConfig.timbreFinalizarClave !== undefined) newConfig.timbreFinalizarClave = currentConfig.timbreFinalizarClave;
   if (currentConfig.timbreEntregarClave !== undefined) newConfig.timbreEntregarClave = currentConfig.timbreEntregarClave;
   if (currentConfig.nightMode !== undefined) newConfig.nightMode = currentConfig.nightMode;
+  if (currentConfig.fondoConjuntoTarjetas !== undefined) {
+    newConfig.fondoConjuntoTarjetas = currentConfig.fondoConjuntoTarjetas;
+  }
+  if (currentConfig.fondoConjuntoTarjetasClaro !== undefined) {
+    newConfig.fondoConjuntoTarjetasClaro = currentConfig.fondoConjuntoTarjetasClaro;
+  }
   return newConfig;
 };
+
+const HEX_FONDO_TABLERO = /^#([0-9a-fA-F]{6})$/;
+
+export const FONDO_CONJUNTO_TARJETAS_NOCHE = '#030712';
+export const FONDO_CONJUNTO_TARJETAS_CLARO = '#f3f4f6';
+
+export const PRESETS_FONDO_CONJUNTO_TARJETAS = [
+  { id: 'negro', label: 'Negro', noche: '#030712', claro: '#f3f4f6' },
+  { id: 'grafito', label: 'Grafito', noche: '#111827', claro: '#e5e7eb' },
+  { id: 'pizarra', label: 'Pizarra', noche: '#1e293b', claro: '#f1f5f9' },
+  { id: 'azul', label: 'Azul noche', noche: '#0b1220', claro: '#e0e7ff' },
+  { id: 'verde', label: 'Verde cocina', noche: '#052e16', claro: '#ecfdf5' },
+  { id: 'cafe', label: 'Café', noche: '#1c1410', claro: '#f5f0e8' },
+];
+
+/** Fondo del área donde viven las tarjetas KDS (no el de cada tarjeta). */
+export function colorFondoConjuntoTarjetas(config = {}, nightMode = true) {
+  const custom = nightMode ? config.fondoConjuntoTarjetas : config.fondoConjuntoTarjetasClaro;
+  if (HEX_FONDO_TABLERO.test(String(custom || ''))) return custom;
+  return nightMode ? FONDO_CONJUNTO_TARJETAS_NOCHE : FONDO_CONJUNTO_TARJETAS_CLARO;
+}
 
 export const getResumenConfiguracion = (config) => {
   const perfil = config.perfilActivo
@@ -577,6 +607,10 @@ export default {
   validarConfiguracion,
   normalizarConfiguracion,
   aplicarPerfil,
+  colorFondoConjuntoTarjetas,
+  FONDO_CONJUNTO_TARJETAS_NOCHE,
+  FONDO_CONJUNTO_TARJETAS_CLARO,
+  PRESETS_FONDO_CONJUNTO_TARJETAS,
   getResumenConfiguracion,
   ejecutarLimpieza,
   verificarNecesidadLimpieza,

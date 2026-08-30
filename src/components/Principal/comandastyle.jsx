@@ -56,8 +56,8 @@ import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { estiloMozoNombreKds } from "../../utils/estiloMozoNombreKds";
-import { verificarNecesidadLimpieza, STORAGE_KEYS } from "../../config/kdsConfigConstants";
-import { esComandaReserva } from "../../utils/kdsFilters";
+import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
+import { esComandaReserva, clasesHeaderReservaKds } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
 import {
   expandirUnidadesTrabajo,
@@ -1188,7 +1188,8 @@ const ComandaStyle = ({
     onPlatoMenuActualizado: handlePlatoMenuActualizado,
     onSolicitudGestionActualizada: handleSolicitudGestionActualizada,
     obtenerComandas: obtenerComandas,
-    token: getToken()
+    token: getToken(),
+    cocineroId: userId || null
   });
 
   // Badge PPA en barra superior (misma fuente que la bandeja; reutiliza socket KDS)
@@ -4100,7 +4101,7 @@ const ComandaStyle = ({
   const nightMode = config.nightMode !== false; // Default true
   const bgMain = nightMode ? 'bg-black' : 'bg-gray-50';
   const bgHeader = nightMode ? 'bg-black' : 'bg-white';
-  const bgGrid = nightMode ? 'bg-gray-950' : 'bg-gray-100';
+  const fondoConjunto = colorFondoConjuntoTarjetas(config, nightMode);
   const bgSearch = nightMode ? 'bg-gray-900' : 'bg-gray-200';
   const bgButton = nightMode ? 'bg-gray-800' : 'bg-gray-200';
   const bgButtonHover = nightMode ? 'hover:bg-gray-700' : 'hover:bg-gray-300';
@@ -4160,7 +4161,10 @@ const ComandaStyle = ({
 
       {/* Grid principal estilo SICAR - Configurable, mejor espaciado */}
       {/* Padding inferior para la barra sticky */}
-      <div className={`flex-1 overflow-hidden ${bgGrid} p-3 flex flex-col pb-24`}>
+      <div
+        className="flex-1 overflow-hidden p-3 flex flex-col pb-24"
+        style={{ backgroundColor: fondoConjunto }}
+      >
         {todasComandas.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className={`text-center ${textSecondary}`}>
@@ -5404,10 +5408,10 @@ const SicarComandaCard = ({
     ? platosEliminadosConNombres 
     : platosEliminados;
   // Calcular color de fondo según tiempo (actualizado en tiempo real) - Colores mejorados
-  const esReserva = esComandaReserva(comanda);
+  const headerReserva = clasesHeaderReservaKds(comanda);
   const [minutosActuales, setMinutosActuales] = useState(tiempo.minutos);
-  const [bgColor, setBgColor] = useState(esReserva ? "bg-purple-700" : "bg-gray-500");
-  const [borderColor, setBorderColor] = useState(esReserva ? "border-purple-700" : "border-gray-500");
+  const [bgColor, setBgColor] = useState(headerReserva?.bg || "bg-gray-500");
+  const [borderColor, setBorderColor] = useState(headerReserva?.border || "border-gray-500");
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -5417,9 +5421,9 @@ const SicarComandaCard = ({
       const diffMinutos = ahora.diff(creacion, "minutes");
       setMinutosActuales(diffMinutos);
       
-      if (esReserva) {
-        setBgColor("bg-purple-700");
-        setBorderColor("border-purple-700");
+      if (headerReserva) {
+        setBgColor(headerReserva.bg);
+        setBorderColor(headerReserva.border);
         return;
       }
       // Actualizar colores según tiempo - Borde y encabezado con el mismo color
@@ -5435,13 +5439,13 @@ const SicarComandaCard = ({
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [comanda.createdAt, alertYellowMinutes, alertRedMinutes, esReserva]);
+  }, [comanda.createdAt, alertYellowMinutes, alertRedMinutes, headerReserva]);
 
   // Inicializar colores - Borde y encabezado con el mismo color
   useEffect(() => {
-    if (esReserva) {
-      setBgColor("bg-purple-700");
-      setBorderColor("border-purple-700");
+    if (headerReserva) {
+      setBgColor(headerReserva.bg);
+      setBorderColor(headerReserva.border);
       return;
     }
     if (minutosActuales >= alertRedMinutes) {
@@ -5454,7 +5458,7 @@ const SicarComandaCard = ({
       setBgColor("bg-gray-500");
       setBorderColor("border-gray-500");
     }
-  }, [minutosActuales, alertYellowMinutes, alertRedMinutes, esReserva]);
+  }, [minutosActuales, alertYellowMinutes, alertRedMinutes, headerReserva]);
 
 
   // Agrupar platos en dos secciones: EN PREPARACIÓN y PLATOS LISTOS

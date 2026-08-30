@@ -42,9 +42,14 @@ export const obtenerNombrePlato = (plato) => {
  * @returns {string}
  */
 export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
-  const oficial = obtenerNombrePlato(plato);
+  if (!plato || typeof plato !== 'object') return '';
+  // Item de Ver Cocina: { plato: linea, comanda } — el alias vive en la línea / catálogo.
+  const linea = (plato.comanda != null && plato.plato && typeof plato.plato === 'object')
+    ? plato.plato
+    : plato;
+  const oficial = obtenerNombrePlato(linea);
   const alias = String(
-    plato?.plato?.nombreCocina || plato?.nombreCocina || ''
+    linea?.plato?.nombreCocina || linea?.nombreCocina || ''
   ).trim();
   if (!alias) return oficial;
   if (opts.forzar === true || opts.habilitadoEnKds === true) return alias;

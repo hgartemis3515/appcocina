@@ -164,7 +164,7 @@ const KdsTopBar = ({
           className="text-xl xl:text-2xl font-bold tracking-wide"
           style={{ fontFamily: "Arial, sans-serif", letterSpacing: "1px" }}
         >
-          COCINA LAS GAMBUSINAS
+          COCINA SAN BENITO
         </h1>
       </div>
 

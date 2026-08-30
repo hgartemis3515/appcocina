@@ -11,6 +11,8 @@ export const TIPO_PERFIL_TABLAS_KDS = 'tablas_kds';
 export const KDS_PERFIL_VISTA_KEYS = [
   'tamanoFuente',
   'tamanoFuentePlatos',
+  'nombrePlatoFuente',
+  'nombrePlatoColor',
   'tamanoTarjeta',
   'columnasGrid',
   'filasGrid',
@@ -32,6 +34,8 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'mozoNombreTamano',
   'mozoNombreColor',
   'mozoNombreFondo',
+  'fondoConjuntoTarjetas',
+  'fondoConjuntoTarjetasClaro',
   'alertYellowMinutes',
   'alertRedMinutes',
   'alertCriticalMinutes',

@@ -7,6 +7,9 @@ import {
   TAMANO_TARJETA,
   ORDENAMIENTO,
   PERFILES_PREDEFINIDOS,
+  PRESETS_FONDO_CONJUNTO_TARJETAS,
+  FONDO_CONJUNTO_TARJETAS_NOCHE,
+  FONDO_CONJUNTO_TARJETAS_CLARO,
 } from '../../config/kdsConfigConstants';
 import {
   ORDEN_COLA_FUENTES,
@@ -31,6 +34,12 @@ import {
   MOZO_NOMBRE_TAMANO_MAX,
   estiloMozoNombreKds,
 } from '../../utils/estiloMozoNombreKds';
+import {
+  NOMBRE_PLATO_DEFAULT,
+  NOMBRE_PLATO_TAMANO_MIN,
+  NOMBRE_PLATO_TAMANO_MAX,
+  estiloNombrePlatoKds,
+} from '../../utils/estiloNombrePlatoKds';
 import {
   KDS_TIMBRES,
   TIMBRE_DEFAULT,
@@ -296,6 +305,93 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </select>
             </label>
           </div>
+          <fieldset className="mt-4 pt-3 border-t border-gray-600/40 space-y-3">
+            <legend className={`${textModal} font-semibold`}>Fondo del conjunto de tarjetas</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Color del tablero detrás de las tarjetas (no el de cada comanda). Se guarda en este dispositivo y en el perfil.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PRESETS_FONDO_CONJUNTO_TARJETAS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  title={p.label}
+                  onClick={() => updateConfig({
+                    fondoConjuntoTarjetas: p.noche,
+                    fondoConjuntoTarjetasClaro: p.claro,
+                  })}
+                  className={`w-8 h-8 rounded-lg border-2 ${
+                    (nightMode ? config.fondoConjuntoTarjetas : config.fondoConjuntoTarjetasClaro) === (nightMode ? p.noche : p.claro)
+                      ? 'border-amber-400'
+                      : 'border-gray-500'
+                  }`}
+                  style={{ backgroundColor: nightMode ? p.noche : p.claro }}
+                  aria-label={`Preset fondo ${p.label}`}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-xs font-semibold mb-1`}>Modo oscuro</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.fondoConjuntoTarjetas, FONDO_CONJUNTO_TARJETAS_NOCHE)}
+                    onChange={(e) => updateConfig({ fondoConjuntoTarjetas: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Fondo del tablero en modo oscuro"
+                  />
+                  <input
+                    type="text"
+                    value={config.fondoConjuntoTarjetas || FONDO_CONJUNTO_TARJETAS_NOCHE}
+                    onChange={(e) => updateConfig({ fondoConjuntoTarjetas: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-xs font-semibold mb-1`}>Modo claro</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.fondoConjuntoTarjetasClaro, FONDO_CONJUNTO_TARJETAS_CLARO)}
+                    onChange={(e) => updateConfig({ fondoConjuntoTarjetasClaro: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Fondo del tablero en modo claro"
+                  />
+                  <input
+                    type="text"
+                    value={config.fondoConjuntoTarjetasClaro || FONDO_CONJUNTO_TARJETAS_CLARO}
+                    onChange={(e) => updateConfig({ fondoConjuntoTarjetasClaro: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateConfig({
+                fondoConjuntoTarjetas: FONDO_CONJUNTO_TARJETAS_NOCHE,
+                fondoConjuntoTarjetasClaro: FONDO_CONJUNTO_TARJETAS_CLARO,
+              })}
+              className={`text-xs px-2 py-1 rounded border ${borderModal} ${textSecondary} hover:text-white`}
+            >
+              Restaurar fondo por defecto
+            </button>
+            <div
+              className="h-10 rounded-lg border border-gray-600"
+              style={{
+                backgroundColor: nightMode
+                  ? hexParaColorPicker(config.fondoConjuntoTarjetas, FONDO_CONJUNTO_TARJETAS_NOCHE)
+                  : hexParaColorPicker(config.fondoConjuntoTarjetasClaro, FONDO_CONJUNTO_TARJETAS_CLARO),
+              }}
+              aria-hidden
+            />
+          </fieldset>
           <p className={`${textSecondary} text-xs mt-3`}>
             {config.columnasGrid}×{config.filasGrid} = {config.columnasGrid * config.filasGrid} comandas por página.
             El zoom del navegador decide cuántas caben en pantalla.
@@ -335,6 +431,62 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 <span className={`${textSecondary} text-xs`}>El alias corto del plato. Si no hay alias, se usa el nombre comercial.</span>
               </span>
             </label>
+          </fieldset>
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Letras del nombre del plato</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Fuente, tamaño y color del nombre en cada línea de la tarjeta (Bistec, Lomo, etc.).
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra</span>
+                <select
+                  value={config.nombrePlatoFuente || NOMBRE_PLATO_DEFAULT.nombrePlatoFuente}
+                  onChange={(e) => updateConfig({ nombrePlatoFuente: e.target.value })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {ORDEN_COLA_FUENTES.map((f) => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño de letra</span>
+                <select
+                  value={config.tamanoFuentePlatos || NOMBRE_PLATO_DEFAULT.tamanoFuentePlatos}
+                  onChange={(e) => updateConfig({ tamanoFuentePlatos: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: NOMBRE_PLATO_TAMANO_MAX - NOMBRE_PLATO_TAMANO_MIN + 1 },
+                    (_, i) => NOMBRE_PLATO_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.nombrePlatoColor, NOMBRE_PLATO_DEFAULT.nombrePlatoColor)}
+                    onChange={(e) => updateConfig({ nombrePlatoColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de la letra del nombre del plato"
+                  />
+                  <input
+                    type="text"
+                    value={config.nombrePlatoColor || NOMBRE_PLATO_DEFAULT.nombrePlatoColor}
+                    onChange={(e) => updateConfig({ nombrePlatoColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            <span style={estiloNombrePlatoKds(config)}>Bistec a lo pobre</span>
           </fieldset>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -629,7 +781,9 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               <div style={estiloMozoNombreKds(config)}>👤 Juan</div>
               <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
                 <span style={estiloCantidadPlatoKds(config)}>1</span>
-                {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
+                <span style={estiloNombrePlatoKds(config)}>
+                  {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
+                </span>
                 <span
                   className="rounded-full"
                   style={estiloNumeroOrdenKds(config)}

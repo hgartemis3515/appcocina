@@ -20,7 +20,9 @@ export function getComplementosDePlato(plato) {
         opcion,
         cantidad,
         precio,
-        key: `${grupo}|${opcion}|${cantidad}`,
+        pronombre: String(comp.pronombre || '').trim(),
+        estadoCocina: String(comp.estadoCocina || '').trim(),
+        key: `${grupo}|${opcion}|${cantidad}|${comp._id || ''}`,
       };
     })
     .filter((c) => c.opcion || c.grupo);

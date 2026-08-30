@@ -9,7 +9,7 @@ import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
-import { grupoTieneParaLlevar } from '../../utils/platoHelpers';
+import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
 
 /**
@@ -185,6 +185,9 @@ const CocineroPlatoCard = React.forwardRef(({
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
   const esGuarnicion = item.esGuarnicion === true;
+  const nombreVisible = esGuarnicion
+    ? nombre
+    : (obtenerNombreDisplayCocina(platos[0]?.plato || item, { forzar: true }) || nombre);
   const textoPronombreRef = esGuarnicion
     ? (item.pronombrePrincipal !== undefined
       ? (item.pronombrePrincipal || '')
@@ -521,7 +524,7 @@ const CocineroPlatoCard = React.forwardRef(({
             whiteSpace: 'normal',
           }}
         >
-          {nombre}
+          {nombreVisible}
         </div>
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />

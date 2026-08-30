@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useConfig } from '../../contexts/ConfigContext';
 import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNumeroOrdenKds';
 import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
+import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { cantidadGuarnicionEfectiva } from '../../utils/guarnicionesKds';
 
 /**
@@ -53,10 +54,12 @@ const PlatoPreparacion = ({
                          procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
   const puedeInteractuar = isSupervisorView || !tomadoPorOtro;
   const { config: kdsConfig } = useConfig();
+  const compact = tipoUnidad === 'guarnicion';
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
   const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
   const estiloCantidad = estiloCantidadPlatoKds(kdsConfig);
+  const estiloNombre = estiloNombrePlatoKds(kdsConfig, { compact });
   
   const handleClick = (e) => {
     e.stopPropagation();
@@ -104,7 +107,6 @@ const PlatoPreparacion = ({
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.1: la tarjeta de guarnición es compacta
   // (un tercio de la altura del plato principal). Mismo ancho, menos padding,
   // fuente y checkbox más pequeños. Se activa cuando tipoUnidad === 'guarnicion'.
-  const compact = tipoUnidad === 'guarnicion';
 
   const containerVariants = {
     normal: {
@@ -304,13 +306,13 @@ const PlatoPreparacion = ({
             <span style={estiloCantidad} title={`Cantidad: ${cantidad}`}>
               {cantidad}
             </span>
-            <span>{nombre}</span>
+            <span style={estiloNombre}>{nombre}</span>
           </span>
 
           {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
           {tipoServicio === 'para_llevar' && (
             <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide bg-purple-600 text-white border border-purple-500"
               title="Este plato es para llevar (no se sirve en mesa)"
             >
               🥡 PARA LLEVAR

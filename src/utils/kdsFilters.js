@@ -836,6 +836,25 @@ export function esComandaReserva(comanda) {
   return comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva;
 }
 
+/** Todos los platos activos son para llevar (no mesa, no mixta). */
+export function esComandaSoloParaLlevar(comanda) {
+  const platos = (comanda?.platos || []).filter(
+    (p) => p && p.eliminado !== true && p.anulado !== true
+  );
+  if (platos.length === 0) return false;
+  return platos.every((p) => p.tipoServicio === 'para_llevar');
+}
+
+const HEADER_RESERVA_MESA = { bg: 'bg-purple-700', border: 'border-purple-700' };
+const HEADER_RESERVA_LLEVAR = { bg: 'bg-pink-600', border: 'border-pink-600' };
+
+/** Header KDS: reserva mesa = morado; reserva solo llevar = rosado. */
+export function clasesHeaderReservaKds(comanda) {
+  if (!esComandaReserva(comanda)) return null;
+  if (esComandaSoloParaLlevar(comanda)) return HEADER_RESERVA_LLEVAR;
+  return HEADER_RESERVA_MESA;
+}
+
 // ============================================================
 // EXPORT DEFAULT
 // ============================================================
@@ -849,5 +868,7 @@ export default {
   generarReporteFiltrado,
   getConfiguracionEfectiva,
   getConfigParaModal,
-  esComandaReserva
+  esComandaReserva,
+  esComandaSoloParaLlevar,
+  clasesHeaderReservaKds
 };

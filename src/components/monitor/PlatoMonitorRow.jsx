@@ -5,7 +5,7 @@ import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
-import { grupoTieneParaLlevar } from '../../utils/platoHelpers';
+import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
 
 /**
@@ -24,6 +24,7 @@ import BadgeParaLlevar from './BadgeParaLlevar';
  */
 const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, modoTarjeta = false }, ref) => {
   const { nombre, cantidadTotal, platos = [], tiempoInicio } = item;
+  const nombreVisible = obtenerNombreDisplayCocina(platos[0]?.plato || item, { forzar: true }) || nombre;
 
   // Cronómetro (del plato más antiguo del grupo)
   const segundos = calcularSegundos(tiempoInicio);
@@ -132,7 +133,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           gap: '8px',
         }}
       >
-        <span style={{ minWidth: 0, color: colorNombrePlato }}>{nombre}</span>
+        <span style={{ minWidth: 0, color: colorNombrePlato }}>{nombreVisible}</span>
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
         )}

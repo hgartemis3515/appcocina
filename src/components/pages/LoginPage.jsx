@@ -431,7 +431,7 @@ const LoginPage = () => {
             COCINA
           </h1>
           <h2 className="text-xl text-orange-400 font-semibold">
-            LAS GAMBUSINAS
+            SAN BENITO
           </h2>
         </motion.div>
 
@@ -600,7 +600,7 @@ const LoginPage = () => {
           transition={{ delay: 0.4 }}
           className="text-center mt-6 text-orange-400 text-xs"
         >
-          <p>Las Gambusinas &copy; {new Date().getFullYear()}</p>
+          <p>San Benito &copy; {new Date().getFullYear()}</p>
         </motion.div>
       </motion.div>
     </div>

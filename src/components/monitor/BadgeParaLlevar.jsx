@@ -17,9 +17,9 @@ export default function BadgeParaLlevar({ fontSize = 12 }) {
         fontWeight: 800,
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
-        color: '#fcd34d',
-        background: 'rgba(245, 158, 11, 0.22)',
-        border: '1px solid rgba(245, 158, 11, 0.45)',
+        color: '#ffffff',
+        background: '#7c3aed',
+        border: '1px solid #6d28d9',
         whiteSpace: 'nowrap',
         lineHeight: 1.2,
       }}

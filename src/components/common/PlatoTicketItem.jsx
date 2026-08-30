@@ -15,6 +15,7 @@ export default function PlatoTicketItem({
   plato,
   size = 'sm',
   showSubtotal = true,
+  showEstado = false,
   className = '',
 }) {
   if (!plato) return null;
@@ -24,6 +25,7 @@ export default function PlatoTicketItem({
   const isCompact = size === 'xs';
   const nombreClass = isCompact ? 'text-gray-200 text-xs' : 'text-gray-200 text-sm';
   const metaClass = isCompact ? 'text-[10px]' : 'text-xs';
+  const estado = String(plato.estado || '').toLowerCase();
 
   return (
     <div className={`py-1 ${className}`}>
@@ -42,6 +44,11 @@ export default function PlatoTicketItem({
                   {isCompact ? 'Llevar' : 'Para llevar'}
                 </span>
               )}
+              {showEstado && estado && (
+                <span className={`${metaClass} text-gray-500 uppercase`}>
+                  {estado.replace('_', ' ')}
+                </span>
+              )}
             </div>
 
             {complementos.length > 0 && (
@@ -51,7 +58,7 @@ export default function PlatoTicketItem({
                     key={comp.key || i}
                     className={`${metaClass} leading-tight pl-0.5 text-gray-400`}
                   >
-                    <span className="text-gray-500">└ </span>
+                    <span className="text-violet-400/80 font-medium">└ </span>
                     {comp.grupo ? (
                       <>
                         <span className="text-gray-500 font-medium">{comp.grupo}:</span>{' '}
@@ -63,9 +70,15 @@ export default function PlatoTicketItem({
                         · {formatComplementoTexto(comp)}
                       </span>
                     )}
+                    {comp.pronombre ? (
+                      <span className="text-violet-300/90"> · {comp.pronombre}</span>
+                    ) : null}
                     {comp.precio != null && comp.precio > 0 && (
                       <span className="text-gray-500"> ({formatCurrency(comp.precio)})</span>
                     )}
+                    {showEstado && comp.estadoCocina ? (
+                      <span className="text-gray-500"> · {comp.estadoCocina.replace('_', ' ')}</span>
+                    ) : null}
                   </div>
                 ))}
 

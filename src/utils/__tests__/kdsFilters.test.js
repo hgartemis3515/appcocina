@@ -11,7 +11,9 @@ import {
   filtrarPlatosDeComanda,
   calcularEstadisticasFiltrado,
   getConfiguracionEfectiva,
-  esComandaReserva
+  esComandaReserva,
+  esComandaSoloParaLlevar,
+  clasesHeaderReservaKds
 } from '../kdsFilters';
 
 // ============================================================
@@ -389,5 +391,43 @@ describe('esComandaReserva', () => {
     expect(esComandaReserva({ origenReserva: 'abc' })).toBe(true);
     expect(esComandaReserva({ origenCreacion: 'mozos' })).toBe(false);
     expect(esComandaReserva(null)).toBe(false);
+  });
+});
+
+describe('esComandaSoloParaLlevar / clasesHeaderReservaKds', () => {
+  const reservaMesa = {
+    origenCreacion: 'reserva',
+    platos: [{ tipoServicio: 'mesa' }, { tipoServicio: 'mesa', eliminado: true }],
+  };
+  const reservaLlevar = {
+    origenCreacion: 'reserva',
+    platos: [{ tipoServicio: 'para_llevar' }, { tipoServicio: 'para_llevar' }],
+  };
+  const reservaMixta = {
+    origenCreacion: 'reserva',
+    platos: [{ tipoServicio: 'mesa' }, { tipoServicio: 'para_llevar' }],
+  };
+
+  test('solo llevar ignora platos eliminados y exige todos para_llevar', () => {
+    expect(esComandaSoloParaLlevar(reservaLlevar)).toBe(true);
+    expect(esComandaSoloParaLlevar(reservaMesa)).toBe(false);
+    expect(esComandaSoloParaLlevar(reservaMixta)).toBe(false);
+    expect(esComandaSoloParaLlevar({ platos: [] })).toBe(false);
+  });
+
+  test('header morado en reserva mesa y rosado en reserva solo llevar', () => {
+    expect(clasesHeaderReservaKds(reservaMesa)).toEqual({
+      bg: 'bg-purple-700',
+      border: 'border-purple-700',
+    });
+    expect(clasesHeaderReservaKds(reservaLlevar)).toEqual({
+      bg: 'bg-pink-600',
+      border: 'border-pink-600',
+    });
+    expect(clasesHeaderReservaKds(reservaMixta)).toEqual({
+      bg: 'bg-purple-700',
+      border: 'border-purple-700',
+    });
+    expect(clasesHeaderReservaKds({ origenCreacion: 'mozos' })).toBeNull();
   });
 });

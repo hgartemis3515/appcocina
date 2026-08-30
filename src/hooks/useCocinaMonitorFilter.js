@@ -18,6 +18,7 @@ import {
   obtenerCantidadLinea,
 } from '../utils/numeracionTimersMonitor';
 import { platoCoincideCocineroFiltro } from '../utils/cocineroFiltroIds';
+import { obtenerNombreDisplayCocina } from '../utils/platoHelpers';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
 // pero tienen procesandoPor set. Los que pasan a recoger/salio/entregado desaparecen.
@@ -45,8 +46,8 @@ function obtenerTiempoInicio(plato) {
  * todas consumen este hook. La agrupación usa el mismo texto visible.
  */
 function obtenerNombrePlato(plato) {
-  const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
-  if (alias) return alias;
+  const cocina = obtenerNombreDisplayCocina(plato, { forzar: true });
+  if (cocina) return cocina;
   const nombre =
     plato.plato?.nombre ||
     plato.nombre ||

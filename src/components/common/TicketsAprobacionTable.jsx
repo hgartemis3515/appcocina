@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import {
-  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaChevronDown, FaSort, FaSortUp, FaSortDown,
+  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre } from '../../utils/ticketSort';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, estadoTicketMeta,
-  nombreClienteTicket, dniClienteTicket, esTicketComanda,
+  nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
+  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
+import TicketComandaDetalleModal from './TicketComandaDetalleModal';
 import { platosTicketVisibles } from '../../utils/ticketTotales';
 
 function SortIcon({ active, dir }) {
@@ -19,11 +21,15 @@ function SortIcon({ active, dir }) {
 }
 
 function AccionesTicket({
-  ticket, onImprimir, onAprobar, onReportar, onRechazar,
-  aprobarLoading, reportarLoading, rechazarLoading,
+  ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago,
+  aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading,
 }) {
   const isComanda = esTicketComanda(ticket);
+  const esComandaOParcial = isComanda || esPagoParcial(ticket);
   const pendiente = ticket.estado === 'pendiente_aprobacion';
+  const puedeAprobar = ticketPuedeAprobarse(ticket);
+  const puedeForzar = ticketPuedeForzarPago(ticket) && !ticket.boucher;
+  const puedeReportar = esComandaOParcial && pendiente && !ticketEsAltaSinPago(ticket);
 
   return (
     <div className="flex items-center justify-end gap-1 flex-wrap">
@@ -37,16 +43,29 @@ function AccionesTicket({
       </button>
       {pendiente && (
         <>
-          <button
-            type="button"
-            onClick={() => onAprobar(ticket)}
-            disabled={aprobarLoading}
-            className="p-1.5 rounded-md bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white"
-            title="Aprobar"
-          >
-            <FaCheck className="text-xs" />
-          </button>
-          {isComanda ? (
+          {puedeAprobar && (
+            <button
+              type="button"
+              onClick={() => onAprobar(ticket)}
+              disabled={aprobarLoading}
+              className="p-1.5 rounded-md bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white"
+              title="Aprobar solicitud de cobro"
+            >
+              <FaCheck className="text-xs" />
+            </button>
+          )}
+          {puedeForzar && onForzarPago && (
+            <button
+              type="button"
+              onClick={() => onForzarPago(ticket)}
+              disabled={forzarPagoLoading}
+              className="p-1.5 rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
+              title="Forzar pago"
+            >
+              <FaMoneyBill className="text-xs" />
+            </button>
+          )}
+          {puedeReportar ? (
             <button
               type="button"
               onClick={() => onReportar(ticket)}
@@ -56,7 +75,7 @@ function AccionesTicket({
             >
               <FaExclamationTriangle className="text-xs" />
             </button>
-          ) : (
+          ) : !esComandaOParcial && pendiente ? (
             <button
               type="button"
               onClick={() => onRechazar(ticket)}
@@ -66,7 +85,7 @@ function AccionesTicket({
             >
               <FaTimes className="text-xs" />
             </button>
-          )}
+          ) : null}
         </>
       )}
     </div>
@@ -87,11 +106,13 @@ export default function TicketsAprobacionTable({
   onAprobar,
   onReportar,
   onRechazar,
+  onForzarPago,
   aprobarLoading = {},
   reportarLoading = {},
   rechazarLoading = {},
+  forzarPagoLoading = {},
 }) {
-  const [expandedId, setExpandedId] = useState(null);
+  const [detalleTicket, setDetalleTicket] = useState(null);
 
   const handleSort = (key) => {
     if (!onSortChange) return;
@@ -130,11 +151,32 @@ export default function TicketsAprobacionTable({
 
   return (
     <div className="bg-gray-900/60 border border-gray-700 rounded-xl overflow-hidden">
+      {detalleTicket && (
+        <TicketComandaDetalleModal
+          ticket={detalleTicket}
+          onClose={() => setDetalleTicket(null)}
+          footer={
+            <div className="flex justify-end pt-1">
+              <AccionesTicket
+                ticket={detalleTicket}
+                onImprimir={onImprimir}
+                onAprobar={(t) => { onAprobar(t); setDetalleTicket(null); }}
+                onReportar={(t) => { onReportar(t); }}
+                onRechazar={(t) => { onRechazar(t); }}
+                onForzarPago={(t) => { onForzarPago?.(t); setDetalleTicket(null); }}
+                aprobarLoading={!!aprobarLoading[detalleTicket._id]}
+                reportarLoading={!!reportarLoading[detalleTicket._id]}
+                rechazarLoading={!!rechazarLoading[detalleTicket._id]}
+                forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
+              />
+            </div>
+          }
+        />
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[980px]">
+        <table className="w-full text-sm min-w-[1080px]">
           <thead className="sticky top-0 z-10 bg-gray-900 border-b border-gray-700">
             <tr className="text-[10px] uppercase tracking-wider text-gray-400">
-              <th className="w-8 px-2 py-3" />
               {[
                 { key: 'fecha', label: 'Fecha', align: 'text-left' },
                 { key: 'comanda', label: 'Comanda', align: 'text-left' },
@@ -172,30 +214,43 @@ export default function TicketsAprobacionTable({
               const comandaLabel = getComandaDisplayLabel(ticket);
               const cliente = nombreClienteTicket(ticket);
               const dni = dniClienteTicket(ticket);
-              const open = expandedId === ticket._id;
               const platosVis = platosTicketVisibles(ticket);
               const nPlatos = platosVis.length;
               return (
-                <React.Fragment key={ticket._id}>
-                  <tr className="border-t border-gray-800 hover:bg-gray-800/60">
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(open ? null : ticket._id)}
-                        className="p-1 text-gray-500 hover:text-white"
-                        title={open ? 'Ocultar platos' : 'Ver platos'}
-                      >
-                        <FaChevronDown className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`} />
-                      </button>
-                    </td>
+                <tr key={ticket._id} className="border-t border-gray-800 hover:bg-gray-800/60 align-top">
                     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
                       {formatDateTime(ticket.createdAt)}
                     </td>
-                    <td className="px-3 py-2">
-                      <div className="text-white font-semibold">{comandaLabel}</div>
-                      {ticket.ticketNumber != null && (
-                        <div className="text-[10px] text-amber-200/80">Ticket #{ticket.ticketNumber}</div>
-                      )}
+                    <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-white font-semibold">{comandaLabel}</div>
+                          {ticket.ticketNumber != null && (
+                            <div className="text-[10px] text-amber-200/80">Ticket #{ticket.ticketNumber}</div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDetalleTicket(ticket)}
+                          className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
+                          title="Detalle de la comanda"
+                        >
+                          <FaEye className="text-xs" />
+                        </button>
+                      </div>
+                      <div className="mt-1 max-h-28 overflow-y-auto">
+                        {platosVis.map((plato, i) => (
+                          <PlatoTicketItem
+                            key={plato.platoLineaId || plato._id || i}
+                            plato={plato}
+                            size="xs"
+                            showSubtotal={false}
+                          />
+                        ))}
+                        {nPlatos === 0 && (
+                          <div className="text-[10px] text-gray-500">Sin platos en el ticket</div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
                       Mesa {ticket.numMesa || '?'}
@@ -232,41 +287,14 @@ export default function TicketsAprobacionTable({
                         onAprobar={onAprobar}
                         onReportar={onReportar}
                         onRechazar={onRechazar}
+                        onForzarPago={onForzarPago}
                         aprobarLoading={!!aprobarLoading[ticket._id]}
                         reportarLoading={!!reportarLoading[ticket._id]}
                         rechazarLoading={!!rechazarLoading[ticket._id]}
+                        forzarPagoLoading={!!forzarPagoLoading[ticket._id]}
                       />
                     </td>
                   </tr>
-                  {open && (
-                    <tr className="bg-gray-950/80 border-t border-gray-800">
-                      <td colSpan={10} className="px-6 py-3">
-                        <div className="max-h-56 overflow-y-auto">
-                          {platosVis.map((plato, i) => (
-                            <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="xs" />
-                          ))}
-                        </div>
-                        {Number(ticket.montoDescuento) > 0 && (
-                          <div className="mt-2 text-xs text-red-400">
-                            Descuento: -{formatCurrency(ticket.montoDescuento)}
-                            {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
-                          </div>
-                        )}
-                        {ticket.estado === 'reportado' && ticket.motivoReporte && (
-                          <p className="mt-2 text-xs text-red-400"><strong>Motivo:</strong> {ticket.motivoReporte}</p>
-                        )}
-                        {ticket.estado === 'rechazado' && ticket.motivoRechazo && (
-                          <p className="mt-2 text-xs text-red-400"><strong>Motivo:</strong> {ticket.motivoRechazo}</p>
-                        )}
-                        {ticket.estado === 'aprobado' && ticket.aprobadoPorNombre && (
-                          <p className="mt-2 text-xs text-green-400">
-                            Aprobado por: {ticket.aprobadoPorNombre}
-                          </p>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
               );
             })}
           </tbody>

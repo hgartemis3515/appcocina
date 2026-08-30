@@ -352,6 +352,18 @@ describe('expandirUnidadesTrabajo', () => {
     expect(unidades[1].nombreGuarnicion).toBe('Papas');
   });
 
+  test('usa alias de cocina del catálogo anidado (plato.plato.nombreCocina)', () => {
+    const plato = {
+      nombre: 'Lomo Saltado Completo',
+      tipoServicio: 'para_llevar',
+      plato: { nombre: 'Lomo Saltado Completo', nombreCocina: 'Lomo S/' },
+      complementosSeleccionados: [{ grupo: 'Acomp', opcion: 'Papas', _id: 'c1' }]
+    };
+    expect(nombrePlatoPadre(plato, true)).toBe('Lomo S/');
+    const unidades = expandirUnidadesTrabajo(plato, { flagOn: true, usarAlias: true });
+    expect(unidades[1].nombrePadre).toBe('Lomo S/');
+  });
+
   test('§9.3.3 FUSIÓN: plato en recoger → una sola tarjeta fusionada', () => {
     const plato = {
       nombre: 'Lomo Saltado',

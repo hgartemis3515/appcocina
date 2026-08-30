@@ -97,7 +97,7 @@ const ReportsModal = ({ estadisticas, comandas, onClose, nightMode = true }) => 
     let y = 20;
 
     doc.setFontSize(20);
-    const titleText = "REPORTE DE VENTAS - LAS GAMBUSINAS";
+    const titleText = "REPORTE DE VENTAS - SAN BENITO";
     const titleWidth = (doc.getStringUnitWidth(titleText) * doc.internal.getFontSize()) / doc.internal.scaleFactor;
     doc.text(titleText, (pdfWidth - titleWidth) / 2, y);
     y += 10;

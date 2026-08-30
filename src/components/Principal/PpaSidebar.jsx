@@ -11,6 +11,8 @@ import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import { platosTicketVisibles } from '../../utils/ticketTotales';
+import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
+import { ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago } from '../../utils/ticketAprobacionUi';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -37,7 +39,7 @@ export default function PpaSidebar({ socket, onClose }) {
   // PLAN_BUG_CONEXION_APROBACION_TICKETS_COCINA:
   // Reutilizar el socket del KDS (vía prop) para evitar una SEGUNDA conexión
   // /cocina simultánea que provocaba desconexiones y tormenta de eventos.
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({ socket });
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, forzarPagoItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({ socket });
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
@@ -45,9 +47,15 @@ export default function PpaSidebar({ socket, onClose }) {
   const [rechazarMotivo, setRechazarMotivo] = useState({});
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
+  const [ticketForzarPago, setTicketForzarPago] = useState(null);
+  const [forzarPagoLoading, setForzarPagoLoading] = useState({});
 
   const handleAprobar = async (ticket) => {
     const ticketId = ticket._id;
+    if (!ticketPuedeAprobarse(ticket)) {
+      alert('Este ticket aún no tiene cobro. Use Forzar pago o espere la solicitud del mozo.');
+      return;
+    }
     if (aprobarLoading[ticketId]) return;
     setAprobarLoading(prev => ({ ...prev, [ticketId]: true }));
     try {
@@ -101,6 +109,22 @@ export default function PpaSidebar({ socket, onClose }) {
       alert('Error al rechazar el ticket: ' + (err.userMessage || err.message));
     } finally {
       setRechazarLoading(prev => ({ ...prev, [ticketId]: false }));
+    }
+  };
+
+  const handleForzarPago = async (metodoPago) => {
+    const ticket = ticketForzarPago;
+    if (!ticket) return;
+    setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: true }));
+    try {
+      const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
+      const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
+      await forzarPagoItem(ticket._id, metodoPago, userId, userName);
+      setTicketForzarPago(null);
+    } catch (err) {
+      alert('Error al forzar pago: ' + (err.userMessage || err.message));
+    } finally {
+      setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: false }));
     }
   };
 
@@ -275,7 +299,7 @@ export default function PpaSidebar({ socket, onClose }) {
                 </div>
 
                 {/* Acciones */}
-                <div className="p-2 flex gap-2">
+                <div className="p-2 flex gap-2 flex-wrap">
                   <button
                     onClick={() => imprimirComanda(ticket)}
                     className="flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
@@ -284,6 +308,7 @@ export default function PpaSidebar({ socket, onClose }) {
                   >
                     <FaPrint className="text-[10px]" />
                   </button>
+                  {ticketPuedeAprobarse(ticket) && (
                   <button
                     onClick={() => handleAprobar(ticket)}
                     disabled={aprobarLoading[ticket._id]}
@@ -294,7 +319,21 @@ export default function PpaSidebar({ socket, onClose }) {
                     <FaCheck className="text-xs" />
                     {aprobarLoading[ticket._id] ? '...' : 'Aprobar'}
                   </button>
-                  {isComanda ? (
+                  )}
+                  {ticketPuedeForzarPago(ticket) && !ticket.boucher && (
+                  <button
+                    onClick={() => setTicketForzarPago(ticket)}
+                    disabled={forzarPagoLoading[ticket._id]}
+                    className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500
+                      disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs py-1.5 rounded-lg
+                      transition-colors font-medium"
+                    title="Forzar pago"
+                  >
+                    <FaMoneyBill className="text-[10px]" />
+                    Forzar
+                  </button>
+                  )}
+                  {isComanda && !ticketEsAltaSinPago(ticket) ? (
                     <button
                       onClick={() => {
                         setShowReportarModal(ticket._id);
@@ -308,7 +347,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     >
                       <FaExclamationTriangle className="text-[10px]" />
                     </button>
-                  ) : (
+                  ) : !isComanda ? (
                     <button
                       onClick={() => {
                         setShowRechazarModal(ticket._id);
@@ -322,7 +361,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     >
                       <FaTimes className="text-[10px]" />
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </motion.div>
             );
@@ -434,6 +473,14 @@ export default function PpaSidebar({ socket, onClose }) {
           </motion.div>
         )}
       </AnimatePresence>
+      {ticketForzarPago && (
+        <ForzarPagoTicketModal
+          ticket={ticketForzarPago}
+          loading={!!forzarPagoLoading[ticketForzarPago._id]}
+          onClose={() => setTicketForzarPago(null)}
+          onConfirm={handleForzarPago}
+        />
+      )}
     </div>
   );
 }

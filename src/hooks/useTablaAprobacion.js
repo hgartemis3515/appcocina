@@ -489,6 +489,35 @@ export default function useTablaAprobacion({
     }
   }, []);
 
+  const forzarPagoItem = useCallback(async (ticketId, metodoPago, usuarioId, usuarioNombre) => {
+    const id = String(ticketId);
+    if (approvingRef.current.has(id)) {
+      return { success: true, skipped: true };
+    }
+    approvingRef.current.add(id);
+    try {
+      const data = await apiPut(`/api/aprobacion/${ticketId}/forzar-pago`, {
+        metodoPago: metodoPago || 'efectivo',
+        usuarioId,
+        usuarioNombre,
+      });
+      if (data?.success) {
+        setItems((prev) => prev.map((t) => (
+          String(t._id) === id
+            ? { ...t, estado: 'aprobado', pagoForzado: true, metodoPago: metodoPago || 'efectivo' }
+            : t
+        )));
+        return data;
+      }
+      throw new Error(data?.error || data?.message || 'Error al forzar pago');
+    } catch (err) {
+      console.error('Error al forzar pago:', err.message);
+      throw err;
+    } finally {
+      approvingRef.current.delete(id);
+    }
+  }, []);
+
   // Imprimir comanda: delega en módulo compartido comandaPrintWeb
   const imprimirComanda = useCallback(async (ticket) => {
     try {
@@ -534,6 +563,7 @@ export default function useTablaAprobacion({
     aprobarItem,
     reportarItem,
     rechazarItem,
+    forzarPagoItem,
     imprimirComanda,
     cantidadPendientes,
     cantidadComandas,

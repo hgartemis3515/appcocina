@@ -17,9 +17,11 @@ import {
   FaShoppingBag,
   FaTv,
   FaDesktop,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaExternalLinkAlt
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
+import { getServerBaseUrl } from '../../config/apiConfig';
 
 /**
  * MenuPage - Menú principal del App de Cocina
@@ -240,9 +242,22 @@ const MenuPage = ({ onNavigate }) => {
               <FaUtensils className="text-white text-lg" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Arial Black, sans-serif' }}>
-                COCINA LAS GAMBUSINAS
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Arial Black, sans-serif' }}>
+                  COCINA SAN BENITO
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = `${getServerBaseUrl()}/login.html`;
+                  }}
+                  className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-400/40 transition-colors"
+                  title="Abrir el login del panel (backend)"
+                >
+                  <FaExternalLinkAlt className="text-[10px]" />
+                  Panel
+                </button>
+              </div>
               <p className="text-gray-400 text-xs">Menú Principal</p>
             </div>
           </div>
@@ -393,7 +408,7 @@ const MenuPage = ({ onNavigate }) => {
           <motion.div variants={itemVariants} className="mt-8">
             <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-4 text-center">
               <p className="text-gray-500 text-xs">
-                Las Gambusinas &copy; {new Date().getFullYear()} | Sistema de Cocina v2.1
+                San Benito &copy; {new Date().getFullYear()} | Sistema de Cocina v2.1
               </p>
             </div>
           </motion.div>

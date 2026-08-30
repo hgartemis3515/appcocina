@@ -604,6 +604,11 @@ const useSocketCocina = ({
       }
     });
 
+    socket.on('permisos-actualizados', (data) => {
+      ultimoPingRef.current = Date.now();
+      window.dispatchEvent(new CustomEvent('cocina-permisos-actualizados', { detail: data }));
+    });
+
     // Evento: Configuración de cocinero actualizada
     // TEMA 1: Este evento ahora se recibe solo en la room personal del cocinero
     socket.on('config-cocinero-actualizada', (data) => {

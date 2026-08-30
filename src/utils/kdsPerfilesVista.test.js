@@ -28,6 +28,9 @@ describe('kdsPerfilesVista', () => {
       mozoNombreTamano: 16,
       mozoNombreColor: '#fbbf24',
       mozoNombreFondo: '#1d4ed8',
+      nombrePlatoFuente: 'georgia',
+      tamanoFuentePlatos: 22,
+      nombrePlatoColor: '#fde68a',
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -53,6 +56,9 @@ describe('kdsPerfilesVista', () => {
     expect(snap.mozoNombreTamano).toBe(16);
     expect(snap.mozoNombreColor).toBe('#fbbf24');
     expect(snap.mozoNombreFondo).toBe('#1d4ed8');
+    expect(snap.nombrePlatoFuente).toBe('georgia');
+    expect(snap.tamanoFuentePlatos).toBe(22);
+    expect(snap.nombrePlatoColor).toBe('#fde68a');
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.sonidoNuevaComanda).toBe(true);

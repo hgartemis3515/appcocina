@@ -149,6 +149,9 @@ export const AuthProvider = ({ children }) => {
   const inactivityTimerRef = useRef(null);
   const inactivityWarningTimerRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
+  const userRef = useRef(null);
+  const isMonitorModeRef = useRef(false);
+  const refreshDebounceRef = useRef(null);
 
   /**
    * Limpia todos los timers de seguridad
@@ -243,6 +246,68 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
   }, []);
+
+  userRef.current = user;
+  isMonitorModeRef.current = isMonitorMode;
+
+  const aplicarPermisosDesdeServidor = useCallback((data) => {
+    if (!data || isMonitorModeRef.current) return;
+    const current = userRef.current;
+    if (!current) return;
+    const mine = [current.id, current._id].filter((v) => v != null).map(String);
+    const theirs = [data.usuarioId, data.mozoId].filter((v) => v != null).map(String);
+    if (!theirs.some((t) => mine.includes(t))) return;
+
+    if (Array.isArray(data.permisos)) {
+      setPermisos(data.permisos);
+      setReglas(Array.isArray(data.reglas) ? data.reglas : []);
+      setUser((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          rol: data.rol || prev.rol,
+          permisos: data.permisos,
+          reglas: Array.isArray(data.reglas) ? data.reglas : prev.reglas
+        };
+      });
+      try {
+        const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (storedAuth) {
+          const parsed = JSON.parse(storedAuth);
+          if (parsed?.usuario) {
+            parsed.usuario = {
+              ...parsed.usuario,
+              rol: data.rol || parsed.usuario.rol,
+              permisos: data.permisos,
+              reglas: Array.isArray(data.reglas) ? data.reglas : parsed.usuario.reglas
+            };
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(parsed));
+          }
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
+    refreshDebounceRef.current = setTimeout(() => {
+      refreshToken();
+    }, 150);
+  }, [refreshToken]);
+
+  useEffect(() => {
+    const onEvent = (e) => aplicarPermisosDesdeServidor(e.detail);
+    window.addEventListener('cocina-permisos-actualizados', onEvent);
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && userRef.current && !isMonitorModeRef.current) {
+        refreshToken();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('cocina-permisos-actualizados', onEvent);
+      document.removeEventListener('visibilitychange', onVis);
+      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
+    };
+  }, [aplicarPermisosDesdeServidor, refreshToken]);
 
   /**
    * Inicia los timers de seguridad después del login

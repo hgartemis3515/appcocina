@@ -29,6 +29,60 @@ export function platosTicketVisibles(ticket) {
   return (ticket?.platos || []).filter((p) => p && !p.eliminado && !p.anulado);
 }
 
+function idLineaPlato(p) {
+  return String((p && (p.platoLineaId || p._id)) || '').trim();
+}
+
+/**
+ * Enriquecer líneas del ticket con la comanda en vivo (guarniciones, estado, nota).
+ * Cantidad/precio del ticket se conservan (son lo cobrado en ese envío).
+ */
+export function mergePlatosTicketConComandas(ticket, comandasLive = []) {
+  const byLinea = new Map();
+  for (const c of comandasLive || []) {
+    if (!c || !Array.isArray(c.platos)) continue;
+    c.platos.forEach((p, i) => {
+      if (!p || p.eliminado || p.anulado) return;
+      const id = p._id ? String(p._id) : '';
+      if (!id) return;
+      const cant = Number(c.cantidades?.[i] ?? p.cantidad) || 1;
+      byLinea.set(id, { live: p, cantidadLive: cant, comandaNumber: c.comandaNumber });
+    });
+  }
+
+  const vis = platosTicketVisibles(ticket);
+  if (vis.length) {
+    return vis.map((tp) => {
+      const hit = byLinea.get(idLineaPlato(tp));
+      if (!hit) return tp;
+      const live = hit.live;
+      const compsLive = live.complementosSeleccionados || live.complementos;
+      return {
+        ...tp,
+        nombre: tp.nombre || live.nombre || live.plato?.nombre,
+        estado: live.estado || tp.estado,
+        notaEspecial: live.notaEspecial || tp.notaEspecial,
+        tipoServicio: tp.tipoServicio || live.tipoServicio,
+        complementosSeleccionados: (Array.isArray(compsLive) && compsLive.length)
+          ? compsLive
+          : (tp.complementosSeleccionados || tp.complementos || []),
+        mostrarResumenComplementos: live.mostrarResumenComplementos ?? tp.mostrarResumenComplementos,
+        resumenComplementosImpresion: live.resumenComplementosImpresion || tp.resumenComplementosImpresion,
+      };
+    });
+  }
+
+  return [...byLinea.values()].map(({ live, cantidadLive, comandaNumber }) => ({
+    ...live,
+    nombre: live.nombre || live.plato?.nombre || 'Plato',
+    cantidad: cantidadLive,
+    precio: live.precioUnitario ?? live.precio ?? live.plato?.precio ?? 0,
+    subtotal: (Number(live.precioUnitario ?? live.precio ?? live.plato?.precio) || 0) * cantidadLive,
+    comandaNumber,
+    complementosSeleccionados: live.complementosSeleccionados || live.complementos || [],
+  }));
+}
+
 function sumaPlatosTicket(doc) {
   const platos = platosTicketVisibles(doc);
   if (!platos.length) return 0;

@@ -3,7 +3,7 @@
  * Renombrado: "Tabla de comandas y pagos adelantados"
  * Acceso desde el menú principal de App Cocina.
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
@@ -19,10 +19,15 @@ import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero } from '../../utils/ticketSort';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge, estadoTicketMeta,
-  rangoFechasDefault, getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
+  getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
   nombreClienteTicket, dniClienteTicket,
+  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
+  rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
+  nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
 } from '../../utils/ticketAprobacionUi';
 import { platosTicketVisibles } from '../../utils/ticketTotales';
+import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
+import { apiGet } from '../../config/apiClient';
 
 // Cuenta cuántos tickets pendientes hay por mesa (para avisar a cocina que aún faltan)
 const countTicketsPendientesByMesa = (items) => {
@@ -76,10 +81,17 @@ function VistaModoToggle({ modo, onChange }) {
 
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user } = useAuth();
-  const rangoInicial = rangoFechasDefault();
-  const [fechaDesde, setFechaDesde] = useState(rangoInicial.desde);
-  const [fechaHasta, setFechaHasta] = useState(rangoInicial.hasta);
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({
+  const hoyOp = getFechaOperativa();
+  const [filtroPeriodo, setFiltroPeriodo] = useState('hoy');
+  const [fechaDesde, setFechaDesde] = useState(hoyOp);
+  const [fechaHasta, setFechaHasta] = useState(hoyOp);
+  const [showTurnoDiaNoche, setShowTurnoDiaNoche] = useState(false);
+  const [primerCierreHoyAt, setPrimerCierreHoyAt] = useState(null);
+  const [turnosMeta, setTurnosMeta] = useState({
+    turnosLimaYMD: hoyOp,
+    _turnosAutoNocheHecho: false,
+  });
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, forzarPagoItem, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
     fechaDesde,
     fechaHasta,
     incluirHistorial: true,
@@ -95,6 +107,63 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
   const [filtroMozo, setFiltroMozo] = useState(null);
+  const [forzarPagoLoading, setForzarPagoLoading] = useState({});
+  const [ticketForzarPago, setTicketForzarPago] = useState(null);
+  const filtroPeriodoRef = useRef(filtroPeriodo);
+  const turnosMetaRef = useRef(turnosMeta);
+  filtroPeriodoRef.current = filtroPeriodo;
+  turnosMetaRef.current = turnosMeta;
+
+  const aplicarTurnos = (data) => {
+    const next = nextTurnosCierreState(
+      {
+        filtroPeriodo: filtroPeriodoRef.current,
+        turnosLimaYMD: turnosMetaRef.current.turnosLimaYMD,
+        _turnosAutoNocheHecho: turnosMetaRef.current._turnosAutoNocheHecho,
+      },
+      data
+    );
+    setShowTurnoDiaNoche(next.showTurnoDiaNoche);
+    setPrimerCierreHoyAt(next.primerCierreHoyAt);
+    setTurnosMeta({
+      turnosLimaYMD: next.turnosLimaYMD,
+      _turnosAutoNocheHecho: next._turnosAutoNocheHecho,
+    });
+    if (next.filtroPeriodo !== filtroPeriodoRef.current) {
+      setFiltroPeriodo(next.filtroPeriodo);
+      const r = rangoFechasDePeriodo(next.filtroPeriodo, fechaDesde, fechaHasta);
+      setFechaDesde(r.desde);
+      setFechaHasta(r.hasta);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const data = await apiGet('/api/aprobacion/turnos-dia');
+        if (!cancelled) aplicarTurnos(data);
+      } catch (_) { /* sin cierre de caja */ }
+    };
+    refresh();
+    const id = setInterval(refresh, 45000);
+    const onVis = () => { if (!document.hidden) refresh(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+    // Solo al montar: aplicarTurnos lee el periodo actual al responder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setPeriodo = (id) => {
+    setFiltroPeriodo(id);
+    const r = rangoFechasDePeriodo(id, fechaDesde, fechaHasta);
+    setFechaDesde(r.desde);
+    setFechaHasta(r.hasta);
+  };
 
   const handleModoVista = (modo) => {
     setModoVista(modo);
@@ -102,6 +171,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   };
 
   const handleAprobar = async (ticket) => {
+    if (!ticketPuedeAprobarse(ticket)) {
+      alert('Este ticket aún no tiene cobro. Use Forzar pago o espere la solicitud del mozo.');
+      return;
+    }
     if (aprobarLoading[ticket._id]) return;
     setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
     try {
@@ -157,16 +230,42 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
+  const handleForzarPago = async (metodoPago) => {
+    const ticket = ticketForzarPago;
+    if (!ticket) return;
+    setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: true }));
+    try {
+      await forzarPagoItem(ticket._id, metodoPago, user?._id || user?.id, user?.name || 'Cocina');
+      setTicketForzarPago(null);
+    } catch (err) {
+      alert('Error al forzar pago: ' + (err.userMessage || err.message));
+    } finally {
+      setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: false }));
+    }
+  };
+
+  const itemsEnPeriodo = useMemo(() => items.filter((t) => matchFechaRangoTicket(t.createdAt, {
+    periodo: filtroPeriodo,
+    primerCierreHoyAt,
+    desde: fechaDesde,
+    hasta: fechaHasta,
+  })), [items, filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta]);
+
+  const cantidadPendientes = itemsEnPeriodo.filter((t) => t.estado === 'pendiente_aprobacion').length;
+  const cantidadComandas = itemsEnPeriodo.filter((t) => t.tipo === 'comanda_completa' && t.estado === 'pendiente_aprobacion').length;
+  const cantidadParciales = itemsEnPeriodo.filter((t) => t.tipo === 'pago_parcial' && t.estado === 'pendiente_aprobacion').length;
+  const cantidadPPA = itemsEnPeriodo.filter((t) => t.tipo === 'pago_adelantado' && t.estado === 'pendiente_aprobacion').length;
+
   const itemsPorEstado = useMemo(() => {
-    if (filtro === 'pendientes') return items.filter(t => t.estado === 'pendiente_aprobacion');
-    if (filtro === 'aprobados') return items.filter(t => t.estado === 'aprobado');
-    if (filtro === 'reportados') return items.filter(t => t.estado === 'reportado');
-    if (filtro === 'rechazados') return items.filter(t => t.estado === 'rechazado');
-    if (filtro === 'comandas') return items.filter(t => t.tipo === 'comanda_completa');
-    if (filtro === 'adelantados') return items.filter(t => t.tipo === 'pago_adelantado');
-    if (filtro === 'parciales') return items.filter(t => t.tipo === 'pago_parcial');
-    return items;
-  }, [items, filtro]);
+    if (filtro === 'pendientes') return itemsEnPeriodo.filter(t => t.estado === 'pendiente_aprobacion');
+    if (filtro === 'aprobados') return itemsEnPeriodo.filter(t => t.estado === 'aprobado');
+    if (filtro === 'reportados') return itemsEnPeriodo.filter(t => t.estado === 'reportado');
+    if (filtro === 'rechazados') return itemsEnPeriodo.filter(t => t.estado === 'rechazado');
+    if (filtro === 'comandas') return itemsEnPeriodo.filter(t => t.tipo === 'comanda_completa');
+    if (filtro === 'adelantados') return itemsEnPeriodo.filter(t => t.tipo === 'pago_adelantado');
+    if (filtro === 'parciales') return itemsEnPeriodo.filter(t => t.tipo === 'pago_parcial');
+    return itemsEnPeriodo;
+  }, [itemsEnPeriodo, filtro]);
 
   const mozosDisponibles = useMemo(
     () => getMozosFromTickets(itemsPorEstado),
@@ -295,6 +394,36 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+          {showTurnoDiaNoche && ['dia', 'noche'].map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setPeriodo(id)}
+              className={`px-2 py-1 rounded-md text-xs border ${
+                filtroPeriodo === id
+                  ? 'bg-amber-600 text-white border-amber-500'
+                  : 'bg-gray-800 text-gray-400 hover:text-white border-gray-700'
+              }`}
+            >
+              {id === 'dia' ? 'DIA' : 'NOCHE'}
+            </button>
+          ))}
+          {PRESETS_PERIODO_TICKETS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setPeriodo(id)}
+              className={`px-2 py-1 rounded-md text-xs border ${
+                filtroPeriodo === id
+                  ? 'bg-violet-600 text-white border-violet-500'
+                  : 'bg-gray-800 text-gray-400 hover:text-white border-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {filtroPeriodo === 'custom' && (
+            <>
           <label className="flex items-center gap-1 text-xs text-gray-500">
             Desde
             <input
@@ -316,29 +445,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-200"
             />
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              const hoy = getFechaOperativa();
-              setFechaDesde(hoy);
-              setFechaHasta(hoy);
-            }}
-            className="px-2 py-1 rounded-md text-xs bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-          >
-            Hoy
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const r = rangoFechasDefault();
-              setFechaDesde(r.desde);
-              setFechaHasta(r.hasta);
-            }}
-            className="px-2 py-1 rounded-md text-xs bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-            title="Últimos 30 días"
-          >
-            30 días
-          </button>
+            </>
+          )}
+          <span className="text-[10px] text-gray-500 font-mono">
+            {etiquetaPeriodoTickets(filtroPeriodo, primerCierreHoyAt)
+              || (filtroPeriodo === 'todos' ? 'Todas' : `${fechaDesde}${fechaDesde !== fechaHasta ? ` → ${fechaHasta}` : ''}`)}
+          </span>
           <TicketSortBar
             sortBy={sortBy}
             sortDir={sortDir}
@@ -385,9 +497,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setShowRechazarModal(ticket._id);
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
+            onForzarPago={(ticket) => setTicketForzarPago(ticket)}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
+            forzarPagoLoading={forzarPagoLoading}
           />
         ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
@@ -560,7 +674,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
                     {/* Acciones según estado del ticket */}
                     {ticket.estado === 'pendiente_aprobacion' && (
-                      <div className="p-3 flex gap-2">
+                      <div className="p-3 flex gap-2 flex-wrap">
                         <button
                           onClick={() => handleImprimir(ticket)}
                           className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
@@ -569,6 +683,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <FaPrint className="text-xs" />
                           Imprimir
                         </button>
+                        {ticketPuedeAprobarse(ticket) && (
                         <button
                           onClick={() => handleAprobar(ticket)}
                           disabled={aprobarLoading[ticket._id]}
@@ -579,7 +694,20 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <FaCheck />
                           {aprobarLoading[ticket._id] ? 'Aprobando...' : 'Aprobar'}
                         </button>
-                        {isComanda ? (
+                        )}
+                        {ticketPuedeForzarPago(ticket) && !ticket.boucher && (
+                        <button
+                          onClick={() => setTicketForzarPago(ticket)}
+                          disabled={forzarPagoLoading[ticket._id]}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500
+                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                            transition-colors font-medium text-sm"
+                        >
+                          <FaMoneyBill className="text-xs" />
+                          Forzar pago
+                        </button>
+                        )}
+                        {isComanda && !ticketEsAltaSinPago(ticket) ? (
                           <button
                             onClick={() => {
                               setShowReportarModal(ticket._id);
@@ -593,7 +721,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <FaExclamationTriangle className="text-xs" />
                             Reportar
                           </button>
-                        ) : (
+                        ) : !isComanda ? (
                           <button
                             onClick={() => {
                               setShowRechazarModal(ticket._id);
@@ -607,6 +735,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <FaTimes className="text-xs" />
                             Rechazar
                           </button>
+                        ) : null}
                         )}
                       </div>
                     )}
@@ -678,6 +807,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         )}
         </div>
       </main>
+
+      {ticketForzarPago && (
+        <ForzarPagoTicketModal
+          ticket={ticketForzarPago}
+          loading={!!forzarPagoLoading[ticketForzarPago._id]}
+          onClose={() => setTicketForzarPago(null)}
+          onConfirm={handleForzarPago}
+        />
+      )}
 
       {/* Modal de reportar (comandas) */}
       <AnimatePresence>

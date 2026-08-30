@@ -51,8 +51,11 @@ export function esGuarnicionSeparable(plato, flagOn) {
  */
 export function nombrePlatoPadre(plato, usarAlias = true) {
   if (!plato) return '';
-  if (usarAlias && plato.nombreCocina) return plato.nombreCocina;
-  return plato.nombre || plato.plato?.nombre || '';
+  if (usarAlias) {
+    const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
+    if (alias) return alias;
+  }
+  return plato.plato?.nombre || plato.nombre || '';
 }
 
 /**

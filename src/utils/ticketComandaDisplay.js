@@ -32,6 +32,22 @@ export function getComandaKeysFromTicket(ticket) {
   return [...keys];
 }
 
+/** IDs de comanda (string) asociados al ticket. */
+export function getComandaIdsFromTicket(ticket) {
+  if (!ticket) return [];
+  const ids = new Set();
+  const push = (raw) => {
+    const id = typeof raw === 'object' && raw ? (raw._id || raw.id) : raw;
+    if (id) ids.add(String(id));
+  };
+  (ticket.comandasIds || []).forEach(push);
+  (ticket.comandas || []).forEach(push);
+  (ticket.platos || []).forEach((p) => {
+    if (p?.comandaId) push(p.comandaId);
+  });
+  return [...ids];
+}
+
 /** Etiqueta visible: #12 o #12+#13+#14 */
 export function getComandaDisplayLabel(ticket) {
   const label = formatComandasNumbersLabel(getComandasNumbersFromTicket(ticket));

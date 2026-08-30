@@ -71,6 +71,26 @@ describe('obtenerNombreDisplayCocina', () => {
     const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' } };
     expect(obtenerNombrePlato(plato)).toBe('Ceviche Clásico');
   });
+
+  test('para_llevar en Ver Cocina usa alias de cocina del catálogo (platos.html)', () => {
+    const linea = {
+      tipoServicio: 'para_llevar',
+      nombre: 'Ceviche Clásico',
+      plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' },
+    };
+    expect(obtenerNombreDisplayCocina(linea, { forzar: true })).toBe('CEV');
+  });
+
+  test('item de monitor { plato, comanda } también resuelve el alias', () => {
+    const item = {
+      plato: {
+        tipoServicio: 'para_llevar',
+        plato: { nombre: 'Lomo Saltado', nombreCocina: 'Lomo S/' },
+      },
+      comanda: { comandaNumber: 12 },
+    };
+    expect(obtenerNombreDisplayCocina(item, { forzar: true })).toBe('Lomo S/');
+  });
 });
 
 describe('platoCoincideId', () => {
