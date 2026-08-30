@@ -25,11 +25,14 @@ function maxPositivo(...vals) {
   return m;
 }
 
+export function platosTicketVisibles(ticket) {
+  return (ticket?.platos || []).filter((p) => p && !p.eliminado && !p.anulado);
+}
+
 function sumaPlatosTicket(doc) {
-  const platos = doc?.platos;
-  if (!Array.isArray(platos) || !platos.length) return 0;
+  const platos = platosTicketVisibles(doc);
+  if (!platos.length) return 0;
   const suma = platos.reduce((s, p) => {
-    if (!p || p.eliminado || p.anulado) return s;
     return s + (Number(p.subtotal) || (Number(p.precio) || 0) * (Number(p.cantidad) || 1));
   }, 0);
   return Number(suma.toFixed(2));
@@ -47,18 +50,22 @@ function brutoDesdeComandas(doc) {
 export function resolverBrutoYNeto(doc, extraSubtotal = 0) {
   const montoDesc = montoDescDeTicket(doc);
   const extra = Number(extraSubtotal) || 0;
-  const plates = extra > 0 ? extra : sumaPlatosTicket(doc);
+  const plates = sumaPlatosTicket(doc);
   const tot = Number(doc?.total);
-  const bruto = maxPositivo(
-    doc?.totalSinDescuento,
-    plates,
-    brutoDesdeComandas(doc),
-    doc?.subtotal,
-    Number.isFinite(tot) && tot > 0 && !(montoDesc > 0) ? tot : 0
-  ) || (Number.isFinite(tot) && tot > 0 ? tot : 0);
+  const haySnapshot = Array.isArray(doc?.platos) && doc.platos.length > 0;
+  const bruto = haySnapshot
+    ? plates
+    : (maxPositivo(
+      extra,
+      doc?.totalSinDescuento,
+      plates,
+      brutoDesdeComandas(doc),
+      doc?.subtotal,
+      Number.isFinite(tot) && tot > 0 && !(montoDesc > 0) ? tot : 0
+    ) || (Number.isFinite(tot) && tot > 0 ? tot : 0));
   const neto = montoDesc > 0
     ? Number(Math.max(0, bruto - montoDesc).toFixed(2))
-    : (Number.isFinite(tot) && tot > 0 ? tot : bruto);
+    : (haySnapshot ? bruto : (Number.isFinite(tot) && tot > 0 ? tot : bruto));
   return { bruto, neto, montoDesc };
 }
 
@@ -66,7 +73,17 @@ export function aplicarTotalNetoTicket(ticket) {
   if (!ticket) return ticket;
   const extra = sumaPlatosTicket(ticket);
   const { bruto, neto, montoDesc } = resolverBrutoYNeto(ticket, extra);
-  if (montoDesc <= 0) return ticket;
+  const haySnapshot = Array.isArray(ticket.platos) && ticket.platos.length > 0;
+  if (montoDesc <= 0 && !haySnapshot) return ticket;
+  if (montoDesc <= 0) {
+    if (Number(ticket.total) === bruto && Number(ticket.subtotal) === bruto) return ticket;
+    return {
+      ...ticket,
+      totalSinDescuento: bruto,
+      subtotal: bruto,
+      total: bruto,
+    };
+  }
   return {
     ...ticket,
     montoDescuento: montoDesc,

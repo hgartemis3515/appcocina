@@ -22,6 +22,7 @@ import {
   rangoFechasDefault, getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
   nombreClienteTicket, dniClienteTicket,
 } from '../../utils/ticketAprobacionUi';
+import { platosTicketVisibles } from '../../utils/ticketTotales';
 
 // Cuenta cuántos tickets pendientes hay por mesa (para avisar a cocina que aún faltan)
 const countTicketsPendientesByMesa = (items) => {
@@ -417,6 +418,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const mesaId = String(ticket.mesa?._id || ticket.mesa || '');
                 const ticketsPendientesMismaMesa = ticketsPendientesPorMesa.get(mesaId) || 0;
                 const quedanMasTickets = ticketsPendientesMismaMesa > 1;
+                const platosVis = platosTicketVisibles(ticket);
                 return (
                   <motion.div
                     key={ticket._id}
@@ -483,7 +485,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       )}
                       {isPagoParcial && !infoMismaComanda && (
                         <div className="mt-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300">
-                          Pago parcial — {ticket.platos?.length || 0} plato{(ticket.platos?.length || 0) !== 1 ? 's' : ''} en este envío
+                          Pago parcial — {platosVis.length} plato{platosVis.length !== 1 ? 's' : ''} en este envío
                         </div>
                       )}
                       {quedanMasTickets && ticket.estado === 'pendiente_aprobacion' && (
@@ -495,7 +497,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
                     {/* Platos */}
                     <div className="p-3 max-h-48 overflow-y-auto border-b border-gray-700">
-                      {(ticket.platos || []).map((plato, i) => (
+                      {platosVis.map((plato, i) => (
                         <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="sm" />
                       ))}
                     </div>

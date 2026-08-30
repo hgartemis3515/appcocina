@@ -9,6 +9,7 @@ import {
   nombreClienteTicket, dniClienteTicket, esTicketComanda,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
+import { platosTicketVisibles } from '../../utils/ticketTotales';
 
 function SortIcon({ active, dir }) {
   if (!active) return <FaSort className="inline text-[9px] opacity-40 ml-1" />;
@@ -172,7 +173,8 @@ export default function TicketsAprobacionTable({
               const cliente = nombreClienteTicket(ticket);
               const dni = dniClienteTicket(ticket);
               const open = expandedId === ticket._id;
-              const nPlatos = (ticket.platos || []).length;
+              const platosVis = platosTicketVisibles(ticket);
+              const nPlatos = platosVis.length;
               return (
                 <React.Fragment key={ticket._id}>
                   <tr className="border-t border-gray-800 hover:bg-gray-800/60">
@@ -240,7 +242,7 @@ export default function TicketsAprobacionTable({
                     <tr className="bg-gray-950/80 border-t border-gray-800">
                       <td colSpan={10} className="px-6 py-3">
                         <div className="max-h-56 overflow-y-auto">
-                          {(ticket.platos || []).map((plato, i) => (
+                          {platosVis.map((plato, i) => (
                             <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="xs" />
                           ))}
                         </div>

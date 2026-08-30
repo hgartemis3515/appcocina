@@ -10,6 +10,7 @@ import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
+import { platosTicketVisibles } from '../../utils/ticketTotales';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -169,6 +170,7 @@ export default function PpaSidebar({ socket, onClose }) {
             const comandaLabel = getComandaDisplayLabel(ticket);
             const cantidadComandasTicket = getCantidadComandas(ticket);
             const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
+            const platosVis = platosTicketVisibles(ticket);
             return (
               <motion.div
                 key={ticket._id}
@@ -202,7 +204,7 @@ export default function PpaSidebar({ socket, onClose }) {
                   )}
                   {isPagoParcial && !infoMismaComanda && (
                     <p className="text-[10px] text-amber-400/90 mb-1">
-                      Pago parcial — {ticket.platos?.length || 0} plato{(ticket.platos?.length || 0) !== 1 ? 's' : ''}
+                      Pago parcial — {platosVis.length} plato{platosVis.length !== 1 ? 's' : ''}
                     </p>
                   )}
                   <div className="flex items-center gap-2 mb-1">
@@ -229,7 +231,7 @@ export default function PpaSidebar({ socket, onClose }) {
 
                 {/* Platos */}
                 <div className="p-3 border-b border-gray-700 max-h-40 overflow-y-auto">
-                  {(ticket.platos || []).map((plato, i) => (
+                  {platosVis.map((plato, i) => (
                     <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="xs" />
                   ))}
                 </div>
