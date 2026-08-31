@@ -128,13 +128,26 @@ describe('notasMonitor', () => {
     expect(out[0].hayNotaCuadro).toBe(true);
   });
 
-  test('anexarNotasCuadroItems: con guarnición la nota no se duplica en el plato', () => {
+  test('anexarNotasCuadroItems: con guarnición la nota sigue en el plato', () => {
     const plato = {
       timers: [{ comandaId: 'c1', platoIndex: 0 }],
       platos: [{ plato: { notaEspecial: 'Sin cebolla' }, comanda: { _id: 'c1' } }],
     };
     const out = anexarNotasCuadroItems([plato], new Set(['c1:0']), true);
-    expect(out[0].notasCuadro).toBe('');
+    expect(out[0].notasCuadro).toBe('Sin cebolla');
     expect(out[0].hayNotaCuadro).toBe(true);
+  });
+
+  test('recolectar incluye la nota de cada plato, no solo la primera', () => {
+    const grupos = [{
+      platos: [
+        { plato: { _id: 'p1', nombre: 'Bistec', notaEspecial: 'Sin ají' }, comanda: { _id: 'c1' } },
+        { plato: { _id: 'p2', nombre: 'Lomo', notaEspecial: 'Término medio' }, comanda: { _id: 'c1' } },
+      ],
+    }];
+    expect(recolectarNotasMonitor(grupos)).toEqual([
+      '- Sin ají (Bistec)',
+      '- Término medio (Lomo)',
+    ]);
   });
 });

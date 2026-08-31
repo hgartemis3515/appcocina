@@ -269,6 +269,7 @@ export const DEFAULT_KDS_CONFIG = {
   usarNombreCocinaEnTablaKds: true,
   nombrePlatoFuente: 'arial',
   nombrePlatoColor: '#ffffff',
+  nombrePlatoFondo: '#111827',
   ordenColaFuente: 'inter',
   ordenColaTamano: 10,
   ordenColaColor: '#a7f3d0',

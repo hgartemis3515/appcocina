@@ -139,8 +139,11 @@ export function recolectarNotasMonitor(grupos, opts = {}) {
         mostrar: mostrarPronombre,
         ocultarSiIds: [ocultarSiCocineroId],
       });
-      const nota = String(plato.notaEspecial || '').trim();
-      const pid = String(plato._id || plato.platoId || `${comanda?._id || ''}:${nombre}`);
+      const nota = String(plato.notaEspecial || plato.nota || '').trim();
+      const pid = String(
+        plato._id
+        || `${comanda?._id || comanda?.id || ''}:${row?.platoIndex ?? ''}:${nombre}`
+      );
       if (nota && !seenPlato.has(pid)) {
         seenPlato.add(pid);
         const ln = lineaNotaMonitor({ texto: nota, nombrePlato: nombre, pronombreCocinero: pron });
@@ -170,8 +173,9 @@ export function textosNotasDeGrupo(grupo) {
     const plato = item?.plato || item;
     const comanda = item?.comanda;
     const nota = String(plato?.notaEspecial || plato?.nota || '').trim();
-    if (nota && !seen.has(`n:${nota}`)) {
-      seen.add(`n:${nota}`);
+    const nid = String(plato?._id || `${comanda?._id || ''}:${nota}`);
+    if (nota && !seen.has(`n:${nid}`)) {
+      seen.add(`n:${nid}`);
       out.push(nota);
     }
     const obs = String(comanda?.observaciones || '').trim();
@@ -203,18 +207,15 @@ export function clavesPadreDeItemMonitor(item) {
 }
 
 /**
- * En platos: la nota va al cuadro solo si ese plato no tiene guarnición en el panel derecho.
+ * Cada plato conserva su nota en el cuadro, aunque tenga guarnición a la derecha.
  * hayNotaCuadro queda siempre (sirve para forzar marco con cuadros apagados).
  */
 export function anexarNotasCuadroItems(items, clavesGuarnicion, mostrarEnTarjeta) {
-  const setG = clavesGuarnicion instanceof Set ? clavesGuarnicion : new Set(clavesGuarnicion || []);
   return (Array.isArray(items) ? items : []).map((item) => {
     const notas = textosNotasDeGrupo(item);
     const hayNotaCuadro = notas.length > 0;
     if (!hayNotaCuadro) return item;
-    const keys = clavesPadreDeItemMonitor(item);
-    const tieneGuarnicion = keys.size > 0 && [...keys].some((k) => setG.has(k));
-    const notasCuadro = (mostrarEnTarjeta && !tieneGuarnicion) ? notas.join(' · ') : '';
+    const notasCuadro = mostrarEnTarjeta ? notas.join(' · ') : '';
     return { ...item, hayNotaCuadro, notasCuadro };
   });
 }

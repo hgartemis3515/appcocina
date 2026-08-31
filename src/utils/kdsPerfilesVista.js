@@ -13,6 +13,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'tamanoFuentePlatos',
   'nombrePlatoFuente',
   'nombrePlatoColor',
+  'nombrePlatoFondo',
   'tamanoTarjeta',
   'columnasGrid',
   'filasGrid',

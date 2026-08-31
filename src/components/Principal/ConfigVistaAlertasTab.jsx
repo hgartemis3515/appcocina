@@ -435,7 +435,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Letras del nombre del plato</legend>
             <p className={`${textSecondary} text-xs`}>
-              Fuente, tamaño y color del nombre en cada línea de la tarjeta (Bistec, Lomo, etc.).
+              Fuente, tamaño, color de letra y cuadro detrás del nombre en cada línea de la tarjeta (Bistec, Lomo, etc.).
             </p>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
@@ -479,6 +479,27 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                     type="text"
                     value={config.nombrePlatoColor || NOMBRE_PLATO_DEFAULT.nombrePlatoColor}
                     onChange={(e) => updateConfig({ nombrePlatoColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Cuadro detrás de las letras</span>
+                <p className={`${textSecondary} text-xs mb-1`}>Color del recuadro detrás del nombre, para contrastar con la tarjeta.</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.nombrePlatoFondo, NOMBRE_PLATO_DEFAULT.nombrePlatoFondo)}
+                    onChange={(e) => updateConfig({ nombrePlatoFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color del cuadro detrás del nombre del plato"
+                  />
+                  <input
+                    type="text"
+                    value={config.nombrePlatoFondo || NOMBRE_PLATO_DEFAULT.nombrePlatoFondo}
+                    onChange={(e) => updateConfig({ nombrePlatoFondo: e.target.value })}
                     className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
                     maxLength={7}
                     spellCheck={false}

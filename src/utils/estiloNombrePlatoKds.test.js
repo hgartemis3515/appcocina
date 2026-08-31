@@ -12,6 +12,7 @@ describe('estiloNombrePlatoKds', () => {
     });
     expect(st.fontSize).toBe('22px');
     expect(st.color).toBe('#fde68a');
+    expect(st.backgroundColor).toBe('#111827');
     expect(st.fontFamily).toMatch(/Georgia/);
   });
 
@@ -19,5 +20,12 @@ describe('estiloNombrePlatoKds', () => {
     const st = estiloNombrePlatoKds({ tamanoFuentePlatos: 20, nombrePlatoColor: 'rojo' }, { compact: true });
     expect(st.fontSize).toBe('16px');
     expect(st.color).toBe(NOMBRE_PLATO_DEFAULT.nombrePlatoColor);
+    expect(st.backgroundColor).toBe(NOMBRE_PLATO_DEFAULT.nombrePlatoFondo);
+  });
+
+  test('usa el color de cuadro detrás del nombre', () => {
+    const st = estiloNombrePlatoKds({ nombrePlatoFondo: '#0f172a', nombrePlatoColor: '#fde68a' });
+    expect(st.backgroundColor).toBe('#0f172a');
+    expect(st.color).toBe('#fde68a');
   });
 });

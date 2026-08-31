@@ -31,6 +31,7 @@ describe('kdsPerfilesVista', () => {
       nombrePlatoFuente: 'georgia',
       tamanoFuentePlatos: 22,
       nombrePlatoColor: '#fde68a',
+      nombrePlatoFondo: '#0f172a',
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -59,6 +60,7 @@ describe('kdsPerfilesVista', () => {
     expect(snap.nombrePlatoFuente).toBe('georgia');
     expect(snap.tamanoFuentePlatos).toBe(22);
     expect(snap.nombrePlatoColor).toBe('#fde68a');
+    expect(snap.nombrePlatoFondo).toBe('#0f172a');
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.sonidoNuevaComanda).toBe(true);

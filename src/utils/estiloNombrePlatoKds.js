@@ -8,6 +8,7 @@ export const NOMBRE_PLATO_DEFAULT = {
   nombrePlatoFuente: 'arial',
   tamanoFuentePlatos: 18,
   nombrePlatoColor: '#ffffff',
+  nombrePlatoFondo: '#111827',
 };
 
 export const NOMBRE_PLATO_TAMANO_MIN = 12;
@@ -33,11 +34,25 @@ export function estiloNombrePlatoKds(config = {}, opts = {}) {
   const color = hexValidoOrdenCola(config.nombrePlatoColor)
     ? config.nombrePlatoColor
     : NOMBRE_PLATO_DEFAULT.nombrePlatoColor;
+  const fondo = hexValidoOrdenCola(config.nombrePlatoFondo)
+    ? config.nombrePlatoFondo
+    : NOMBRE_PLATO_DEFAULT.nombrePlatoFondo;
+  const padX = Math.max(4, Math.round(size * 0.28));
+  const padY = Math.max(1, Math.round(size * 0.1));
   return {
     color,
+    backgroundColor: fondo,
     fontSize: `${size}px`,
     fontFamily: fuente.css,
     fontWeight: 700,
     lineHeight: 1.2,
+    display: 'inline',
+    paddingLeft: `${padX}px`,
+    paddingRight: `${padX}px`,
+    paddingTop: `${padY}px`,
+    paddingBottom: `${padY}px`,
+    borderRadius: '4px',
+    boxDecorationBreak: 'clone',
+    WebkitBoxDecorationBreak: 'clone',
   };
 }
