@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { ConfigProvider } from '../contexts/ConfigContext';
+import { PantallaBloqueoProvider } from '../contexts/PantallaBloqueoContext';
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import TicketsPpaPage from './pages/TicketsPpaPage';
@@ -13,6 +14,7 @@ import CocinaMonitorPersonalizado from './monitor/CocinaMonitorPersonalizado';
 import DesplegarMonitoresPage from './pages/DesplegarMonitoresPage';
 import DistribuirCocinaMonitoresPage from './pages/DistribuirCocinaMonitoresPage';
 import ProtectedRoute from './common/ProtectedRoute';
+import PantallaBloqueoOverlay from './common/PantallaBloqueoOverlay';
 import { FaSpinner } from 'react-icons/fa';
 import ChatFabCocina from './Chat/ChatFabCocina';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
@@ -325,9 +327,12 @@ const AppRouter = () => {
 const App = () => {
   return (
     <AuthProvider>
-      <ConfigProvider>
-        <AppRouter />
-      </ConfigProvider>
+      <PantallaBloqueoProvider>
+        <ConfigProvider>
+          <AppRouter />
+          <PantallaBloqueoOverlay />
+        </ConfigProvider>
+      </PantallaBloqueoProvider>
     </AuthProvider>
   );
 };

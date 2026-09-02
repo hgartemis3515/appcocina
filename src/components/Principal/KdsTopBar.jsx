@@ -13,6 +13,7 @@ import {
   FaChartBar,
   FaCalendarAlt,
 } from "react-icons/fa";
+import BotonCandadoCocina from "../common/BotonCandadoCocina";
 
 /**
  * KdsTopBar — Barra superior compartida por las 3 vistas KDS
@@ -191,6 +192,8 @@ const KdsTopBar = ({
         </div>
 
         {/* --- Acciones PRIMARIAS (siempre visibles) --- */}
+
+        <BotonCandadoCocina compact />
 
         {/* Buscar */}
         <button

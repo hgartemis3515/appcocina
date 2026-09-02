@@ -72,14 +72,22 @@ const normalizeError = (error) => {
   }
 
   const { status, data } = error.response;
-  
-  // Error 401: Sesión expirada o inválida
-  if (status === 401) {
-    // Disparar logout forzado
+  const url = String(error.config?.url || '');
+  const esPinDesbloqueo = /desbloquear-pantalla/i.test(url);
+
+  // Error 401: Sesión expirada o inválida (no el PIN de bloqueo de cocina)
+  if (status === 401 && !esPinDesbloqueo) {
     if (logoutCallback) {
       logoutCallback();
     }
     return { message: ERROR_MESSAGES[401], code: 'UNAUTHORIZED', status };
+  }
+  if (status === 401 && esPinDesbloqueo) {
+    return { message: data?.error || 'Clave incorrecta', code: 'PIN_INVALIDO', status };
+  }
+
+  if (esPinDesbloqueo && data?.error) {
+    return { message: data.error, code: `HTTP_${status}`, status };
   }
 
   // Usar mensaje normalizado, no exponer data.error del backend

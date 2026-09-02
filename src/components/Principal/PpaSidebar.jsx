@@ -13,6 +13,7 @@ import PlatoTicketItem from '../common/PlatoTicketItem';
 import { platosTicketVisibles } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago } from '../../utils/ticketAprobacionUi';
+import BotonCandadoCocina from '../common/BotonCandadoCocina';
 
 const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;
 const formatTime = (dateStr) => {
@@ -112,14 +113,14 @@ export default function PpaSidebar({ socket, onClose }) {
     }
   };
 
-  const handleForzarPago = async (metodoPago) => {
+  const handleForzarPago = async (pago) => {
     const ticket = ticketForzarPago;
     if (!ticket) return;
     setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: true }));
     try {
       const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
       const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
-      await forzarPagoItem(ticket._id, metodoPago, userId, userName);
+      await forzarPagoItem(ticket._id, pago, userId, userName);
       setTicketForzarPago(null);
     } catch (err) {
       alert('Error al forzar pago: ' + (err.userMessage || err.message));
@@ -159,6 +160,7 @@ export default function PpaSidebar({ socket, onClose }) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <BotonCandadoCocina compact className="inline-flex items-center justify-center min-h-[36px] min-w-[44px] px-2 py-1 rounded bg-gray-700 hover:bg-amber-700 text-white" />
           <SocketConnectionBadge connectionStatus={connectionStatus} authError={authError} />
           <button
             onClick={onClose}

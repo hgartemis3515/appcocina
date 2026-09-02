@@ -41,6 +41,12 @@ import {
   estiloNombrePlatoKds,
 } from '../../utils/estiloNombrePlatoKds';
 import {
+  NOMBRE_COMPLEMENTO_DEFAULT,
+  NOMBRE_COMPLEMENTO_TAMANO_MIN,
+  NOMBRE_COMPLEMENTO_TAMANO_MAX,
+  estiloNombreComplementoKds,
+} from '../../utils/estiloNombreComplementoKds';
+import {
   KDS_TIMBRES,
   TIMBRE_DEFAULT,
   TIMBRE_VOLUMEN_DEFAULT,
@@ -509,6 +515,83 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
             </div>
             <span style={estiloNombrePlatoKds(config)}>Bistec a lo pobre</span>
           </fieldset>
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Letras de los complementos</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Fuente, tamaño, color de letra y cuadro detrás de las guarniciones (Papas, Ensalada, etc.).
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra</span>
+                <select
+                  value={config.nombreComplementoFuente || NOMBRE_COMPLEMENTO_DEFAULT.nombreComplementoFuente}
+                  onChange={(e) => updateConfig({ nombreComplementoFuente: e.target.value })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {ORDEN_COLA_FUENTES.map((f) => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño de letra</span>
+                <select
+                  value={config.nombreComplementoTamano || NOMBRE_COMPLEMENTO_DEFAULT.nombreComplementoTamano}
+                  onChange={(e) => updateConfig({ nombreComplementoTamano: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: NOMBRE_COMPLEMENTO_TAMANO_MAX - NOMBRE_COMPLEMENTO_TAMANO_MIN + 1 },
+                    (_, i) => NOMBRE_COMPLEMENTO_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.nombreComplementoColor, NOMBRE_COMPLEMENTO_DEFAULT.nombreComplementoColor)}
+                    onChange={(e) => updateConfig({ nombreComplementoColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de la letra del complemento"
+                  />
+                  <input
+                    type="text"
+                    value={config.nombreComplementoColor || NOMBRE_COMPLEMENTO_DEFAULT.nombreComplementoColor}
+                    onChange={(e) => updateConfig({ nombreComplementoColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Cuadro detrás de las letras</span>
+                <p className={`${textSecondary} text-xs mb-1`}>Color del recuadro detrás del complemento, para contrastar con la tarjeta.</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.nombreComplementoFondo, NOMBRE_COMPLEMENTO_DEFAULT.nombreComplementoFondo)}
+                    onChange={(e) => updateConfig({ nombreComplementoFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color del cuadro detrás del complemento"
+                  />
+                  <input
+                    type="text"
+                    value={config.nombreComplementoFondo || NOMBRE_COMPLEMENTO_DEFAULT.nombreComplementoFondo}
+                    onChange={(e) => updateConfig({ nombreComplementoFondo: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            <span style={estiloNombreComplementoKds(config)}>Papas fritas x1</span>
+          </fieldset>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
@@ -813,7 +896,10 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 </span>
               </div>
               {config.juntarGuarnicionesVisualKds !== false && (
-                <div className="text-gray-400 text-[9px] pl-1 leading-tight">· Papas · Ensalada</div>
+                <div className="pl-1 mt-0.5 flex flex-col gap-0.5 leading-tight">
+                  <span style={estiloNombreComplementoKds(config)}>Papas x1</span>
+                  <span style={estiloNombreComplementoKds(config)}>Ensalada x1</span>
+                </div>
               )}
               {config.mostrarBadgeGuarnicion !== false && config.juntarGuarnicionesVisualKds === false && (
                 <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40">

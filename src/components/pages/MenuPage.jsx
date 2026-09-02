@@ -22,6 +22,7 @@ import {
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import { getServerBaseUrl } from '../../config/apiConfig';
+import BotonCandadoCocina from '../common/BotonCandadoCocina';
 
 /**
  * MenuPage - Menú principal del App de Cocina
@@ -269,6 +270,7 @@ const MenuPage = ({ onNavigate }) => {
               <p className="text-gray-400 text-xs capitalize">{user?.rol || 'cocinero'}</p>
             </div>
             <FaUserCircle className="text-gray-400 text-3xl" />
+            <BotonCandadoCocina />
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 bg-gray-800 hover:bg-red-900/50 text-gray-300 hover:text-red-300 px-4 py-2 rounded-lg transition-all text-sm border border-gray-700 hover:border-red-700"

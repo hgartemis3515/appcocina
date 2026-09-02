@@ -25,9 +25,10 @@ import {
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
 } from '../../utils/ticketAprobacionUi';
-import { platosTicketVisibles } from '../../utils/ticketTotales';
+import { platosTicketVisibles, resumenKpisTickets } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
+import BotonCandadoCocina from '../common/BotonCandadoCocina';
 
 // Cuenta cuántos tickets pendientes hay por mesa (para avisar a cocina que aún faltan)
 const countTicketsPendientesByMesa = (items) => {
@@ -75,6 +76,15 @@ function VistaModoToggle({ modo, onChange }) {
       >
         Avanzado
       </button>
+    </div>
+  );
+}
+
+function KpiChip({ label, value, valueClass }) {
+  return (
+    <div className="bg-gray-800/90 border border-amber-500/20 rounded-lg px-2.5 py-1 min-w-[6.5rem]">
+      <p className="text-[9px] uppercase tracking-wide text-gray-400 leading-tight">{label}</p>
+      <p className={`text-sm font-bold tabular-nums leading-tight ${valueClass}`}>{value}</p>
     </div>
   );
 }
@@ -229,12 +239,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
-  const handleForzarPago = async (metodoPago) => {
+  const handleForzarPago = async (pago) => {
     const ticket = ticketForzarPago;
     if (!ticket) return;
     setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: true }));
     try {
-      await forzarPagoItem(ticket._id, metodoPago, user?._id || user?.id, user?.name || 'Cocina');
+      await forzarPagoItem(ticket._id, pago, user?._id || user?.id, user?.name || 'Cocina');
       setTicketForzarPago(null);
     } catch (err) {
       alert('Error al forzar pago: ' + (err.userMessage || err.message));
@@ -279,6 +289,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     return sortTickets(porMozo, sortBy, sortDir);
   }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro]);
 
+  const kpisTabla = useMemo(() => {
+    let list = itemsEnPeriodo;
+    if (filtro === 'comandas') list = list.filter((t) => t.tipo === 'comanda_completa');
+    else if (filtro === 'adelantados') list = list.filter((t) => t.tipo === 'pago_adelantado');
+    else if (filtro === 'parciales') list = list.filter((t) => t.tipo === 'pago_parcial');
+    return resumenKpisTickets(filterTicketsByMozo(list, filtroMozo));
+  }, [itemsEnPeriodo, filtro, filtroMozo]);
+
   const handleSortChange = (field, dir) => {
     setSortBy(field);
     setSortDir(dir);
@@ -299,7 +317,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       {/* Header */}
       <header className="flex-shrink-0 bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={onGoToMenu}
               className="text-gray-400 hover:text-white transition-colors p-2"
@@ -312,6 +330,30 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-white truncate">Comandas y Pagos Adelantados</h1>
               <p className="text-gray-400 text-xs">Aprobar comandas, reportar incidencias</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <KpiChip
+                label="Pendiente"
+                value={formatCurrency(kpisTabla.pendiente)}
+                valueClass="text-[#ffa502]"
+              />
+              <KpiChip
+                label="Aprobados"
+                value={formatCurrency(kpisTabla.aprobados)}
+                valueClass="text-[#2ecc71]"
+              />
+              {kpisTabla.descuento > 0 && (
+                <KpiChip
+                  label="Descuento"
+                  value={`-${formatCurrency(kpisTabla.descuento)}`}
+                  valueClass="text-[#e74c3c]"
+                />
+              )}
+              <KpiChip
+                label="Total venta"
+                value={formatCurrency(kpisTabla.totalVenta)}
+                valueClass="text-[#d4af37]"
+              />
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
@@ -337,6 +379,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               </span>
             )}
             <SocketConnectionBadge connectionStatus={connectionStatus} authError={authError} />
+            <BotonCandadoCocina compact />
             <button
               onClick={fetchItems}
               className="text-gray-400 hover:text-white p-2 transition-colors"

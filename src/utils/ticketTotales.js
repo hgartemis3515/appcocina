@@ -150,3 +150,35 @@ export function aplicarTotalNetoTicket(ticket) {
 export function totalTicketNeto(ticket) {
   return resolverBrutoYNeto(ticket, sumaPlatosTicket(ticket)).neto;
 }
+
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/**
+ * KPIs de la tabla de tickets (misma idea que reportes.html):
+ * Pendiente / Aprobados / Descuento / Total venta.
+ * Total venta = pendiente + aprobado. Descuento solo suma esos estados.
+ */
+export function resumenKpisTickets(tickets = []) {
+  let pendiente = 0;
+  let aprobados = 0;
+  let descuento = 0;
+  for (const t of tickets || []) {
+    const { neto, montoDesc } = resolverBrutoYNeto(t, sumaPlatosTicket(t));
+    const est = String(t.estado || '').toLowerCase();
+    if (est === 'pendiente_aprobacion') {
+      pendiente += neto;
+      if (montoDesc > 0) descuento += montoDesc;
+    } else if (est === 'aprobado') {
+      aprobados += neto;
+      if (montoDesc > 0) descuento += montoDesc;
+    }
+  }
+  return {
+    pendiente: round2(pendiente),
+    aprobados: round2(aprobados),
+    descuento: round2(descuento),
+    totalVenta: round2(pendiente + aprobados),
+  };
+}

@@ -32,6 +32,10 @@ describe('kdsPerfilesVista', () => {
       tamanoFuentePlatos: 22,
       nombrePlatoColor: '#fde68a',
       nombrePlatoFondo: '#0f172a',
+      nombreComplementoFuente: 'georgia',
+      nombreComplementoTamano: 14,
+      nombreComplementoColor: '#fde68a',
+      nombreComplementoFondo: '#1f2937',
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -61,6 +65,10 @@ describe('kdsPerfilesVista', () => {
     expect(snap.tamanoFuentePlatos).toBe(22);
     expect(snap.nombrePlatoColor).toBe('#fde68a');
     expect(snap.nombrePlatoFondo).toBe('#0f172a');
+    expect(snap.nombreComplementoFuente).toBe('georgia');
+    expect(snap.nombreComplementoTamano).toBe(14);
+    expect(snap.nombreComplementoColor).toBe('#fde68a');
+    expect(snap.nombreComplementoFondo).toBe('#1f2937');
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.sonidoNuevaComanda).toBe(true);

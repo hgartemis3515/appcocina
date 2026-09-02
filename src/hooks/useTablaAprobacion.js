@@ -489,22 +489,37 @@ export default function useTablaAprobacion({
     }
   }, []);
 
-  const forzarPagoItem = useCallback(async (ticketId, metodoPago, usuarioId, usuarioNombre) => {
+  const forzarPagoItem = useCallback(async (ticketId, pagoOrMetodo, usuarioId, usuarioNombre) => {
     const id = String(ticketId);
+    const pago = (pagoOrMetodo && typeof pagoOrMetodo === 'object')
+      ? pagoOrMetodo
+      : { metodoPago: pagoOrMetodo };
+    const metodoPago = pago.metodoPago || 'efectivo';
     if (approvingRef.current.has(id)) {
       return { success: true, skipped: true };
     }
     approvingRef.current.add(id);
     try {
       const data = await apiPut(`/api/aprobacion/${ticketId}/forzar-pago`, {
-        metodoPago: metodoPago || 'efectivo',
+        metodoPago,
+        montoRecibido: pago.montoRecibido,
+        vuelto: pago.vuelto,
         usuarioId,
         usuarioNombre,
       });
       if (data?.success) {
+        const ticketRes = data?.resultado?.ticket;
         setItems((prev) => prev.map((t) => (
           String(t._id) === id
-            ? { ...t, estado: 'aprobado', pagoForzado: true, metodoPago: metodoPago || 'efectivo' }
+            ? {
+              ...t,
+              ...(ticketRes || {}),
+              estado: 'aprobado',
+              pagoForzado: true,
+              metodoPago,
+              montoRecibido: pago.montoRecibido ?? t.montoRecibido,
+              vuelto: pago.vuelto ?? t.vuelto,
+            }
             : t
         )));
         return data;

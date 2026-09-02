@@ -4,6 +4,7 @@ import { useConfig } from '../../contexts/ConfigContext';
 import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNumeroOrdenKds';
 import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
 import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
+import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
 import { cantidadGuarnicionEfectiva } from '../../utils/guarnicionesKds';
 
 /**
@@ -59,7 +60,10 @@ const PlatoPreparacion = ({
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
   const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
   const estiloCantidad = estiloCantidadPlatoKds(kdsConfig);
-  const estiloNombre = estiloNombrePlatoKds(kdsConfig, { compact });
+  const estiloNombre = tipoUnidad === 'guarnicion'
+    ? estiloNombreComplementoKds(kdsConfig, { compact: true })
+    : estiloNombrePlatoKds(kdsConfig, { compact });
+  const estiloComplemento = estiloNombreComplementoKds(kdsConfig);
   
   const handleClick = (e) => {
     e.stopPropagation();
@@ -417,14 +421,10 @@ const PlatoPreparacion = ({
               const cantidadComp = cantidadGuarnicionEfectiva(comp, { ...plato, cantidad });
               
               return (
-                <span
-                  key={i}
-                  className={`text-xs leading-tight pl-1 ${
-                    nightMode ? 'text-gray-400' : 'text-gray-500'
-                  }`}
-                  style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}
-                >
-                  · {opcionTexto} x{cantidadComp}
+                <span key={i} className="leading-tight pl-1">
+                  <span style={estiloComplemento}>
+                    {opcionTexto} x{cantidadComp}
+                  </span>
                 </span>
               );
             })}
