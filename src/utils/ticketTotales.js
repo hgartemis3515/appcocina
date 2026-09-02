@@ -159,16 +159,75 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+function idDeRef(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') return String(v._id || v.id || '');
+  return String(v);
+}
+
+function idsComandaDeTicket(t, index) {
+  const raw = Array.isArray(t && t.comandas) ? t.comandas : [];
+  const ids = raw.map(idDeRef).filter(Boolean);
+  if (ids.length) return ids;
+  if (t && t.comandaId != null) {
+    const cid = idDeRef(t.comandaId);
+    if (cid) return [cid];
+  }
+  if (t && t._id != null) return [String(t._id)];
+  return [`__orphan_${index}`];
+}
+
+function tsTicket(t) {
+  const d = t && t.createdAt ? new Date(t.createdAt).getTime() : 0;
+  return Number.isFinite(d) ? d : 0;
+}
+
+function ticketMasNuevo(a, b) {
+  const ta = tsTicket(a);
+  const tb = tsTicket(b);
+  if (ta !== tb) return ta > tb ? a : b;
+  const na = Number(a && a.ticketNumber) || 0;
+  const nb = Number(b && b.ticketNumber) || 0;
+  if (na !== nb) return na > nb ? a : b;
+  return String(a && a._id) >= String(b && b._id) ? a : b;
+}
+
+/** Último ticket por comanda; el mismo ticket no se cuenta dos veces. */
+export function ultimoTicketPorComanda(tickets) {
+  const byComanda = new Map();
+  (tickets || []).forEach((t, index) => {
+    if (!t) return;
+    for (const cid of idsComandaDeTicket(t, index)) {
+      const prev = byComanda.get(cid);
+      byComanda.set(cid, prev ? ticketMasNuevo(t, prev) : t);
+    }
+  });
+  const seenObj = new Set();
+  const seenId = new Set();
+  const out = [];
+  for (const t of byComanda.values()) {
+    if (seenObj.has(t)) continue;
+    seenObj.add(t);
+    if (t._id != null) {
+      const id = String(t._id);
+      if (seenId.has(id)) continue;
+      seenId.add(id);
+    }
+    out.push(t);
+  }
+  return out;
+}
+
 /**
  * KPIs de la tabla de tickets (misma idea que reportes.html):
- * Pendiente / Aprobados / Descuento / Total venta.
- * Total venta = pendiente + aprobado. Descuento solo suma esos estados.
+ * Pendiente / Ventas pagadas / Descuento / Total venta.
+ * Solo el último ticket de cada comanda. Total venta = pendiente + pagadas.
  */
 export function resumenKpisTickets(tickets = []) {
   let pendiente = 0;
   let aprobados = 0;
   let descuento = 0;
-  for (const t of tickets || []) {
+  for (const t of ultimoTicketPorComanda(tickets)) {
     const { neto, montoDesc } = resolverBrutoYNeto(t, sumaPlatosTicket(t));
     const est = String(t.estado || '').toLowerCase();
     if (est === 'pendiente_aprobacion') {

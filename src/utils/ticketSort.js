@@ -32,6 +32,23 @@ export function getMozosFromTickets(tickets) {
   );
 }
 
+/** Agrupa tickets por mozo (orden alfabético). Conserva el orden relativo de cada lista. */
+export function groupTicketsByMozo(tickets) {
+  if (!Array.isArray(tickets) || tickets.length === 0) return [];
+  const map = new Map();
+  for (const ticket of tickets) {
+    const nombre = getMozoNombre(ticket);
+    const key = nombre.toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, { key, nombre, tickets: [] });
+    }
+    map.get(key).tickets.push(ticket);
+  }
+  return [...map.values()].sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+  );
+}
+
 /** Filtra tickets por nombre de mozo (null = todos). */
 export function filterTicketsByMozo(tickets, mozoKey) {
   if (!mozoKey) return tickets;

@@ -33,7 +33,9 @@ export function clampRangoFechas(fechaDesde, fechaHasta) {
 
 export function loadModoVistaTickets() {
   try {
-    return localStorage.getItem(MODO_VISTA_KEY) === 'avanzado' ? 'avanzado' : 'basico';
+    const v = localStorage.getItem(MODO_VISTA_KEY);
+    if (v === 'avanzado' || v === 'mozos') return v;
+    return 'basico';
   } catch {
     return 'basico';
   }
@@ -41,7 +43,8 @@ export function loadModoVistaTickets() {
 
 export function saveModoVistaTickets(modo) {
   try {
-    localStorage.setItem(MODO_VISTA_KEY, modo === 'avanzado' ? 'avanzado' : 'basico');
+    const v = modo === 'avanzado' || modo === 'mozos' ? modo : 'basico';
+    localStorage.setItem(MODO_VISTA_KEY, v);
   } catch {
     /* ignore */
   }

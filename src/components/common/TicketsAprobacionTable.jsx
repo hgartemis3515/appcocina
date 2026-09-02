@@ -20,7 +20,7 @@ function SortIcon({ active, dir }) {
     : <FaSortDown className="inline text-[9px] ml-1" />;
 }
 
-function AccionesTicket({
+export function AccionesTicket({
   ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago,
   aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading,
 }) {

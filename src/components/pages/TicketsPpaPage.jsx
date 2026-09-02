@@ -16,6 +16,7 @@ import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda 
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
+import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero } from '../../utils/ticketSort';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge, estadoTicketMeta,
@@ -43,39 +44,24 @@ const countTicketsPendientesByMesa = (items) => {
 };
 
 function VistaModoToggle({ modo, onChange }) {
-  const isAvanzado = modo === 'avanzado';
+  const opts = [
+    { id: 'basico', label: 'Básico' },
+    { id: 'avanzado', label: 'Avanzado' },
+    { id: 'mozos', label: 'Mozos pendientes' },
+  ];
   return (
-    <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1 border border-gray-700">
-      <button
-        type="button"
-        onClick={() => onChange('basico')}
-        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap
-          ${!isAvanzado ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
-      >
-        Básico
-      </button>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={isAvanzado}
-        aria-label="Cambiar entre vista básica y avanzada"
-        onClick={() => onChange(isAvanzado ? 'basico' : 'avanzado')}
-        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0
-          ${isAvanzado ? 'bg-violet-500' : 'bg-gray-600'}`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
-            ${isAvanzado ? 'translate-x-5' : 'translate-x-0'}`}
-        />
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('avanzado')}
-        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap
-          ${isAvanzado ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
-      >
-        Avanzado
-      </button>
+    <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1 border border-gray-700">
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap
+            ${modo === o.id ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -338,7 +324,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 valueClass="text-[#ffa502]"
               />
               <KpiChip
-                label="Aprobados"
+                label="Ventas pagadas"
                 value={formatCurrency(kpisTabla.aprobados)}
                 valueClass="text-[#2ecc71]"
               />
@@ -516,7 +502,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
       {/* Contenido con scroll independiente */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className={`${modoVista === 'mozos' ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-4 py-4`}>
         {modoVista === 'avanzado' ? (
           <TicketsAprobacionTable
             tickets={itemsFiltrados}
@@ -529,6 +515,34 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             sortBy={sortBy}
             sortDir={sortDir}
             onSortChange={handleSortChange}
+            onImprimir={handleImprimir}
+            onAprobar={handleAprobar}
+            onReportar={(ticket) => {
+              setShowReportarModal(ticket._id);
+              setReportarMotivo((prev) => ({ ...prev, [ticket._id]: '' }));
+            }}
+            onRechazar={(ticket) => {
+              setShowRechazarModal(ticket._id);
+              setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
+            }}
+            onForzarPago={(ticket) => setTicketForzarPago(ticket)}
+            aprobarLoading={aprobarLoading}
+            reportarLoading={reportarLoading}
+            rechazarLoading={rechazarLoading}
+            forzarPagoLoading={forzarPagoLoading}
+          />
+        ) : modoVista === 'mozos' ? (
+          <TicketsMozosPendientesGrid
+            tickets={itemsFiltrados}
+            loading={loading}
+            emptyLabel={
+              filtroMozo
+                ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
+                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`
+            }
+            mozoFilter={filtroMozo}
+            mozosDisponibles={mozosDisponibles}
+            onMozoFilterChange={setFiltroMozo}
             onImprimir={handleImprimir}
             onAprobar={handleAprobar}
             onReportar={(ticket) => {

@@ -21,4 +21,49 @@ describe('resumenKpisTickets', () => {
       totalVenta: 0,
     });
   });
+
+  test('dos tickets aprobados de la misma comanda no duplican pagadas', () => {
+    const k = resumenKpisTickets([
+      {
+        _id: 't1',
+        comandas: ['c1'],
+        estado: 'aprobado',
+        total: 80,
+        createdAt: '2026-09-02T10:00:00.000Z',
+        ticketNumber: 1,
+      },
+      {
+        _id: 't2',
+        comandas: ['c1'],
+        estado: 'aprobado',
+        total: 80,
+        createdAt: '2026-09-02T11:00:00.000Z',
+        ticketNumber: 2,
+      },
+    ]);
+    expect(k.aprobados).toBe(80);
+    expect(k.totalVenta).toBe(80);
+  });
+
+  test('PPA y ticket de comanda: solo el último', () => {
+    const k = resumenKpisTickets([
+      {
+        _id: 'ppa',
+        comandas: ['c1'],
+        estado: 'aprobado',
+        total: 40,
+        createdAt: '2026-09-02T10:00:00.000Z',
+        ticketNumber: 1,
+      },
+      {
+        _id: 'cmd',
+        comandas: ['c1'],
+        estado: 'aprobado',
+        total: 80,
+        createdAt: '2026-09-02T12:00:00.000Z',
+        ticketNumber: 4,
+      },
+    ]);
+    expect(k.aprobados).toBe(80);
+  });
 });
