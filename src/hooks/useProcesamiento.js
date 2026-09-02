@@ -498,6 +498,60 @@ const useProcesamiento = ({
     }
   }, [getToken, showToast, onProcesamientoChange]);
 
+  const pasarPlatoABackup = useCallback(async (comandaId, platoId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/pasar-a-backup`,
+        {},
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      onProcesamientoChange({
+        type: 'PLATO_TOMADO',
+        comandaId,
+        platoId,
+        procesandoPor: response.data?.data?.procesandoPor
+      });
+      return { success: true, data: response.data };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al pasar a backup';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, onProcesamientoChange]);
+
+  const pasarGuarnicionABackup = useCallback(async (comandaId, platoId, compId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/guarnicion/${compId}/pasar-a-backup`,
+        {},
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      onProcesamientoChange({
+        type: 'GUARNICION_TOMADA',
+        comandaId,
+        platoId,
+        complementoId: compId,
+        complementoIds: response.data?.data?.complementoIds,
+        procesandoPor: response.data?.data?.procesandoPor
+      });
+      return { success: true, data: response.data };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error al pasar guarnición a backup';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, onProcesamientoChange]);
+
   return {
     loading,
     error,
@@ -511,7 +565,9 @@ const useProcesamiento = ({
     // PLAN GUARNICIONES_SEPARADAS v1.1.1
     tomarGuarnicion,
     liberarGuarnicion,
-    finalizarGuarnicion
+    finalizarGuarnicion,
+    pasarPlatoABackup,
+    pasarGuarnicionABackup
   };
 };
 

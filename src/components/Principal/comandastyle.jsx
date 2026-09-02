@@ -45,6 +45,8 @@ import {
   ejecutarEntregarPlatoEntero
 } from "../../utils/entregarPlatoEnteroKds";
 import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
+import BotonPasarABackup from "./BotonPasarABackup";
+import { recolectarSeleccionPasarABackup } from "../../utils/pasarABackupKds";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
@@ -1456,7 +1458,9 @@ const ComandaStyle = ({
     // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3
     tomarGuarnicion,
     liberarGuarnicion,
-    finalizarGuarnicion
+    finalizarGuarnicion,
+    pasarPlatoABackup,
+    pasarGuarnicionABackup
   } = useProcesamiento({
     getToken,
     showToast: (msg) => setToastMessage(msg),
@@ -3226,6 +3230,7 @@ const ComandaStyle = ({
   }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId, isSupervisorView, onSupervisorEntregarPlato]);
 
   const [isEntregandoPlatoEntero, setIsEntregandoPlatoEntero] = useState(false);
+  const [isPasandoABackup, setIsPasandoABackup] = useState(false);
   const handleEntregarPlatoEntero = useCallback(async () => {
     if (isEntregandoPlatoEntero || isFinalizandoPlatos || isEntregandoPlatos) return;
     if (!hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) return;
@@ -3322,6 +3327,74 @@ const ComandaStyle = ({
     batchFinalizarPlatos,
     entregarPlato,
     entregarPlatoEnteroAbsoluto
+  ]);
+
+  const handlePasarABackup = useCallback(async () => {
+    if (isPasandoABackup || isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero) return;
+    const lote = recolectarSeleccionPasarABackup({ platoStates, comandas });
+    if (!lote.length) {
+      setToastMessage({
+        type: 'warning',
+        message: 'Selecciona platos en proceso para enviar a backup',
+        duration: 4000
+      });
+      return;
+    }
+    setIsPasandoABackup(true);
+    try {
+      let ok = 0;
+      const errores = [];
+      for (const item of lote) {
+        const esG = item.tipo === 'guarnicion' || !!item.comp;
+        const result = esG
+          ? await pasarGuarnicionABackup(item.comandaId, item.platoId, item.compId)
+          : await pasarPlatoABackup(item.comandaId, item.platoId);
+        if (result.success) ok += 1;
+        else errores.push(result.error || item.nombre || 'Error');
+      }
+      if (ok > 0) {
+        setPlatoStates((prev) => {
+          const nuevo = new Map(prev);
+          lote.forEach((item) => {
+            const key = (item.tipo === 'guarnicion' || item.comp)
+              ? `${item.comandaId}-${item.platoIndex}-g-${item.compId}`
+              : `${item.comandaId}-${item.platoIndex}`;
+            nuevo.delete(key);
+          });
+          return nuevo;
+        });
+      }
+      if (ok > 0 && errores.length === 0) {
+        setToastMessage({
+          type: 'success',
+          message: ok === 1 ? '↻ Plato enviado a su backup' : `↻ ${ok} platos enviados a backup`,
+          duration: 3000
+        });
+      } else if (ok > 0) {
+        setToastMessage({
+          type: 'warning',
+          message: `${ok} enviado(s). ${errores[0]}`,
+          duration: 4500
+        });
+      } else {
+        setToastMessage({
+          type: 'error',
+          message: `❌ ${errores[0] || 'No se pudo pasar a backup'}`,
+          duration: 4500
+        });
+      }
+    } finally {
+      setIsPasandoABackup(false);
+    }
+  }, [
+    isPasandoABackup,
+    isFinalizandoPlatos,
+    isEntregandoPlatos,
+    isEntregandoPlatoEntero,
+    platoStates,
+    comandas,
+    pasarPlatoABackup,
+    pasarGuarnicionABackup
   ]);
 
   /**
@@ -4304,7 +4377,7 @@ const ComandaStyle = ({
                   // v7.2: Contar platos con interaccion (amarillo O verde)
                   const platosConInteraccion = obtenerPlatosSeleccionadosInfo();
                   const hayPlatosSeleccionados = platosConInteraccion.length > 0;
-                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || isPasandoABackup || procesamientoLoading;
                   
                   // Determinar estilos segun el modo
                   const getButtonStyles = () => {
@@ -4412,13 +4485,15 @@ const ComandaStyle = ({
 
                 {(() => {
                   const { modo, platos } = determinarAccionBoton();
-                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || procesamientoLoading;
+                  const isLoading = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero || isPasandoABackup || procesamientoLoading;
                   const absoluto = entregarPlatoEnteroAbsoluto !== false;
                   let nSel = 0;
                   platoStates.forEach((e) => {
                     if (e === 'seleccionado' || e === 'entregando') nSel += 1;
                   });
+                  const loteBackup = recolectarSeleccionPasarABackup({ platoStates, comandas });
                   return (
+                    <>
                     <BotonEntregarPlatoEntero
                       visible={hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)}
                       enabled={botonEntregarPlatoEnteroHabilitado(modo, { absoluto, haySeleccion: nSel > 0 })}
@@ -4428,6 +4503,14 @@ const ComandaStyle = ({
                       count={nSel || platos?.length || 0}
                       absoluto={absoluto}
                     />
+                    <BotonPasarABackup
+                      enabled={loteBackup.length > 0}
+                      loading={isLoading}
+                      nightMode={nightMode}
+                      onClick={handlePasarABackup}
+                      count={loteBackup.length}
+                    />
+                    </>
                   );
                 })()}
 
