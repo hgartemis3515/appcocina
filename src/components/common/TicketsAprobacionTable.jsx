@@ -11,7 +11,7 @@ import {
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
-import { platosTicketVisibles } from '../../utils/ticketTotales';
+import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
 
 function SortIcon({ active, dir }) {
   if (!active) return <FaSort className="inline text-[9px] opacity-40 ml-1" />;
@@ -216,6 +216,7 @@ export default function TicketsAprobacionTable({
               const dni = dniClienteTicket(ticket);
               const platosVis = platosTicketVisibles(ticket);
               const nPlatos = platosVis.length;
+              const { neto, montoDesc } = totalesVistaTicket(ticket);
               return (
                 <tr key={ticket._id} className="border-t border-gray-800 hover:bg-gray-800/60 align-top">
                     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
@@ -269,7 +270,10 @@ export default function TicketsAprobacionTable({
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right text-white font-bold whitespace-nowrap">
-                      {formatCurrency(ticket.total)}
+                      {formatCurrency(neto)}
+                      {montoDesc > 0 && (
+                        <div className="text-[10px] text-red-400 font-normal">-{formatCurrency(montoDesc)}</div>
+                      )}
                       <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-400 uppercase">

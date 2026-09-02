@@ -151,6 +151,10 @@ export function totalTicketNeto(ticket) {
   return resolverBrutoYNeto(ticket, sumaPlatosTicket(ticket)).neto;
 }
 
+export function totalesVistaTicket(ticket) {
+  return resolverBrutoYNeto(ticket, sumaPlatosTicket(ticket));
+}
+
 function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }

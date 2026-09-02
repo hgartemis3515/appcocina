@@ -25,7 +25,7 @@ import {
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
 } from '../../utils/ticketAprobacionUi';
-import { platosTicketVisibles, resumenKpisTickets } from '../../utils/ticketTotales';
+import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -575,6 +575,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const ticketsPendientesMismaMesa = ticketsPendientesPorMesa.get(mesaId) || 0;
                 const quedanMasTickets = ticketsPendientesMismaMesa > 1;
                 const platosVis = platosTicketVisibles(ticket);
+                const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
                 return (
                   <motion.div
                     key={ticket._id}
@@ -663,7 +664,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
                           <FaMoneyBill className="text-green-400" />
-                          <span className="text-white font-bold">{formatCurrency(ticket.total)}</span>
+                          <span className="text-white font-bold">{formatCurrency(neto)}</span>
                         </div>
                         <div className="text-gray-500 text-xs flex items-center gap-2">
                           {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
@@ -673,20 +674,20 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           </span>
                         </div>
                       </div>
-                      {Number(ticket.montoDescuento) > 0 && (
+                      {montoDesc > 0 && (
                         <div className="mt-1.5 space-y-0.5 text-xs">
                           <div className="flex justify-between text-gray-400">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(ticket.totalSinDescuento || ticket.subtotal || ticket.total)}</span>
+                            <span>{formatCurrency(bruto)}</span>
                           </div>
                           <div className="text-red-400">
-                            Descuento: -{formatCurrency(ticket.montoDescuento)}
+                            Descuento: -{formatCurrency(montoDesc)}
                             {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
                             {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
                           </div>
                           <div className="flex justify-between text-white font-semibold">
                             <span>TOTAL</span>
-                            <span>{formatCurrency(ticket.total)}</span>
+                            <span>{formatCurrency(neto)}</span>
                           </div>
                         </div>
                       )}

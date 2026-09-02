@@ -7,7 +7,7 @@ import {
   nombreClienteTicket, dniClienteTicket,
 } from '../../utils/ticketAprobacionUi';
 import { getMozoNombre } from '../../utils/ticketSort';
-import { mergePlatosTicketConComandas, platosTicketVisibles } from '../../utils/ticketTotales';
+import { mergePlatosTicketConComandas, platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
 import PlatoTicketItem from './PlatoTicketItem';
 
 function unwrapComanda(data) {
@@ -136,16 +136,29 @@ export default function TicketComandaDetalleModal({
         </div>
 
         <div className="px-4 py-3 border-t border-gray-700 flex-shrink-0 space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">{labelPagoTicket(ticket)}</span>
-            <span className="text-white font-bold">{formatCurrency(ticket.total)}</span>
-          </div>
-          {Number(ticket.montoDescuento) > 0 && (
-            <div className="text-xs text-red-400">
-              Descuento: -{formatCurrency(ticket.montoDescuento)}
-              {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
-            </div>
-          )}
+          {(() => {
+            const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
+            return (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">{labelPagoTicket(ticket)}</span>
+                  <span className="text-white font-bold">{formatCurrency(neto)}</span>
+                </div>
+                {montoDesc > 0 && (
+                  <div className="text-xs space-y-0.5">
+                    <div className="flex justify-between text-gray-400">
+                      <span>Subtotal</span>
+                      <span>{formatCurrency(bruto)}</span>
+                    </div>
+                    <div className="text-red-400">
+                      Descuento: -{formatCurrency(montoDesc)}
+                      {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {footer}
         </div>
       </div>

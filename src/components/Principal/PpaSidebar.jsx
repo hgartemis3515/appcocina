@@ -10,7 +10,7 @@ import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
-import { platosTicketVisibles } from '../../utils/ticketTotales';
+import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago } from '../../utils/ticketAprobacionUi';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -197,6 +197,7 @@ export default function PpaSidebar({ socket, onClose }) {
             const cantidadComandasTicket = getCantidadComandas(ticket);
             const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
             const platosVis = platosTicketVisibles(ticket);
+            const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
             return (
               <motion.div
                 key={ticket._id}
@@ -268,9 +269,9 @@ export default function PpaSidebar({ socket, onClose }) {
                     <div className="flex items-center gap-1">
                       <FaMoneyBill className="text-green-400 text-xs" />
                       <span className="text-white text-sm font-bold">
-                        {esReserva && !(Number(ticket.total) > 0) && !(Number(ticket.montoDescuento) > 0)
+                        {esReserva && !(neto > 0) && !(montoDesc > 0)
                           ? 'Sin adelanto'
-                          : formatCurrency(ticket.total)}
+                          : formatCurrency(neto)}
                       </span>
                     </div>
                     {ticket.voucherId && (
@@ -282,19 +283,19 @@ export default function PpaSidebar({ socket, onClose }) {
                       {ticket.moneda || 'Soles'} · {labelPagoTicket(ticket)}
                     </span>
                   </div>
-                  {Number(ticket.montoDescuento) > 0 && (
+                  {montoDesc > 0 && (
                     <div className="mt-1 space-y-0.5 text-[11px]">
                       <div className="flex justify-between text-gray-400">
                         <span>Subtotal</span>
-                        <span>{formatCurrency(ticket.totalSinDescuento || ticket.subtotal || ticket.total)}</span>
+                        <span>{formatCurrency(bruto)}</span>
                       </div>
                       <div className="text-red-400">
-                        Descuento: -{formatCurrency(ticket.montoDescuento)}
+                        Descuento: -{formatCurrency(montoDesc)}
                         {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
                       </div>
                       <div className="flex justify-between text-white font-semibold">
                         <span>TOTAL</span>
-                        <span>{formatCurrency(ticket.total)}</span>
+                        <span>{formatCurrency(neto)}</span>
                       </div>
                     </div>
                   )}

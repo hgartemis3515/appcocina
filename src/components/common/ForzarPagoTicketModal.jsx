@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FaMoneyBill } from 'react-icons/fa';
 import { formatCurrency } from '../../utils/ticketAprobacionUi';
+import { totalesVistaTicket } from '../../utils/ticketTotales';
 
 function parseMonto(str) {
   if (str == null || str === '') return 0;
@@ -9,15 +10,15 @@ function parseMonto(str) {
 }
 
 export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConfirm }) {
+  const { bruto, neto, montoDesc } = useMemo(() => totalesVistaTicket(ticket), [ticket]);
+  const total = neto;
   const [metodo, setMetodo] = useState('efectivo');
-  const total = Number(ticket?.total) || 0;
   const [montoRecibidoStr, setMontoRecibidoStr] = useState(() => (total > 0 ? total.toFixed(2) : ''));
 
   useEffect(() => {
-    const t = Number(ticket?.total) || 0;
     setMetodo('efectivo');
-    setMontoRecibidoStr(t > 0 ? t.toFixed(2) : '');
-  }, [ticket?._id, ticket?.total]);
+    setMontoRecibidoStr(total > 0 ? total.toFixed(2) : '');
+  }, [ticket?._id, total]);
 
   const recibido = useMemo(() => Math.round(parseMonto(montoRecibidoStr) * 100) / 100, [montoRecibidoStr]);
   const vuelto = useMemo(() => Math.max(0, Math.round((recibido - total) * 100) / 100), [recibido, total]);
@@ -41,9 +42,22 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
           <FaMoneyBill className="text-amber-400" />
           Forzar pago
         </div>
-        <p className="text-sm text-gray-300 mb-3">
-          Mesa {ticket.numMesa || '?'} · {formatCurrency(total)}. Se registra el cobro como pago adelantado. El mozo libera la mesa cuando entregue.
+        <p className="text-sm text-gray-300 mb-2">
+          Mesa {ticket.numMesa || '?'}. Se registra el cobro como pago adelantado. El mozo libera la mesa cuando entregue.
         </p>
+        {montoDesc > 0 && (
+          <div className="text-xs space-y-0.5 mb-2">
+            <div className="flex justify-between text-gray-400">
+              <span>Subtotal</span>
+              <span>{formatCurrency(bruto)}</span>
+            </div>
+            <div className="text-red-400">Descuento: -{formatCurrency(montoDesc)}</div>
+          </div>
+        )}
+        <div className="flex justify-between text-sm text-white font-semibold mb-3">
+          <span>Total a cobrar</span>
+          <span>{formatCurrency(total)}</span>
+        </div>
         <label className="block text-xs text-gray-400 mb-1">Método</label>
         <select
           value={metodo}
