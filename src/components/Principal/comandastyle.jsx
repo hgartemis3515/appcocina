@@ -47,8 +47,9 @@ import {
 } from "../../utils/entregarPlatoEnteroKds";
 import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 import BotonPasarABackup from "./BotonPasarABackup";
-import { recolectarSeleccionPasarABackup } from "../../utils/pasarABackupKds";
+import { recolectarSeleccionConSiguienteBackup } from "../../utils/pasarABackupKds";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
+import useAsignacionBackupKds from "../../hooks/useAsignacionBackupKds";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
 import useProcesamiento from "../../hooks/useProcesamiento";
@@ -114,6 +115,7 @@ const ComandaStyle = ({
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
   const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
+  const asignacionBackupSnapshot = useAsignacionBackupKds();
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
     deshabilitarAgrupacionGuarniciones
@@ -3344,11 +3346,11 @@ const ComandaStyle = ({
 
   const handlePasarABackup = useCallback(async () => {
     if (isPasandoABackup || isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero) return;
-    const lote = recolectarSeleccionPasarABackup({ platoStates, comandas });
+    const lote = recolectarSeleccionConSiguienteBackup({ platoStates, comandas }, asignacionBackupSnapshot);
     if (!lote.length) {
       setToastMessage({
         type: 'warning',
-        message: 'Selecciona platos en proceso para enviar a backup',
+        message: 'Selecciona un plato en proceso que tenga backup',
         duration: 4000
       });
       return;
@@ -3406,6 +3408,7 @@ const ComandaStyle = ({
     isEntregandoPlatoEntero,
     platoStates,
     comandas,
+    asignacionBackupSnapshot,
     pasarPlatoABackup,
     pasarGuarnicionABackup
   ]);
@@ -4509,7 +4512,7 @@ const ComandaStyle = ({
                   platoStates.forEach((e) => {
                     if (e === 'seleccionado' || e === 'entregando') nSel += 1;
                   });
-                  const loteBackup = recolectarSeleccionPasarABackup({ platoStates, comandas });
+                  const loteBackup = recolectarSeleccionConSiguienteBackup({ platoStates, comandas }, asignacionBackupSnapshot);
                   return (
                     <>
                     <BotonEntregarPlatoEntero
@@ -4522,6 +4525,7 @@ const ComandaStyle = ({
                       absoluto={absoluto}
                     />
                     <BotonPasarABackup
+                      visible={loteBackup.length > 0}
                       enabled={loteBackup.length > 0}
                       loading={isLoading}
                       nightMode={nightMode}

@@ -3,6 +3,7 @@
  */
 
 import { esClaveGuarnicion } from './guarnicionesKds';
+import { unidadTieneSiguienteBackup } from './asignacionBackupMatch';
 
 const ESTADOS_PROCESO = new Set(['en_espera', 'ingresante', 'pedido']);
 
@@ -106,6 +107,15 @@ export function recolectarSeleccionPasarABackup(input) {
   return out;
 }
 
+export function recolectarSeleccionConSiguienteBackup(input, snapshot) {
+  if (!snapshot) return [];
+  return recolectarSeleccionPasarABackup(input).filter((u) => unidadTieneSiguienteBackup(u, snapshot));
+}
+
 export function botonPasarABackupHabilitado(input) {
   return recolectarSeleccionPasarABackup(input).length > 0;
+}
+
+export function botonPasarABackupVisible(input, snapshot) {
+  return recolectarSeleccionConSiguienteBackup(input, snapshot).length > 0;
 }

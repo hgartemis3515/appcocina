@@ -1,4 +1,9 @@
-const { recolectarSeleccionPasarABackup, botonPasarABackupHabilitado } = require('./pasarABackupKds');
+const {
+  recolectarSeleccionPasarABackup,
+  recolectarSeleccionConSiguienteBackup,
+  botonPasarABackupHabilitado,
+  botonPasarABackupVisible
+} = require('./pasarABackupKds');
 
 describe('pasarABackupKds', () => {
   test('habilita con plato en_espera tomado y seleccionado', () => {
@@ -50,5 +55,37 @@ describe('pasarABackupKds', () => {
     const lote = recolectarSeleccionPasarABackup({ platoStates, comandas });
     expect(lote).toHaveLength(1);
     expect(lote[0].platoId).toBe('p1');
+  });
+
+  test('visible solo si el seleccionado tiene siguiente backup', () => {
+    const sel = [{
+      plato: { platoId: 9, estado: 'en_espera' },
+      procesandoPor: { cocineroId: 'c1' },
+      estadoVisual: 'seleccionado'
+    }];
+    const conBackup = {
+      platos: {
+        reglasPorPlato: [{
+          platoId: 9,
+          activo: true,
+          cocineroPrimarioId: 'c1',
+          backups: [{ cocineroId: 'c2', orden: 1 }]
+        }]
+      }
+    };
+    const sinBackup = {
+      platos: {
+        reglasPorPlato: [{
+          platoId: 9,
+          activo: true,
+          cocineroPrimarioId: 'c1',
+          backups: []
+        }]
+      }
+    };
+    expect(botonPasarABackupVisible(sel, conBackup)).toBe(true);
+    expect(recolectarSeleccionConSiguienteBackup(sel, conBackup)).toHaveLength(1);
+    expect(botonPasarABackupVisible(sel, sinBackup)).toBe(false);
+    expect(botonPasarABackupVisible(sel, null)).toBe(false);
   });
 });

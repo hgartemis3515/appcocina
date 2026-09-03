@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
  * A la derecha de "Entregar plato entero". Pasa platos en proceso a su backup de asignación.
  */
 const BotonPasarABackup = ({
-  visible = true,
+  visible = false,
   enabled,
   loading,
   nightMode,

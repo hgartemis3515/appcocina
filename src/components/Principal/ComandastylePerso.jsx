@@ -69,7 +69,8 @@ import {
 } from "../../utils/entregarPlatoEnteroKds";
 import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 import BotonPasarABackup from "./BotonPasarABackup";
-import { recolectarSeleccionPasarABackup } from "../../utils/pasarABackupKds";
+import { recolectarSeleccionConSiguienteBackup } from "../../utils/pasarABackupKds";
+import useAsignacionBackupKds from "../../hooks/useAsignacionBackupKds";
 
 const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
@@ -99,6 +100,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
   const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
+  const asignacionBackupSnapshot = useAsignacionBackupKds();
   const { config: kdsVistaConfig } = useConfig();
   const usarNombreCocinaEnTablaKds = kdsVistaConfig.usarNombreCocinaEnTablaKds !== false;
   const juntarGuarnicionesVisualKds = kdsVistaConfig.juntarGuarnicionesVisualKds !== false;
@@ -3004,11 +3006,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   const handlePasarABackup = useCallback(async () => {
     if (isPasandoABackup || isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero) return;
-    const lote = recolectarSeleccionPasarABackup({ platoStates, comandas });
+    const lote = recolectarSeleccionConSiguienteBackup({ platoStates, comandas }, asignacionBackupSnapshot);
     if (!lote.length) {
       setToastMessage({
         type: 'warning',
-        message: 'Selecciona platos en proceso para enviar a backup',
+        message: 'Selecciona un plato en proceso que tenga backup',
         duration: 4000
       });
       return;
@@ -3066,6 +3068,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     isEntregandoPlatoEntero,
     platoStates,
     comandas,
+    asignacionBackupSnapshot,
     pasarPlatoABackup,
     pasarGuarnicionABackup
   ]);
@@ -4046,7 +4049,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   platoStates.forEach((e) => {
                     if (e === 'seleccionado' || e === 'entregando') nSel += 1;
                   });
-                  const loteBackup = recolectarSeleccionPasarABackup({ platoStates, comandas });
+                  const loteBackup = recolectarSeleccionConSiguienteBackup({ platoStates, comandas }, asignacionBackupSnapshot);
                   return (
                     <>
                     <BotonEntregarPlatoEntero
@@ -4059,6 +4062,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                       absoluto={absoluto}
                     />
                     <BotonPasarABackup
+                      visible={loteBackup.length > 0}
                       enabled={loteBackup.length > 0}
                       loading={isLoading}
                       nightMode={nightMode}
