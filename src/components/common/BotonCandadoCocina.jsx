@@ -16,7 +16,7 @@ export default function BotonCandadoCocina({ className = '', compact = false }) 
     <button
       type="button"
       onClick={onClick}
-      title={hasPinCocina ? 'Bloquear pantalla' : 'Configura una clave de 4 dígitos en Usuarios'}
+      title={hasPinCocina ? 'Bloquear pantalla' : 'Configura una clave de 6 dígitos en Usuarios'}
       aria-label="Bloquear pantalla"
       className={
         className ||

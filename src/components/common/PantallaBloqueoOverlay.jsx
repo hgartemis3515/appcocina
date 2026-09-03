@@ -5,7 +5,7 @@ import { usePantallaBloqueo } from '../../contexts/PantallaBloqueoContext';
 const TECLAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 /**
- * Overlay de bloqueo táctil: teclado 1–9 + 0, PIN de 4 dígitos mostrado como *.
+ * Overlay de bloqueo táctil: teclado 1–9 + 0, PIN de 6 dígitos mostrado como *.
  */
 export default function PantallaBloqueoOverlay() {
   const { bloqueada, verificarPin } = usePantallaBloqueo();
@@ -24,7 +24,7 @@ export default function PantallaBloqueoOverlay() {
 
   const intentarDesbloquear = useCallback(async (digits) => {
     if (enviandoRef.current) return;
-    if (!/^\d{4}$/.test(digits)) return;
+    if (!/^\d{6}$/.test(digits)) return;
     enviandoRef.current = true;
     setVerificando(true);
     const res = await verificarPin(digits);
@@ -40,9 +40,9 @@ export default function PantallaBloqueoOverlay() {
     if (verificando) return;
     setError('');
     setPin((prev) => {
-      if (prev.length >= 4) return prev;
+      if (prev.length >= 6) return prev;
       const next = `${prev}${d}`;
-      if (next.length === 4) {
+      if (next.length === 6) {
         setTimeout(() => intentarDesbloquear(next), 40);
       }
       return next;
@@ -64,7 +64,7 @@ export default function PantallaBloqueoOverlay() {
       } else if (e.key === 'Backspace') {
         e.preventDefault();
         borrar();
-      } else if (e.key === 'Enter' && pin.length === 4) {
+      } else if (e.key === 'Enter' && pin.length === 6) {
         e.preventDefault();
         intentarDesbloquear(pin);
       }
@@ -88,15 +88,15 @@ export default function PantallaBloqueoOverlay() {
           </div>
           <h2 className="text-white text-xl font-bold">Pantalla bloqueada</h2>
           <p className="text-gray-400 text-sm mt-1 text-center">
-            Ingresa la clave de 4 dígitos (teclado o toque)
+            Ingresa la clave de 6 dígitos (teclado o toque)
           </p>
         </div>
 
         <div className="flex justify-center gap-3 mb-8" aria-label="Clave ingresada">
-          {[0, 1, 2, 3].map((i) => (
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-2xl font-bold ${
+              className={`w-9 h-12 rounded-xl border-2 flex items-center justify-center text-2xl font-bold ${
                 pin.length > i
                   ? 'border-amber-400 bg-gray-800 text-amber-300'
                   : 'border-gray-600 bg-gray-900 text-transparent'
@@ -143,7 +143,7 @@ export default function PantallaBloqueoOverlay() {
           </button>
           <button
             type="button"
-            disabled={verificando || pin.length !== 4}
+            disabled={verificando || pin.length !== 6}
             onClick={() => intentarDesbloquear(pin)}
             className="min-h-[64px] rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-lg font-bold border border-amber-500"
           >

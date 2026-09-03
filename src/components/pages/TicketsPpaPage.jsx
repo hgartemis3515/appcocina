@@ -247,7 +247,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   })), [items, filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta]);
 
   const cantidadPendientes = itemsEnPeriodo.filter((t) => t.estado === 'pendiente_aprobacion').length;
-  const cantidadComandas = itemsEnPeriodo.filter((t) => t.tipo === 'comanda_completa' && t.estado === 'pendiente_aprobacion').length;
   const cantidadParciales = itemsEnPeriodo.filter((t) => t.tipo === 'pago_parcial' && t.estado === 'pendiente_aprobacion').length;
   const cantidadPPA = itemsEnPeriodo.filter((t) => t.tipo === 'pago_adelantado' && t.estado === 'pendiente_aprobacion').length;
 
@@ -319,11 +318,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <KpiChip
-                label="Pendiente"
-                value={formatCurrency(kpisTabla.pendiente)}
-                valueClass="text-[#ffa502]"
-              />
-              <KpiChip
                 label="Ventas pagadas"
                 value={formatCurrency(kpisTabla.aprobados)}
                 valueClass="text-[#2ecc71]"
@@ -347,11 +341,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             {cantidadPendientes > 0 && (
               <span className="bg-violet-500 text-white text-sm px-3 py-1 rounded-full font-bold animate-pulse">
                 {cantidadPendientes} pendiente{cantidadPendientes > 1 ? 's' : ''}
-              </span>
-            )}
-            {cantidadComandas > 0 && (
-              <span className="bg-blue-500/80 text-white text-xs px-2 py-1 rounded-full">
-                {cantidadComandas} comanda{cantidadComandas > 1 ? 's' : ''} por aprobar
               </span>
             )}
             {cantidadParciales > 0 && (

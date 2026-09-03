@@ -30,6 +30,7 @@ import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
+import TomarCocineroModal from "./TomarCocineroModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import PpaSidebar from "./PpaSidebar";
 import ReservaSidebar from "./ReservaSidebar";
@@ -51,6 +52,7 @@ import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useSocketCocina from "../../hooks/useSocketCocina";
 import useKdsBehavior from "../../hooks/useKdsBehavior";
 import useProcesamiento from "../../hooks/useProcesamiento";
+import useCambiarCocineroKds from "../../hooks/useCambiarCocineroKds";
 import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
 import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import useReservasProgramadas from "../../hooks/useReservasProgramadas";
@@ -102,7 +104,8 @@ const ComandaStyle = ({
     userName,
     userId,
     hasRegla,
-    hasPermission
+    hasPermission,
+    cocineroConfig
   } = useAuth();
 
   // Regla: solo mostrar la comanda más antigua al usar el buscador de platos
@@ -1467,6 +1470,30 @@ const ComandaStyle = ({
     onProcesamientoChange: handleProcesamientoChange
   });
 
+  const resetEstadoVisualPlatos = useCallback((lista) => {
+    (lista || []).forEach(({ comandaId, platoIndex, compId, tipo }) => {
+      const key = esTipoGuarnicionKds(tipo)
+        ? `${comandaId}-${platoIndex}-g-${compId}`
+        : `${comandaId}-${platoIndex}`;
+      setPlatoStates((prev) => {
+        const nuevo = new Map(prev);
+        nuevo.set(key, 'normal');
+        return nuevo;
+      });
+    });
+  }, []);
+
+  const cambiarCocineroKds = useCambiarCocineroKds({
+    getToken,
+    userId,
+    userName,
+    alias: cocineroConfig?.aliasCocinero,
+    tomarPlato,
+    tomarGuarnicion,
+    showToast: setToastMessage,
+    onDone: resetEstadoVisualPlatos
+  });
+
   // Actualizar estado de conexión
   useEffect(() => {
     setSocketConnectionStatus(connectionStatus);
@@ -2421,7 +2448,7 @@ const ComandaStyle = ({
    * Determina que accion debe mostrar el boton principal de la barra inferior
    * REGLAS v7.2:
    * - Si algun plato esta tomado por otro cocinero -> SIN_ACCION con mensaje
-   * - Si tengo platos en estado 'dejar' (rojo) -> DEJAR_PLATO (liberar)
+   * - Si tengo platos en estado 'dejar' (rojo) -> CAMBIAR_PLATO (reasignar cocinero)
    * - Si tengo platos en estado 'seleccionado' (verde) y tomados por mi -> FINALIZAR_PLATO
    * - Si tengo platos en amarillo sin tomar -> TOMAR_PLATO
    * - Mixto (algunos tomados por mi, algunos sin tomar) -> TOMAR_PLATO para los restantes
@@ -2497,17 +2524,17 @@ const ComandaStyle = ({
       };
     }
     
-    // CASO 2: Platos en estado 'dejar' (rojo) -> DEJAR_PLATO (liberar)
-    // En modo supervisor, puede dejar platos tomados por otros
+    // CASO 2: Platos en estado 'dejar' (rojo) -> CAMBIAR_PLATO (reasignar cocinero)
+    // En modo supervisor, puede cambiar platos tomados por otros
     const platosADejar = analisis.filter(p => 
       p.quiereDejar && (p.tomadoPorMi || (isSupervisorView && p.tomadoPorOtro))
     );
     if (platosADejar.length > 0) {
       return {
-        modo: 'DEJAR_PLATO',
+        modo: 'CAMBIAR_PLATO',
         platos: platosADejar,
-        mensaje: `Dejar ${platosADejar.length} Plato${platosADejar.length > 1 ? 's' : ''}`,
-        subMensaje: 'Liberar para otros cocineros'
+        mensaje: platosADejar.length === 1 ? 'CAMBIAR PLATO' : `CAMBIAR ${platosADejar.length} PLATOS`,
+        subMensaje: 'Asignar a otro cocinero'
       };
     }
     
@@ -2671,26 +2698,12 @@ const ComandaStyle = ({
   }, [userId, tomarPlato, tomarGuarnicion, config.soundEnabled, isSupervisorView, onSupervisorTomarPlato]);
 
   /**
-   * Handler para DEJAR (liberar) platos que el cocinero actual habia tomado
-   * Muestra modal para ingresar motivo antes de liberar (para auditoría)
-   * IMPORTANTE: En modo supervisor, delega al modal del supervisor
+   * CAMBIAR PLATO: abre el modal de cocineros (no libera).
    */
   const handleDejarPlatos = useCallback(async (platos) => {
     if (!platos || platos.length === 0) return;
-    
-    // === INTERCEPTACIÓN SUPERVISOR ===
-    if (isSupervisorView && onSupervisorDejarPlato) {
-      console.log('[DejarPlatos] Modo supervisor - delegando a modal');
-      onSupervisorDejarPlato(platos);
-      return;
-    }
-    // === FIN INTERCEPTACIÓN ===
-    
-    // Guardar platos pendientes y mostrar modal de motivo
-    setPlatosPendientesDejar(platos);
-    setDejarMotivo('');
-    setShowDejarModal(true);
-  }, [isSupervisorView, onSupervisorDejarPlato]);
+    cambiarCocineroKds.abrir(platos);
+  }, [cambiarCocineroKds]);
 
   /**
    * Ejecuta la liberación de platos después de confirmar el motivo
@@ -3512,6 +3525,7 @@ const ComandaStyle = ({
       case 'TOMAR_PLATO':
         await handleTomarPlatos(platos);
         break;
+      case 'CAMBIAR_PLATO':
       case 'DEJAR_PLATO':
         await handleDejarPlatos(platos);
         break;
@@ -4391,8 +4405,9 @@ const ComandaStyle = ({
                         return 'bg-green-800 text-white hover:bg-green-900 cursor-pointer';
                       case 'TOMAR_PLATO':
                         return 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer';
+                      case 'CAMBIAR_PLATO':
                       case 'DEJAR_PLATO':
-                        return 'bg-red-500 text-white hover:bg-red-600 cursor-pointer';
+                        return 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer';
                       case 'FINALIZAR_PLATO':
                         return 'bg-green-600 text-white hover:bg-green-700 cursor-pointer';
                       case 'SOLICITAR_ORDEN':
@@ -4410,6 +4425,7 @@ const ComandaStyle = ({
                     const colors = {
                       'ENTREGAR_PLATO': 'rgba(6, 95, 70, 0.7)',
                       'TOMAR_PLATO': 'rgba(59, 130, 246, 0.7)',
+                      'CAMBIAR_PLATO': 'rgba(245, 158, 11, 0.7)',
                       'DEJAR_PLATO': 'rgba(239, 68, 68, 0.7)',
                       'FINALIZAR_PLATO': 'rgba(34, 197, 94, 0.7)',
                       'SOLICITAR_ORDEN': 'rgba(217, 119, 6, 0.7)'
@@ -4444,6 +4460,8 @@ const ComandaStyle = ({
                         );
                       case 'TOMAR_PLATO':
                         return <span>👆</span>;
+                      case 'CAMBIAR_PLATO':
+                        return <span>🔄</span>;
                       case 'DEJAR_PLATO':
                         return <span>↩️</span>;
                       case 'FINALIZAR_PLATO':
@@ -4988,6 +5006,19 @@ const ComandaStyle = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* CAMBIAR PLATO: modal de cocineros */}
+      <TomarCocineroModal
+        isOpen={cambiarCocineroKds.abierto}
+        onClose={cambiarCocineroKds.cerrar}
+        cocineros={cambiarCocineroKds.cocineros}
+        loading={cambiarCocineroKds.loadingCocineros}
+        procesando={cambiarCocineroKds.procesando}
+        onConfirmar={cambiarCocineroKds.confirmar}
+        platosSeleccionados={cambiarCocineroKds.platos}
+        usuarioActual={cambiarCocineroKds.usuarioActual}
+        modo="cambiar"
+      />
 
       {/* 🔥 NUEVO: Modal de Dejar Plato con motivo para auditoría */}
       <AnimatePresence>

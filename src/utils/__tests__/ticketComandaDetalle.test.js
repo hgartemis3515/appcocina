@@ -1,4 +1,4 @@
-import { getComandaIdsFromTicket } from '../ticketComandaDisplay';
+import { getComandaIdsFromTicket, itemsDesdeComandaLive, totalActivoItemsComanda } from '../ticketComandaDisplay';
 import { mergePlatosTicketConComandas } from '../ticketTotales';
 import { getComplementosDePlato } from '../platoComplementos';
 
@@ -63,5 +63,25 @@ describe('getComplementosDePlato', () => {
     });
     expect(comps[0].pronombre).toBe('Arroz blanco');
     expect(comps[0].estadoCocina).toBe('en_espera');
+  });
+});
+
+describe('itemsDesdeComandaLive', () => {
+  test('usa cantidades de la comanda y precio unitario', () => {
+    const items = itemsDesdeComandaLive({
+      cantidades: [2],
+      montoDescuento: 0,
+      platos: [{
+        _id: 'p1',
+        nombre: 'Lomo',
+        precioUnitario: 40,
+        estado: 'en_espera',
+        procesandoPor: { alias: 'Ana' },
+      }],
+    });
+    expect(items[0].cantidad).toBe(2);
+    expect(items[0].subtotal).toBe(80);
+    expect(items[0].nombre).toBe('Lomo');
+    expect(totalActivoItemsComanda(items)).toBe(80);
   });
 });

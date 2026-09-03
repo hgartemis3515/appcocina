@@ -23,6 +23,7 @@ function SortIcon({ active, dir }) {
 export function AccionesTicket({
   ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago,
   aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading,
+  compact = false,
 }) {
   const isComanda = esTicketComanda(ticket);
   const esComandaOParcial = isComanda || esPagoParcial(ticket);
@@ -30,13 +31,14 @@ export function AccionesTicket({
   const puedeAprobar = ticketPuedeAprobarse(ticket);
   const puedeForzar = ticketPuedeForzarPago(ticket) && !ticket.boucher;
   const puedeReportar = esComandaOParcial && pendiente && !ticketEsAltaSinPago(ticket);
+  const btnPad = compact ? 'p-1' : 'p-1.5';
 
   return (
-    <div className="flex items-center justify-end gap-1 flex-wrap">
+    <div className={`flex items-center gap-0.5 flex-wrap ${compact ? 'justify-center' : 'justify-end'}`}>
       <button
         type="button"
         onClick={() => onImprimir(ticket)}
-        className="p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+        className={`${btnPad} rounded-md bg-gray-700 hover:bg-gray-600 text-white`}
         title="Imprimir"
       >
         <FaPrint className="text-xs" />
@@ -48,7 +50,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onAprobar(ticket)}
               disabled={aprobarLoading}
-              className="p-1.5 rounded-md bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white"
+              className={`${btnPad} rounded-md bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white`}
               title="Aprobar solicitud de cobro"
             >
               <FaCheck className="text-xs" />
@@ -59,7 +61,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onForzarPago(ticket)}
               disabled={forzarPagoLoading}
-              className="p-1.5 rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
+              className={`${btnPad} rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white`}
               title="Forzar pago"
             >
               <FaMoneyBill className="text-xs" />
@@ -70,7 +72,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onReportar(ticket)}
               disabled={reportarLoading}
-              className="p-1.5 rounded-md bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white"
+              className={`${btnPad} rounded-md bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white`}
               title="Reportar"
             >
               <FaExclamationTriangle className="text-xs" />
@@ -80,7 +82,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onRechazar(ticket)}
               disabled={rechazarLoading}
-              className="p-1.5 rounded-md bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white"
+              className={`${btnPad} rounded-md bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white`}
               title="Rechazar"
             >
               <FaTimes className="text-xs" />

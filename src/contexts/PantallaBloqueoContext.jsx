@@ -27,7 +27,7 @@ export function PantallaBloqueoProvider({ children }) {
   const bloquear = useCallback(() => {
     if (isMonitorMode) return { ok: false, error: 'El monitor TV no usa bloqueo' };
     if (user?.hasPinCocina === false) {
-      return { ok: false, error: 'Este usuario no tiene clave de 4 dígitos. Configúrala en Usuarios.' };
+      return { ok: false, error: 'Este usuario no tiene clave de 6 dígitos. Configúrala en Usuarios.' };
     }
     setBloqueada(true);
     try { sessionStorage.setItem(LOCK_KEY, '1'); } catch (_) { /* noop */ }
@@ -36,8 +36,8 @@ export function PantallaBloqueoProvider({ children }) {
 
   const verificarPin = useCallback(async (pin) => {
     const digits = String(pin || '').replace(/\D/g, '');
-    if (!/^\d{4}$/.test(digits)) {
-      return { ok: false, error: 'La clave debe tener 4 dígitos' };
+    if (!/^\d{6}$/.test(digits)) {
+      return { ok: false, error: 'La clave debe tener 6 dígitos' };
     }
     try {
       const data = await apiPost('/api/admin/cocina/desbloquear-pantalla', { pin: digits });

@@ -33,9 +33,10 @@ const useProcesamiento = ({
    * @param {string} comandaId - ID de la comanda
    * @param {string} platoId - ID del plato
    * @param {string} cocineroId - ID del cocinero que toma
-   * @param {boolean} forzar - Si es true (supervisor), fuerza la reasignación aunque esté tomado
+   * @param {boolean} forzar - Si es true, reasigna aunque esté tomado (supervisor o titular)
+   * @param {boolean} silencioso - Sin toast de éxito (CAMBIAR PLATO agrupa el mensaje)
    */
-  const tomarPlato = useCallback(async (comandaId, platoId, cocineroId, forzar = false) => {
+  const tomarPlato = useCallback(async (comandaId, platoId, cocineroId, forzar = false, silencioso = false) => {
     setLoading(true);
     setError(null);
     
@@ -52,11 +53,13 @@ const useProcesamiento = ({
         }
       );
       
-      showToast({
-        type: 'success',
-        message: '👨‍🍳 Plato tomado para preparación',
-        duration: 3000
-      });
+      if (!silencioso) {
+        showToast({
+          type: 'success',
+          message: '👨‍🍳 Plato tomado para preparación',
+          duration: 3000
+        });
+      }
       
       onProcesamientoChange({
         type: 'PLATO_TOMADO',

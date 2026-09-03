@@ -125,3 +125,76 @@ export function tieneOtrosTicketsMismaComanda(ticket, items) {
   const info = getInfoTicketMismaComanda(ticket, items);
   return info != null && info.total > 1;
 }
+
+/** Líneas de plato como en comandas.html (ver comanda). */
+export function itemsDesdeComandaLive(comanda) {
+  if (!comanda) return [];
+  const platos = comanda.platos || comanda.items || [];
+  return platos.map((item, index) => {
+    const nested = item && typeof item.plato === 'object' && item.plato ? item.plato : null;
+    const cantidad = Number(comanda.cantidades?.[index] ?? item?.cantidad) || 1;
+    const precio = Number(
+      item?.precioUnitario ?? item?.precio ?? nested?.precio ?? 0
+    ) || 0;
+    const nombre = item?.nombre || nested?.nombre || 'Sin nombre';
+    const subSnap = Number(item?.subtotal);
+    const subtotal = Number.isFinite(subSnap) && subSnap > 0
+      ? subSnap
+      : Number((cantidad * precio).toFixed(2));
+    return {
+      _id: item?._id || nested?._id,
+      nombre,
+      cantidad,
+      precio,
+      subtotal,
+      estado: item?.estado || 'en_espera',
+      eliminado: !!item?.eliminado,
+      anulado: !!item?.anulado,
+      notaEspecial: item?.notaEspecial || '',
+      tipoServicio: item?.tipoServicio || 'mesa',
+      complementosSeleccionados: item?.complementosSeleccionados || item?.complementos || [],
+      procesandoPor: item?.procesandoPor || null,
+      procesadoPor: item?.procesadoPor || null,
+      finalizadoPor: item?.finalizadoPor || null,
+    };
+  });
+}
+
+export function cocineroDePlatoVista(item) {
+  const de = (obj) => {
+    if (!obj || typeof obj !== 'object') return null;
+    const nombre = String(obj.alias || obj.nombre || obj.name || '').trim();
+    if (!nombre) return null;
+    return nombre;
+  };
+  const estado = String(item?.estado || '').toLowerCase();
+  const esFinal = estado === 'recoger' || estado === 'salio'
+    || estado === 'entregado' || estado === 'pagado';
+  const procesando = de(item?.procesandoPor);
+  const elegido = procesando || de(item?.procesadoPor) || de(item?.finalizadoPor);
+  if (!elegido) return { nombre: '—', enPreparacion: false };
+  return { nombre: elegido, enPreparacion: !!(procesando && !esFinal) };
+}
+
+export function totalActivoItemsComanda(items) {
+  return (items || []).reduce((s, i) => {
+    if (!i || i.eliminado || i.anulado) return s;
+    return s + (Number(i.subtotal) || (Number(i.cantidad) || 1) * (Number(i.precio) || 0));
+  }, 0);
+}
+
+export function etiquetaEstadoPlato(estado, eliminado) {
+  if (eliminado) return 'Eliminado';
+  const e = String(estado || '').toLowerCase();
+  const labels = {
+    pendiente: 'Pendiente',
+    pedido: 'Pedido',
+    en_espera: 'En espera',
+    recoger: 'Recoger',
+    salio: 'Salió',
+    entregado: 'Entregado',
+    pagado: 'Pagado',
+    pendiente_aprobar: 'Pend. aprobar',
+  };
+  return labels[e] || (e ? e.replace(/_/g, ' ') : '—');
+}

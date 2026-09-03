@@ -20,7 +20,8 @@ const TomarCocineroModal = ({
   onConfirmar,
   platosSeleccionados = [],
   comandaSeleccionada = null,
-  usuarioActual = null
+  usuarioActual = null,
+  modo = 'tomar'
 }) => {
   const inputRef = useRef(null);
   const yoId = idOf(usuarioActual);
@@ -34,6 +35,12 @@ const TomarCocineroModal = ({
   }, [isOpen]);
 
   const getTitulo = () => {
+    if (modo === 'cambiar') {
+      if (platosSeleccionados?.length === 1) {
+        return `Cambiar "${platosSeleccionados[0].platoNombre || platosSeleccionados[0].nombre || 'Plato'}"`;
+      }
+      return `Cambiar ${platosSeleccionados?.length || 0} plato${platosSeleccionados?.length === 1 ? '' : 's'}`;
+    }
     if (comandaSeleccionada) {
       return `Tomar Comanda #${comandaSeleccionada.comandaNumber || comandaSeleccionada.numeroComanda || ''}`;
     }
@@ -44,6 +51,9 @@ const TomarCocineroModal = ({
   };
 
   const getDescripcion = () => {
+    if (modo === 'cambiar') {
+      return 'Elige el cocinero que continuará este plato. Se actualiza en Ver Cocina completo.';
+    }
     if (comandaSeleccionada) {
       return `Selecciona quién preparará toda la comanda`;
     }
@@ -53,9 +63,11 @@ const TomarCocineroModal = ({
     return `Selecciona quién preparará estos platos`;
   };
 
-  const etiquetaYo = comandaSeleccionada
-    ? 'Asignarme la comanda'
-    : (platosSeleccionados?.length > 1 ? 'Asignarme los platos' : 'Asignarme el plato');
+  const etiquetaYo = modo === 'cambiar'
+    ? (platosSeleccionados?.length > 1 ? 'Quedármelos yo' : 'Quedármelo yo')
+    : (comandaSeleccionada
+      ? 'Asignarme la comanda'
+      : (platosSeleccionados?.length > 1 ? 'Asignarme los platos' : 'Asignarme el plato'));
 
   const vacio = !yoId && otros.length === 0;
 

@@ -12,6 +12,7 @@ describe('entregarPlatoEnteroKds', () => {
     expect(botonEntregarPlatoEnteroHabilitado('ENTREGAR_PLATO')).toBe(true);
     expect(botonEntregarPlatoEnteroHabilitado('TOMAR_PLATO')).toBe(false);
     expect(botonEntregarPlatoEnteroHabilitado('DEJAR_PLATO')).toBe(false);
+    expect(botonEntregarPlatoEnteroHabilitado('CAMBIAR_PLATO')).toBe(false);
     expect(botonEntregarPlatoEnteroHabilitado('SOLICITAR_ORDEN')).toBe(false);
     expect(botonEntregarPlatoEnteroHabilitado('SIN_ACCION', { absoluto: true, haySeleccion: true })).toBe(true);
     expect(botonEntregarPlatoEnteroHabilitado('SOLICITAR_ORDEN', { absoluto: true, haySeleccion: true })).toBe(true);

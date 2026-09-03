@@ -244,7 +244,7 @@ const PlatoPreparacion = ({
       }}
       className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-lg flex items-start gap-2 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
       style={{ fontFamily: 'Arial, sans-serif', fontSize: compact ? '13px' : '18px' }}
-      title={isEliminado ? 'Plato eliminado' : estadoVisual === 'dejar' ? '↩️ Dejar plato' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
+      title={isEliminado ? 'Plato eliminado' : estadoVisual === 'dejar' ? '🔄 Cambiar plato' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
       variants={containerVariants}
       initial="normal"
       animate={visualState}

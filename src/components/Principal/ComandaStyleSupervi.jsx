@@ -3,7 +3,8 @@
  * 
  * Extiende ComandaStyle con funcionalidades de supervisor:
  * - Intercepta "Tomar Plato/Comanda" para asignar cocinero obligatoriamente
- * - Permite "Dejar Plato" y "Finalizar Comanda" como supervisor
+ * - CAMBIAR PLATO (ciclo rojo) lo maneja ComandaStyle (modal de cocineros)
+ * - Permite "Dejar Comanda" y "Finalizar Comanda" como supervisor
  * - Modal obligatorio de selección de cocinero
  * 
  * Solo accesible para usuarios con rol supervisor o admin.
