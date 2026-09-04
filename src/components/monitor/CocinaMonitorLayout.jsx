@@ -50,6 +50,12 @@ import {
 } from '../../utils/notasMonitor';
 import { contarGuarnicionesPorNombre, claveNombreComplemento } from '../../utils/nombreComplementoCanonico';
 import ContadorGuarnicionesBar from './ContadorGuarnicionesBar';
+import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
+import {
+  anotarReglasTipoEnItems,
+  partirItemsHorizontales,
+  partirBloquesHorizontales,
+} from '../../utils/tipoPlatoReglasCocina';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -1114,6 +1120,12 @@ const CocinaMonitorLayout = ({
     [platosPendientes, clavesGuarnicionPanel, configVisual.notasJuntoAGuarniciones],
   );
 
+  const reglasTipo = useTiposPlatoReglas();
+  const platosConReglasTipo = useMemo(
+    () => anotarReglasTipoEnItems(platosParaVista, reglasTipo),
+    [platosParaVista, reglasTipo],
+  );
+
   const notasPlatos = useMemo(() => {
     if (!mostrarPieNotas) return [];
     return recolectarNotasMonitor(platosPendientes, {
@@ -1149,7 +1161,7 @@ const CocinaMonitorLayout = ({
   const bloquesCocinero = useMemo(() => {
     if (!modoCocineros) return [];
     const map = new Map();
-    for (const item of platosParaVista) {
+    for (const item of platosConReglasTipo) {
       const cid = item.cocinero?.id || '_sin_cocinero';
       const alias = item.cocinero?.alias || 'Cocinero';
       const nombre = item.cocinero?.nombre || '';
@@ -1181,13 +1193,23 @@ const CocinaMonitorLayout = ({
       ...b,
       tarjetas: asignarNumeroGlobal(b.tarjetas),
     }));
-  }, [platosParaVista, modoCocineros, configVisual.tiempoAmarillo, configVisual.tiempoRojo]);
+  }, [platosConReglasTipo, modoCocineros, configVisual.tiempoAmarillo, configVisual.tiempoRojo]);
 
   // Lista plana: numeración global de timers en toda la vista
   const platosConTimersNumerados = useMemo(
-    () => (modoCocineros ? asignarNumeroGlobal(platosParaVista) : platosParaVista),
-    [platosParaVista, modoCocineros],
+    () => (modoCocineros ? asignarNumeroGlobal(platosConReglasTipo) : platosConReglasTipo),
+    [platosConReglasTipo, modoCocineros],
   );
+
+  const hayParticionTipo = modoCocineros
+    && platosConReglasTipo.some((i) => i.particionHorizontalCocina);
+  const splitTipoItems = hayParticionTipo
+    ? partirItemsHorizontales(platosConTimersNumerados)
+    : { normales: platosConTimersNumerados, especiales: [], hayParticion: false };
+  const splitTipoBloques = hayParticionTipo
+    ? partirBloquesHorizontales(bloquesCocinero, asignarNumeroGlobal)
+    : { normales: bloquesCocinero, especiales: [], hayParticion: false };
+  const etiquetaParticionTipo = (reglasTipo.particionNombres || []).join(' · ') || 'Tipo';
 
   // Cocineros activos (para la barra superior cuando se "quita" el nombre de las tarjetas)
   const cocinerosActivos = useMemo(() => {
@@ -1668,81 +1690,95 @@ const CocinaMonitorLayout = ({
                 ? { borderRight: `${grosorSeparador}px solid ${colorSeparador}` }
                 : { borderBottom: `${grosorSeparador}px solid ${colorSeparador}` }),
             }
-          : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          : hayParticionTipo
+            ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+            : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {mostrarTitulosSplit && (
           <div style={estiloTituloSplit}>
             {configVisual.tituloListaPlatos || 'PLATOS'}
           </div>
         )}
-        <div style={splitActivo ? { flex: 1, overflowY: 'auto', overflowX: 'hidden' } : undefined}>
+        <div style={(splitActivo || hayParticionTipo)
+          ? { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }
+          : undefined}>
         {totalPendientes === 0 ? (
           <MonitorEmptyState
             nombreVista={nombreVista}
             nombreCocinero={nombreCocineroActivo}
             terminoBusqueda={hayFiltroBusqueda ? searchTerm : null}
           />
-        ) : modoBloques ? (
-          <div
-            style={{
-              padding: '0 0 16px 0',
-              zoom: autoAgrandamientoOn ? autoScale : undefined,
-            }}
-          >
-            <LayoutGroup>
-              <AnimatePresence initial={false} mode={presenceMode}>
-                {bloquesCocinero.map((bloque) => (
-                  <BloqueCocinero
-                    key={bloque.cocinero.id}
-                    bloque={bloque}
-                    configVisual={configVisual}
-                    tick={tick}
-                  />
-                ))}
-              </AnimatePresence>
-            </LayoutGroup>
+        ) : hayParticionTipo ? (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', borderBottom: `2px solid ${colorAcento}55` }}>
+              <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorTextoSecundario, textTransform: 'uppercase' }}>
+                Platos
+              </div>
+              <CuerpoListaMonitor
+                modoBloques={modoBloques}
+                bloques={splitTipoBloques.normales}
+                modoCocineros={modoCocineros}
+                items={splitTipoItems.normales}
+                layoutColumnas={layoutColumnas}
+                gapGrid={gapGrid}
+                zoomLista={zoomLista}
+                autoScale={autoScale}
+                autoAgrandamientoOn={autoAgrandamientoOn}
+                aprovecharEspacioOn={aprovecharEspacioOn}
+                autoAcomodamientoOn={autoAcomodamientoOn}
+                presenceMode={presenceMode}
+                isPortrait={isPortrait}
+                esGrid={esGrid}
+                configVisual={configVisual}
+                tick={tick}
+                cocineroActivoId={cocineroActivoId}
+              />
+            </div>
+            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto' }}>
+              <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorAcento, textTransform: 'uppercase' }}>
+                {etiquetaParticionTipo}
+              </div>
+              <CuerpoListaMonitor
+                modoBloques={modoBloques}
+                bloques={splitTipoBloques.especiales}
+                modoCocineros={modoCocineros}
+                items={splitTipoItems.especiales}
+                layoutColumnas={layoutColumnas}
+                gapGrid={gapGrid}
+                zoomLista={zoomLista}
+                autoScale={autoScale}
+                autoAgrandamientoOn={autoAgrandamientoOn}
+                aprovecharEspacioOn={aprovecharEspacioOn}
+                autoAcomodamientoOn={autoAcomodamientoOn}
+                presenceMode={presenceMode}
+                isPortrait={isPortrait}
+                esGrid={esGrid}
+                configVisual={configVisual}
+                tick={tick}
+                cocineroActivoId={cocineroActivoId}
+              />
+            </div>
           </div>
-        ) : modoCocineros ? (
-          <MonitorTarjetasGrid
-            key={`monitor-cols-${layoutColumnas}`}
-            columns={layoutColumnas}
-            gap={gapGrid}
-            zoom={zoomLista}
-            aprovecharEspacio={aprovecharEspacioOn}
-            presenceMode={presenceMode}
-            masonryEnabled={!isPortrait}
-          >
-            {platosConTimersNumerados.map((item) => (
-              <CocineroPlatoCard
-                key={item.grupoId || item.key}
-                item={item}
-                configVisual={configVisual}
-                mostrarCocinero={!esUnSoloCocineroFiltro(cocineroActivoId)}
-                modoTarjeta={esGrid}
-                autoAcomodamiento={autoAcomodamientoOn}
-                tick={tick}
-              />
-            ))}
-          </MonitorTarjetasGrid>
         ) : (
-          <MonitorTarjetasGrid
-            key={`monitor-cols-${layoutColumnas}`}
-            columns={layoutColumnas}
-            gap={gapGrid}
-            zoom={zoomLista}
-            aprovecharEspacio={aprovecharEspacioOn}
+          <CuerpoListaMonitor
+            modoBloques={modoBloques}
+            bloques={bloquesCocinero}
+            modoCocineros={modoCocineros}
+            items={platosConTimersNumerados}
+            itemsFallback={platosConReglasTipo}
+            layoutColumnas={layoutColumnas}
+            gapGrid={gapGrid}
+            zoomLista={zoomLista}
+            autoScale={autoScale}
+            autoAgrandamientoOn={autoAgrandamientoOn}
+            aprovecharEspacioOn={aprovecharEspacioOn}
+            autoAcomodamientoOn={autoAcomodamientoOn}
             presenceMode={presenceMode}
-            masonryEnabled={!isPortrait}
-          >
-            {platosParaVista.map((item) => (
-              <PlatoMonitorRow
-                key={item.grupoId || item.key}
-                item={item}
-                configVisual={configVisual}
-                tick={tick}
-                modoTarjeta={esGrid}
-              />
-            ))}
-          </MonitorTarjetasGrid>
+            isPortrait={isPortrait}
+            esGrid={esGrid}
+            configVisual={configVisual}
+            tick={tick}
+            cocineroActivoId={cocineroActivoId}
+          />
         )}
         </div>
         {mostrarPieNotas && (
@@ -1844,6 +1880,107 @@ const CocinaMonitorLayout = ({
     </div>
   );
 };
+
+/**
+ * Lista de platos (bloques / grid cocinero / filas) reutilizada en partición horizontal.
+ */
+function CuerpoListaMonitor({
+  modoBloques,
+  bloques = [],
+  modoCocineros,
+  items = [],
+  itemsFallback = null,
+  layoutColumnas,
+  gapGrid,
+  zoomLista,
+  autoScale,
+  autoAgrandamientoOn,
+  aprovecharEspacioOn,
+  autoAcomodamientoOn,
+  presenceMode,
+  isPortrait,
+  esGrid,
+  configVisual,
+  tick,
+  cocineroActivoId,
+}) {
+  const lista = itemsFallback && !modoCocineros ? itemsFallback : items;
+  const vacio = modoBloques ? bloques.length === 0 : lista.length === 0;
+  if (vacio) {
+    return (
+      <div style={{ padding: '12px 16px', fontSize: 12, opacity: 0.55, fontWeight: 600 }}>
+        Sin platos
+      </div>
+    );
+  }
+  if (modoBloques) {
+    return (
+      <div
+        style={{
+          padding: '0 0 16px 0',
+          zoom: autoAgrandamientoOn ? autoScale : undefined,
+        }}
+      >
+        <LayoutGroup>
+          <AnimatePresence initial={false} mode={presenceMode}>
+            {bloques.map((bloque) => (
+              <BloqueCocinero
+                key={bloque.cocinero.id}
+                bloque={bloque}
+                configVisual={configVisual}
+                tick={tick}
+              />
+            ))}
+          </AnimatePresence>
+        </LayoutGroup>
+      </div>
+    );
+  }
+  if (modoCocineros) {
+    return (
+      <MonitorTarjetasGrid
+        columns={layoutColumnas}
+        gap={gapGrid}
+        zoom={zoomLista}
+        aprovecharEspacio={aprovecharEspacioOn}
+        presenceMode={presenceMode}
+        masonryEnabled={!isPortrait}
+      >
+        {items.map((item) => (
+          <CocineroPlatoCard
+            key={item.grupoId || item.key}
+            item={item}
+            configVisual={configVisual}
+            mostrarCocinero={!esUnSoloCocineroFiltro(cocineroActivoId)}
+            modoTarjeta={esGrid}
+            autoAcomodamiento={autoAcomodamientoOn}
+            tick={tick}
+          />
+        ))}
+      </MonitorTarjetasGrid>
+    );
+  }
+  return (
+    <MonitorTarjetasGrid
+      columns={layoutColumnas}
+      gap={gapGrid}
+      zoom={zoomLista}
+      aprovecharEspacio={aprovecharEspacioOn}
+      presenceMode={presenceMode}
+      masonryEnabled={!isPortrait}
+    >
+      {lista.map((item) => (
+        <PlatoMonitorRow
+          key={item.grupoId || item.key}
+          item={item}
+          configVisual={configVisual}
+          tick={tick}
+          modoTarjeta={esGrid}
+        />
+      ))}
+    </MonitorTarjetasGrid>
+  );
+}
 
 /**
  * BloqueCocinero - Cabecera colapsable de cocinero + lista de tarjetas (modo bloques).

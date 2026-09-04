@@ -644,7 +644,8 @@ const CocineroPlatoCard = React.forwardRef(({
     </div>
   );
 
-  const ocultarCronometroG = esGuarnicion && configVisual.ocultarCronometroGuarniciones === true;
+  const ocultarCronometroG = (esGuarnicion && configVisual.ocultarCronometroGuarniciones === true)
+    || item.soloContadorEnCocina === true;
   const ladoDerecho = ocultarCronometroG ? null : (
     <div
       style={{

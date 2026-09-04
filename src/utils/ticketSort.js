@@ -1,5 +1,6 @@
 import { getComandasNumbersFromTicket, getComandaIdsFromTicket } from './ticketComandaDisplay';
 import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
+import { totalesVistaTicket } from './ticketTotales';
 
 export const TICKET_SORT_OPTIONS = [
   { key: 'fecha', label: 'Fecha', defaultDir: 'desc' },
@@ -205,7 +206,7 @@ export function labelComandasDeTickets(tickets) {
   return formatComandasNumbersLabel(nums);
 }
 
-/** Ticket sintético para el modal: todas las comandas del grupo. */
+/** Ticket sintético para el modal: todas las comandas del grupo y su suma. */
 export function ticketParaDetalleGrupo(tickets) {
   const lista = tickets || [];
   if (lista.length === 0) return null;
@@ -213,6 +214,10 @@ export function ticketParaDetalleGrupo(tickets) {
   const seenId = new Set();
   const ids = [];
   const nums = [];
+  const platos = [];
+  let bruto = 0;
+  let neto = 0;
+  let montoDesc = 0;
   for (const t of lista) {
     for (const id of getComandaIdsFromTicket(t)) {
       if (!seenId.has(id)) {
@@ -221,12 +226,22 @@ export function ticketParaDetalleGrupo(tickets) {
       }
     }
     nums.push(...getComandasNumbersFromTicket(t));
+    if (Array.isArray(t.platos)) platos.push(...t.platos);
+    const tot = totalesVistaTicket(t);
+    bruto += Number(tot.bruto) || 0;
+    neto += Number(tot.neto) || 0;
+    montoDesc += Number(tot.montoDesc) || 0;
   }
   return {
     ...lista[0],
     comandas: ids,
     comandasIds: ids,
     comandasNumbers: [...new Set(nums)].sort((a, b) => Number(a) - Number(b)),
+    platos,
+    total: Number(neto.toFixed(2)),
+    subtotal: Number(bruto.toFixed(2)),
+    totalSinDescuento: Number(bruto.toFixed(2)),
+    montoDescuento: Number(montoDesc.toFixed(2)),
   };
 }
 

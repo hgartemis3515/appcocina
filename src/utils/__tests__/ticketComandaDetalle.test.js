@@ -1,4 +1,4 @@
-import { getComandaIdsFromTicket, itemsDesdeComandaLive, totalActivoItemsComanda } from '../ticketComandaDisplay';
+import { getComandaIdsFromTicket, itemsDesdeComandaLive, totalActivoItemsComanda, totalesDesdeComandasLive } from '../ticketComandaDisplay';
 import { mergePlatosTicketConComandas } from '../ticketTotales';
 import { getComplementosDePlato } from '../platoComplementos';
 
@@ -83,5 +83,22 @@ describe('itemsDesdeComandaLive', () => {
     expect(items[0].subtotal).toBe(80);
     expect(items[0].nombre).toBe('Lomo');
     expect(totalActivoItemsComanda(items)).toBe(80);
+  });
+});
+
+describe('totalesDesdeComandasLive', () => {
+  test('una comanda = su total; grupo = suma', () => {
+    const c1 = {
+      cantidades: [1],
+      montoDescuento: 5,
+      platos: [{ nombre: 'Lomo', precioUnitario: 40, estado: 'en_espera' }],
+    };
+    const c2 = {
+      cantidades: [2],
+      montoDescuento: 0,
+      platos: [{ nombre: 'Ceviche', precioUnitario: 30, estado: 'pedido' }],
+    };
+    expect(totalesDesdeComandasLive([c1])).toEqual({ bruto: 40, neto: 35, montoDesc: 5 });
+    expect(totalesDesdeComandasLive([c1, c2])).toEqual({ bruto: 100, neto: 95, montoDesc: 5 });
   });
 });

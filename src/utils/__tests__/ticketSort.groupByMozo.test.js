@@ -1,4 +1,4 @@
-import { groupTicketsByMozo, getMozoNombre, groupTicketsComoComandasHtml } from '../ticketSort';
+import { groupTicketsByMozo, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo } from '../ticketSort';
 
 describe('groupTicketsByMozo', () => {
   test('agrupa por nombre y ordena alfabéticamente', () => {
@@ -41,5 +41,37 @@ describe('groupTicketsComoComandasHtml', () => {
     const solo = filas.find((f) => f.tipo === 'individual');
     expect(grupo.tickets.map((t) => t._id)).toEqual(['1', '2']);
     expect(solo.tickets[0]._id).toBe('3');
+  });
+});
+
+describe('ticketParaDetalleGrupo', () => {
+  test('una sola comanda deja el ticket intacto', () => {
+    const t = { _id: 'a', total: 40, platos: [{ nombre: 'Lomo', cantidad: 1, precio: 40, subtotal: 40 }] };
+    expect(ticketParaDetalleGrupo([t])).toBe(t);
+  });
+
+  test('grupo suma totales de todas las comandas', () => {
+    const g = ticketParaDetalleGrupo([
+      {
+        _id: '1',
+        comandas: ['aaaaaaaaaaaaaaaaaaaaaaaa'],
+        comandasNumbers: [81],
+        montoDescuento: 5,
+        platos: [{ nombre: 'Lomo', cantidad: 1, precio: 40, subtotal: 40 }],
+      },
+      {
+        _id: '2',
+        comandas: ['bbbbbbbbbbbbbbbbbbbbbbbb'],
+        comandasNumbers: [82],
+        montoDescuento: 0,
+        platos: [{ nombre: 'Ceviche', cantidad: 2, precio: 30, subtotal: 60 }],
+      },
+    ]);
+    expect(g.comandasNumbers).toEqual([81, 82]);
+    expect(g.comandas).toEqual(['aaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbbbbbbbbbb']);
+    expect(g.platos).toHaveLength(2);
+    expect(g.subtotal).toBe(100);
+    expect(g.montoDescuento).toBe(5);
+    expect(g.total).toBe(95);
   });
 });

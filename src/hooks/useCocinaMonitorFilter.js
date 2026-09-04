@@ -19,6 +19,7 @@ import {
 } from '../utils/numeracionTimersMonitor';
 import { platoCoincideCocineroFiltro } from '../utils/cocineroFiltroIds';
 import { obtenerNombreDisplayCocina } from '../utils/platoHelpers';
+import { slugsTipoDePlato } from '../utils/tipoPlatoReglasCocina';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
 // pero tienen procesandoPor set. Los que pasan a recoger/salio/entregado desaparecen.
@@ -236,12 +237,18 @@ const useCocinaMonitorFilter = (
           grupoId,
           cocinero: agruparPorCocinero ? item.cocinero : null,
           timers: [],
+          slugsTipo: slugsTipoDePlato(item.plato),
         });
       }
       const grupo = gruposMap.get(key);
       const qty = obtenerCantidadLinea(item.comanda, item.plato, item.platoIndex);
       grupo.cantidadTotal += qty;
       grupo.platos.push(item);
+      const slugsLinea = slugsTipoDePlato(item.plato);
+      if (!grupo.slugsTipo) grupo.slugsTipo = [];
+      for (const s of slugsLinea) {
+        if (!grupo.slugsTipo.includes(s)) grupo.slugsTipo.push(s);
+      }
 
       // N timers por unidad de cantidad; misma línea → mismo contorno (lineaId)
       const mesaNum = obtenerMesaDeComanda(item.comanda);
@@ -350,4 +357,5 @@ export {
   grupoIdEstable,
   obtenerPlatoTipoId,
   ESTADOS_NO_LISTOS,
+  slugsTipoDePlato,
 };

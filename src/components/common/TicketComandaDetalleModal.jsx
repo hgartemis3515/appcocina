@@ -7,6 +7,7 @@ import {
   itemsDesdeComandaLive,
   cocineroDePlatoVista,
   totalActivoItemsComanda,
+  totalesDesdeComandasLive,
   etiquetaEstadoPlato,
 } from '../../utils/ticketComandaDisplay';
 import {
@@ -214,7 +215,11 @@ export default function TicketComandaDetalleModal({
   const estado = estadoTicketMeta(ticket.estado);
   const cliente = nombreClienteTicket(ticket);
   const dni = dniClienteTicket(ticket);
-  const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
+  const ticketTotales = totalesVistaTicket(ticket);
+  const liveTotales = !loading && comandas.length > 0
+    ? totalesDesdeComandasLive(comandas)
+    : null;
+  const { bruto, neto, montoDesc } = liveTotales || ticketTotales;
   const fallbackItems = platosTicketVisibles(ticket).map((p) => ({
     ...p,
     nombre: p.nombre || 'Plato',

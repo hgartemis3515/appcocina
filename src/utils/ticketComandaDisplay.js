@@ -198,3 +198,21 @@ export function etiquetaEstadoPlato(estado, eliminado) {
   };
   return labels[e] || (e ? e.replace(/_/g, ' ') : '—');
 }
+
+/** Suma neta de 1 o N comandas en vivo (grupo = suma; una sola = esa comanda). */
+export function totalesDesdeComandasLive(comandas) {
+  const list = Array.isArray(comandas) ? comandas : [];
+  let bruto = 0;
+  let montoDesc = 0;
+  for (const c of list) {
+    const items = itemsDesdeComandaLive(c);
+    bruto += totalActivoItemsComanda(items);
+    montoDesc += Number(c.montoDescuento) || 0;
+  }
+  bruto = Number(bruto.toFixed(2));
+  montoDesc = Number(montoDesc.toFixed(2));
+  const neto = montoDesc > 0
+    ? Number(Math.max(0, bruto - montoDesc).toFixed(2))
+    : bruto;
+  return { bruto, neto, montoDesc };
+}
