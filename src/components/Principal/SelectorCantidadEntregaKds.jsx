@@ -27,14 +27,15 @@ const SelectorCantidadEntregaKds = ({
 
   return (
     <div
-      className={`flex items-center gap-1 rounded-lg px-2 py-1.5 shadow-lg ${
+      className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 shadow-lg flex-shrink-0 ${
         nightMode ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
       }`}
       title="Cuántas unidades de esta comanda entregar (el resto sigue en cocina)"
     >
       <button type="button" className={btn} disabled={disabled || value <= 1} onClick={onMinus} aria-label="Menos">−</button>
-      <span className="px-1.5 font-bold text-sm whitespace-nowrap max-w-[11rem] truncate">
-        {nombre} x{value}
+      <span className="flex items-baseline gap-1 px-1 flex-shrink-0">
+        <span className="font-bold text-sm whitespace-nowrap">{nombre || 'Plato'}</span>
+        <span className="font-black text-sm tabular-nums whitespace-nowrap flex-shrink-0">x{value}</span>
       </span>
       <button type="button" className={btn} disabled={disabled || value >= max} onClick={onPlus} aria-label="Más">+</button>
       <button

@@ -3935,9 +3935,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             </motion.div>
 
             {/* Barra inferior sticky: Boton Contextual (Tomar/Dejar/Finalizar) → Finalizar Comanda → Revertir → Paginado */}
-            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar} z-50`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
+            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between flex-wrap gap-2 px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar} z-50`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
               {/* Orden: Botón Contextual → Finalizar Comanda → Revertir → Paginado */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center flex-wrap gap-3">
                 {/* 1. BOTÓN CONTEXTUAL MULTI-COCINERO v7.2
                     - TOMAR PLATO (Azul): Cuando hay platos sin tomar
                     - DEJAR PLATO (Amarillo): Cuando tengo platos tomados
