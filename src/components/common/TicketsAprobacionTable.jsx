@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
 } from 'react-icons/fa';
@@ -11,7 +11,7 @@ import {
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
-import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
+import { platosTicketVisibles, totalesVistaTicket, totalVentasObservadas } from '../../utils/ticketTotales';
 
 function SortIcon({ active, dir }) {
   if (!active) return <FaSort className="inline text-[9px] opacity-40 ml-1" />;
@@ -118,6 +118,7 @@ export default function TicketsAprobacionTable({
   forzarPagoLoading = {},
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
+  const totalVentas = useMemo(() => totalVentasObservadas(tickets), [tickets]);
 
   const handleSort = (key) => {
     if (!onSortChange) return;
@@ -307,6 +308,20 @@ export default function TicketsAprobacionTable({
               );
             })}
           </tbody>
+          <tfoot className="sticky bottom-0 bg-gray-950 border-t-2 border-amber-500/50">
+            <tr>
+              <td colSpan={5} className="px-3 py-3 text-sm font-semibold text-gray-200">
+                Total ventas
+                <span className="ml-2 text-[11px] font-normal text-gray-500">
+                  {tickets.length} en esta vista
+                </span>
+              </td>
+              <td className="px-3 py-3 text-right text-lg font-black text-amber-300 tabular-nums whitespace-nowrap">
+                {formatCurrency(totalVentas)}
+              </td>
+              <td colSpan={3} />
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

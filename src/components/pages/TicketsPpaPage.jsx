@@ -26,7 +26,7 @@ import {
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
 } from '../../utils/ticketAprobacionUi';
-import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket } from '../../utils/ticketTotales';
+import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket, totalVentasObservadas } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -274,13 +274,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     return sortTickets(porMozo, sortBy, sortDir);
   }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro]);
 
-  const kpisTabla = useMemo(() => {
-    let list = itemsEnPeriodo;
-    if (filtro === 'comandas') list = list.filter((t) => t.tipo === 'comanda_completa');
-    else if (filtro === 'adelantados') list = list.filter((t) => t.tipo === 'pago_adelantado');
-    else if (filtro === 'parciales') list = list.filter((t) => t.tipo === 'pago_parcial');
-    return resumenKpisTickets(filterTicketsByMozo(list, filtroMozo));
-  }, [itemsEnPeriodo, filtro, filtroMozo]);
+  const kpisTabla = useMemo(() => resumenKpisTickets(itemsFiltrados), [itemsFiltrados]);
+  const totalVentasVista = useMemo(() => totalVentasObservadas(itemsFiltrados), [itemsFiltrados]);
 
   const handleSortChange = (field, dir) => {
     setSortBy(field);
@@ -317,6 +312,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               <p className="text-gray-400 text-xs">Aprobar comandas, reportar incidencias</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <KpiChip
+                label="Total ventas"
+                value={formatCurrency(totalVentasVista)}
+                valueClass="text-amber-300"
+              />
               <KpiChip
                 label="Ventas pendientes"
                 value={formatCurrency(kpisTabla.pendiente)}

@@ -1,4 +1,4 @@
-const { resumenKpisTickets } = require('./ticketTotales');
+const { resumenKpisTickets, totalVentasObservadas } = require('./ticketTotales');
 
 describe('resumenKpisTickets', () => {
   test('separa pendiente, aprobado, descuento y total venta', () => {
@@ -65,5 +65,19 @@ describe('resumenKpisTickets', () => {
       },
     ]);
     expect(k.aprobados).toBe(80);
+  });
+});
+
+describe('totalVentasObservadas', () => {
+  test('suma el neto de las filas visibles', () => {
+    expect(totalVentasObservadas([
+      { estado: 'pendiente_aprobacion', total: 40 },
+      { estado: 'aprobado', total: 80 },
+      { estado: 'reportado', total: 10 },
+    ])).toBe(130);
+  });
+
+  test('sin tickets queda en cero', () => {
+    expect(totalVentasObservadas([])).toBe(0);
   });
 });

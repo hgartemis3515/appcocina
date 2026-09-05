@@ -218,6 +218,16 @@ export function ultimoTicketPorComanda(tickets) {
   return out;
 }
 
+/** Suma el TOTAL de cada fila visible (lo que se observa en la tabla). */
+export function totalVentasObservadas(tickets = []) {
+  let sum = 0;
+  for (const t of tickets || []) {
+    if (!t) continue;
+    sum += resolverBrutoYNeto(t, sumaPlatosTicket(t)).neto;
+  }
+  return round2(sum);
+}
+
 /**
  * KPIs de la tabla de tickets:
  * Ventas pendientes / Ventas pagadas / Descuentos (solo si hay).
