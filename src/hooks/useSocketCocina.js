@@ -636,6 +636,11 @@ const useSocketCocina = ({
       }
     });
 
+    socket.on('tipos-plato-reglas-actualizadas', (data) => {
+      ultimoPingRef.current = Date.now();
+      window.dispatchEvent(new CustomEvent('tipos-plato-reglas-actualizadas', { detail: data || {} }));
+    });
+
     // Evento: Nueva zona asignada
     socket.on('zona-asignada', (data) => {
       console.log('[useSocketCocina] Nueva zona asignada:', data.zona?.nombre);

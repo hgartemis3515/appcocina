@@ -5,6 +5,7 @@ import {
   anotarReglasTipoEnItems,
   partirItemsHorizontales,
   partirBloquesHorizontales,
+  itemAplicaReglaContador,
 } from './tipoPlatoReglasCocina';
 
 describe('slugsTipoDePlato', () => {
@@ -147,5 +148,22 @@ describe('parseReglasTiposMenu / anotar / partir', () => {
     }]);
     expect(bloques.normales[0].totalPlatos).toBe(2);
     expect(bloques.especiales[0].totalPlatos).toBe(8);
+  });
+});
+
+describe('itemAplicaReglaContador', () => {
+  const reglas = parseReglasTiposMenu([
+    { slug: 'plato-carta', soloContadorEnCocina: true },
+    { slug: 'platos-cena', contadorGuarnicionesCocina: true },
+  ]);
+
+  test('principales usan soloContador, no el de guarniciones', () => {
+    expect(itemAplicaReglaContador({ tipoPedido: 'plato-carta' }, reglas, false)).toBe(true);
+    expect(itemAplicaReglaContador({ tipoPedido: 'platos-cena' }, reglas, false)).toBe(false);
+  });
+
+  test('guarniciones usan contadorGuarnicion, no el de principales', () => {
+    expect(itemAplicaReglaContador({ tipoPedido: 'plato-carta' }, reglas, true)).toBe(false);
+    expect(itemAplicaReglaContador({ tipoPedido: 'platos-cena' }, reglas, true)).toBe(true);
   });
 });

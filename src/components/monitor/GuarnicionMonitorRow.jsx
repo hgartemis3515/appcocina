@@ -270,12 +270,14 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
   };
 
   const animOn = configVisual.animacionesTarjetas !== false;
+  const mostrarCronometro = configVisual.ocultarCronometroGuarniciones !== true
+    && item.soloContadorEnCocina !== true;
 
   if (!animOn) {
     return (
       <div style={estiloFila}>
         {contenidoNombre}
-        {configVisual.ocultarCronometroGuarniciones !== true && contenidoCronometro}
+        {mostrarCronometro && contenidoCronometro}
       </div>
     );
   }
@@ -292,7 +294,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
       style={estiloFila}
     >
       {contenidoNombre}
-      {configVisual.ocultarCronometroGuarniciones !== true && contenidoCronometro}
+      {mostrarCronometro && contenidoCronometro}
     </motion.div>
   );
 });

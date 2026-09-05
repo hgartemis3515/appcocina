@@ -662,7 +662,7 @@ const CocineroPlatoCard = React.forwardRef(({
         timers={timers}
         configVisual={configVisual}
         tick={tick}
-        ocultarNumeroSecuencial={esGuarnicion && configVisual.deshabilitarOrdenSecuencialGuarniciones !== false}
+        ocultarNumeroSecuencial={item.soloContadorEnCocina === true || (esGuarnicion && configVisual.deshabilitarOrdenSecuencialGuarniciones !== false)}
       />
     </div>
   );

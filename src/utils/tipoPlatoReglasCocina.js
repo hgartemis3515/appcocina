@@ -135,3 +135,12 @@ export function partirBloquesHorizontales(bloques, asignarNumero) {
   }
   return { normales, especiales, hayParticion: especiales.length > 0 };
 }
+
+/** Solo contador (principales) o contador de guarniciones, según el tipo pedido en Mozos. */
+export function itemAplicaReglaContador(plato, reglas, paraGuarniciones = false) {
+  const slugs = slugsTipoDeGrupo(plato);
+  const set = paraGuarniciones
+    ? (reglas?.contadorGuarnicion || new Set())
+    : (reglas?.soloContador || new Set());
+  return slugs.some((s) => set.has(s));
+}

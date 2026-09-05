@@ -6,6 +6,8 @@ import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
 import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
 import { cantidadGuarnicionEfectiva } from '../../utils/guarnicionesKds';
+import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
+import { itemAplicaReglaContador } from '../../utils/tipoPlatoReglasCocina';
 
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
@@ -55,6 +57,12 @@ const PlatoPreparacion = ({
                          procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
   const puedeInteractuar = isSupervisorView || !tomadoPorOtro;
   const { config: kdsConfig } = useConfig();
+  const reglasTipo = useTiposPlatoReglas();
+  const ocultaColaYCronometro = itemAplicaReglaContador(
+    plato,
+    reglasTipo,
+    tipoUnidad === 'guarnicion',
+  );
   const compact = tipoUnidad === 'guarnicion';
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
@@ -86,7 +94,10 @@ const PlatoPreparacion = ({
   // Cronómetro propio de la guarnición (desde que se asignó / tomó).
   const [elapsedG, setElapsedG] = useState('');
   useEffect(() => {
-    if (tipoUnidad !== 'guarnicion') return undefined;
+    if (tipoUnidad !== 'guarnicion' || ocultaColaYCronometro) {
+      setElapsedG('');
+      return undefined;
+    }
     const ini = procesandoPor?.timestamp;
     if (!ini) {
       setElapsedG('');
@@ -106,7 +117,7 @@ const PlatoPreparacion = ({
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [tipoUnidad, procesandoPor?.timestamp]);
+  }, [tipoUnidad, procesandoPor?.timestamp, ocultaColaYCronometro]);
 
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.1: la tarjeta de guarnición es compacta
   // (un tercio de la altura del plato principal). Mismo ancho, menos padding,
@@ -347,7 +358,7 @@ const PlatoPreparacion = ({
                   : (procesandoPor.alias || procesandoPor.nombre || 'Cocinero')}
               </span>
               {/* PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero (FIFO por timestamp) */}
-              {numeroColaCocinero != null && (
+              {numeroColaCocinero != null && !ocultaColaYCronometro && (
                 <span
                   className="ml-1 shrink-0"
                   style={estiloOrdenCola}
@@ -368,7 +379,7 @@ const PlatoPreparacion = ({
                 🥗 Guarnición
               </span>
             )}
-            {elapsedG && (
+            {elapsedG && !ocultaColaYCronometro && (
               <span
                 className="px-1.5 py-0.5 rounded-full text-[9px] font-bold tabular-nums bg-cyan-500/20 text-cyan-200 border border-cyan-400/40"
                 title="Cronómetro de esta guarnición (no el del plato principal)"

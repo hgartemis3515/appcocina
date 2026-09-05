@@ -246,12 +246,13 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
 
   // Animaciones (Personalizar → Animaciones de tarjetas; default ON)
   const animOn = configVisual.animacionesTarjetas !== false;
+  const mostrarCronometro = item.soloContadorEnCocina !== true;
 
   if (!animOn) {
     return (
       <div style={estiloFila}>
         {contenidoNombre}
-        {contenidoCronometro}
+        {mostrarCronometro && contenidoCronometro}
       </div>
     );
   }
@@ -277,7 +278,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
       style={{ ...estiloFila, willChange: 'transform, opacity' }}
     >
       {contenidoNombre}
-      {contenidoCronometro}
+      {mostrarCronometro && contenidoCronometro}
     </motion.div>
   );
 });
