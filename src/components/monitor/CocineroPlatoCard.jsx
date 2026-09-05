@@ -187,7 +187,7 @@ const CocineroPlatoCard = React.forwardRef(({
   const esGuarnicion = item.esGuarnicion === true;
   const nombreVisible = esGuarnicion
     ? nombre
-    : (obtenerNombreDisplayCocina(platos[0]?.plato || item, { forzar: true }) || nombre);
+    : (obtenerNombreDisplayCocina(platos[0] || item, { forzar: true }) || nombre);
   const textoPronombreRef = esGuarnicion
     ? (item.pronombrePrincipal !== undefined
       ? (item.pronombrePrincipal || '')

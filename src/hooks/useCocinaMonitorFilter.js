@@ -19,7 +19,7 @@ import {
 } from '../utils/numeracionTimersMonitor';
 import { platoCoincideCocineroFiltro } from '../utils/cocineroFiltroIds';
 import { obtenerNombreDisplayCocina } from '../utils/platoHelpers';
-import { slugsTipoDePlato } from '../utils/tipoPlatoReglasCocina';
+import { slugsTipoDePlato, slugTipoPedido } from '../utils/tipoPlatoReglasCocina';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
 // pero tienen procesandoPor set. Los que pasan a recoger/salio/entregado desaparecen.
@@ -98,7 +98,8 @@ function claveGrupoPlato(plato, nombre) {
   const nombreNorm = (nombre || '').trim().toLowerCase();
   const obs = (plato.observaciones || plato.nota || plato.notaEspecial || '').trim().toLowerCase();
   const tipoServicio = (plato.tipoServicio === 'para_llevar') ? 'para_llevar' : 'mesa';
-  return `${platoTipoId}::${nombreNorm}::${claveComplementos(plato)}::${obs}::${tipoServicio}`;
+  const tipoPedido = slugTipoPedido(plato) || '';
+  return `${platoTipoId}::${nombreNorm}::${claveComplementos(plato)}::${obs}::${tipoServicio}::${tipoPedido}`;
 }
 
 /** ID corto y estable para React key (evita colisiones con caracteres especiales). */

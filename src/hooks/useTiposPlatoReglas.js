@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiGet } from '../config/apiClient';
 import { parseReglasTiposMenu } from '../utils/tipoPlatoReglasCocina';
 
-const VACIO = { soloContador: new Set(), particion: new Set(), particionNombres: [] };
+const VACIO = { soloContador: new Set(), contadorGuarnicion: new Set(), particion: new Set(), particionGuarnicion: new Set(), particionNombres: [], particionGuarnicionNombres: [] };
 
 /**
  * Carga reglas de tipos de plato para Ver cocina completo.

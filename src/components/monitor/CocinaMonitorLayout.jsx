@@ -55,6 +55,7 @@ import {
   anotarReglasTipoEnItems,
   partirItemsHorizontales,
   partirBloquesHorizontales,
+  slugsTipoDePlato,
 } from '../../utils/tipoPlatoReglasCocina';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
@@ -1001,6 +1002,8 @@ const CocinaMonitorLayout = ({
           timers: [],
           comps: [],
           esGuarnicion: true,
+          slugsTipo: slugsTipoDePlato(plato),
+          tipoPedido: plato.tipoPedido || null,
           padresSet: new Set(),
           mesaNum,
           comandaNumero,
@@ -1125,6 +1128,10 @@ const CocinaMonitorLayout = ({
     () => anotarReglasTipoEnItems(platosParaVista, reglasTipo),
     [platosParaVista, reglasTipo],
   );
+  const guarnicionesConReglasTipo = useMemo(
+    () => anotarReglasTipoEnItems(guarnicionesPanel, reglasTipo, { paraGuarniciones: true }),
+    [guarnicionesPanel, reglasTipo],
+  );
 
   const notasPlatos = useMemo(() => {
     if (!mostrarPieNotas) return [];
@@ -1210,6 +1217,13 @@ const CocinaMonitorLayout = ({
     ? partirBloquesHorizontales(bloquesCocinero, asignarNumeroGlobal)
     : { normales: bloquesCocinero, especiales: [], hayParticion: false };
   const etiquetaParticionTipo = (reglasTipo.particionNombres || []).join(' · ') || 'Tipo';
+  const hayParticionGuarnicion = splitActivo
+    && modoCocineros
+    && guarnicionesConReglasTipo.some((i) => i.particionHorizontalCocina);
+  const splitGuarnicionItems = hayParticionGuarnicion
+    ? partirItemsHorizontales(guarnicionesConReglasTipo)
+    : { normales: guarnicionesConReglasTipo, especiales: [], hayParticion: false };
+  const etiquetaParticionGuarnicion = (reglasTipo.particionGuarnicionNombres || []).join(' · ') || etiquetaParticionTipo;
 
   // Cocineros activos (para la barra superior cuando se "quita" el nombre de las tarjetas)
   const cocinerosActivos = useMemo(() => {
@@ -1808,44 +1822,67 @@ const CocinaMonitorLayout = ({
                 {configVisual.tituloListaGuarniciones || 'Lista de Guarniciones'}
               </div>
             )}
-            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {guarnicionesPanel.length === 0 ? (
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {guarnicionesConReglasTipo.length === 0 ? (
               <div style={{
                 margin: 'auto', textAlign: 'center', color: colorTextoSecundario,
                 fontSize: '14px', opacity: 0.7,
               }}>
                 No hay guarniciones pendientes
               </div>
-            ) : (
-              <MonitorTarjetasGrid
-                key={`guarn-cols-${layoutColumnasGuarniciones}`}
-                columns={layoutColumnasGuarniciones}
-                gap={gapGridGuarniciones}
-                zoom={zoomLista}
-                aprovecharEspacio={aprovecharEspacioOn}
-                presenceMode={presenceMode}
-                masonryEnabled={!isPortrait}
-                stackedStyle={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: gapGridGuarniciones,
-                  padding: gapGridGuarniciones,
-                  alignItems: 'stretch',
-                  zoom: zoomLista,
-                }}
-              >
-                {guarnicionesPanel.map((item) => (
-                  <CocineroPlatoCard
-                    key={item.grupoId || item.key}
-                    item={item}
+            ) : hayParticionGuarnicion ? (
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', borderBottom: `2px solid ${colorAcentoGuarn}55` }}>
+                  <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorTextoSecundario, textTransform: 'uppercase' }}>
+                    Guarniciones
+                  </div>
+                  <GrillaGuarnicionesMonitor
+                    items={splitGuarnicionItems.normales}
+                    layoutColumnasGuarniciones={layoutColumnasGuarniciones}
+                    gapGridGuarniciones={gapGridGuarniciones}
+                    zoomLista={zoomLista}
+                    aprovecharEspacioOn={aprovecharEspacioOn}
+                    presenceMode={presenceMode}
+                    isPortrait={isPortrait}
+                    esGridGuarniciones={esGridGuarniciones}
                     configVisual={configVisual}
-                    mostrarCocinero={false}
-                    modoTarjeta={esGridGuarniciones}
-                    autoAcomodamiento={autoAcomodamientoOn}
+                    autoAcomodamientoOn={autoAcomodamientoOn}
                     tick={tick}
                   />
-                ))}
-              </MonitorTarjetasGrid>
+                </div>
+                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto' }}>
+                  <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorAcentoGuarn, textTransform: 'uppercase' }}>
+                    {etiquetaParticionGuarnicion}
+                  </div>
+                  <GrillaGuarnicionesMonitor
+                    items={splitGuarnicionItems.especiales}
+                    layoutColumnasGuarniciones={layoutColumnasGuarniciones}
+                    gapGridGuarniciones={gapGridGuarniciones}
+                    zoomLista={zoomLista}
+                    aprovecharEspacioOn={aprovecharEspacioOn}
+                    presenceMode={presenceMode}
+                    isPortrait={isPortrait}
+                    esGridGuarniciones={esGridGuarniciones}
+                    configVisual={configVisual}
+                    autoAcomodamientoOn={autoAcomodamientoOn}
+                    tick={tick}
+                  />
+                </div>
+              </div>
+            ) : (
+              <GrillaGuarnicionesMonitor
+                items={guarnicionesConReglasTipo}
+                layoutColumnasGuarniciones={layoutColumnasGuarniciones}
+                gapGridGuarniciones={gapGridGuarniciones}
+                zoomLista={zoomLista}
+                aprovecharEspacioOn={aprovecharEspacioOn}
+                presenceMode={presenceMode}
+                isPortrait={isPortrait}
+                esGridGuarniciones={esGridGuarniciones}
+                configVisual={configVisual}
+                autoAcomodamientoOn={autoAcomodamientoOn}
+                tick={tick}
+              />
             )}
             </div>
             {mostrarPieNotas && (
@@ -2051,6 +2088,51 @@ const BloqueCocinero = React.forwardRef(({ bloque, configVisual, tick }, ref) =>
 });
 
 BloqueCocinero.displayName = 'BloqueCocinero';
+
+function GrillaGuarnicionesMonitor({
+  items = [],
+  layoutColumnasGuarniciones,
+  gapGridGuarniciones,
+  zoomLista,
+  aprovecharEspacioOn,
+  presenceMode,
+  isPortrait,
+  esGridGuarniciones,
+  configVisual,
+  autoAcomodamientoOn,
+  tick,
+}) {
+  return (
+    <MonitorTarjetasGrid
+      columns={layoutColumnasGuarniciones}
+      gap={gapGridGuarniciones}
+      zoom={zoomLista}
+      aprovecharEspacio={aprovecharEspacioOn}
+      presenceMode={presenceMode}
+      masonryEnabled={!isPortrait}
+      stackedStyle={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: gapGridGuarniciones,
+        padding: gapGridGuarniciones,
+        alignItems: 'stretch',
+        zoom: zoomLista,
+      }}
+    >
+      {items.map((item) => (
+        <CocineroPlatoCard
+          key={item.grupoId || item.key}
+          item={item}
+          configVisual={configVisual}
+          mostrarCocinero={false}
+          modoTarjeta={esGridGuarniciones}
+          autoAcomodamiento={autoAcomodamientoOn}
+          tick={tick}
+        />
+      ))}
+    </MonitorTarjetasGrid>
+  );
+}
 
 export { DEFAULT_CONFIG, snapshotConfigPerfil };
 export default CocinaMonitorLayout;

@@ -39,10 +39,25 @@ export function platoUneComplementos(plato) {
 /**
  * ¿El plato tiene guarniciones separables? (flag ON + complementos + no unidos al plato)
  */
+function claveGrupoVariante(v) {
+  return String(v || '').trim().toLowerCase();
+}
+
+export function esComplementoVariantePlato(comp, plato) {
+  if (!comp) return false;
+  if (plato?.variantePlato?.grupo && claveGrupoVariante(plato.variantePlato.grupo) === claveGrupoVariante(comp.grupo)) {
+    return true;
+  }
+  const catalogo = plato?.plato && typeof plato.plato === 'object' ? plato.plato : plato;
+  const grupos = catalogo?.complementos || [];
+  return grupos.some((g) => g?.esVariantePlato === true && claveGrupoVariante(g.grupo) === claveGrupoVariante(comp.grupo));
+}
+
 export function esGuarnicionSeparable(plato, flagOn) {
   if (!flagOn) return false;
   if (platoUneComplementos(plato)) return false;
-  const comps = plato?.complementosSeleccionados || plato?.complementos || [];
+  const comps = (plato?.complementosSeleccionados || plato?.complementos || [])
+    .filter((c) => c && !esComplementoVariantePlato(c, plato));
   return Array.isArray(comps) && comps.length > 0;
 }
 
@@ -51,6 +66,13 @@ export function esGuarnicionSeparable(plato, flagOn) {
  */
 export function nombrePlatoPadre(plato, usarAlias = true) {
   if (!plato) return '';
+  const variante = String(
+    plato.nombreCocinaPedido
+    || plato.variantePlato?.pronombre
+    || plato.variantePlato?.opcion
+    || ''
+  ).trim();
+  if (variante) return variante;
   if (usarAlias) {
     const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
     if (alias) return alias;
@@ -330,6 +352,7 @@ export function expandirUnidadesTrabajo(plato, opts = {}) {
   const pendientes = [];
   comps.forEach((comp, index) => {
     if (!comp || comp.eliminado) return;
+    if (esComplementoVariantePlato(comp, plato)) return;
     if (comp.estadoCocina === 'recoger') return;
     const hidratado = hidratarPronombreComplemento(comp, plato);
     pendientes.push({
@@ -380,7 +403,7 @@ export function claveAgrupacionUnidad(unidad, flagOn) {
   if (unidad.tipo === 'principal') {
     // Con flag ON, el principal se agrupa solo por nombre (sin extras en la clave).
     const p = unidad.plato;
-    const base = (p?.nombreCocina || p?.nombre || p?.plato?.nombre || '') + (p?.notaEspecial || '');
+    const base = (p?.nombreCocinaPedido || p?.nombreCocina || p?.nombre || p?.plato?.nombre || '') + (p?.notaEspecial || '');
     const splitKey = esGuarnicionSeparable(p, flagOn);
     return splitKey
       ? `principal::${base}`
@@ -469,7 +492,8 @@ export function estadoAlertaGuarnicion(comp, tiemposConfig) {
  */
 export function todasGuarnicionesListas(plato) {
   if (platoUneComplementos(plato)) return true;
-  const comps = plato?.complementosSeleccionados || plato?.complementos || [];
+  const comps = (plato?.complementosSeleccionados || plato?.complementos || [])
+    .filter((c) => c && !esComplementoVariantePlato(c, plato));
   if (!Array.isArray(comps) || comps.length === 0) return true;
   return comps.every(c => !c || c.eliminado || c.estadoCocina === 'recoger');
 }
@@ -482,7 +506,7 @@ export function guarnicionesPendientes(plato) {
   const comps = plato?.complementosSeleccionados || plato?.complementos || [];
   if (!Array.isArray(comps)) return [];
   return comps
-    .filter(c => c && !c.eliminado && c.estadoCocina !== 'recoger')
+    .filter(c => c && !c.eliminado && c.estadoCocina !== 'recoger' && !esComplementoVariantePlato(c, plato))
     .map(c => {
       const hidratado = hidratarPronombreComplemento(c, plato);
       return {

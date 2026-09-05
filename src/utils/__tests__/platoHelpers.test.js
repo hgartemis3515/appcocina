@@ -52,6 +52,16 @@ describe('obtenerNombreDisplayCocina', () => {
     expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Lomo S/');
   });
 
+  test('variante MIX (nombreCocinaPedido) gana al alias del catálogo', () => {
+    const plato = {
+      nombreCocinaPedido: 'CAFÉ',
+      variantePlato: { opcion: 'CAFE', pronombre: 'CAFÉ' },
+      plato: { nombre: 'MIX', nombreCocina: 'MIX' },
+    };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('CAFÉ');
+    expect(obtenerNombreDisplayCocina(plato)).toBe('CAFÉ');
+  });
+
   test('alias vacío cae al nombre comercial', () => {
     const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: '' } };
     expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Ceviche Clásico');

@@ -48,6 +48,13 @@ export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
     ? plato.plato
     : plato;
   const oficial = obtenerNombrePlato(linea);
+  const variante = String(
+    linea?.nombreCocinaPedido
+    || linea?.variantePlato?.pronombre
+    || linea?.variantePlato?.opcion
+    || ''
+  ).trim();
+  if (variante) return variante;
   const alias = String(
     linea?.plato?.nombreCocina || linea?.nombreCocina || ''
   ).trim();

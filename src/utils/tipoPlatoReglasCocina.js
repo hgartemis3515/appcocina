@@ -1,10 +1,30 @@
 /**
  * Reglas de tipo de plato en Ver cocina completo.
- * soloContadorEnCocina → oculta cronómetro y # secuencial (queda xN).
- * particionHorizontalCocina → mitad de abajo para esos platos.
+ * La partición usa el tipo elegido en Mozos (`tipoPedido`), no todos los tipos del catálogo.
+ * soloContadorEnCocina → oculta cronómetro y # secuencial en principales (queda xN).
+ * contadorGuarnicionesCocina → lo mismo en el panel de guarniciones de ese tipo.
+ * particionHorizontalCocina → mitad de abajo para principales de ese tipo.
+ * particionHorizontalGuarnicionesCocina → misma partición en el panel de guarniciones.
  */
 
+export function slugTipoPedido(plato) {
+  if (!plato || typeof plato !== 'object') return '';
+  const raw = plato.tipoPedido != null && plato.tipoPedido !== ''
+    ? plato.tipoPedido
+    : (plato.plato && typeof plato.plato === 'object' && !Array.isArray(plato.plato)
+      ? plato.plato.tipoPedido
+      : null);
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object') {
+    return String(raw.slug || raw.tipo || '').toLowerCase().trim();
+  }
+  return String(raw).toLowerCase().trim();
+}
+
 export function slugsTipoDePlato(plato) {
+  const pedido = slugTipoPedido(plato);
+  if (pedido) return [pedido];
+
   const out = new Set();
   const add = (v) => {
     if (v == null || v === '') return;
@@ -27,6 +47,13 @@ export function slugsTipoDePlato(plato) {
 }
 
 export function slugsTipoDeGrupo(item) {
+  const pedido = slugTipoPedido(item)
+    || slugTipoPedido(item?.plato)
+    || (item?.platos || [])
+      .map((row) => slugTipoPedido(row) || slugTipoPedido(row?.plato))
+      .find(Boolean);
+  if (pedido) return [pedido];
+
   const out = new Set(item?.slugsTipo || []);
   slugsTipoDePlato(item).forEach((s) => out.add(s));
   slugsTipoDePlato(item?.plato).forEach((s) => out.add(s));
@@ -39,25 +66,37 @@ export function slugsTipoDeGrupo(item) {
 
 export function parseReglasTiposMenu(list) {
   const soloContador = new Set();
+  const contadorGuarnicion = new Set();
   const particion = new Set();
+  const particionGuarnicion = new Set();
   const particionNombres = [];
+  const particionGuarnicionNombres = [];
   const arr = Array.isArray(list) ? list : [];
   for (const t of arr) {
     const slug = String(t?.slug || '').toLowerCase().trim();
     if (!slug) continue;
     if (t.soloContadorEnCocina === true) soloContador.add(slug);
+    if (t.contadorGuarnicionesCocina === true) contadorGuarnicion.add(slug);
+    const nom = String(t.nombreCorto || t.nombre || slug).trim();
     if (t.particionHorizontalCocina === true) {
       particion.add(slug);
-      const nom = String(t.nombreCorto || t.nombre || slug).trim();
       if (nom && !particionNombres.includes(nom)) particionNombres.push(nom);
     }
+    if (t.particionHorizontalGuarnicionesCocina === true) {
+      particionGuarnicion.add(slug);
+      if (nom && !particionGuarnicionNombres.includes(nom)) particionGuarnicionNombres.push(nom);
+    }
   }
-  return { soloContador, particion, particionNombres };
+  return { soloContador, contadorGuarnicion, particion, particionGuarnicion, particionNombres, particionGuarnicionNombres };
 }
 
-export function anotarReglasTipoEnItems(items, reglas) {
-  const solo = reglas?.soloContador || new Set();
-  const part = reglas?.particion || new Set();
+export function anotarReglasTipoEnItems(items, reglas, opts = {}) {
+  const solo = opts.paraGuarniciones
+    ? (reglas?.contadorGuarnicion || new Set())
+    : (reglas?.soloContador || new Set());
+  const part = opts.paraGuarniciones
+    ? (reglas?.particionGuarnicion || new Set())
+    : (reglas?.particion || new Set());
   return (items || []).map((item) => {
     const slugs = slugsTipoDeGrupo(item);
     return {
