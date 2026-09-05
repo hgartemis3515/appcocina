@@ -318,22 +318,22 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <KpiChip
+                label="Ventas pendientes"
+                value={formatCurrency(kpisTabla.pendiente)}
+                valueClass="text-[#f59e0b]"
+              />
+              <KpiChip
                 label="Ventas pagadas"
                 value={formatCurrency(kpisTabla.aprobados)}
                 valueClass="text-[#2ecc71]"
               />
               {kpisTabla.descuento > 0 && (
                 <KpiChip
-                  label="Descuento"
+                  label="Descuentos"
                   value={`-${formatCurrency(kpisTabla.descuento)}`}
                   valueClass="text-[#e74c3c]"
                 />
               )}
-              <KpiChip
-                label="Total venta"
-                value={formatCurrency(kpisTabla.totalVenta)}
-                valueClass="text-[#d4af37]"
-              />
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">

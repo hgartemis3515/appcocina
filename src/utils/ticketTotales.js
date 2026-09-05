@@ -219,8 +219,8 @@ export function ultimoTicketPorComanda(tickets) {
 }
 
 /**
- * KPIs de la tabla de tickets (misma idea que reportes.html):
- * Pendiente / Ventas pagadas / Descuento / Total venta.
+ * KPIs de la tabla de tickets:
+ * Ventas pendientes / Ventas pagadas / Descuentos (solo si hay).
  * Solo el último ticket de cada comanda. Total venta = pendiente + pagadas.
  */
 export function resumenKpisTickets(tickets = []) {
