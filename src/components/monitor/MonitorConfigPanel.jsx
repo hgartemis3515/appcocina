@@ -1349,6 +1349,168 @@ const MonitorConfigPanel = ({
           </div>
         </Section>
 
+        <Section title="Partición tipo de plato" colorAcento={colorAcento}>
+          <p style={{ width: '100%', margin: 0, fontSize: 11, color: colorTextoSecundario, lineHeight: 1.4 }}>
+            Mitad de abajo cuando el tipo tiene “Partición horizontal” (p. ej. ESCOLAR). Título centrado por defecto. Se guarda en el perfil y aplica en Ver cocina y en Distribuir monitor.
+          </p>
+          <CheckG
+            k="mostrarTituloParticionTipo"
+            label="Mostrar título de la partición"
+            help="Barra con el nombre del tipo (ESCOLAR) y el de Platos / Guarniciones arriba."
+            defaultOn
+            {...checkGProps}
+          />
+          <label style={lbl}>
+            Título del tipo (vacío = nombre real, p. ej. ESCOLAR)
+            <input
+              type="text"
+              value={configVisual.tituloParticionTipo ?? ''}
+              placeholder="ESCOLAR"
+              onChange={(e) => guardar({ tituloParticionTipo: e.target.value })}
+              style={{ ...inp, minWidth: '160px' }}
+            />
+          </label>
+          <label style={lbl}>
+            Título mitad de arriba (platos)
+            <input
+              type="text"
+              value={configVisual.tituloParticionNormal ?? 'Platos'}
+              onChange={(e) => guardar({ tituloParticionNormal: e.target.value })}
+              style={{ ...inp, minWidth: '140px' }}
+            />
+          </label>
+          <label style={lbl}>
+            Título del tipo en guarniciones
+            <input
+              type="text"
+              value={configVisual.tituloParticionGuarnicion ?? ''}
+              placeholder="Igual que platos"
+              onChange={(e) => guardar({ tituloParticionGuarnicion: e.target.value })}
+              style={{ ...inp, minWidth: '160px' }}
+            />
+          </label>
+          <label style={lbl}>
+            Título mitad de arriba (guarniciones)
+            <input
+              type="text"
+              value={configVisual.tituloParticionGuarnicionNormal ?? 'Guarniciones'}
+              onChange={(e) => guardar({ tituloParticionGuarnicionNormal: e.target.value })}
+              style={{ ...inp, minWidth: '160px' }}
+            />
+          </label>
+          <label style={lbl}>
+            Alinear títulos
+            <select
+              value={configVisual.alinearTituloParticionTipo || 'centro'}
+              onChange={(e) => guardar({ alinearTituloParticionTipo: e.target.value })}
+              style={{ ...inp, minWidth: '120px' }}
+            >
+              <option value="izquierda">Izquierda</option>
+              <option value="centro">Centro</option>
+              <option value="derecha">Derecha</option>
+            </select>
+          </label>
+          <ColorG key="colorTituloParticionTipo" k="colorTituloParticionTipo" label="Color título del tipo" fallback={colorAcento} {...colorGProps} />
+          <ColorG key="colorTituloParticionNormal" k="colorTituloParticionNormal" label="Color título de arriba" fallback={colorTextoSecundario} {...colorGProps} />
+          <ColorG key="colorFondoTituloParticionTipo" k="colorFondoTituloParticionTipo" label="Fondo de la barra" fallback={colorFondo} {...colorGProps} />
+          <ColorG key="colorFondoParticionTipo" k="colorFondoParticionTipo" label="Fondo mitad del tipo" fallback={colorFondo} {...colorGProps} />
+          <ColorG key="colorSeparadorParticionTipo" k="colorSeparadorParticionTipo" label="Color línea divisoria" fallback={colorAcento} {...colorGProps} />
+          <label style={lbl}>
+            Tamaño letras (px)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <BtnStep
+                onClick={() => guardar({ tamanioTituloParticionTipo: Math.max(10, (Number(configVisual.tamanioTituloParticionTipo) || 14) - 1) })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={10}
+                max={64}
+                value={configVisual.tamanioTituloParticionTipo ?? 14}
+                onChange={(e) => guardar({ tamanioTituloParticionTipo: Math.min(64, Math.max(10, Number(e.target.value) || 14)) })}
+                style={{ ...inp, width: '56px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => guardar({ tamanioTituloParticionTipo: Math.min(64, (Number(configVisual.tamanioTituloParticionTipo) || 14) + 1) })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+          <label style={lbl}>
+            Peso de letra
+            <select
+              value={configVisual.pesoTituloParticionTipo || '800'}
+              onChange={(e) => guardar({ pesoTituloParticionTipo: e.target.value })}
+              style={{ ...inp, minWidth: '140px' }}
+            >
+              <option value="400">Normal</option>
+              <option value="600">Semi-negrita</option>
+              <option value="700">Negrita</option>
+              <option value="800">Extra negrita</option>
+              <option value="900">Máximo</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Fuente
+            <select
+              value={configVisual.fuenteFamiliaTituloParticionTipo || ''}
+              onChange={(e) => guardar({ fuenteFamiliaTituloParticionTipo: e.target.value || null })}
+              style={{ ...inp, minWidth: '160px' }}
+            >
+              <option value="">Heredar</option>
+              {FUENTES_DISPONIBLES.map((f) => (
+                <option key={f.id} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </label>
+          <CheckG
+            k="mayusculasTituloParticionTipo"
+            label="Títulos en mayúsculas"
+            help="ESCOLAR en versales. Se guarda en el perfil."
+            defaultOn
+            {...checkGProps}
+          />
+          <label style={lbl}>
+            Espacio entre letras
+            <select
+              value={String(configVisual.espaciadoLetraTituloParticionTipo ?? 6)}
+              onChange={(e) => guardar({ espaciadoLetraTituloParticionTipo: Number(e.target.value) })}
+              style={{ ...inp, minWidth: '140px' }}
+            >
+              <option value="0">Ninguno</option>
+              <option value="4">Poco</option>
+              <option value="6">Normal</option>
+              <option value="10">Amplio</option>
+              <option value="14">Muy amplio</option>
+            </select>
+          </label>
+          <label style={lbl}>
+            Grosor línea divisoria (px)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <BtnStep
+                onClick={() => guardar({ grosorSeparadorParticionTipo: Math.max(0, (Number(configVisual.grosorSeparadorParticionTipo) ?? 2) - 1) })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >−</BtnStep>
+              <input
+                type="number"
+                min={0}
+                max={16}
+                value={configVisual.grosorSeparadorParticionTipo ?? 2}
+                onChange={(e) => guardar({ grosorSeparadorParticionTipo: Math.min(16, Math.max(0, Number(e.target.value) || 0)) })}
+                style={{ ...inp, width: '56px', textAlign: 'center' }}
+              />
+              <BtnStep
+                onClick={() => guardar({ grosorSeparadorParticionTipo: Math.min(16, (Number(configVisual.grosorSeparadorParticionTipo) ?? 2) + 1) })}
+                colorAcento={colorAcento}
+                colorTexto={colorTextoPrincipal}
+              >+</BtnStep>
+            </div>
+          </label>
+        </Section>
+
         {/* Número secuencial (#N en timers) */}
         <Section title="Número secuencial (timers)" colorAcento={colorAcento}>
           {[

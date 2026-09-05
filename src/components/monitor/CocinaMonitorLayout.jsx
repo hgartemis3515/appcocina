@@ -142,6 +142,24 @@ const DEFAULT_CONFIG = {
   colorFondoGuarnicion: null,
   colorAcentoGuarnicion: null,
   espaciadoFilasGuarnicion: null,
+  // Partición horizontal por tipo (p. ej. ESCOLAR / CARTA). Se guarda en el perfil.
+  mostrarTituloParticionTipo: true,
+  tituloParticionTipo: '',
+  tituloParticionNormal: 'Platos',
+  tituloParticionGuarnicion: '',
+  tituloParticionGuarnicionNormal: 'Guarniciones',
+  alinearTituloParticionTipo: 'centro',
+  colorTituloParticionTipo: null,
+  colorTituloParticionNormal: null,
+  tamanioTituloParticionTipo: 14,
+  pesoTituloParticionTipo: '800',
+  fuenteFamiliaTituloParticionTipo: null,
+  mayusculasTituloParticionTipo: true,
+  espaciadoLetraTituloParticionTipo: 6,
+  colorFondoTituloParticionTipo: null,
+  grosorSeparadorParticionTipo: 2,
+  colorSeparadorParticionTipo: null,
+  colorFondoParticionTipo: null,
   disposicionTarjeta: 'vertical',
   pesoFuentePlato: '800',
   animacionesTarjetas: true,
@@ -892,6 +910,28 @@ const CocinaMonitorLayout = ({
     color: configVisual.colorTituloListaSplit || colorTextoPrincipal,
     textAlign: ALIGN_TITULO[configVisual.alinearTituloListaSplit] || 'left',
   };
+  const mostrarTituloParticion = configVisual.mostrarTituloParticionTipo !== false;
+  const grosorSepParticion = Math.min(16, Math.max(0, Number(configVisual.grosorSeparadorParticionTipo) ?? 2));
+  const colorSepParticion = configVisual.colorSeparadorParticionTipo || `${colorAcento}55`;
+  const trackingParticion = Math.max(0, Number(configVisual.espaciadoLetraTituloParticionTipo) ?? 6) / 100;
+  const estiloBarraParticion = (colorTexto) => ({
+    flexShrink: 0,
+    padding: '6px 12px',
+    fontFamily: configVisual.fuenteFamiliaTituloParticionTipo || fuenteFamilia,
+    fontWeight: configVisual.pesoTituloParticionTipo || 800,
+    fontSize: `${Number(configVisual.tamanioTituloParticionTipo) || 14}px`,
+    letterSpacing: `${trackingParticion}em`,
+    textTransform: configVisual.mayusculasTituloParticionTipo === false ? 'none' : 'uppercase',
+    color: colorTexto,
+    textAlign: ALIGN_TITULO[configVisual.alinearTituloParticionTipo] || 'center',
+    background: configVisual.colorFondoTituloParticionTipo || 'transparent',
+  });
+  const colorTituloTipo = configVisual.colorTituloParticionTipo || colorAcento;
+  const colorTituloNormalPart = configVisual.colorTituloParticionNormal || colorTextoSecundario;
+  const fondoMitadTipo = configVisual.colorFondoParticionTipo || undefined;
+  const bordeMitadParticion = grosorSepParticion > 0
+    ? { borderBottom: `${grosorSepParticion}px solid ${colorSepParticion}` }
+    : {};
   const espaciadoGuarn = tokenGuarnicion(configVisual, 'espaciadoFilasGuarnicion', configVisual.espaciadoFilas || 'normal');
   const gapGrid =
     configVisual.espaciadoFilas === 'unido' ? '0px' :
@@ -1224,6 +1264,10 @@ const CocinaMonitorLayout = ({
     ? partirItemsHorizontales(guarnicionesConReglasTipo)
     : { normales: guarnicionesConReglasTipo, especiales: [], hayParticion: false };
   const etiquetaParticionGuarnicion = (reglasTipo.particionGuarnicionNombres || []).join(' · ') || etiquetaParticionTipo;
+  const textoParticionTipo = String(configVisual.tituloParticionTipo || '').trim() || etiquetaParticionTipo;
+  const textoParticionNormal = String(configVisual.tituloParticionNormal || '').trim() || 'Platos';
+  const textoParticionGuarTipo = String(configVisual.tituloParticionGuarnicion || '').trim() || etiquetaParticionGuarnicion;
+  const textoParticionGuarNormal = String(configVisual.tituloParticionGuarnicionNormal || '').trim() || 'Guarniciones';
 
   // Cocineros activos (para la barra superior cuando se "quita" el nombre de las tarjetas)
   const cocinerosActivos = useMemo(() => {
@@ -1723,10 +1767,12 @@ const CocinaMonitorLayout = ({
           />
         ) : hayParticionTipo ? (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', borderBottom: `2px solid ${colorAcento}55` }}>
-              <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorTextoSecundario, textTransform: 'uppercase' }}>
-                Platos
-              </div>
+            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', ...bordeMitadParticion }}>
+              {mostrarTituloParticion && (
+                <div style={estiloBarraParticion(colorTituloNormalPart)}>
+                  {textoParticionNormal}
+                </div>
+              )}
               <CuerpoListaMonitor
                 modoBloques={modoBloques}
                 bloques={splitTipoBloques.normales}
@@ -1747,10 +1793,12 @@ const CocinaMonitorLayout = ({
                 cocineroActivoId={cocineroActivoId}
               />
             </div>
-            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto' }}>
-              <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorAcento, textTransform: 'uppercase' }}>
-                {etiquetaParticionTipo}
-              </div>
+            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', background: fondoMitadTipo }}>
+              {mostrarTituloParticion && (
+                <div style={estiloBarraParticion(colorTituloTipo)}>
+                  {textoParticionTipo}
+                </div>
+              )}
               <CuerpoListaMonitor
                 modoBloques={modoBloques}
                 bloques={splitTipoBloques.especiales}
@@ -1832,10 +1880,12 @@ const CocinaMonitorLayout = ({
               </div>
             ) : hayParticionGuarnicion ? (
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', borderBottom: `2px solid ${colorAcentoGuarn}55` }}>
-                  <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorTextoSecundario, textTransform: 'uppercase' }}>
-                    Guarniciones
-                  </div>
+                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', ...bordeMitadParticion }}>
+                  {mostrarTituloParticion && (
+                    <div style={estiloBarraParticion(colorTituloNormalPart)}>
+                      {textoParticionGuarNormal}
+                    </div>
+                  )}
                   <GrillaGuarnicionesMonitor
                     items={splitGuarnicionItems.normales}
                     layoutColumnasGuarniciones={layoutColumnasGuarniciones}
@@ -1850,10 +1900,12 @@ const CocinaMonitorLayout = ({
                     tick={tick}
                   />
                 </div>
-                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto' }}>
-                  <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: colorAcentoGuarn, textTransform: 'uppercase' }}>
-                    {etiquetaParticionGuarnicion}
-                  </div>
+                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', background: fondoMitadTipo }}>
+                  {mostrarTituloParticion && (
+                    <div style={estiloBarraParticion(colorTituloTipo)}>
+                      {textoParticionGuarTipo}
+                    </div>
+                  )}
                   <GrillaGuarnicionesMonitor
                     items={splitGuarnicionItems.especiales}
                     layoutColumnasGuarniciones={layoutColumnasGuarniciones}

@@ -36,6 +36,9 @@ describe('kdsPerfilesVista', () => {
       nombreComplementoTamano: 14,
       nombreComplementoColor: '#fde68a',
       nombreComplementoFondo: '#1f2937',
+      ocultarCuadroCocineroAsignado: true,
+      ocultarComplementosEnTablaKds: true,
+      paraLlevarTamano: 18,
       alertYellowMinutes: 10,
       timbreClave: 'ding_dong',
       timbreVolumen: 40,
@@ -69,6 +72,9 @@ describe('kdsPerfilesVista', () => {
     expect(snap.nombreComplementoTamano).toBe(14);
     expect(snap.nombreComplementoColor).toBe('#fde68a');
     expect(snap.nombreComplementoFondo).toBe('#1f2937');
+    expect(snap.ocultarCuadroCocineroAsignado).toBe(true);
+    expect(snap.ocultarComplementosEnTablaKds).toBe(true);
+    expect(snap.paraLlevarTamano).toBe(18);
     expect(snap.timbreClave).toBe('ding_dong');
     expect(snap.timbreVolumen).toBe(40);
     expect(snap.sonidoNuevaComanda).toBe(true);

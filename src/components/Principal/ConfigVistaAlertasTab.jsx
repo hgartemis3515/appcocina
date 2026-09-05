@@ -47,6 +47,12 @@ import {
   estiloNombreComplementoKds,
 } from '../../utils/estiloNombreComplementoKds';
 import {
+  PARA_LLEVAR_DEFAULT,
+  PARA_LLEVAR_TAMANO_MIN,
+  PARA_LLEVAR_TAMANO_MAX,
+  estiloParaLlevarKds,
+} from '../../utils/estiloParaLlevarKds';
+import {
   KDS_TIMBRES,
   TIMBRE_DEFAULT,
   TIMBRE_VOLUMEN_DEFAULT,
@@ -595,6 +601,21 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
+              checked={config.ocultarComplementosEnTablaKds === true}
+              onChange={(e) => updateConfig({ ocultarComplementosEnTablaKds: e.target.checked })}
+              className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+            />
+            <span>
+              <span className={`${textModal} font-semibold block`}>Ocultar complementos / guarniciones</span>
+              <span className={`${textSecondary} text-xs block mt-0.5`}>
+                En las tablas KDS no se ven las guarniciones bajo el plato ni las filas sueltas de guarnición.
+                Se guarda con Guardar y en el perfil de vista.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
               checked={config.mostrarBadgeGuarnicion !== false}
               onChange={(e) => updateConfig({ mostrarBadgeGuarnicion: e.target.checked })}
               className="w-5 h-5 mt-0.5 rounded accent-lime-500"
@@ -627,6 +648,42 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </span>
             </span>
           </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.ocultarCuadroCocineroAsignado === true}
+              onChange={(e) => updateConfig({ ocultarCuadroCocineroAsignado: e.target.checked })}
+              className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+            />
+            <span>
+              <span className={`${textModal} font-semibold block`}>Ocultar cuadro de cocinero asignado</span>
+              <span className={`${textSecondary} text-xs block mt-0.5`}>
+                No muestra quién tomó cada plato (el recuadro con el nombre del cocinero). Se guarda en este dispositivo y en el perfil de vista.
+              </span>
+            </span>
+          </label>
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Etiqueta PARA LLEVAR</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Tamaño de la etiqueta morada en las tablas KDS. Se guarda con Guardar y en el perfil.
+            </p>
+            <label className="block">
+              <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño</span>
+              <select
+                value={config.paraLlevarTamano || PARA_LLEVAR_DEFAULT.paraLlevarTamano}
+                onChange={(e) => updateConfig({ paraLlevarTamano: parseInt(e.target.value, 10) })}
+                className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+              >
+                {Array.from(
+                  { length: PARA_LLEVAR_TAMANO_MAX - PARA_LLEVAR_TAMANO_MIN + 1 },
+                  (_, i) => PARA_LLEVAR_TAMANO_MIN + i
+                ).map((size) => (
+                  <option key={size} value={size}>{size}px</option>
+                ))}
+              </select>
+            </label>
+            <span style={estiloParaLlevarKds(config)}>PARA LLEVAR</span>
+          </fieldset>
 
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Número de orden del plato</legend>
@@ -895,15 +952,21 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   {textoNumeroOrdenKds(1, config)}
                 </span>
               </div>
-              {config.juntarGuarnicionesVisualKds !== false && (
+              {config.juntarGuarnicionesVisualKds !== false && config.ocultarComplementosEnTablaKds !== true && (
                 <div className="pl-1 mt-0.5 flex flex-col gap-0.5 leading-tight">
                   <span style={estiloNombreComplementoKds(config)}>Papas x1</span>
                   <span style={estiloNombreComplementoKds(config)}>Ensalada x1</span>
                 </div>
               )}
-              {config.mostrarBadgeGuarnicion !== false && config.juntarGuarnicionesVisualKds === false && (
+              {config.mostrarBadgeGuarnicion !== false && config.juntarGuarnicionesVisualKds === false && config.ocultarComplementosEnTablaKds !== true && (
                 <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-lime-500/20 text-lime-300 border border-lime-400/40">
                   🥗 Guarnición
+                </span>
+              )}
+              <span className="inline-flex mt-1" style={estiloParaLlevarKds(config)}>PARA LLEVAR</span>
+              {config.ocultarCuadroCocineroAsignado !== true && (
+                <span className="inline-flex mt-1 items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-300 border border-green-500/30 rounded">
+                  👨‍🍳 Tú
                 </span>
               )}
             </div>

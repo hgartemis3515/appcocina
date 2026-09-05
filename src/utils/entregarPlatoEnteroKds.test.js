@@ -107,7 +107,7 @@ describe('entregarPlatoEnteroKds', () => {
     });
     expect(finalizarGuarnicion).toHaveBeenCalledTimes(1);
     expect(batchFinalizarPlatos).toHaveBeenCalledTimes(1);
-    expect(entregarPlato).toHaveBeenCalledWith('c1', 'p1', 'u1');
+    expect(entregarPlato).toHaveBeenCalledWith('c1', 'p1', 'u1', undefined);
     expect(out.exitosos).toBe(1);
   });
 

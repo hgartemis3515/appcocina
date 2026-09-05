@@ -7,6 +7,7 @@ import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
+import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
 /**
  * PlatoMonitorRow - Fila AGRUPADA de un plato en el monitor Ver Cocina
@@ -133,7 +134,15 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           gap: '8px',
         }}
       >
-        <span style={{ minWidth: 0, color: colorNombrePlato }}>{nombreVisible}</span>
+        <span
+          style={{
+            minWidth: 0,
+            color: colorNombrePlato,
+            ...(hayParaLlevar ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
+          }}
+        >
+          {nombreVisible}
+        </span>
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
         )}

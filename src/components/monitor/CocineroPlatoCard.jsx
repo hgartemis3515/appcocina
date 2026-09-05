@@ -11,6 +11,7 @@ import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, p
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
+import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -518,10 +519,11 @@ const CocineroPlatoCard = React.forwardRef(({
             fontWeight: pesoFuentePlato,
             lineHeight: 1.05,
             color: colorNombrePlato,
-            textShadow: '0 2px 8px rgba(0,0,0,0.45)',
+            textShadow: hayParaLlevar ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
             wordBreak: 'break-word',
             overflowWrap: 'anywhere',
             whiteSpace: 'normal',
+            ...(hayParaLlevar ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
           }}
         >
           {nombreVisible}

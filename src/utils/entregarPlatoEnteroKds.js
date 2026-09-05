@@ -216,7 +216,7 @@ export async function ejecutarEntregarPlatoEntero({
   let fallidos = 0;
   if (typeof entregarPlato === 'function') {
     for (const p of paraSalio) {
-      const r = await entregarPlato(p.comandaId, p.platoId, userId);
+          const r = await entregarPlato(p.comandaId, p.platoId, userId, p.cantidadEntregar);
       if (r?.success) {
         exitosos += 1;
         keysLimpiar.push(claveLimpieza(p));

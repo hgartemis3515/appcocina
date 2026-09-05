@@ -12,7 +12,7 @@ export const NOMBRE_COMPLEMENTO_DEFAULT = {
 };
 
 export const NOMBRE_COMPLEMENTO_TAMANO_MIN = 8;
-export const NOMBRE_COMPLEMENTO_TAMANO_MAX = 24;
+export const NOMBRE_COMPLEMENTO_TAMANO_MAX = 36;
 
 function clampInt(n, min, max, fallback) {
   const v = Number(n);

@@ -155,7 +155,7 @@ const useProcesamiento = ({
   /**
    * Finalizar un plato (marcar como recoger)
    */
-  const finalizarPlato = useCallback(async (comandaId, platoId, cocineroId) => {
+  const finalizarPlato = useCallback(async (comandaId, platoId, cocineroId, cantidadEntregar) => {
     setLoading(true);
     setError(null);
     
@@ -163,7 +163,7 @@ const useProcesamiento = ({
       const token = getToken();
       const response = await axios.put(
         `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/finalizar`,
-        { cocineroId },
+        { cocineroId, ...(Number(cantidadEntregar) >= 1 ? { cantidadEntregar: Number(cantidadEntregar) } : {}) },
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -208,7 +208,7 @@ const useProcesamiento = ({
    * @param {string} platoId - ID del plato
    * @param {string} cocineroId - ID del cocinero/supervisor que confirma la salida
    */
-  const entregarPlato = useCallback(async (comandaId, platoId, cocineroId) => {
+  const entregarPlato = useCallback(async (comandaId, platoId, cocineroId, cantidadEntregar) => {
     setLoading(true);
     setError(null);
 
@@ -216,7 +216,11 @@ const useProcesamiento = ({
       const token = getToken();
       const response = await axios.put(
         `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/estado`,
-        { nuevoEstado: 'salio', cocineroId },
+        {
+          nuevoEstado: 'salio',
+          cocineroId,
+          ...(Number(cantidadEntregar) >= 1 ? { cantidadEntregar: Number(cantidadEntregar) } : {})
+        },
         {
           headers: {
             'Authorization': `Bearer ${token}`,

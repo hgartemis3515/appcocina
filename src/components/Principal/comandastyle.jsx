@@ -47,6 +47,9 @@ import {
 } from "../../utils/entregarPlatoEnteroKds";
 import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 import BotonPasarABackup from "./BotonPasarABackup";
+import SelectorCantidadEntregaKds from "./SelectorCantidadEntregaKds";
+import useCantidadEntregaKds from "../../hooks/useCantidadEntregaKds";
+import { anexarCantidadEntrega } from "../../utils/cantidadEntregaKds";
 import { recolectarSeleccionConSiguienteBackup } from "../../utils/pasarABackupKds";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import useAsignacionBackupKds from "../../hooks/useAsignacionBackupKds";
@@ -172,6 +175,7 @@ const ComandaStyle = ({
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
   // Estados visuales de platos: 'normal' | 'procesando' | 'seleccionado' (local-only, persistente)
   const [platoStates, setPlatoStates] = useState(new Map()); // Map<`${comandaId}-${platoId}`, 'normal'|'procesando'|'seleccionado'>
+  const cantidadEntrega = useCantidadEntregaKds(platoStates, comandas);
   // v7.4: Estados visuales de comandas para el ciclo de 3 estados (normal | dejar | finalizar)
   const [comandaStates, setComandaStates] = useState(new Map()); // Map<comandaId, 'normal'|'dejar'|'finalizar'>
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
@@ -2196,7 +2200,7 @@ const ComandaStyle = ({
     const loteCola = ordenados.map((p) => `${p.comandaId}-${p.platoIndex}`);
 
     const resultados = [];
-    for (const { comandaId, platoId, platoIndex } of ordenados) {
+    for (const { comandaId, platoId, platoIndex, cantidadEntregar } of ordenados) {
       try {
           const comanda = comandas.find(c => c._id === comandaId);
           if (!comanda) {
@@ -2234,6 +2238,7 @@ const ComandaStyle = ({
           const token = typeof getToken === 'function' ? getToken() : null;
           const body = { nuevoEstado: "recoger", cocineroId: userId, loteCola };
           if (opts.entregarEnteroAbsoluto) body.entregarEnteroAbsoluto = true;
+          if (Number(cantidadEntregar) >= 1) body.cantidadEntregar = Number(cantidadEntregar);
           await axios.put(
             `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
             body,
@@ -2858,7 +2863,7 @@ const ComandaStyle = ({
         });
       });
       
-      onSupervisorFinalizarPlato(platosAFinalizar);
+      onSupervisorFinalizarPlato(anexarCantidadEntrega(platosAFinalizar, cantidadEntrega));
       return;
     }
     // === FIN INTERCEPTACIÓN ===
@@ -3086,7 +3091,9 @@ const ComandaStyle = ({
       }
 
       // Usar función genérica batch
-      const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(loteAFinalizar);
+      const { exitosos, fallidos, resultados } = await batchFinalizarPlatos(
+        anexarCantidadEntrega(loteAFinalizar, cantidadEntrega)
+      );
 
       // Resetear estados de platos exitosos a 'normal' (post-success) + limpiar checks
       setPlatoStates(prev => {
@@ -3157,7 +3164,7 @@ const ComandaStyle = ({
     } finally {
       setIsFinalizandoPlatos(false);
     }
-  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId, isSupervisorView, onSupervisorFinalizarPlato, obligarOrdenAsignacion, puedeOmitirOrden, solicitudOrdenFueraDeCola, platoTieneOverride]);
+  }, [platoStates, comandas, getTotalPlatosMarcados, isFinalizandoPlatos, batchFinalizarPlatos, userId, isSupervisorView, onSupervisorFinalizarPlato, obligarOrdenAsignacion, puedeOmitirOrden, solicitudOrdenFueraDeCola, platoTieneOverride, cantidadEntrega]);
 
   /**
    * SALIO: Handler para entregar platos del pass (recoger → salio)
@@ -3198,7 +3205,7 @@ const ComandaStyle = ({
     // === INTERCEPTACIÓN SUPERVISOR ===
     if (isSupervisorView && onSupervisorEntregarPlato) {
       console.log('[EntregarPlatos] Modo supervisor - delegando');
-      onSupervisorEntregarPlato(platosAEntregar);
+      onSupervisorEntregarPlato(anexarCantidadEntrega(platosAEntregar, cantidadEntrega));
       return;
     }
     // === FIN INTERCEPTACIÓN ===
@@ -3206,7 +3213,9 @@ const ComandaStyle = ({
     setIsEntregandoPlatos(true);
     try {
       const resultados = await Promise.allSettled(
-        platosAEntregar.map(p => entregarPlato(p.comandaId, p.platoId, userId))
+        anexarCantidadEntrega(platosAEntregar, cantidadEntrega).map(p =>
+          entregarPlato(p.comandaId, p.platoId, userId, p.cantidadEntregar)
+        )
       );
 
       const exitosKeys = [];
@@ -3242,7 +3251,7 @@ const ComandaStyle = ({
     } finally {
       setIsEntregandoPlatos(false);
     }
-  }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId, isSupervisorView, onSupervisorEntregarPlato]);
+  }, [isEntregandoPlatos, platoStates, comandas, entregarPlato, userId, isSupervisorView, onSupervisorEntregarPlato, cantidadEntrega]);
 
   const [isEntregandoPlatoEntero, setIsEntregandoPlatoEntero] = useState(false);
   const [isPasandoABackup, setIsPasandoABackup] = useState(false);
@@ -3250,13 +3259,16 @@ const ComandaStyle = ({
     if (isEntregandoPlatoEntero || isFinalizandoPlatos || isEntregandoPlatos) return;
     if (!hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) return;
 
-    const { aFinalizar, aEntregar, guarniciones } = recolectarSeleccionEntregarEntero({
+    const recolectado = recolectarSeleccionEntregarEntero({
       platoStates,
       comandas,
       userId,
       isSupervisorView,
       permitirOtroCocinero: entregarPlatoEnteroAbsoluto !== false
     });
+    const aFinalizar = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
+    const aEntregar = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
+    const guarniciones = recolectado.guarniciones;
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
         type: 'warning',
@@ -3341,7 +3353,8 @@ const ComandaStyle = ({
     finalizarGuarnicion,
     batchFinalizarPlatos,
     entregarPlato,
-    entregarPlatoEnteroAbsoluto
+    entregarPlatoEnteroAbsoluto,
+    cantidadEntrega
   ]);
 
   const handlePasarABackup = useCallback(async () => {
@@ -4523,6 +4536,17 @@ const ComandaStyle = ({
                       onClick={handleEntregarPlatoEntero}
                       count={nSel || platos?.length || 0}
                       absoluto={absoluto}
+                    />
+                    <SelectorCantidadEntregaKds
+                      visible={cantidadEntrega.visible}
+                      nombre={cantidadEntrega.nombre}
+                      value={cantidadEntrega.value}
+                      max={cantidadEntrega.max}
+                      nightMode={nightMode}
+                      disabled={isLoading}
+                      onMinus={cantidadEntrega.minus}
+                      onPlus={cantidadEntrega.plus}
+                      onMax={cantidadEntrega.maxAll}
                     />
                     <BotonPasarABackup
                       visible={loteBackup.length > 0}

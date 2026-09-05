@@ -346,7 +346,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       const result = await finalizarPlato(
         plato.comandaId || plato.comanda?._id,
         plato.platoId || plato._id,
-        userId
+        userId,
+        plato.cantidadEntregar
       );
       if (result.success) exitosos++;
     }
@@ -375,7 +376,8 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       const result = await entregarPlato(
         plato.comandaId || plato.comanda?._id,
         plato.platoId || plato._id,
-        userId
+        userId,
+        plato.cantidadEntregar
       );
       if (result.success) exitosos++;
     }

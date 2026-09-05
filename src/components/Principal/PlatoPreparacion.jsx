@@ -5,6 +5,7 @@ import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNum
 import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
 import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
+import { estiloParaLlevarKds } from '../../utils/estiloParaLlevarKds';
 import { cantidadGuarnicionEfectiva } from '../../utils/guarnicionesKds';
 import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
 import { itemAplicaReglaContador } from '../../utils/tipoPlatoReglasCocina';
@@ -64,7 +65,10 @@ const PlatoPreparacion = ({
     tipoUnidad === 'guarnicion',
   );
   const compact = tipoUnidad === 'guarnicion';
+  const ocultarCuadroCocinero = kdsConfig.ocultarCuadroCocineroAsignado === true;
+  const ocultarComplementosTabla = kdsConfig.ocultarComplementosEnTablaKds === true;
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
+  const estiloParaLlevar = estiloParaLlevarKds(kdsConfig);
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
   const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
   const estiloCantidad = estiloCantidadPlatoKds(kdsConfig);
@@ -241,6 +245,8 @@ const PlatoPreparacion = ({
     checkBorderColor = '#6b7280';
   }
 
+  if (tipoUnidad === 'guarnicion' && ocultarComplementosTabla) return null;
+
   return (
     <motion.div
       role="button"
@@ -327,15 +333,15 @@ const PlatoPreparacion = ({
           {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
           {tipoServicio === 'para_llevar' && (
             <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide bg-purple-600 text-white border border-purple-500"
+              style={estiloParaLlevar}
               title="Este plato es para llevar (no se sirve en mesa)"
             >
-              🥡 PARA LLEVAR
+              PARA LLEVAR
             </span>
           )}
           
           {/* v7.2: Badge de cocinero que esta procesando el plato */}
-          {procesandoPor?.cocineroId && (
+          {procesandoPor?.cocineroId && !ocultarCuadroCocinero && (
             <motion.span
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -424,7 +430,7 @@ const PlatoPreparacion = ({
           </div>
         )}
 
-        {complementosSeleccionados && complementosSeleccionados.length > 0 && !ocultarComplementos && (
+        {complementosSeleccionados && complementosSeleccionados.length > 0 && !ocultarComplementos && !ocultarComplementosTabla && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
             {complementosSeleccionados.map((comp, i) => {
               // v2.0: Mostrar siempre la cantidad del complemento
@@ -443,7 +449,7 @@ const PlatoPreparacion = ({
         )}
 
         {/* v3.0: Resumen agregado de complementos (Σ unidades + monto extra) */}
-        {mostrarResumenComplementos && complementosSeleccionados && complementosSeleccionados.length > 0 && (() => {
+        {mostrarResumenComplementos && !ocultarComplementosTabla && complementosSeleccionados && complementosSeleccionados.length > 0 && (() => {
           const flags = resumenComplementosImpresion || {};
           const mostrarCantidad = flags.mostrarCantidad !== false;
           const mostrarMontoExtra = flags.mostrarMontoExtra !== false;
