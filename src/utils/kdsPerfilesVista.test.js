@@ -94,6 +94,11 @@ describe('kdsPerfilesVista', () => {
     expect(snap.tamanoFuente).toBe(18);
     expect(snap.juntarGuarnicionesVisualKds).toBe(true);
     expect(snap.headerTarjetaEstilo).toBe('compacto');
+    expect(snap.headerTarjetaOcultarPrep).toBe(false);
+    expect(snap.headerTarjetaTamano).toBe(14);
+    expect(snap.headerTarjetaColor).toBe('#ffffff');
+    expect(snap.headerTarjetaContorno).toBe('#4b5563');
+    expect(snap.headerTarjetaFondo).toBe('#111827');
     expect(snap.nightMode).toBeUndefined();
   });
 

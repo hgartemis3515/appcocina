@@ -291,6 +291,12 @@ export const DEFAULT_KDS_CONFIG = {
   mozoNombreColor: '#ffffff',
   mozoNombreFondo: '#1e3a8a',
   headerTarjetaEstilo: 'compacto',
+  headerTarjetaOcultarPrep: false,
+  headerTarjetaFuente: 'arial',
+  headerTarjetaTamano: 14,
+  headerTarjetaColor: '#ffffff',
+  headerTarjetaContorno: '#4b5563',
+  headerTarjetaFondo: '#111827',
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500
