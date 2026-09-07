@@ -20,21 +20,14 @@ import {
 import { platoCoincideCocineroFiltro } from '../utils/cocineroFiltroIds';
 import { obtenerNombreDisplayCocina } from '../utils/platoHelpers';
 import { slugsTipoDePlato, slugTipoPedido } from '../utils/tipoPlatoReglasCocina';
+import { platoRetenidoFueraDeCocina, tiempoInicioPlatoCocina } from '../utils/kdsFilters';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
 // pero tienen procesandoPor set. Los que pasan a recoger/salio/entregado desaparecen.
 const ESTADOS_NO_LISTOS = ['pedido', 'en_espera'];
 
-/**
- * Devuelve timestamp del inicio del cronómetro del plato.
- * Prioriza el momento en que el cocinero tomó el plato (procesandoPor.timestamp).
- */
-function obtenerTiempoInicio(plato) {
-  if (plato.procesandoPor?.timestamp) return plato.procesandoPor.timestamp;
-  const t = plato.tiempos || {};
-  if (t.en_espera) return t.en_espera;
-  if (t.pedido) return t.pedido;
-  return plato.createdAt || plato.timestamp || null;
+function obtenerTiempoInicio(plato, comanda) {
+  return tiempoInicioPlatoCocina(plato, comanda);
 }
 
 /**
@@ -203,10 +196,12 @@ const useCocinaMonitorFilter = (
     const aplanados = [];
     for (const comanda of comandas) {
       if (!comanda.platos) continue;
+      if (comanda.programadaPorReserva === true) continue;
       for (let pi = 0; pi < comanda.platos.length; pi++) {
         const plato = comanda.platos[pi];
         if (!ESTADOS_NO_LISTOS.includes(plato.estado)) continue;
         if (plato.anulado || plato.eliminado || plato.eliminar) continue;
+        if (platoRetenidoFueraDeCocina(plato)) continue;
         if (!platoTomadoPorCocinero(plato)) continue;
         if (vistaCocina && !platoCumpleVista(plato, vistaCocina)) continue;
         if (!platoAsignadoACocinero(plato, cocineroIdFiltrado)) continue;
@@ -215,7 +210,7 @@ const useCocinaMonitorFilter = (
           plato,
           comanda,
           platoIndex: pi,
-          tiempoInicio: obtenerTiempoInicio(plato),
+          tiempoInicio: obtenerTiempoInicio(plato, comanda),
           nombre: obtenerNombrePlato(plato),
           cocinero: obtenerCocineroDePlato(plato),
         });

@@ -33,7 +33,7 @@ import { apiGet, apiPut } from '../config/apiClient';
 import { io } from 'socket.io-client';
 import { imprimirComandaDesdeTicket } from '../utils/comandaPrint/comandaPrintWeb';
 import { aplicarTotalNetoTicket } from '../utils/ticketTotales';
-import { clampRangoFechas } from '../utils/ticketAprobacionUi';
+import { clampRangoFechas, loadTicketsTablaPrefs } from '../utils/ticketAprobacionUi';
 
 const TICKETS_REFRESH_INTERVAL = 30000;
 const TICKETS_FAST_POLLING_INTERVAL = 10000; // cuando socket cae, refrescar más seguido
@@ -575,10 +575,15 @@ export default function useTablaAprobacion({
   }, []);
 
   // Imprimir comanda: delega en módulo compartido comandaPrintWeb
-  const imprimirComanda = useCallback(async (ticket) => {
+  const imprimirComanda = useCallback(async (ticket, extra = {}) => {
     try {
+      const prefs = loadTicketsTablaPrefs();
+      const omitirGuarniciones = extra.omitirGuarniciones != null
+        ? extra.omitirGuarniciones === true
+        : prefs.imprimirSinGuarniciones === true;
       await imprimirComandaDesdeTicket(ticket, {
         serverOrigin: getServerBaseUrl(),
+        omitirGuarniciones,
         fetchJson: async (url) => {
           const u = String(url);
           const qIdx = u.indexOf('?');

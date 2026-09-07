@@ -42,6 +42,7 @@ import useBuscadorPlatos from "../../hooks/useBuscadorPlatos";
 import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import useReservasProgramadas from "../../hooks/useReservasProgramadas";
 import { getApiUrl } from "../../config/apiConfig";
+import { apiPut } from "../../config/apiClient";
 import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { useConfig } from "../../contexts/ConfigContext";
@@ -56,8 +57,11 @@ import {
   debeMostrarPlato,
   calcularEstadisticasFiltrado,
   esComandaReserva,
-  clasesHeaderReservaKds
+  clasesHeaderReservaKds,
+  platoRetenidoFueraDeCocina,
+  instanteInicioCocinaComanda
 } from "../../utils/kdsFilters";
+import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados } from "../../utils/kdsAnularPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
@@ -1638,14 +1642,6 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     const platosActivos = c.platos.filter(p => p.eliminado !== true && p.anulado !== true);
     if (platosActivos.length === 0) return false;
 
-    // 🔥 PARA LLEVAR: Ocultar comandas 100% "para llevar" SOLO hasta que cocina apruebe el PPA.
-    // Tras la aprobación (estadoTicket === 'aprobado') se muestran en los tableros como comanda normal.
-    const todosParaLlevar = platosActivos.every(p => p.tipoServicio === 'para_llevar');
-    if (todosParaLlevar) {
-      const todasAprobadas = platosActivos.every(p => p.pagoAdelantado?.estadoTicket === 'aprobado');
-      if (!todasAprobadas) return false;
-    }
-
     // REGLA: No mostrar comanda si TODOS los platos están en estado salio o entregado.
     // PLAN_PLANTILLA_COMANDAS v2: 'pagado' ahora significa "cobrado y aprobado por cocina,
     // pendiente de preparar" (antes era el estado terminal). Por eso NO se incluye 'pagado'
@@ -1659,14 +1655,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // 🔥 PPA: No mostrar comandas donde TODOS los platos activos tienen pagoAdelantado.requerido=true
     // y estadoTicket pendiente_aprobacion (retenidos hasta aprobación del TPA)
     const platosVisiblesEnKDS = platosActivos.filter(p => {
-      // Plato retenido por PPA pendiente: no visible en KDS
-      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
-        return false;
-      }
-      // PLAN_PLANTILLA_COMANDAS: Plato en estado "pendiente" (esperando aprobación cocina): no visible en KDS
-      if ((p.estado || '').toLowerCase() === 'pendiente') {
-        return false;
-      }
+      if (platoRetenidoFueraDeCocina(p)) return false;
       return true;
     });
     // Si después de filtrar platos retenidos no queda ningún plato visible, ocultar la comanda
@@ -1728,10 +1717,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // Calcular tiempo transcurrido (mantener para compatibilidad)
   const calcularTiempoTranscurrido = (comanda) => {
-    if (!comanda.createdAt) return { minutos: 0, texto: "0min", horas: 0, minutosRestantes: 0, segundos: 0 };
+    if (!instanteInicioCocinaComanda(comanda)) return { minutos: 0, texto: "0min", horas: 0, minutosRestantes: 0, segundos: 0 };
     
     const ahora = moment().tz("America/Lima");
-    const creacion = moment(comanda.createdAt).tz("America/Lima");
+    const creacion = moment(instanteInicioCocinaComanda(comanda)).tz("America/Lima");
     const diffSegundos = ahora.diff(creacion, "seconds");
     const diffMinutos = Math.floor(diffSegundos / 60);
     
@@ -1750,12 +1739,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       setTiemposComandas(prev => {
         const nuevo = new Map(prev);
         comandas.forEach(comanda => {
-          if (!comanda.createdAt) {
+          const inicio = instanteInicioCocinaComanda(comanda);
+          if (!inicio) {
             nuevo.set(comanda._id, "00:00:00");
             return;
           }
           const ahora = moment().tz("America/Lima");
-          const creacion = moment(comanda.createdAt).tz("America/Lima");
+          const creacion = moment(inicio).tz("America/Lima");
           const diffSegundos = ahora.diff(creacion, "seconds");
           
           const horas = Math.floor(diffSegundos / 3600);
@@ -3536,125 +3526,100 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // 🔥 NUEVO: Función para anular plato individual desde cocina
   const handleAnularPlato = useCallback(async () => {
-    if (selectedOrders.size !== 1) {
-      alert('Seleccione una sola comanda para anular un plato');
+    const comandaId = selectedOrders.size === 1
+      ? String(Array.from(selectedOrders)[0])
+      : comandaIdDesdePlatosMarcados(platosChecked, platoStates);
+    if (!comandaId) {
+      alert('Seleccione una comanda o marque al menos un plato para anular');
       return;
     }
-    
-    const comandaId = Array.from(selectedOrders)[0];
-    const platosMarcados = [];
-    
-    platosChecked.forEach((checked, key) => {
-      if (checked) {
-        const [cid, platoIdx] = key.split('-');
-        if (cid === comandaId) {
-          platosMarcados.push(parseInt(platoIdx));
-        }
-      }
-    });
-    
+
+    const platosMarcados = indicesPlatosMarcadosKds(platosChecked, platoStates, comandaId);
     if (platosMarcados.length === 0) {
-      alert('Seleccione al menos un plato para anular');
+      alert('Marque en verde el plato a anular, o use “Anular Toda la Comanda”.');
       return;
     }
-    
+
     if (!anularMotivo) {
       alert('Seleccione un motivo de anulación');
       return;
     }
-    
+
     setAnularLoading(true);
-    
+
     try {
-      // Anular cada plato marcado
       for (const platoIndex of platosMarcados) {
-        await axios.put(
-          `${getApiUrl()}/${comandaId}/anular-plato/${platoIndex}`,
-          {
-            motivo: anularMotivo,
-            observaciones: anularObservaciones,
-            sourceApp: 'cocina'
-          }
-        );
+        await apiPut(`/api/comanda/${comandaId}/anular-plato/${platoIndex}`, {
+          motivo: anularMotivo,
+          observaciones: anularObservaciones,
+          sourceApp: 'cocina',
+          usuarioId: userId || undefined,
+        });
       }
-      
-      // Limpiar estados
+
       setAnularMotivo('');
       setAnularObservaciones('');
       setShowAnularModal(false);
       setPlatosChecked(new Map());
       setSelectedOrders(new Set());
-      
-      // Refrescar comandas
       obtenerComandas();
-      
-      console.log(`✅ ${platosMarcados.length} plato(s) anulado(s) correctamente`);
-      
     } catch (error) {
       console.error('Error al anular plato:', error);
-      alert(error.response?.data?.message || 'Error al anular el plato');
+      alert(error.response?.data?.message || error.userMessage || error.message || 'Error al anular el plato');
     } finally {
       setAnularLoading(false);
     }
-  }, [selectedOrders, platosChecked, anularMotivo, anularObservaciones, obtenerComandas]);
+  }, [selectedOrders, platosChecked, platoStates, anularMotivo, anularObservaciones, obtenerComandas, userId]);
 
   // 🔥 NUEVO: Función para anular toda la comanda
   const handleAnularComandaCompleta = useCallback(async () => {
-    if (selectedOrders.size !== 1) {
-      alert('Seleccione una sola comanda para anular');
+    const comandaId = selectedOrders.size === 1
+      ? String(Array.from(selectedOrders)[0])
+      : comandaIdDesdePlatosMarcados(platosChecked, platoStates);
+    if (!comandaId) {
+      alert('Seleccione una comanda para anular');
       return;
     }
-    
+
     if (!anularMotivo) {
       alert('Seleccione un motivo de anulación');
       return;
     }
-    
-    const comandaId = Array.from(selectedOrders)[0];
-    const comanda = comandas.find(c => c._id === comandaId);
-    
+
+    const comanda = comandas.find(c => String(c._id) === String(comandaId));
     if (!comanda) {
       alert('Comanda no encontrada');
       return;
     }
-    
+
     const confirmar = window.confirm(
       `¿Está seguro de anular TODA la comanda #${comanda.comandaNumber}?\n` +
       `Esto anulará todos los platos y la comanda pasará a estado CANCELADO.`
     );
-    
     if (!confirmar) return;
-    
+
     setAnularLoading(true);
-    
+
     try {
-      await axios.put(
-        `${getApiUrl()}/${comandaId}/anular-todo`,
-        {
-          motivo: anularMotivo,
-          observaciones: anularObservaciones,
-          sourceApp: 'cocina'
-        }
-      );
-      
-      // Limpiar estados
+      await apiPut(`/api/comanda/${comandaId}/anular-todo`, {
+        motivo: anularMotivo,
+        observaciones: anularObservaciones,
+        sourceApp: 'cocina',
+        usuarioId: userId || undefined,
+      });
+
       setAnularMotivo('');
       setAnularObservaciones('');
       setShowAnularModal(false);
       setSelectedOrders(new Set());
-      
-      // Refrescar comandas
       obtenerComandas();
-      
-      console.log(`✅ Comanda #${comanda.comandaNumber} anulada completamente`);
-      
     } catch (error) {
       console.error('Error al anular comanda:', error);
-      alert(error.response?.data?.message || 'Error al anular la comanda');
+      alert(error.response?.data?.message || error.userMessage || error.message || 'Error al anular la comanda');
     } finally {
       setAnularLoading(false);
     }
-  }, [selectedOrders, anularMotivo, anularObservaciones, comandas, obtenerComandas]);
+  }, [selectedOrders, platosChecked, platoStates, anularMotivo, anularObservaciones, comandas, obtenerComandas, userId]);
 
   // REGLA COCINA: Esta función fue eliminada - Cocina nunca maneja 'entregado' (exclusivo de mozos)
   // La función marcarEntregadas ya no existe en cocina
@@ -3939,7 +3904,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             </motion.div>
 
             {/* Barra inferior sticky: Boton Contextual (Tomar/Dejar/Finalizar) → Finalizar Comanda → Revertir → Paginado */}
-            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between flex-wrap gap-2 px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar} z-50`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
+            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between flex-wrap gap-2 px-4 py-3 pr-20 ${bgBottomBar} border-t ${borderBottomBar} z-[80]`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
               {/* Orden: Botón Contextual → Finalizar Comanda → Revertir → Paginado */}
               <div className="flex items-center flex-wrap gap-3">
                 {/* 1. BOTÓN CONTEXTUAL MULTI-COCINERO v7.2
@@ -4282,23 +4247,25 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 {/* 🔥 NUEVO: Botón ANULAR - Anular platos desde cocina */}
                 {(() => {
                   const platosMarcados = getTotalPlatosMarcados();
-                  const hasSelection = selectedOrders.size === 1;
-                  const comandaSeleccionada = hasSelection 
-                    ? comandas.find(c => c._id === Array.from(selectedOrders)[0])
-                    : null;
-                  const platosAnuladosEnComanda = comandaSeleccionada?.platos?.filter(p => p.anulado).length || 0;
-                  
+                  const idMarcado = comandaIdDesdePlatosMarcados(platosChecked, platoStates);
+                  const canAnular = selectedOrders.size === 1 || Boolean(idMarcado);
+
                   return (
                     <motion.button
-                      onClick={() => setShowAnularModal(true)}
-                      disabled={!hasSelection}
+                      onClick={() => {
+                        if (selectedOrders.size !== 1 && idMarcado) {
+                          setSelectedOrders(new Set([idMarcado]));
+                        }
+                        setShowAnularModal(true);
+                      }}
+                      disabled={!canAnular}
                       className={`px-4 py-2 font-semibold rounded-lg text-sm shadow-md flex items-center gap-1 ${
-                        hasSelection
+                        canAnular
                           ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
                           : nightMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed'
                       }`}
-                      whileHover={hasSelection ? { scale: 1.05 } : {}}
-                      whileTap={hasSelection ? { scale: 0.95 } : {}}
+                      whileHover={canAnular ? { scale: 1.05 } : {}}
+                      whileTap={canAnular ? { scale: 0.95 } : {}}
                     >
                       ❌ ANULAR{platosMarcados > 0 ? ` (${platosMarcados})` : ''}
                     </motion.button>
@@ -4450,7 +4417,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       <AnimatePresence>
         {showAnularModal && (
           <motion.div 
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[11000]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -5070,9 +5037,10 @@ const SicarComandaCard = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!comanda.createdAt) return;
+      const inicio = instanteInicioCocinaComanda(comanda);
+      if (!inicio) return;
       const ahora = moment().tz("America/Lima");
-      const creacion = moment(comanda.createdAt).tz("America/Lima");
+      const creacion = moment(inicio).tz("America/Lima");
       const diffMinutos = ahora.diff(creacion, "minutes");
       setMinutosActuales(diffMinutos);
       
@@ -5094,7 +5062,7 @@ const SicarComandaCard = ({
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [comanda.createdAt, alertYellowMinutes, alertRedMinutes, headerReserva]);
+  }, [comanda.createdAt, comanda.prioridadOrden, comanda.origenCreacion, comanda.origenReserva, alertYellowMinutes, alertRedMinutes, headerReserva]);
 
   // Inicializar colores - Borde y encabezado con el mismo color
   useEffect(() => {
@@ -5155,14 +5123,7 @@ const SicarComandaCard = ({
     // 'en_espera' (En Preparación). Ahora el hook useBuscadorPlatos ya excluye
     // los estados terminales del resultado, así que podemos clasificar normally.
     preparacion = platosConNombre.filter(p => {
-      // 🔥 PPA: Ocultar platos retenidos por pago adelantado pendiente de aprobación
-      if (p.pagoAdelantado?.requerido && p.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
-        return false;
-      }
-      // PLAN_PLANTILLA_COMANDAS: Ocultar platos en estado "pendiente" (esperando aprobación cocina)
-      if ((p.estado || '').toLowerCase() === 'pendiente') {
-        return false;
-      }
+      if (platoRetenidoFueraDeCocina(p)) return false;
       const estado = p.estado || "en_espera";
       return estado === "en_espera" || estado === "ingresante" || estado === "pedido";
     });

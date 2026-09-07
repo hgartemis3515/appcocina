@@ -130,6 +130,7 @@ function FilaTicketAvanzado({
   seleccionActiva = false,
   seleccionado = false,
   onToggleSeleccion,
+  ocultarGuarniciones = false,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -179,6 +180,7 @@ function FilaTicketAvanzado({
               plato={plato}
               size="xs"
               showSubtotal={false}
+              ocultarGuarniciones={ocultarGuarniciones}
             />
           ))}
           {nPlatos === 0 && (
@@ -264,6 +266,7 @@ export default function TicketsAprobacionTable({
   seleccionActiva = false,
   idsSeleccionados = [],
   onToggleSeleccion,
+  ocultarGuarniciones = false,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
@@ -321,6 +324,7 @@ export default function TicketsAprobacionTable({
         <TicketComandaDetalleModal
           ticket={detalleTicket}
           onClose={() => setDetalleTicket(null)}
+          ocultarGuarniciones={ocultarGuarniciones}
           footer={
             <div className="flex justify-end pt-1">
               <AccionesTicket
@@ -389,6 +393,7 @@ export default function TicketsAprobacionTable({
                 forzarPagoLoading,
                 seleccionActiva,
                 onToggleSeleccion,
+                ocultarGuarniciones,
               };
               if (fila.tipo !== 'grupo') {
                 const ticket = fila.tickets[0];

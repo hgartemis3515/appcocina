@@ -2,8 +2,14 @@ import moment from 'moment-timezone';
 
 const ZONA = 'America/Lima';
 const MODO_VISTA_KEY = 'cocinaTicketsModoVista';
+const TABLA_PREFS_KEY = 'cocinaTicketsTablaPrefs';
 const MAX_DIAS_RANGO = 90;
 const DEFAULT_DIAS = 30;
+
+export const DEFAULT_TICKETS_TABLA_PREFS = {
+  ocultarGuarniciones: false,
+  imprimirSinGuarniciones: false,
+};
 
 export const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
 
@@ -48,6 +54,33 @@ export function saveModoVistaTickets(modo) {
   } catch {
     /* ignore */
   }
+}
+
+export function loadTicketsTablaPrefs() {
+  try {
+    const raw = localStorage.getItem(TABLA_PREFS_KEY);
+    if (!raw) return { ...DEFAULT_TICKETS_TABLA_PREFS };
+    const parsed = JSON.parse(raw);
+    return {
+      ocultarGuarniciones: !!parsed?.ocultarGuarniciones,
+      imprimirSinGuarniciones: !!parsed?.imprimirSinGuarniciones,
+    };
+  } catch {
+    return { ...DEFAULT_TICKETS_TABLA_PREFS };
+  }
+}
+
+export function saveTicketsTablaPrefs(prefs) {
+  const next = {
+    ocultarGuarniciones: !!prefs?.ocultarGuarniciones,
+    imprimirSinGuarniciones: !!prefs?.imprimirSinGuarniciones,
+  };
+  try {
+    localStorage.setItem(TABLA_PREFS_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+  return next;
 }
 
 export const formatCurrency = (amount) => `S/. ${Number(amount || 0).toFixed(2)}`;

@@ -139,6 +139,7 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
 
       const comandasValidas = (response.data || []).filter(c => {
         if (c.IsActive === false || c.IsActive === null || c.eliminada === true) return false;
+        if (c.programadaPorReserva === true) return false;
         if (!c.platos || c.platos.length === 0) return false;
         return true;
       });
@@ -177,6 +178,7 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
   const onNuevaComanda = useCallback((payload) => {
     setComandas(prev => {
       const comanda = payload.comanda || payload;
+      if (comanda.programadaPorReserva === true) return prev;
       const id = comanda._id || comanda.id;
       const exists = prev.some(c => idsIguales(c._id || c.id, id));
       if (exists) return prev;

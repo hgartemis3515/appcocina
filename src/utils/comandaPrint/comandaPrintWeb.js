@@ -247,7 +247,12 @@ export async function imprimirComandaWeb(opts = {}) {
     }
 
     // 6. Generate full HTML
-    const { html, heightPx } = generarHtmlComanda({ datos, plantilla, serverOrigin });
+    const { html, heightPx } = generarHtmlComanda({
+      datos,
+      plantilla,
+      serverOrigin,
+      omitirGuarniciones: opts.omitirGuarniciones === true,
+    });
 
     // 7. Open print window (Epson TM-m30II Receipt — 80mm / 226px)
     const popupW = EPSON_TM_M30II_RECEIPT.contentWidthPx + 48;

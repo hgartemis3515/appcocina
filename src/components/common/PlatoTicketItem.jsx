@@ -16,6 +16,7 @@ export default function PlatoTicketItem({
   size = 'sm',
   showSubtotal = true,
   showEstado = false,
+  ocultarGuarniciones = false,
   className = '',
 }) {
   if (!plato) return null;
@@ -51,7 +52,7 @@ export default function PlatoTicketItem({
               )}
             </div>
 
-            {complementos.length > 0 && (
+            {!ocultarGuarniciones && complementos.length > 0 && (
               <div className="flex flex-col gap-0.5 mt-0.5">
                 {complementos.map((comp, i) => (
                   <div

@@ -17,6 +17,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { obtenerNombrePlato, obtenerCodigoPlato } from '../utils/platoHelpers';
+import { platoRetenidoFueraDeCocina } from '../utils/kdsFilters';
 
 /**
  * Normaliza texto para comparación (quita tildes, pasa a minúsculas)
@@ -354,10 +355,8 @@ const useBuscadorPlatos = (comandas, terminoExterno = null, options = {}) => {
       // Excluir platos en estados terminales de cocina
       const estado = String(plato.estado || '').toLowerCase();
       if (ESTADOS_OCULTOS_BUSCADOR.has(estado)) return false;
-      // Excluir platos retenidos por PPA pendiente de aprobación
-      if (plato.pagoAdelantado?.requerido && plato.pagoAdelantado?.estadoTicket === 'pendiente_aprobacion') {
-        return false;
-      }
+      // Excluir platos retenidos (PPA / para llevar sin aprobar / pendiente)
+      if (platoRetenidoFueraDeCocina(plato)) return false;
       return true;
     };
 

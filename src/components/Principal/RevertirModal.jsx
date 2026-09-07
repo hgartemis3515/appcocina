@@ -1,8 +1,37 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import moment from "moment-timezone";
 import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaBan, FaExclamationTriangle } from "react-icons/fa";
-import { getApiUrl } from "../../config/apiConfig";
+import { apiGet, apiPut } from "../../config/apiClient";
+
+function listaComandasDesdeApi(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.data)) return raw.data;
+  if (Array.isArray(raw?.comandas)) return raw.comandas;
+  return [];
+}
+
+function filtrarComandasReversibles(comandas) {
+  return (comandas || [])
+    .filter((c) => {
+      if (!c || c.status === 'pagado' || c.status === 'cancelado') return false;
+      if (!c.platos || c.platos.length === 0) return false;
+      return c.platos.some((p) => {
+        if (p.eliminado === true || p.anulado === true) return false;
+        return (p.estado || 'en_espera') === 'recoger';
+      });
+    })
+    .sort((a, b) => {
+      const fechaA = moment(a.updatedAt || a.createdAt).tz('America/Lima');
+      const fechaB = moment(b.updatedAt || b.createdAt).tz('America/Lima');
+      return fechaB.diff(fechaA);
+    });
+}
+
+async function fetchComandasReversibles() {
+  const fechaActual = moment().tz('America/Lima').format('YYYY-MM-DD');
+  const data = await apiGet(`/api/comanda/cocina/${fechaActual}`);
+  return filtrarComandasReversibles(listaComandasDesdeApi(data));
+}
 
 const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   const bgModal = nightMode ? "bg-gray-800" : "bg-white";
@@ -28,47 +57,11 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     const obtenerComandasConPlatosReversibles = async () => {
       setCargando(true);
       try {
-        const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
-        const apiUrl = `${getApiUrl()}/fecha/${fechaActual}`;
-        const response = await axios.get(apiUrl, { timeout: 5000 });
-        const ahora = moment().tz("America/Lima");
-        
-        // INCLUIR: comandas con platos en estado RECOGER
-        // EXCLUIR: comandas con status "pagado" (nunca se revierten)
-        // EXCLUIR: platos ANULADOS (anulado: true) - irreversibles desde cocina
-        // SIN LÍMITE DE TIEMPO - cualquier plato en recoger es reversible
-        const comandasParaRevertir = response.data.filter(c => {
-          if (c.status === "pagado") return false;
-          if (!c.platos || c.platos.length === 0) return false;
-          
-          // Verificar si tiene al menos un plato REVERSIBLE en estado RECOGER
-          // Plato reversible = eliminado !== true AND anulado !== true AND estado === 'recoger'
-          const tienePlatosReversibles = c.platos.some(p => {
-            // EXCLUIR platos eliminados (soft delete técnico)
-            if (p.eliminado === true) return false;
-            // EXCLUIR platos anulados (acción de mozo - IRREVERSIBLE)
-            if (p.anulado === true) return false;
-            const estado = p.estado || 'en_espera';
-            return estado === 'recoger';
-          });
-          
-          if (!tienePlatosReversibles) return false;
-          
-          // Solo filtrar por fecha (últimas 24 horas)
-          const fechaComanda = moment(c.updatedAt || c.createdAt).tz("America/Lima");
-          const diffHoras = ahora.diff(fechaComanda, "hours");
-          return diffHoras <= 24;
-        });
-
-        const ordenadas = comandasParaRevertir.sort((a, b) => {
-          const fechaA = moment(a.updatedAt || a.createdAt).tz("America/Lima");
-          const fechaB = moment(b.updatedAt || b.createdAt).tz("America/Lima");
-          return fechaB.diff(fechaA);
-        });
-
-        setComandasFinalizadas(ordenadas);
+        setComandasFinalizadas(await fetchComandasReversibles());
       } catch (error) {
         console.error("Error al obtener comandas:", error);
+        setToastMsg("❌ No se pudieron cargar los platos para revertir");
+        setTimeout(() => setToastMsg(null), 4000);
       } finally {
         setCargando(false);
       }
@@ -119,7 +112,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       }
     } catch (error) {
       console.error("Error en reversión:", error);
-      setToastMsg("❌ Error al revertir");
+      setToastMsg(error.userMessage || error.response?.data?.message || "❌ Error al revertir");
       setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setLoading(false);
@@ -131,15 +124,15 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     const { comandaId, platoId, platoNombre, comandaStatus } = data;
     
     // Cambiar estado del plato con motivo (backend registra auditoría)
-    await axios.put(
-      `${getApiUrl()}/${comandaId}/plato/${platoId}/estado`,
+    await apiPut(
+      `/api/comanda/${comandaId}/plato/${platoId}/estado`,
       { nuevoEstado: "en_espera", motivo: motivo.trim() }
     );
     
     // Si la comanda no está en_espera, cambiar su status también
     if (comandaStatus !== "en_espera") {
-      await axios.put(
-        `${getApiUrl()}/${comandaId}/status`,
+      await apiPut(
+        `/api/comanda/${comandaId}/status`,
         { nuevoStatus: "en_espera", motivo: motivo.trim() }
       );
     }
@@ -176,8 +169,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       }
       
       promesas.push(
-        axios.put(
-          `${getApiUrl()}/${comandaId}/plato/${platoId}/estado`,
+        apiPut(
+          `/api/comanda/${comandaId}/plato/${platoId}/estado`,
           { nuevoEstado: "en_espera", motivo: motivo.trim() }
         )
       );
@@ -189,8 +182,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     comandasInfo.forEach((status, comandaId) => {
       if (status !== "en_espera") {
         statusPromesas.push(
-          axios.put(
-            `${getApiUrl()}/${comandaId}/status`,
+          apiPut(
+            `/api/comanda/${comandaId}/status`,
             { nuevoStatus: "en_espera", motivo: motivo.trim() }
           )
         );
@@ -217,8 +210,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     
     // Cambiar status de la comanda con motivo
     if (comandaStatus !== "en_espera") {
-      await axios.put(
-        `${getApiUrl()}/${comandaId}/status`,
+      await apiPut(
+        `/api/comanda/${comandaId}/status`,
         { nuevoStatus: "en_espera", motivo: motivo.trim() }
       );
     }
@@ -232,8 +225,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       // FIX: revertir multi-plato similar - Priorizar plato._id (subdocumento único) sobre plato.plato._id (compartido entre duplicados)
       // Esto es CRÍTICO cuando hay 2+ platos del mismo tipo con complementos diferentes
       const platoIdUnico = plato._id?.toString() || plato.plato?._id;
-      await axios.put(
-        `${getApiUrl()}/${comandaId}/plato/${platoIdUnico}/estado`,
+      await apiPut(
+        `/api/comanda/${comandaId}/plato/${platoIdUnico}/estado`,
         { nuevoEstado: "en_espera", motivo: motivo.trim() }
       );
     }
@@ -248,35 +241,13 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   // Recargar lista de comandas
   const recargarLista = async () => {
     setCargando(true);
-    const fechaActual = moment().tz("America/Lima").format("YYYY-MM-DD");
-    const apiUrl = `${getApiUrl()}/fecha/${fechaActual}`;
-    const response = await axios.get(apiUrl, { timeout: 5000 });
-    const ahora = moment().tz("America/Lima");
-    
-    const comandasParaRevertir = response.data.filter(c => {
-      if (c.status === "pagado") return false;
-      if (!c.platos || c.platos.length === 0) return false;
-      const tienePlatosReversibles = c.platos.some(p => {
-        // EXCLUIR eliminados Y anulados
-        if (p.eliminado === true) return false;
-        if (p.anulado === true) return false;
-        const estado = p.estado || 'en_espera';
-        return estado === 'recoger';
-      });
-      if (!tienePlatosReversibles) return false;
-      const fechaComanda = moment(c.updatedAt || c.createdAt).tz("America/Lima");
-      const diffHoras = ahora.diff(fechaComanda, "hours");
-      return diffHoras <= 24;
-    });
-    
-    const ordenadas = comandasParaRevertir.sort((a, b) => {
-      const fechaA = moment(a.updatedAt || a.createdAt).tz("America/Lima");
-      const fechaB = moment(b.updatedAt || b.createdAt).tz("America/Lima");
-      return fechaB.diff(fechaA);
-    });
-    
-    setComandasFinalizadas(ordenadas);
-    setCargando(false);
+    try {
+      setComandasFinalizadas(await fetchComandasReversibles());
+    } catch (error) {
+      console.error("Error al recargar comandas:", error);
+    } finally {
+      setCargando(false);
+    }
   };
 
   const formatearFecha = (fecha) => {
@@ -317,7 +288,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   return (
     <>
       {/* Modal principal */}
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[11000]">
         <div className={`${bgModal} rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
           <div className="flex justify-between items-center mb-6">
             <h2 className={`text-2xl font-bold ${textModal}`}>
@@ -569,7 +540,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
 
       {/* Modal de confirmación con motivo */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60]">
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[11010]">
           <div className={`${bgModal} rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border-2 border-orange-500`}>
             <div className="flex items-center gap-3 mb-4">
               <FaExclamationTriangle className="text-orange-500 text-2xl" />

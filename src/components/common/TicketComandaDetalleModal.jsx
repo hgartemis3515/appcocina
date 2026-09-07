@@ -44,12 +44,13 @@ function mesaDeComanda(comanda, ticket) {
   return ticket?.numMesa != null ? ticket.numMesa : '—';
 }
 
-function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
+function TablaPlatosComanda({ items, totalComanda, montoDesc, ocultarGuarniciones = false }) {
   const activos = (items || []).filter((i) => !i.eliminado && !i.anulado);
   const nPlatos = activos.reduce((s, i) => s + (Number(i.cantidad) || 1), 0);
   const bruto = totalActivoItemsComanda(items);
   const desc = Number(montoDesc) || 0;
   const total = desc > 0 ? Math.max(0, bruto - desc) : (Number(totalComanda) || bruto);
+  const colaCols = ocultarGuarniciones ? 2 : 3;
 
   return (
     <div className="bg-black/40 border border-amber-500/15 rounded-xl overflow-hidden">
@@ -60,7 +61,9 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
             <th className="text-center px-2 py-2 font-semibold">Cant.</th>
             <th className="text-right px-2 py-2 font-semibold">P. Unit.</th>
             <th className="text-right px-2 py-2 font-semibold">Subtotal</th>
-            <th className="text-left px-2 py-2 font-semibold">Complementos</th>
+            {!ocultarGuarniciones && (
+              <th className="text-left px-2 py-2 font-semibold">Complementos</th>
+            )}
             <th className="text-center px-2 py-2 font-semibold">Cocinero</th>
             <th className="text-center px-2 py-2 font-semibold">Estado</th>
           </tr>
@@ -68,7 +71,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
         <tbody>
           {(!items || items.length === 0) && (
             <tr>
-              <td colSpan={7} className="px-3 py-6 text-center text-gray-500 text-xs">
+              <td colSpan={ocultarGuarniciones ? 6 : 7} className="px-3 py-6 text-center text-gray-500 text-xs">
                 Sin platos registrados
               </td>
             </tr>
@@ -104,6 +107,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
                 <td className="px-2 py-2 text-right text-amber-400 font-semibold whitespace-nowrap">
                   {formatCurrency(item.subtotal)}
                 </td>
+                {!ocultarGuarniciones && (
                 <td className="px-2 py-2">
                   {comps.length ? (
                     <div className="flex flex-wrap gap-1">
@@ -121,6 +125,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
                     <span className="text-[10px] text-gray-600">—</span>
                   )}
                 </td>
+                )}
                 <td className="px-2 py-2 text-center">
                   {chef.nombre !== '—' ? (
                     <div className="flex flex-col items-center">
@@ -151,7 +156,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
                 </td>
                 <td className="px-2 py-2 text-right text-xs text-gray-500">{nPlatos} platos</td>
                 <td className="px-2 py-2 text-right text-gray-300 text-sm">{formatCurrency(bruto)}</td>
-                <td colSpan={3} />
+                <td colSpan={colaCols} />
               </tr>
               <tr className="bg-gray-900">
                 <td className="px-3 py-1 text-right text-[10px] text-red-400 uppercase font-semibold" colSpan={3}>
@@ -160,7 +165,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
                 <td className="px-2 py-1 text-right text-red-400 font-bold text-sm">
                   -{formatCurrency(desc)}
                 </td>
-                <td colSpan={3} />
+                <td colSpan={colaCols} />
               </tr>
             </>
           )}
@@ -170,7 +175,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc }) {
             <td className="px-2 py-3 text-right text-amber-400 font-bold text-lg whitespace-nowrap">
               {formatCurrency(total)}
             </td>
-            <td colSpan={3} />
+            <td colSpan={colaCols} />
           </tr>
         </tfoot>
       </table>
@@ -185,6 +190,7 @@ export default function TicketComandaDetalleModal({
   ticket,
   onClose,
   footer = null,
+  ocultarGuarniciones = false,
 }) {
   const [comandas, setComandas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -283,7 +289,12 @@ export default function TicketComandaDetalleModal({
           )}
 
           {!loading && comandas.length === 0 && (
-            <TablaPlatosComanda items={fallbackItems} totalComanda={neto} montoDesc={montoDesc} />
+            <TablaPlatosComanda
+              items={fallbackItems}
+              totalComanda={neto}
+              montoDesc={montoDesc}
+              ocultarGuarniciones={ocultarGuarniciones}
+            />
           )}
 
           {comandas.map((c) => {
@@ -308,6 +319,7 @@ export default function TicketComandaDetalleModal({
                   items={items}
                   totalComanda={totalC}
                   montoDesc={descC}
+                  ocultarGuarniciones={ocultarGuarniciones}
                 />
               </div>
             );

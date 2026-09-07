@@ -252,10 +252,10 @@ const MenuPage = ({ onNavigate }) => {
                   onClick={() => {
                     window.location.href = `${getServerBaseUrl()}/login.html`;
                   }}
-                  className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-400/40 transition-colors"
+                  className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-4 py-2 rounded-lg border border-amber-400/40 transition-colors"
                   title="Abrir el login del panel (backend)"
                 >
-                  <FaExternalLinkAlt className="text-[10px]" />
+                  <FaExternalLinkAlt className="text-xs" />
                   Panel
                 </button>
               </div>

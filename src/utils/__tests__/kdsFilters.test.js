@@ -13,7 +13,10 @@ import {
   getConfiguracionEfectiva,
   esComandaReserva,
   esComandaSoloParaLlevar,
-  clasesHeaderReservaKds
+  clasesHeaderReservaKds,
+  platoRetenidoFueraDeCocina,
+  tiempoInicioPlatoCocina,
+  instanteInicioCocinaComanda
 } from '../kdsFilters';
 
 // ============================================================
@@ -429,5 +432,73 @@ describe('esComandaSoloParaLlevar / clasesHeaderReservaKds', () => {
       border: 'border-purple-700',
     });
     expect(clasesHeaderReservaKds({ origenCreacion: 'mozos' })).toBeNull();
+  });
+});
+
+describe('platoRetenidoFueraDeCocina', () => {
+  test('para llevar sin ticket aprobado no entra a cocina', () => {
+    expect(platoRetenidoFueraDeCocina({
+      estado: 'pedido',
+      tipoServicio: 'para_llevar',
+    })).toBe(true);
+    expect(platoRetenidoFueraDeCocina({
+      estado: 'pedido',
+      tipoServicio: 'para_llevar',
+      pagoAdelantado: { estadoTicket: 'pendiente_aprobacion', requerido: true },
+    })).toBe(true);
+  });
+
+  test('para llevar con PPA aprobado sí entra', () => {
+    expect(platoRetenidoFueraDeCocina({
+      estado: 'pedido',
+      tipoServicio: 'para_llevar',
+      pagoAdelantado: { estadoTicket: 'aprobado' },
+    })).toBe(false);
+  });
+
+  test('mesa sin PPA entra; mesa con PPA pendiente no', () => {
+    expect(platoRetenidoFueraDeCocina({ estado: 'pedido', tipoServicio: 'mesa' })).toBe(false);
+    expect(platoRetenidoFueraDeCocina({
+      estado: 'pedido',
+      tipoServicio: 'mesa',
+      pagoAdelantado: { requerido: true, estadoTicket: 'pendiente_aprobacion' },
+    })).toBe(true);
+  });
+
+  test('estado pendiente no entra', () => {
+    expect(platoRetenidoFueraDeCocina({ estado: 'pendiente', tipoServicio: 'mesa' })).toBe(true);
+  });
+});
+
+describe('tiempoInicioPlatoCocina', () => {
+  test('usa procesandoPor.timestamp si hay toma', () => {
+    expect(tiempoInicioPlatoCocina({
+      procesandoPor: { timestamp: '2026-09-07T22:00:00.000Z' },
+      tiempos: { pedido: '2026-09-07T20:00:00.000Z' },
+      createdAt: '2026-09-07T18:00:00.000Z',
+    })).toBe('2026-09-07T22:00:00.000Z');
+  });
+
+  test('reserva no usa createdAt del armado; usa prioridadOrden de lanzamiento', () => {
+    expect(tiempoInicioPlatoCocina(
+      { tiempos: { pedido: '2026-09-07T18:00:00.000Z' }, createdAt: '2026-09-07T18:00:00.000Z' },
+      { origenCreacion: 'reserva', prioridadOrden: 1757280000000 }
+    )).toBe(1757280000000);
+  });
+});
+
+describe('instanteInicioCocinaComanda', () => {
+  test('reserva usa prioridadOrden (lanzamiento), no createdAt', () => {
+    expect(instanteInicioCocinaComanda({
+      origenCreacion: 'reserva',
+      createdAt: '2026-09-07T18:00:00.000Z',
+      prioridadOrden: 1757280000000,
+    })).toBe(1757280000000);
+  });
+
+  test('comanda normal usa createdAt', () => {
+    expect(instanteInicioCocinaComanda({
+      createdAt: '2026-09-07T18:00:00.000Z',
+    })).toBe('2026-09-07T18:00:00.000Z');
   });
 });

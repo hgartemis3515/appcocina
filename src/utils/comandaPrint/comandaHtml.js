@@ -266,6 +266,14 @@ function aplicarOpcionesImpresionProductos(productos, plantilla) {
     });
 }
 
+export function stripGuarnicionesProductos(productos) {
+  return (productos || []).map((prod) => ({
+    ...prod,
+    complementos: [],
+    mostrarResumenComplementos: false,
+  }));
+}
+
 /**
  * Estima la altura en px del ticket para calcular el tamaño de página.
  */
@@ -343,13 +351,18 @@ export function aplicarComandaNumeroDisplay(datos) {
  * @param {Object} params.datos   - Datos mapeados de la comanda
  * @param {Object} params.plantilla - Plantilla de comanda desde GET /comanda-plantilla
  * @param {string} params.serverOrigin - URL base del servidor (para resolver logo)
+ * @param {boolean} [params.omitirGuarniciones] - Quita complementos/guarniciones del ticket
  * @returns {{ htmlInner: string, heightPx: number, wrapOpts: object, html: string }}
  */
-export function generarHtmlComanda({ datos, plantilla, serverOrigin }) {
+export function generarHtmlComanda({ datos, plantilla, serverOrigin, omitirGuarniciones = false }) {
   const p = plantilla || {};
+  let productos = aplicarOpcionesImpresionProductos(datos?.productos, p);
+  if (omitirGuarniciones) {
+    productos = stripGuarnicionesProductos(productos);
+  }
   datos = {
     ...(datos || {}),
-    productos: aplicarOpcionesImpresionProductos(datos?.productos, p),
+    productos,
   };
   const vis = p.visibilidad || {};
   const bloques = p.bloques || {};

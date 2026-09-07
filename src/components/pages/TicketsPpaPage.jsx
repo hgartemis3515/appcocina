@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
-  FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint, FaTrash,
+  FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint, FaTrash, FaCog,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
@@ -17,11 +17,13 @@ import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
+import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero } from '../../utils/ticketSort';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge,
   getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
+  loadTicketsTablaPrefs, saveTicketsTablaPrefs,
   nombreClienteTicket, dniClienteTicket,
   ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
@@ -116,6 +118,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
   const [modoVista, setModoVista] = useState(loadModoVistaTickets);
+  const [tablaPrefs, setTablaPrefs] = useState(loadTicketsTablaPrefs);
+  const [showTablaConfig, setShowTablaConfig] = useState(false);
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
   const [filtroMozo, setFiltroMozo] = useState(null);
@@ -208,6 +212,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const handleModoVista = (modo) => {
     setModoVista(modo);
     saveModoVistaTickets(modo);
+  };
+
+  const handleTablaPrefs = (patch) => {
+    setTablaPrefs((prev) => saveTicketsTablaPrefs({ ...prev, ...patch }));
   };
 
   const handleAprobar = async (ticket) => {
@@ -438,6 +446,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <VistaModoToggle modo={modoVista} onChange={handleModoVista} />
             <button
               type="button"
+              onClick={() => setShowTablaConfig(true)}
+              className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-amber-500/50 transition-colors"
+              title="Personalizar tabla"
+            >
+              <FaCog className="text-sm" />
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 if (modoEliminar) salirModoEliminar();
                 else setModoEliminar(true);
@@ -648,6 +664,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             seleccionActiva={modoEliminar}
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
+            ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
           />
         ) : modoVista === 'mozos' ? (
           <TicketsMozosPendientesGrid
@@ -679,6 +696,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
+            ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
           />
         ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
@@ -800,7 +818,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     {/* Platos */}
                     <div className="p-3 max-h-48 overflow-y-auto border-b border-gray-700">
                       {platosVis.map((plato, i) => (
-                        <PlatoTicketItem key={plato.platoLineaId || plato._id || i} plato={plato} size="sm" />
+                        <PlatoTicketItem
+                          key={plato.platoLineaId || plato._id || i}
+                          plato={plato}
+                          size="sm"
+                          ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+                        />
                       ))}
                     </div>
 
@@ -1153,6 +1176,16 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showTablaConfig && (
+          <TicketsTablaConfigModal
+            prefs={tablaPrefs}
+            onChange={handleTablaPrefs}
+            onClose={() => setShowTablaConfig(false)}
+          />
         )}
       </AnimatePresence>
     </div>

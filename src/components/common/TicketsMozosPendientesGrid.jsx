@@ -350,6 +350,7 @@ export default function TicketsMozosPendientesGrid({
   seleccionActiva = false,
   idsSeleccionados = [],
   onToggleSeleccion,
+  ocultarGuarniciones = false,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const grupos = groupTicketsByMozo(tickets);
@@ -387,6 +388,7 @@ export default function TicketsMozosPendientesGrid({
         <TicketComandaDetalleModal
           ticket={detalleTicket}
           onClose={() => setDetalleTicket(null)}
+          ocultarGuarniciones={ocultarGuarniciones}
           footer={
             detalleTicket._id ? (
               <div className="flex justify-end pt-1">

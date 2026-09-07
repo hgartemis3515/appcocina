@@ -836,6 +836,53 @@ export function esComandaReserva(comanda) {
   return comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva;
 }
 
+/** Plato para llevar (línea), no el status de la comanda. */
+export function esLineaParaLlevar(plato) {
+  if (!plato) return false;
+  return plato.tipoServicio === 'para_llevar' || plato.paraLlevar === true;
+}
+
+/**
+ * No entra a KDS ni a Ver Cocina hasta que cocina pueda prepararlo:
+ * estado pendiente, PPA sin aprobar, o para llevar sin ticket aprobado
+ * (pago adelantado en ComandaDetalle).
+ */
+export function platoRetenidoFueraDeCocina(plato) {
+  if (!plato) return true;
+  if (plato.eliminado === true || plato.anulado === true) return true;
+  const estado = String(plato.estado || '').toLowerCase();
+  if (estado === 'pendiente') return true;
+  const pa = plato.pagoAdelantado || {};
+  const ticket = String(pa.estadoTicket || '').toLowerCase();
+  if (pa.requerido && ticket === 'pendiente_aprobacion') return true;
+  if (esLineaParaLlevar(plato) && ticket !== 'aprobado') return true;
+  return false;
+}
+
+/** Cronómetro de Ver Cocina: toma / en_espera. Reserva no usa createdAt del armado. */
+export function tiempoInicioPlatoCocina(plato, comanda) {
+  if (!plato) return null;
+  if (plato.procesandoPor?.timestamp) return plato.procesandoPor.timestamp;
+  const t = plato.tiempos || {};
+  if (t.en_espera) return t.en_espera;
+  const esReserva = comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva;
+  if (esReserva) {
+    if (comanda.prioridadOrden) return comanda.prioridadOrden;
+    return t.pedido || null;
+  }
+  if (t.pedido) return t.pedido;
+  return plato.createdAt || plato.timestamp || null;
+}
+
+/** Inicio del cronómetro de la tarjeta KDS: reservas usan el lanzamiento, no el armado. */
+export function instanteInicioCocinaComanda(comanda) {
+  if (!comanda) return null;
+  if ((comanda.origenCreacion === 'reserva' || comanda.origenReserva) && comanda.prioridadOrden) {
+    return comanda.prioridadOrden;
+  }
+  return comanda.createdAt || null;
+}
+
 /** Todos los platos activos son para llevar (no mesa, no mixta). */
 export function esComandaSoloParaLlevar(comanda) {
   const platos = (comanda?.platos || []).filter(
@@ -870,5 +917,9 @@ export default {
   getConfigParaModal,
   esComandaReserva,
   esComandaSoloParaLlevar,
+  esLineaParaLlevar,
+  platoRetenidoFueraDeCocina,
+  tiempoInicioPlatoCocina,
+  instanteInicioCocinaComanda,
   clasesHeaderReservaKds
 };
