@@ -1,4 +1,4 @@
-import { groupTicketsByMozo, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo } from '../ticketSort';
+import { groupTicketsByMozo, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla } from '../ticketSort';
 
 describe('groupTicketsByMozo', () => {
   test('agrupa por nombre y ordena alfabéticamente', () => {
@@ -75,5 +75,35 @@ describe('ticketParaDetalleGrupo', () => {
     expect(g.total).toBe(95);
     expect(g._esGrupoComandas).toBe(true);
     expect(g._grupoTickets.map((t) => t._id)).toEqual(['1', '2']);
+  });
+});
+
+describe('totalVentasFilasTabla', () => {
+  test('suma el neto de las filas visibles, el grupo una sola vez', () => {
+    const filas = groupTicketsComoComandasHtml([
+      {
+        _id: 'a',
+        numMesa: 3,
+        pedido: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+        comandasNumbers: [81],
+        createdAt: '2026-09-02T12:00:00Z',
+        platos: [{ nombre: 'Lomo', cantidad: 1, precio: 40, subtotal: 40 }],
+      },
+      {
+        _id: 'c',
+        numMesa: 3,
+        pedido: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+        comandasNumbers: [82],
+        createdAt: '2026-09-02T12:10:00Z',
+        platos: [{ nombre: 'Ceviche', cantidad: 1, precio: 60, subtotal: 60 }],
+      },
+      {
+        _id: 'b',
+        numMesa: 5,
+        createdAt: '2026-09-02T12:05:00Z',
+        platos: [{ nombre: 'Chicha', cantidad: 1, precio: 12, subtotal: 12 }],
+      },
+    ]);
+    expect(totalVentasFilasTabla(filas)).toBe(112);
   });
 });

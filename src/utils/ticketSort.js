@@ -334,3 +334,16 @@ export function groupTicketsComoComandasHtml(tickets) {
 
   return filas.sort((a, b) => tsTicketCreated(a.tickets[0]) - tsTicketCreated(b.tickets[0]));
 }
+
+/** Suma de la columna Total de las filas visibles (grupos cuentan una vez, no las hijas). */
+export function totalVentasFilasTabla(filas = []) {
+  let sum = 0;
+  for (const fila of filas || []) {
+    const tickets = fila?.tickets || [];
+    if (!tickets.length) continue;
+    const doc = fila.tipo === 'grupo' ? ticketParaDetalleGrupo(tickets) : tickets[0];
+    if (!doc) continue;
+    sum += Number(totalesVistaTicket(doc).neto) || 0;
+  }
+  return Math.round(sum * 100) / 100;
+}

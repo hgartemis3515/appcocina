@@ -3,7 +3,7 @@ import {
   FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
-import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo } from '../../utils/ticketSort';
+import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla } from '../../utils/ticketSort';
 import BadgeNombreMozo from './BadgeNombreMozo';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
@@ -13,7 +13,7 @@ import {
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
-import { platosTicketVisibles, totalesVistaTicket, totalVentasObservadas } from '../../utils/ticketTotales';
+import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
 
 function SortIcon({ active, dir }) {
   if (!active) return <FaSort className="inline text-[9px] opacity-40 ml-1" />;
@@ -264,16 +264,11 @@ export default function TicketsAprobacionTable({
   seleccionActiva = false,
   idsSeleccionados = [],
   onToggleSeleccion,
-  totalVentasPeriodo = null,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
-  const totalVentas = useMemo(() => {
-    const n = Number(totalVentasPeriodo);
-    if (Number.isFinite(n) && n >= 0 && totalVentasPeriodo != null) return n;
-    return totalVentasObservadas(tickets);
-  }, [totalVentasPeriodo, tickets]);
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
+  const totalVentas = useMemo(() => totalVentasFilasTabla(filas), [filas]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
 
   const toggleGrupo = (id) => {
@@ -508,7 +503,7 @@ export default function TicketsAprobacionTable({
               <td colSpan={seleccionActiva ? 6 : 5} className="px-3 py-3 text-sm font-semibold text-gray-200">
                 Total ventas
                 <span className="ml-2 text-[11px] font-normal text-gray-500">
-                  {totalVentasPeriodo != null ? 'igual a cierre / reportes' : `${tickets.length} en esta vista`}
+                  {filas.length} comanda{filas.length !== 1 ? 's' : ''} en esta vista
                 </span>
               </td>
               <td className="px-3 py-3 text-right text-lg font-black text-amber-300 tabular-nums whitespace-nowrap">
