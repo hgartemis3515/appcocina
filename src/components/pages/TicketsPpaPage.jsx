@@ -648,7 +648,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             seleccionActiva={modoEliminar}
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
-            totalVentasPeriodo={kpisHeader.totalVentas}
           />
         ) : modoVista === 'mozos' ? (
           <TicketsMozosPendientesGrid
