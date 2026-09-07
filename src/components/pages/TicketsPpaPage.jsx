@@ -69,18 +69,17 @@ function VistaModoToggle({ modo, onChange }) {
   );
 }
 
-function KpiChip({ label, value, valueClass, ocultable = false }) {
-  const [visible, setVisible] = useState(!ocultable);
+function KpiChip({ label, value, valueClass, ocultable = false, visible = true, onToggle }) {
   const mostrar = !ocultable || visible;
   return (
     <button
       type="button"
       disabled={!ocultable}
-      onClick={ocultable ? () => setVisible((v) => !v) : undefined}
+      onClick={ocultable ? onToggle : undefined}
       className={`bg-gray-800/90 border border-amber-500/20 rounded-lg px-2.5 py-1 min-w-[6.5rem] text-left ${
         ocultable ? 'cursor-pointer hover:border-amber-400/40' : 'cursor-default'
       }`}
-      title={ocultable ? (mostrar ? 'Ocultar monto' : 'Mostrar monto') : undefined}
+      title={ocultable ? (mostrar ? 'Ocultar montos' : 'Mostrar montos') : undefined}
       aria-pressed={ocultable ? mostrar : undefined}
     >
       <p className="text-[9px] uppercase tracking-wide text-gray-400 leading-tight">{label}</p>
@@ -109,6 +108,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     incluirHistorial: true,
   });
   const [filtro, setFiltro] = useState('pendientes'); // pendientes, todos, aprobados, reportados
+  const [kpisVisibles, setKpisVisibles] = useState(false);
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
@@ -406,18 +406,24 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 value={formatCurrency(kpisHeader.totalVentas)}
                 valueClass="text-amber-300"
                 ocultable
+                visible={kpisVisibles}
+                onToggle={() => setKpisVisibles((v) => !v)}
               />
               <KpiChip
                 label="Ventas pendientes"
                 value={formatCurrency(kpisHeader.pendiente)}
                 valueClass="text-[#f59e0b]"
                 ocultable
+                visible={kpisVisibles}
+                onToggle={() => setKpisVisibles((v) => !v)}
               />
               <KpiChip
                 label="Ventas pagadas"
                 value={formatCurrency(kpisHeader.aprobados)}
                 valueClass="text-[#2ecc71]"
                 ocultable
+                visible={kpisVisibles}
+                onToggle={() => setKpisVisibles((v) => !v)}
               />
               {kpisPeriodo.descuento > 0 && (
                 <KpiChip
