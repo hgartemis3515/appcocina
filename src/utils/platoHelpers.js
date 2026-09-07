@@ -186,3 +186,41 @@ export const tipoServicioDePlato = (item) => {
 export const esPlatoParaLlevar = (item) => tipoServicioDePlato(item) === 'para_llevar';
 
 export const grupoTieneParaLlevar = (platos = []) => platos.some(esPlatoParaLlevar);
+
+export const LABEL_PARA_LLEVAR = 'PARA LLEVAR';
+
+function platosActivosComanda(comanda) {
+  return (comanda?.platos || []).filter((p) => p && p.eliminado !== true && p.anulado !== true);
+}
+
+export function comandaEsSinMesaOParaLlevar(comanda) {
+  if (!comanda) return false;
+  if (comanda.sinMesa === true) return true;
+  const mesa = comanda.mesas || comanda.mesa;
+  if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return true;
+  const num = comanda.mesaNumero ?? mesa?.nummesa ?? mesa?.numero ?? (typeof mesa === 'number' ? mesa : null);
+  if (num != null && num !== '' && String(num).toUpperCase() !== 'N/A') return false;
+  const platos = platosActivosComanda(comanda);
+  if (platos.length && platos.every((p) => p.tipoServicio === 'para_llevar' || p.paraLlevar === true)) {
+    return true;
+  }
+  return !mesa || mesa === 'N/A';
+}
+
+/**
+ * Etiqueta de mesa en tarjetas KDS. Sin mesa / para llevar → PARA LLEVAR (nunca N/A).
+ */
+export function nombreMesaKds(comanda, mesaOverride) {
+  const mesa = mesaOverride !== undefined ? mesaOverride : (comanda?.mesas || comanda?.mesa);
+  if (comandaEsSinMesaOParaLlevar(comanda) || (mesa && mesa.sinMesa === true)) {
+    return LABEL_PARA_LLEVAR;
+  }
+  if (mesa && typeof mesa === 'object') {
+    if (mesa.nombreCombinado) return mesa.nombreCombinado;
+    if (mesa.nummesa != null && mesa.nummesa !== '') return `M${mesa.nummesa}`;
+    if (mesa.numero != null && mesa.numero !== '') return `M${mesa.numero}`;
+  }
+  const num = comanda?.mesaNumero;
+  if (num != null && num !== '') return `M${num}`;
+  return LABEL_PARA_LLEVAR;
+}

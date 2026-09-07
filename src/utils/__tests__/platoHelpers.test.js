@@ -14,6 +14,8 @@ import {
   tipoServicioDePlato,
   esPlatoParaLlevar,
   grupoTieneParaLlevar,
+  nombreMesaKds,
+  LABEL_PARA_LLEVAR,
 } from '../platoHelpers';
 
 describe('obtenerNombreDisplayCocina', () => {
@@ -162,5 +164,17 @@ describe('tipoServicio / PARA LLEVAR', () => {
     ];
     expect(grupoTieneParaLlevar(platos)).toBe(true);
     expect(grupoTieneParaLlevar([{ plato: { tipoServicio: 'mesa' }, comanda: {} }])).toBe(false);
+  });
+});
+
+describe('nombreMesaKds', () => {
+  test('sin mesa muestra PARA LLEVAR, no N/A', () => {
+    expect(nombreMesaKds({ sinMesa: true, platos: [{ tipoServicio: 'para_llevar' }] })).toBe(LABEL_PARA_LLEVAR);
+    expect(nombreMesaKds({ mesas: null, platos: [{ tipoServicio: 'para_llevar' }] })).toBe('PARA LLEVAR');
+  });
+
+  test('mesa numerada sigue M#', () => {
+    expect(nombreMesaKds({ mesas: { nummesa: 7 } })).toBe('M7');
+    expect(nombreMesaKds({ mesas: { nombreCombinado: 'M5,6' } })).toBe('M5,6');
   });
 });

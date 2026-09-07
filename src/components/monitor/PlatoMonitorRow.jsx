@@ -5,7 +5,7 @@ import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
-import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
+import { grupoTieneParaLlevar, obtenerNombreDisplayCocina, esPlatoParaLlevar } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
 import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
@@ -63,6 +63,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
   for (const p of platos) {
     const mesaNum = p.comanda.mesaNumero ?? p.comanda.mesas?.nummesa ?? p.comanda.mesas?.numero ?? p.comanda.mesa?.numero ?? p.comanda.mesa;
     if (mesaNum != null && mesaNum !== '') mesasSet.add(mesaNum);
+    else if (p.comanda && (p.comanda.sinMesa === true || esPlatoParaLlevar(p))) mesasSet.add('PARA LLEVAR');
     const num = p.comanda.numero || p.comanda.numeroMesa;
     if (num) comandasSet.add(num);
   }

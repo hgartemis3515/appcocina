@@ -68,12 +68,25 @@ function VistaModoToggle({ modo, onChange }) {
   );
 }
 
-function KpiChip({ label, value, valueClass }) {
+function KpiChip({ label, value, valueClass, ocultable = false }) {
+  const [visible, setVisible] = useState(!ocultable);
+  const mostrar = !ocultable || visible;
   return (
-    <div className="bg-gray-800/90 border border-amber-500/20 rounded-lg px-2.5 py-1 min-w-[6.5rem]">
+    <button
+      type="button"
+      disabled={!ocultable}
+      onClick={ocultable ? () => setVisible((v) => !v) : undefined}
+      className={`bg-gray-800/90 border border-amber-500/20 rounded-lg px-2.5 py-1 min-w-[6.5rem] text-left ${
+        ocultable ? 'cursor-pointer hover:border-amber-400/40' : 'cursor-default'
+      }`}
+      title={ocultable ? (mostrar ? 'Ocultar monto' : 'Mostrar monto') : undefined}
+      aria-pressed={ocultable ? mostrar : undefined}
+    >
       <p className="text-[9px] uppercase tracking-wide text-gray-400 leading-tight">{label}</p>
-      <p className={`text-sm font-bold tabular-nums leading-tight ${valueClass}`}>{value}</p>
-    </div>
+      <p className={`text-sm font-bold tabular-nums leading-tight ${mostrar ? valueClass : 'text-gray-500 tracking-widest'}`}>
+        {mostrar ? value : '####'}
+      </p>
+    </button>
   );
 }
 
@@ -365,16 +378,19 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 label="Total ventas"
                 value={formatCurrency(totalVentasVista)}
                 valueClass="text-amber-300"
+                ocultable
               />
               <KpiChip
                 label="Ventas pendientes"
                 value={formatCurrency(kpisTabla.pendiente)}
                 valueClass="text-[#f59e0b]"
+                ocultable
               />
               <KpiChip
                 label="Ventas pagadas"
                 value={formatCurrency(kpisPeriodo.aprobados)}
                 valueClass="text-[#2ecc71]"
+                ocultable
               />
               {kpisTabla.descuento > 0 && (
                 <KpiChip
