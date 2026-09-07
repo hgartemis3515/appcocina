@@ -8,6 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaUserPlus, FaUserMinus, FaSpinner, FaUser } from 'react-icons/fa';
+import { nombreMesaKds } from '../../utils/platoHelpers';
 
 const idOf = (v) => (v == null ? '' : String(v._id || v.id || v));
 
@@ -77,7 +78,7 @@ const AsignarCocineroModal = ({
                   <h3 className="text-lg font-bold text-white">{getTitulo()}</h3>
                   {comandaActual && (
                     <p className="text-gray-400 text-xs">
-                      Comanda #{comandaActual.comandaNumber} • Mesa {comandaActual.mesa?.numero || comandaActual.mesa || 'N/A'}
+                      Comanda #{comandaActual.comandaNumber} • {nombreMesaKds(comandaActual)}
                     </p>
                   )}
                 </div>

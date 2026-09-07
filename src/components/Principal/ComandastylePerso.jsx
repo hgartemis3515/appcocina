@@ -58,7 +58,7 @@ import {
   esComandaReserva,
   clasesHeaderReservaKds
 } from "../../utils/kdsFilters";
-import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
@@ -1724,15 +1724,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   // ========== FUNCIÓN HELPER: Obtener nombre de mesa con soporte para mesas juntadas ==========
   // Si la mesa tiene nombreCombinado (ej: "M5,6,7"), lo usa.
   // Si no, usa el formato tradicional "M{nummesa}".
-  const obtenerNombreMesa = (mesa) => {
-    if (!mesa) return 'N/A';
-    // Si tiene nombreCombinado, usarlo (mesas juntadas)
-    if (mesa.nombreCombinado) {
-      return mesa.nombreCombinado;
-    }
-    // Fallback al número de mesa tradicional
-    return mesa.nummesa ? `M${mesa.nummesa}` : 'N/A';
-  };
+  const obtenerNombreMesa = (mesa, comanda) => nombreMesaKds(comanda, mesa);
 
   // Calcular tiempo transcurrido (mantener para compatibilidad)
   const calcularTiempoTranscurrido = (comanda) => {
@@ -4257,7 +4249,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                         nombre: p.plato?.nombre || p.nombre || 'Sin nombre',
                         estado: p.estado,
                         mozo: c.mozoNombre || c.mozos?.name || 'Sin mozo',
-                        mesa: obtenerNombreMesa(c.mesas)
+                        mesa: obtenerNombreMesa(c.mesas, c)
                       }))
                   );
                   const totalReversibles = platosReversibles.length;
@@ -5318,7 +5310,7 @@ const SicarComandaCard = ({
           estilo={estiloHeader}
           cardNumber={cardNumber}
           comanda={comanda}
-          nombreMesa={obtenerNombreMesa ? obtenerNombreMesa(comanda.mesas) : (comanda.mesas?.nombreCombinado || `M${comanda.mesas?.nummesa || 'N/A'}`)}
+          nombreMesa={nombreMesaKds(comanda)}
           tiempoFormateado={tiempoFormateado}
           minutosActuales={minutosActuales}
           alertYellowMinutes={alertYellowMinutes}
