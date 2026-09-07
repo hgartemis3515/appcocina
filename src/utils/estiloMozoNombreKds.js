@@ -31,16 +31,26 @@ export function colorPerfilDeTicket(ticket) {
 /** Color de perfil del mozo poblado en una comanda KDS. */
 export function colorPerfilDeComanda(comanda) {
   const m = comanda?.mozos;
-  if (m && typeof m === 'object' && m.colorPerfil) return m.colorPerfil;
+  const deMozo = (x) => (x && typeof x === 'object' && x.colorPerfil) ? x.colorPerfil : null;
+  if (Array.isArray(m)) {
+    for (const item of m) {
+      const c = deMozo(item);
+      if (c) return c;
+    }
+  } else {
+    const c = deMozo(m);
+    if (c) return c;
+  }
   return comanda?.colorPerfilMozo || null;
 }
 
 /**
  * Fondo del recuadro detrás del nombre:
  * - forzarColorMozoUnico → colorMozoForzado
- * - si no → colorPerfil del usuario (solo si eligió uno)
- * - si no hay y hay vista KDS → fondo de vista (como antes)
- * - si no hay vista → null (tickets: sin recuadro)
+ * - si no → colorPerfil del usuario (Usuarios / App Mozos)
+ * - si ignorarFondoVistaMozo → no usar el fondo de Vista y alertas
+ * - si no hay perfil y hay fondo de vista → ese respaldo
+ * - si no → null (sin recuadro extra)
  */
 export function resolverFondoNombreMozo({
   colorPerfil,
@@ -53,6 +63,7 @@ export function resolverFondoNombreMozo({
       : MOZO_NOMBRE_DEFAULT.mozoNombreFondo;
   }
   if (hexValidoOrdenCola(colorPerfil)) return colorPerfil;
+  if (configCocina.ignorarFondoVistaMozo === true) return null;
   if (hexValidoOrdenCola(configVista.mozoNombreFondo)) return configVista.mozoNombreFondo;
   return null;
 }
@@ -72,25 +83,26 @@ export function estiloMozoNombreKds(config = {}, opts = {}) {
     : MOZO_NOMBRE_DEFAULT.mozoNombreColor;
   const fondo = hexValidoOrdenCola(opts.fondoOverride)
     ? opts.fondoOverride
-    : (hexValidoOrdenCola(config.mozoNombreFondo)
-      ? config.mozoNombreFondo
-      : MOZO_NOMBRE_DEFAULT.mozoNombreFondo);
+    : (hexValidoOrdenCola(config.mozoNombreFondo) ? config.mozoNombreFondo : null);
   const padX = Math.max(6, Math.round(tam * 0.4));
   const padY = Math.max(2, Math.round(tam * 0.15));
-  return {
+  const estilo = {
     color,
-    backgroundColor: fondo,
     fontSize: `${tam}px`,
     fontFamily: fuente.css,
     fontWeight: 600,
     lineHeight: 1.2,
     display: 'inline-flex',
     alignItems: 'center',
-    paddingLeft: `${padX}px`,
-    paddingRight: `${padX}px`,
-    paddingTop: `${padY}px`,
-    paddingBottom: `${padY}px`,
-    borderRadius: '6px',
     boxSizing: 'border-box',
   };
+  if (fondo) {
+    estilo.backgroundColor = fondo;
+    estilo.paddingLeft = `${padX}px`;
+    estilo.paddingRight = `${padX}px`;
+    estilo.paddingTop = `${padY}px`;
+    estilo.paddingBottom = `${padY}px`;
+    estilo.borderRadius = '6px';
+  }
+  return estilo;
 }

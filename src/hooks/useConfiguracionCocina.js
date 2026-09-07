@@ -23,6 +23,7 @@ const DEFAULT = {
     entregarPlatoEnteroAbsoluto: true,
     forzarColorMozoUnico: false,
     colorMozoForzado: '#1e3a8a',
+    ignorarFondoVistaMozo: false,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -62,6 +63,7 @@ export async function fetchConfiguracionCocina(getToken) {
                     && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cfg.colorMozoForzado))
                     ? cfg.colorMozoForzado
                     : '#1e3a8a',
+                ignorarFondoVistaMozo: cfg.ignorarFondoVistaMozo === true,
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,
@@ -83,6 +85,11 @@ export async function fetchConfiguracionCocina(getToken) {
     })();
 
     return inflight;
+}
+
+export function invalidarCacheConfiguracionCocina() {
+    cache = null;
+    inflight = null;
 }
 
 export function useConfiguracionCocina(getToken) {

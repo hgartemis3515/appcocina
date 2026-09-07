@@ -7,6 +7,7 @@ import {
   ocultarPrepHeaderTarjeta,
   tamanoLetraHeaderTarjetaKds,
 } from '../../utils/estiloHeaderTarjetaKds';
+import { hexValidoOrdenCola } from '../../utils/estiloNumeroOrdenKds';
 
 function Chip({ style, title, children }) {
   if (children == null || children === '') return null;
@@ -49,9 +50,11 @@ export default function HeaderTarjetaComandaKds({
   const nComanda = comanda?.comandaNumber || 'N/A';
   const tam = tamanoLetraHeaderTarjetaKds(config);
   const estiloDato = estiloDatoHeaderTarjetaKds(config);
-  const estiloMozoChip = estiloDatoHeaderTarjetaKds(config, {
-    fondoOverride: estiloMozo?.backgroundColor,
-  });
+  const fondoMozo = hexValidoOrdenCola(estiloMozo?.backgroundColor) ? estiloMozo.backgroundColor : null;
+  const estiloMozoChip = estiloDatoHeaderTarjetaKds(
+    config,
+    fondoMozo ? { fondoOverride: fondoMozo } : { omitirFondo: true }
+  );
   const estiloReloj = estiloDatoHeaderTarjetaKds(config, {
     colorOverride: colorRelojHeaderTarjeta(
       minutosActuales,

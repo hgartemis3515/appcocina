@@ -94,22 +94,23 @@ export function estiloDatoHeaderTarjetaKds(config = {}, opts = {}) {
     : (hexValidoOrdenCola(config.headerTarjetaColor)
       ? config.headerTarjetaColor
       : HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaColor);
-  const fondo = hexValidoOrdenCola(opts.fondoOverride)
-    ? opts.fondoOverride
-    : (hexValidoOrdenCola(config.headerTarjetaFondo)
-      ? config.headerTarjetaFondo
-      : HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFondo);
+  const omitirFondo = opts.omitirFondo === true;
+  const fondo = omitirFondo
+    ? null
+    : (hexValidoOrdenCola(opts.fondoOverride)
+      ? opts.fondoOverride
+      : (hexValidoOrdenCola(config.headerTarjetaFondo)
+        ? config.headerTarjetaFondo
+        : HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFondo));
   const contorno = hexValidoOrdenCola(config.headerTarjetaContorno)
     ? config.headerTarjetaContorno
     : HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaContorno;
-  const padX = Math.max(4, Math.round(tam * 0.32));
-  const padY = Math.max(1, Math.round(tam * 0.12));
-  return {
+  const padX = omitirFondo ? 0 : Math.max(4, Math.round(tam * 0.32));
+  const padY = omitirFondo ? 0 : Math.max(1, Math.round(tam * 0.12));
+  const estilo = {
     fontFamily: fuente.css,
     fontSize: `${tam}px`,
     color,
-    backgroundColor: fondo,
-    border: `2px solid ${contorno}`,
     fontWeight: opts.peso || 700,
     lineHeight: 1.15,
     display: 'inline-flex',
@@ -123,4 +124,9 @@ export function estiloDatoHeaderTarjetaKds(config = {}, opts = {}) {
     boxSizing: 'border-box',
     whiteSpace: 'nowrap',
   };
+  if (fondo) {
+    estilo.backgroundColor = fondo;
+    estilo.border = `2px solid ${contorno}`;
+  }
+  return estilo;
 }

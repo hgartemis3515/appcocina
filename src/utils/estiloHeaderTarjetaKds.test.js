@@ -58,6 +58,16 @@ describe('estiloHeaderTarjetaKds', () => {
     expect(st.fontFamily).toMatch(/Georgia/);
   });
 
+  test('omitirFondo no pinta el recuadro del encabezado', () => {
+    const st = estiloDatoHeaderTarjetaKds(
+      { headerTarjetaFondo: '#111827', headerTarjetaContorno: '#4b5563' },
+      { omitirFondo: true }
+    );
+    expect(st.backgroundColor).toBeUndefined();
+    expect(st.border).toBeUndefined();
+    expect(st.paddingLeft).toBe('0px');
+  });
+
   test('cae a defaults si los colores no son hex', () => {
     const st = estiloDatoHeaderTarjetaKds({
       headerTarjetaColor: 'rojo',

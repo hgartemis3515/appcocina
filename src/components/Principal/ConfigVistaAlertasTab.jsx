@@ -21,6 +21,7 @@ import {
   estiloNumeroOrdenKds,
   textoNumeroOrdenKds,
   hexParaColorPicker,
+  hexValidoOrdenCola,
 } from '../../utils/estiloNumeroOrdenKds';
 import {
   CANTIDAD_PLATO_DEFAULT,
@@ -1038,7 +1039,8 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Nombre del mozo</legend>
             <p className={`${textSecondary} text-xs`}>
-              El nombre que aparece en el encabezado de cada tarjeta de comanda (👤), con un recuadro de fondo.
+              El nombre que aparece en el encabezado de cada tarjeta de comanda (👤).
+              Si quita el fondo forzado, se usa el color de perfil de Usuarios.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
@@ -1090,29 +1092,68 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </label>
               <label className="block">
                 <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de fondo</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={hexParaColorPicker(config.mozoNombreFondo, MOZO_NOMBRE_DEFAULT.mozoNombreFondo)}
-                    onChange={(e) => updateConfig({ mozoNombreFondo: e.target.value })}
-                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
-                    aria-label="Color de fondo del nombre del mozo"
-                  />
-                  <input
-                    type="text"
-                    value={config.mozoNombreFondo || MOZO_NOMBRE_DEFAULT.mozoNombreFondo}
-                    onChange={(e) => updateConfig({ mozoNombreFondo: e.target.value })}
-                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
-                    maxLength={7}
-                    spellCheck={false}
-                  />
-                </div>
-                <p className={`${textSecondary} text-[10px] mt-1`}>
-                  Respaldo si el mozo no tiene color de perfil. En Configuración del sistema se puede forzar un color único para todos.
-                </p>
+                {hexValidoOrdenCola(config.mozoNombreFondo) ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={hexParaColorPicker(config.mozoNombreFondo, MOZO_NOMBRE_DEFAULT.mozoNombreFondo)}
+                        onChange={(e) => updateConfig({ mozoNombreFondo: e.target.value })}
+                        className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                        aria-label="Color de fondo del nombre del mozo"
+                      />
+                      <input
+                        type="text"
+                        value={config.mozoNombreFondo}
+                        onChange={(e) => updateConfig({ mozoNombreFondo: e.target.value })}
+                        className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                        maxLength={7}
+                        spellCheck={false}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => updateConfig({ mozoNombreFondo: '' })}
+                      className="mt-2 w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-amber-500/50 text-amber-200 hover:bg-amber-500/10"
+                    >
+                      Quitar color de fondo forzado
+                    </button>
+                    <p className={`${textSecondary} text-[10px] mt-1`}>
+                      Este azul tapa el color de Usuarios en el encabezado de la tarjeta KDS.
+                      Quítelo para que se vea el color de perfil de cada mozo.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className={`${textSecondary} text-[11px] mb-2`}>
+                      Fondo forzado desactivado. Las tablas KDS usan el color de perfil de Usuarios.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => updateConfig({ mozoNombreFondo: MOZO_NOMBRE_DEFAULT.mozoNombreFondo })}
+                      className={`w-full text-xs font-semibold px-2 py-1.5 rounded-lg border ${borderModal} ${textModal} hover:opacity-80`}
+                    >
+                      Restaurar azul de respaldo
+                    </button>
+                  </>
+                )}
               </label>
             </div>
-            <span style={estiloMozoNombreKds(config)}>👤 Juan Pérez</span>
+            <span
+              style={estiloMozoNombreKds(
+                config,
+                hexValidoOrdenCola(config.mozoNombreFondo)
+                  ? {}
+                  : { fondoOverride: '#047857' }
+              )}
+            >
+              👤 Juan Pérez
+            </span>
+            {!hexValidoOrdenCola(config.mozoNombreFondo) && (
+              <p className={`${textSecondary} text-[10px]`}>
+                Ejemplo con un color de perfil de Usuarios (verde). Cada mozo verá el suyo.
+              </p>
+            )}
           </fieldset>
 
           <div className={`${nightMode ? 'bg-gray-950' : 'bg-white'} rounded-lg border ${borderModal} p-3 mt-auto`}>
@@ -1121,7 +1162,16 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               <div className="bg-red-600 text-white text-center text-[10px] font-bold py-0.5 mb-1">ESPERA</div>
               <div className="text-red-400 font-bold" style={{ fontSize: `${Math.max(10, (config.tamanoFuente || 15) - 4)}px` }}>ORDEN #1</div>
               <div className="text-white text-xs">MESA #2</div>
-              <div style={estiloMozoNombreKds(config)}>👤 Juan</div>
+              <div
+                style={estiloMozoNombreKds(
+                  config,
+                  hexValidoOrdenCola(config.mozoNombreFondo)
+                    ? {}
+                    : { fondoOverride: '#047857' }
+                )}
+              >
+                👤 Juan
+              </div>
               <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
                 <span style={estiloCantidadPlatoKds(config)}>1</span>
                 <span style={estiloNombrePlatoKds(config)}>

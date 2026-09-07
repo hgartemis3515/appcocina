@@ -1,6 +1,7 @@
 const {
   estiloMozoNombreKds,
   resolverFondoNombreMozo,
+  colorPerfilDeComanda,
   MOZO_NOMBRE_DEFAULT,
 } = require('./estiloMozoNombreKds');
 
@@ -25,7 +26,7 @@ describe('estiloMozoNombreKds', () => {
       mozoNombreFuente: 'no-existe',
     });
     expect(st.color).toBe(MOZO_NOMBRE_DEFAULT.mozoNombreColor);
-    expect(st.backgroundColor).toBe(MOZO_NOMBRE_DEFAULT.mozoNombreFondo);
+    expect(st.backgroundColor).toBeUndefined();
     expect(st.fontSize).toBe(`${MOZO_NOMBRE_DEFAULT.mozoNombreTamano}px`);
     expect(st.fontFamily).toMatch(/Arial/);
   });
@@ -69,5 +70,38 @@ describe('resolverFondoNombreMozo', () => {
       colorPerfil: '',
       configCocina: { forzarColorMozoUnico: false },
     })).toBeNull();
+  });
+
+  test('ignorar fondo de Vista y alertas deja el color de perfil', () => {
+    expect(resolverFondoNombreMozo({
+      colorPerfil: '#047857',
+      configCocina: { forzarColorMozoUnico: false, ignorarFondoVistaMozo: true },
+      configVista: { mozoNombreFondo: '#1d4ed8' },
+    })).toBe('#047857');
+  });
+
+  test('ignorar fondo de Vista y alertas no pinta el azul de respaldo', () => {
+    expect(resolverFondoNombreMozo({
+      colorPerfil: null,
+      configCocina: { forzarColorMozoUnico: false, ignorarFondoVistaMozo: true },
+      configVista: { mozoNombreFondo: '#1d4ed8' },
+    })).toBeNull();
+  });
+
+  test('fondo de vista vacío no fuerza recuadro', () => {
+    const st = estiloMozoNombreKds({ mozoNombreFondo: '' });
+    expect(st.backgroundColor).toBeUndefined();
+  });
+});
+
+describe('colorPerfilDeComanda', () => {
+  test('lee colorPerfil del mozo poblado', () => {
+    expect(colorPerfilDeComanda({ mozos: { name: 'Ana', colorPerfil: '#047857' } })).toBe('#047857');
+  });
+
+  test('acepta lista de mozos', () => {
+    expect(colorPerfilDeComanda({
+      mozos: [{ name: 'Ana' }, { name: 'Luis', colorPerfil: '#be123c' }],
+    })).toBe('#be123c');
   });
 });
