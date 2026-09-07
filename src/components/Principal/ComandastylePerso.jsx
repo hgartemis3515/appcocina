@@ -2194,6 +2194,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const obtenerPlatosSeleccionadosInfo = useCallback(() => {
     const platosInfo = [];
     const miUsuarioId = userId?.toString();
+    const qtyLinea = (comanda, platoIndex, plato) => {
+      const n = Number(comanda?.cantidades?.[platoIndex]);
+      if (Number.isFinite(n) && n > 0) return Math.floor(n);
+      const p = Number(plato?.cantidad);
+      if (Number.isFinite(p) && p > 0) return Math.floor(p);
+      return 1;
+    };
     
     // Recorrer platoStates para encontrar platos con interacción
     platoStates.forEach((estadoVisual, key) => {
@@ -2220,6 +2227,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         platosInfo.push({
           comandaId, platoId, platoIndex, plato, comp, compId,
           tipo: 'guarnicion',
+          cantidad: 1,
           nombre: Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || 'Guarnición'),
           procesandoPor: comp.procesandoPor,
           estadoBackend: comp.estadoCocina || 'pedido',
@@ -2253,6 +2261,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           platoId,
           platoIndex,
           plato,
+          cantidad: qtyLinea(comanda, platoIndex, plato),
           nombre: plato.plato?.nombre || plato.nombre || 'Plato',
           procesandoPor: plato.procesandoPor,
           estadoBackend: 'recoger',
@@ -2268,6 +2277,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           platoId,
           platoIndex,
           plato,
+          cantidad: qtyLinea(comanda, platoIndex, plato),
           nombre: plato.plato?.nombre || plato.nombre || 'Plato',
           procesandoPor: plato.procesandoPor,
           estadoVisual // 'procesando' | 'seleccionado' | 'dejar'

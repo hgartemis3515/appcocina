@@ -36,15 +36,17 @@ const useProcesamiento = ({
    * @param {boolean} forzar - Si es true, reasigna aunque esté tomado (supervisor o titular)
    * @param {boolean} silencioso - Sin toast de éxito (CAMBIAR PLATO agrupa el mensaje)
    */
-  const tomarPlato = useCallback(async (comandaId, platoId, cocineroId, forzar = false, silencioso = false) => {
+  const tomarPlato = useCallback(async (comandaId, platoId, cocineroId, forzar = false, silencioso = false, cantidad = null) => {
     setLoading(true);
     setError(null);
     
     try {
       const token = getToken();
+      const body = { cocineroId, forzar };
+      if (cantidad != null && cantidad !== '') body.cantidad = cantidad;
       const response = await axios.put(
         `${getServerBaseUrl()}/api/comanda/${comandaId}/plato/${platoId}/procesando`,
-        { cocineroId, forzar },
+        body,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
