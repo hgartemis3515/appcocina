@@ -464,19 +464,33 @@ export function expandirUnidadesTrabajo(plato, opts = {}) {
   });
 
   if (agrupacionOn && pendientes.length > 0) {
-    const first = pendientes[0];
-    unidades.push({
-      tipo: 'grupo_guarniciones',
-      plato,
-      comp: first.comp,
-      comps: pendientes.map((p) => p.comp),
-      compIds: pendientes.map((p) => p.compId),
-      compId: first.compId,
-      nombrePadre,
-      nombreGuarnicion: tituloGrupoGuarniciones(pendientes.map((p) => p.comp), plato, comanda, platoIndex),
-      cantidadEfectiva: pendientes.reduce((s, p) => s + cantidadGuarnicionEfectiva(p.comp, plato, comanda, platoIndex), 0),
-      grupoGuarnicionesId: String(plato._id || first.compId)
-    });
+    const porDestino = new Map();
+    for (const p of pendientes) {
+      const dest = p.comp?.procesandoPor?.cocineroId
+        ? String(p.comp.procesandoPor.cocineroId)
+        : '__sin__';
+      if (!porDestino.has(dest)) porDestino.set(dest, []);
+      porDestino.get(dest).push(p);
+    }
+    const unSoloGrupo = porDestino.size === 1;
+    for (const [dest, items] of porDestino) {
+      const first = items[0];
+      const grupoGuarnicionesId = unSoloGrupo && dest === '__sin__'
+        ? String(plato._id || first.compId)
+        : `${plato._id || first.compId}:${dest}`;
+      unidades.push({
+        tipo: 'grupo_guarniciones',
+        plato,
+        comp: first.comp,
+        comps: items.map((p) => p.comp),
+        compIds: items.map((p) => p.compId),
+        compId: first.compId,
+        nombrePadre,
+        nombreGuarnicion: tituloGrupoGuarniciones(items.map((p) => p.comp), plato, comanda, platoIndex),
+        cantidadEfectiva: items.reduce((s, p) => s + cantidadGuarnicionEfectiva(p.comp, plato, comanda, platoIndex), 0),
+        grupoGuarnicionesId
+      });
+    }
     return unidades;
   }
 
@@ -515,7 +529,7 @@ export function claveAgrupacionUnidad(unidad, flagOn) {
     return `guarnicion::${key}::${unidad.nombrePadre}`;
   }
   if (unidad.tipo === 'grupo_guarniciones') {
-    const pid = unidad.plato?._id || unidad.grupoGuarnicionesId || '';
+    const pid = unidad.grupoGuarnicionesId || unidad.plato?._id || '';
     return `grupo_guarniciones::${pid}`;
   }
   return '';

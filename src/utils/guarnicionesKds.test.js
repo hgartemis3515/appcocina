@@ -10,6 +10,7 @@ const {
   nombreGuarnicionConPadre,
   expandirUnidadesTrabajo,
   claveAgrupacionUnidad,
+  unidadGuarnicionAsignadaA,
   estadoAlertaGuarnicion,
   prioridadUnidad,
   claveGrupoGuarnicionMonitor,
@@ -1043,6 +1044,29 @@ describe('agrupacion y pronombre', () => {
     expect(u[1].nombreGuarnicion).toBe('arroz + P FRITA + ENSAL');
     expect(u[1].compIds).toEqual(['c1', 'c2', 'c3']);
     expect(claveAgrupacionUnidad(u[1], true)).toBe('grupo_guarniciones::p1');
+  });
+
+  test('agrupacion ON parte por cocina: panes C3 y jugo C4 no van en la misma tarjeta', () => {
+    const plato = {
+      _id: 'p1',
+      nombre: 'DCH',
+      estado: 'pedido',
+      complementosSeleccionados: [
+        { _id: 'c1', opcion: 'Panes', procesandoPor: { cocineroId: 'C3' } },
+        { _id: 'c2', opcion: 'Mantequilla', procesandoPor: { cocineroId: 'C3' } },
+        { _id: 'c3', opcion: 'Jugo de papaya', procesandoPor: { cocineroId: 'C4' } },
+      ]
+    };
+    const u = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: true });
+    const grupos = u.filter((x) => x.tipo === 'grupo_guarniciones');
+    expect(grupos).toHaveLength(2);
+    expect(grupos[0].compIds).toEqual(['c1', 'c2']);
+    expect(grupos[1].compIds).toEqual(['c3']);
+    expect(claveAgrupacionUnidad(grupos[0], true)).toBe('grupo_guarniciones::p1:C3');
+    expect(claveAgrupacionUnidad(grupos[1], true)).toBe('grupo_guarniciones::p1:C4');
+    expect(unidadGuarnicionAsignadaA(grupos[0], 'C3')).toBe(true);
+    expect(unidadGuarnicionAsignadaA(grupos[0], 'C4')).toBe(false);
+    expect(unidadGuarnicionAsignadaA(grupos[1], 'C4')).toBe(true);
   });
 
   test('esEventoGuarnicion acepta complementoIds y tipo grupo', () => {
