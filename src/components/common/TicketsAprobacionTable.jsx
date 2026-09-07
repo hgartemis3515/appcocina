@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
+  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill, FaTrash,
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
-import { getDefaultSortDir, getMozoNombre } from '../../utils/ticketSort';
+import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo } from '../../utils/ticketSort';
+import BadgeNombreMozo from './BadgeNombreMozo';
 import {
-  formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, estadoTicketMeta,
+  formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
   nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
   ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
+  estadoEntregaComandaTicket, estadoEntregaTickets,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
@@ -21,8 +23,8 @@ function SortIcon({ active, dir }) {
 }
 
 export function AccionesTicket({
-  ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago,
-  aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading,
+  ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago, onQuitarDuplicado,
+  aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading, quitarDuplicadoLoading,
   compact = false,
 }) {
   const isComanda = esTicketComanda(ticket);
@@ -31,6 +33,7 @@ export function AccionesTicket({
   const puedeAprobar = ticketPuedeAprobarse(ticket);
   const puedeForzar = ticketPuedeForzarPago(ticket) && !ticket.boucher;
   const puedeReportar = esComandaOParcial && pendiente && !ticketEsAltaSinPago(ticket);
+  const puedeQuitarDuplicado = ticket.isActive !== false && typeof onQuitarDuplicado === 'function';
   const btnPad = compact
     ? 'p-1.5 w-8 h-8'
     : 'p-2.5 w-10 h-10';
@@ -46,6 +49,17 @@ export function AccionesTicket({
       >
         <FaPrint className={iconCls} />
       </button>
+      {puedeQuitarDuplicado && (
+        <button
+          type="button"
+          onClick={() => onQuitarDuplicado(ticket)}
+          disabled={quitarDuplicadoLoading}
+          className={`${btnPad} inline-flex items-center justify-center rounded-md bg-rose-800 hover:bg-rose-700 disabled:bg-gray-600 text-white`}
+          title="Quitar duplicado (sale de la tabla, no cambia platos)"
+        >
+          <FaTrash className={iconCls} />
+        </button>
+      )}
       {pendiente && (
         <>
           {puedeAprobar && (
@@ -97,6 +111,127 @@ export function AccionesTicket({
   );
 }
 
+function FilaTicketAvanzado({
+  ticket,
+  indent = false,
+  onDetalle,
+  onImprimir,
+  onAprobar,
+  onReportar,
+  onRechazar,
+  onForzarPago,
+  onQuitarDuplicado,
+  aprobarLoading,
+  reportarLoading,
+  rechazarLoading,
+  forzarPagoLoading,
+  quitarDuplicadoLoading = {},
+}) {
+  const badge = tipoBadge(ticket.tipo);
+  const estadoComanda = estadoEntregaComandaTicket(ticket);
+  const comandaLabel = getComandaDisplayLabel(ticket);
+  const cliente = nombreClienteTicket(ticket);
+  const dni = dniClienteTicket(ticket);
+  const platosVis = platosTicketVisibles(ticket);
+  const nPlatos = platosVis.length;
+  const { neto, montoDesc } = totalesVistaTicket(ticket);
+  return (
+    <tr className={`border-t border-gray-800 hover:bg-gray-800/60 align-top ${indent ? 'bg-gray-950/40' : ''}`}>
+      <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
+        {indent ? '' : formatDateTime(ticket.createdAt)}
+      </td>
+      <td className={`px-3 py-2 min-w-[240px] max-w-[320px] ${indent ? 'pl-8' : ''}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-white font-semibold">
+              {indent ? <span className="text-gray-600 mr-1">↳</span> : null}
+              {comandaLabel}
+            </div>
+            {ticket.ticketNumber != null && (
+              <div className="text-[10px] text-amber-200/80">Ticket #{ticket.ticketNumber}</div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onDetalle(ticket)}
+            className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
+            title="Detalle de la comanda"
+          >
+            <FaEye className="text-xs" />
+          </button>
+        </div>
+        <div className="mt-1 max-h-28 overflow-y-auto">
+          {platosVis.map((plato, i) => (
+            <PlatoTicketItem
+              key={plato.platoLineaId || plato._id || i}
+              plato={plato}
+              size="xs"
+              showSubtotal={false}
+            />
+          ))}
+          {nPlatos === 0 && (
+            <div className="text-[10px] text-gray-500">Sin platos en el ticket</div>
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
+        {indent ? '' : `Mesa ${ticket.numMesa || '?'}`}
+      </td>
+      <td className="px-3 py-2 min-w-[120px]">
+        {indent ? null : (
+          <>
+            <div className="truncate"><BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} /></div>
+            {cliente && (
+              <div className="text-[10px] text-gray-500 truncate">
+                {cliente}{dni ? ` · DNI ${dni}` : ''}
+              </div>
+            )}
+          </>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
+          {badge.label}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-right text-white font-bold whitespace-nowrap">
+        {formatCurrency(neto)}
+        {montoDesc > 0 && (
+          <div className="text-[10px] text-red-400 font-normal">-{formatCurrency(montoDesc)}</div>
+        )}
+        <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
+      </td>
+      <td className="px-3 py-2 text-xs text-gray-400 uppercase">
+        {labelPagoTicket(ticket)}
+      </td>
+      <td className="px-3 py-2">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoComanda.bg}`}>
+          {estadoComanda.label}
+        </span>
+        {ticket.estado === 'pendiente_aprobacion' && !estadoComanda.entregado && (
+          <div className="text-[9px] text-yellow-500/80 mt-0.5">Por aprobar</div>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <AccionesTicket
+          ticket={ticket}
+          onImprimir={onImprimir}
+          onAprobar={onAprobar}
+          onReportar={onReportar}
+          onRechazar={onRechazar}
+          onForzarPago={onForzarPago}
+          onQuitarDuplicado={onQuitarDuplicado}
+          aprobarLoading={!!aprobarLoading[ticket._id]}
+          reportarLoading={!!reportarLoading[ticket._id]}
+          rechazarLoading={!!rechazarLoading[ticket._id]}
+          forzarPagoLoading={!!forzarPagoLoading[ticket._id]}
+          quitarDuplicadoLoading={!!quitarDuplicadoLoading[ticket._id]}
+        />
+      </td>
+    </tr>
+  );
+}
+
 /**
  * Vista avanzada: tabla formal de tickets de aprobación y pagos adelantados.
  */
@@ -112,13 +247,26 @@ export default function TicketsAprobacionTable({
   onReportar,
   onRechazar,
   onForzarPago,
+  onQuitarDuplicado,
   aprobarLoading = {},
   reportarLoading = {},
   rechazarLoading = {},
   forzarPagoLoading = {},
+  quitarDuplicadoLoading = {},
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
+  const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
   const totalVentas = useMemo(() => totalVentasObservadas(tickets), [tickets]);
+  const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
+
+  const toggleGrupo = (id) => {
+    setGruposAbiertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleSort = (key) => {
     if (!onSortChange) return;
@@ -170,10 +318,12 @@ export default function TicketsAprobacionTable({
                 onReportar={(t) => { onReportar(t); }}
                 onRechazar={(t) => { onRechazar(t); }}
                 onForzarPago={(t) => { onForzarPago?.(t); setDetalleTicket(null); }}
+                onQuitarDuplicado={onQuitarDuplicado}
                 aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                 reportarLoading={!!reportarLoading[detalleTicket._id]}
                 rechazarLoading={!!rechazarLoading[detalleTicket._id]}
                 forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
+                quitarDuplicadoLoading={!!quitarDuplicadoLoading[detalleTicket._id]}
               />
             </div>
           }
@@ -214,97 +364,114 @@ export default function TicketsAprobacionTable({
             </tr>
           </thead>
           <tbody>
-            {tickets.map((ticket) => {
-              const badge = tipoBadge(ticket.tipo);
-              const estado = estadoTicketMeta(ticket.estado);
-              const comandaLabel = getComandaDisplayLabel(ticket);
-              const cliente = nombreClienteTicket(ticket);
-              const dni = dniClienteTicket(ticket);
-              const platosVis = platosTicketVisibles(ticket);
-              const nPlatos = platosVis.length;
-              const { neto, montoDesc } = totalesVistaTicket(ticket);
+            {filas.map((fila) => {
+              const propsFila = {
+                onDetalle: setDetalleTicket,
+                onImprimir,
+                onAprobar,
+                onReportar,
+                onRechazar,
+                onForzarPago,
+                onQuitarDuplicado,
+                aprobarLoading,
+                reportarLoading,
+                rechazarLoading,
+                forzarPagoLoading,
+                quitarDuplicadoLoading,
+              };
+              if (fila.tipo !== 'grupo') {
+                return (
+                  <FilaTicketAvanzado
+                    key={fila.id}
+                    ticket={fila.tickets[0]}
+                    {...propsFila}
+                  />
+                );
+              }
+              const grupoTicket = ticketParaDetalleGrupo(fila.tickets);
+              const expandido = gruposAbiertos.has(fila.id);
+              const { neto, montoDesc } = totalesVistaTicket(grupoTicket);
+              const nPlatos = platosTicketVisibles(grupoTicket).length;
+              const first = fila.tickets[0];
+              const estadoGrupo = estadoEntregaTickets(fila.tickets);
               return (
-                <tr key={ticket._id} className="border-t border-gray-800 hover:bg-gray-800/60 align-top">
+                <React.Fragment key={fila.id}>
+                  <tr className="border-t border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] align-top">
                     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
-                      {formatDateTime(ticket.createdAt)}
+                      {formatDateTime(first.createdAt)}
                     </td>
                     <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-white font-semibold">{comandaLabel}</div>
-                          {ticket.ticketNumber != null && (
-                            <div className="text-[10px] text-amber-200/80">Ticket #{ticket.ticketNumber}</div>
-                          )}
-                        </div>
                         <button
                           type="button"
-                          onClick={() => setDetalleTicket(ticket)}
+                          onClick={() => toggleGrupo(fila.id)}
+                          className="min-w-0 text-left"
+                        >
+                          <div className="text-amber-300 font-bold">
+                            <span className="inline-block w-3 text-[10px]">{expandido ? '▼' : '▶'}</span>
+                            {' '}GRUPO {fila.label || ''}
+                          </div>
+                          <div className="text-[10px] text-amber-200/80">
+                            {fila.tickets.length} comandas
+                            {fila.clienteNombre ? ` · ${fila.clienteNombre}` : ''}
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDetalleTicket(grupoTicket)}
                           className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
-                          title="Detalle de la comanda"
+                          title="Ver detalle del grupo"
                         >
                           <FaEye className="text-xs" />
                         </button>
                       </div>
-                      <div className="mt-1 max-h-28 overflow-y-auto">
-                        {platosVis.map((plato, i) => (
-                          <PlatoTicketItem
-                            key={plato.platoLineaId || plato._id || i}
-                            plato={plato}
-                            size="xs"
-                            showSubtotal={false}
-                          />
-                        ))}
-                        {nPlatos === 0 && (
-                          <div className="text-[10px] text-gray-500">Sin platos en el ticket</div>
-                        )}
-                      </div>
                     </td>
                     <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
-                      Mesa {ticket.numMesa || '?'}
+                      Mesa {fila.mesa || first.numMesa || '?'}
                     </td>
                     <td className="px-3 py-2 min-w-[120px]">
-                      <div className="text-gray-200 truncate">{getMozoNombre(ticket)}</div>
-                      {cliente && (
-                        <div className="text-[10px] text-gray-500 truncate">
-                          {cliente}{dni ? ` · DNI ${dni}` : ''}
-                        </div>
-                      )}
+                      <div className="truncate">
+                        <BadgeNombreMozo ticket={first} nombre={getMozoNombre(first)} />
+                      </div>
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
-                        {badge.label}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium border bg-amber-500/15 text-amber-200 border-amber-500/40">
+                        Grupo
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right text-white font-bold whitespace-nowrap">
+                    <td className="px-3 py-2 text-right text-amber-300 font-bold whitespace-nowrap">
                       {formatCurrency(neto)}
                       {montoDesc > 0 && (
                         <div className="text-[10px] text-red-400 font-normal">-{formatCurrency(montoDesc)}</div>
                       )}
                       <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-400 uppercase">
-                      {labelPagoTicket(ticket)}
-                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-400 uppercase">—</td>
                     <td className="px-3 py-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${estado.bg}`}>
-                        {estado.label}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
+                        {estadoGrupo.label}
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <AccionesTicket
-                        ticket={ticket}
-                        onImprimir={onImprimir}
-                        onAprobar={onAprobar}
-                        onReportar={onReportar}
-                        onRechazar={onRechazar}
-                        onForzarPago={onForzarPago}
-                        aprobarLoading={!!aprobarLoading[ticket._id]}
-                        reportarLoading={!!reportarLoading[ticket._id]}
-                        rechazarLoading={!!rechazarLoading[ticket._id]}
-                        forzarPagoLoading={!!forzarPagoLoading[ticket._id]}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => onImprimir(grupoTicket)}
+                        className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+                        title="Imprimir grupo de comandas"
+                      >
+                        <FaPrint className="text-lg" />
+                      </button>
                     </td>
                   </tr>
+                  {expandido && fila.tickets.map((ticket) => (
+                    <FilaTicketAvanzado
+                      key={ticket._id}
+                      ticket={ticket}
+                      indent
+                      {...propsFila}
+                    />
+                  ))}
+                </React.Fragment>
               );
             })}
           </tbody>

@@ -75,6 +75,14 @@ describe('parseReglasTiposMenu / anotar / partir', () => {
     expect(cena.particionHorizontalCocina).toBe(false);
   });
 
+  test('anota ocultarCronometroCocina desde el plato, sin mezclarlo con soloContador de tipo', () => {
+    const [dch] = anotarReglasTipoEnItems([
+      { nombre: 'CAFÉ', platos: [{ plato: { tipoPedido: 'platos-cena', ocultarCronometroCocina: true } }] },
+    ], reglas);
+    expect(dch.ocultarCronometroCocina).toBe(true);
+    expect(dch.soloContadorEnCocina).toBe(false);
+  });
+
   test('el mismo plato en cena no entra a la partición de carta', () => {
     const [desdeCarta, desdeCena] = anotarReglasTipoEnItems([
       { nombre: 'Lomo', tipoPedido: 'plato-carta' },

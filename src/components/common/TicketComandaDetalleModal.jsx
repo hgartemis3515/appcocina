@@ -15,6 +15,7 @@ import {
   nombreClienteTicket, dniClienteTicket,
 } from '../../utils/ticketAprobacionUi';
 import { getMozoNombre } from '../../utils/ticketSort';
+import BadgeNombreMozo from './BadgeNombreMozo';
 import { getComplementosDePlato } from '../../utils/platoComplementos';
 import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
 
@@ -258,7 +259,7 @@ export default function TicketComandaDetalleModal({
                 <FaUtensils className="text-gray-500" /> Mesa {ticket.numMesa || '?'}
               </span>
               <span className="flex items-center gap-1">
-                <FaUser className="text-gray-500" /> {getMozoNombre(ticket)}
+                <FaUser className="text-gray-500" /> <BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} />
               </span>
               <span>{formatDateTime(ticket.createdAt)}</span>
               {cliente && <span>{cliente}{dni ? ` · DNI ${dni}` : ''}</span>}

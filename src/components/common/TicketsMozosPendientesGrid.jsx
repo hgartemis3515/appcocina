@@ -1,15 +1,33 @@
 import React, { useState } from 'react';
-import { FaUser, FaCheck, FaSyncAlt, FaEye } from 'react-icons/fa';
+import { FaUser, FaCheck, FaSyncAlt, FaEye, FaPrint } from 'react-icons/fa';
 import { AccionesTicket } from './TicketsAprobacionTable';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
+import BadgeNombreMozo from './BadgeNombreMozo';
 import {
   groupTicketsByMozo,
   groupTicketsComoComandasHtml,
   ticketParaDetalleGrupo,
 } from '../../utils/ticketSort';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
-import { formatCurrency, formatTime, tipoBadge } from '../../utils/ticketAprobacionUi';
+import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets } from '../../utils/ticketAprobacionUi';
 import { totalesVistaTicket, resumenKpisTickets } from '../../utils/ticketTotales';
+
+function BadgeEstadoComanda({ meta }) {
+  const entregado = !!meta?.entregado;
+  return (
+    <span
+      className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide whitespace-nowrap ${
+        meta?.bg
+          ? meta.bg
+          : entregado
+            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+            : 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+      }`}
+    >
+      {meta?.label || 'Pendiente'}
+    </span>
+  );
+}
 
 function BotonVerDetalle({ onClick, titulo = 'Ver detalle' }) {
   return (
@@ -39,13 +57,16 @@ function FilaTicket({
   onReportar,
   onRechazar,
   onForzarPago,
+  onQuitarDuplicado,
   aprobarLoading,
   reportarLoading,
   rechazarLoading,
   forzarPagoLoading,
+  quitarDuplicadoLoading = {},
 }) {
   const badge = tipoBadge(ticket.tipo);
   const { neto } = totalesVistaTicket(ticket);
+  const estadoComanda = estadoEntregaComandaTicket(ticket);
   return (
     <tr className={`border-t border-gray-800/80 hover:bg-gray-800/40 ${indent ? 'bg-gray-950/50' : ''}`}>
       <td className="px-2 py-0.5 text-gray-200 text-xs whitespace-nowrap">
@@ -65,6 +86,9 @@ function FilaTicket({
           )}
         </div>
       </td>
+      <td className="px-1 py-0.5 text-center">
+        <BadgeEstadoComanda meta={estadoComanda} />
+      </td>
       <td className="px-1 py-0.5">
         <div className="flex items-center justify-center gap-1">
           <BotonVerDetalle onClick={() => onVerDetalle(ticket)} />
@@ -75,10 +99,12 @@ function FilaTicket({
             onReportar={onReportar}
             onRechazar={onRechazar}
             onForzarPago={onForzarPago}
+            onQuitarDuplicado={onQuitarDuplicado}
             aprobarLoading={!!aprobarLoading[ticket._id]}
             reportarLoading={!!reportarLoading[ticket._id]}
             rechazarLoading={!!rechazarLoading[ticket._id]}
             forzarPagoLoading={!!forzarPagoLoading[ticket._id]}
+            quitarDuplicadoLoading={!!quitarDuplicadoLoading[ticket._id]}
           />
         </div>
       </td>
@@ -97,10 +123,12 @@ function CuadroMozo({
   onReportar,
   onRechazar,
   onForzarPago,
+  onQuitarDuplicado,
   aprobarLoading,
   reportarLoading,
   rechazarLoading,
   forzarPagoLoading,
+  quitarDuplicadoLoading = {},
   onVerDetalle,
 }) {
   const [abiertos, setAbiertos] = useState(() => new Set());
@@ -125,7 +153,9 @@ function CuadroMozo({
     >
       <header className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-gray-800/90 border-b border-amber-500/20">
         <FaUser className="text-amber-400 text-xs flex-shrink-0" />
-        <h3 className="text-white font-bold text-sm truncate">{grupo.nombre}</h3>
+        <h3 className="truncate min-w-0">
+          <BadgeNombreMozo nombre={grupo.nombre} colorPerfil={grupo.colorPerfil} />
+        </h3>
         <span className="text-[10px] text-gray-400 flex-shrink-0">
           {n} comanda{n !== 1 ? 's' : ''}
         </span>
@@ -137,6 +167,7 @@ function CuadroMozo({
             <tr className="text-[9px] uppercase tracking-wider text-gray-400">
               <th className="text-left px-2 py-1 font-semibold">Mesa</th>
               <th className="text-left px-2 py-1 font-semibold">Comanda</th>
+              <th className="text-center px-2 py-1 font-semibold">Estado</th>
               <th className="text-center px-2 py-1 font-semibold">Ver detalle</th>
               <th className="text-right px-2 py-1 font-semibold">Total</th>
             </tr>
@@ -147,6 +178,7 @@ function CuadroMozo({
               const expandido = esGrupo && abiertos.has(fila.id);
               const pendienteFila = resumenKpisTickets(fila.tickets).pendiente;
               const mesaLabel = fila.mesa != null ? String(fila.mesa) : '—';
+              const estadoGrupo = estadoEntregaTickets(fila.tickets);
 
               if (!esGrupo) {
                 return (
@@ -160,10 +192,12 @@ function CuadroMozo({
                     onReportar={onReportar}
                     onRechazar={onRechazar}
                     onForzarPago={onForzarPago}
+                    onQuitarDuplicado={onQuitarDuplicado}
                     aprobarLoading={aprobarLoading}
                     reportarLoading={reportarLoading}
                     rechazarLoading={rechazarLoading}
                     forzarPagoLoading={forzarPagoLoading}
+                    quitarDuplicadoLoading={quitarDuplicadoLoading}
                   />
                 );
               }
@@ -195,10 +229,23 @@ function CuadroMozo({
                       </button>
                     </td>
                     <td className="px-1 py-0.5 text-center">
-                      <BotonVerDetalle
-                        onClick={() => onVerDetalle(ticketParaDetalleGrupo(fila.tickets))}
-                        titulo="Ver comandas del grupo"
-                      />
+                      <BadgeEstadoComanda meta={estadoGrupo} />
+                    </td>
+                    <td className="px-1 py-0.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <BotonVerDetalle
+                          onClick={() => onVerDetalle(ticketParaDetalleGrupo(fila.tickets))}
+                          titulo="Ver comandas del grupo"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => onImprimir(ticketParaDetalleGrupo(fila.tickets))}
+                          className="inline-flex items-center justify-center p-1 rounded border border-gray-600 bg-gray-800 hover:bg-gray-700 text-white"
+                          title="Imprimir grupo de comandas"
+                        >
+                          <FaPrint className="text-[10px]" />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-2 py-0.5 text-right text-amber-300 font-bold text-xs whitespace-nowrap">
                       {formatCurrency(pendienteFila)}
@@ -216,10 +263,12 @@ function CuadroMozo({
                       onReportar={onReportar}
                       onRechazar={onRechazar}
                       onForzarPago={onForzarPago}
+                      onQuitarDuplicado={onQuitarDuplicado}
                       aprobarLoading={aprobarLoading}
                       reportarLoading={reportarLoading}
                       rechazarLoading={rechazarLoading}
                       forzarPagoLoading={forzarPagoLoading}
+                      quitarDuplicadoLoading={quitarDuplicadoLoading}
                     />
                   ))}
                 </React.Fragment>
@@ -261,6 +310,8 @@ export default function TicketsMozosPendientesGrid({
   reportarLoading = {},
   rechazarLoading = {},
   forzarPagoLoading = {},
+  onQuitarDuplicado,
+  quitarDuplicadoLoading = {},
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const grupos = groupTicketsByMozo(tickets);
@@ -308,10 +359,12 @@ export default function TicketsMozosPendientesGrid({
                   onReportar={onReportar}
                   onRechazar={onRechazar}
                   onForzarPago={(t) => { onForzarPago?.(t); setDetalleTicket(null); }}
+                  onQuitarDuplicado={onQuitarDuplicado}
                   aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                   reportarLoading={!!reportarLoading[detalleTicket._id]}
                   rechazarLoading={!!rechazarLoading[detalleTicket._id]}
                   forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
+                  quitarDuplicadoLoading={!!quitarDuplicadoLoading[detalleTicket._id]}
                 />
               </div>
             ) : null
@@ -340,7 +393,7 @@ export default function TicketsMozosPendientesGrid({
                 ? 'bg-amber-500 text-black border-amber-400'
                 : 'bg-gray-800 text-gray-300 border-gray-700 hover:text-white'}`}
           >
-            {m.nombre}
+            <BadgeNombreMozo nombre={m.nombre} colorPerfil={m.colorPerfil} />
             <span className="ml-1 opacity-70">{m.count}</span>
           </button>
         ))}
@@ -357,10 +410,12 @@ export default function TicketsMozosPendientesGrid({
             onReportar={onReportar}
             onRechazar={onRechazar}
             onForzarPago={onForzarPago}
+            onQuitarDuplicado={onQuitarDuplicado}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
+            quitarDuplicadoLoading={quitarDuplicadoLoading}
             onVerDetalle={setDetalleTicket}
           />
         ))}

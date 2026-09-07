@@ -41,6 +41,17 @@ export const obtenerNombrePlato = (plato) => {
  * @param {{ forzar?: boolean, habilitadoEnKds?: boolean }} opts
  * @returns {string}
  */
+function anexarSufijoNombre(base, extra) {
+  const b = String(base || '').trim();
+  const e = String(extra || '').trim();
+  if (!e) return b;
+  if (!b) return e;
+  const bLow = b.toLowerCase();
+  const eLow = e.toLowerCase();
+  if (bLow === eLow || bLow.endsWith(` ${eLow}`)) return b;
+  return `${b} ${e}`.trim();
+}
+
 export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
   if (!plato || typeof plato !== 'object') return '';
   // Item de Ver Cocina: { plato: linea, comanda } — el alias vive en la línea / catálogo.
@@ -48,16 +59,22 @@ export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
     ? plato.plato
     : plato;
   const oficial = obtenerNombrePlato(linea);
-  const variante = String(
-    linea?.nombreCocinaPedido
-    || linea?.variantePlato?.pronombre
-    || linea?.variantePlato?.opcion
-    || ''
-  ).trim();
-  if (variante) return variante;
   const alias = String(
     linea?.plato?.nombreCocina || linea?.nombreCocina || ''
   ).trim();
+  const pedido = String(linea?.nombreCocinaPedido || '').trim();
+  if (pedido) return pedido;
+  const extraVar = String(
+    linea?.variantePlato?.pronombre
+    || linea?.variantePlato?.opcion
+    || ''
+  ).trim();
+  if (linea?.variantePlato?.anexaNombre === true && extraVar) {
+    const usarAlias = opts.forzar === true || opts.habilitadoEnKds === true;
+    const base = usarAlias ? (alias || oficial) : (oficial || alias);
+    return anexarSufijoNombre(base, extraVar);
+  }
+  if (extraVar) return extraVar;
   if (!alias) return oficial;
   if (opts.forzar === true || opts.habilitadoEnKds === true) return alias;
   return oficial;

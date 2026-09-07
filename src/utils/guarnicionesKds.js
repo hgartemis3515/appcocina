@@ -14,6 +14,10 @@ import { platoCoincideCocineroFiltro } from './cocineroFiltroIds';
 import { platoCoincideId, normalizarId } from './platoHelpers';
 import { claveNombreComplemento } from './nombreComplementoCanonico';
 import { obtenerCantidadLinea } from './numeracionTimersMonitor';
+import {
+  platoJuntaGuarnicionesEntreVariantes,
+  idCatalogoPlatoLinea,
+} from './platoFlagsCocina';
 
 /**
  * Normaliza `grupo::opcion` a clave canónica (trim + lowercase).
@@ -37,6 +41,29 @@ export function platoUneComplementos(plato) {
 }
 
 /**
+ * Clave del panel de guarniciones en Ver cocina completa.
+ * Con juntarGuarnicionesEntreVariantes: misma guarnición de TÉ y CAFÉ comparte grupo.
+ */
+export function claveGrupoGuarnicionMonitor({
+  plato,
+  comanda,
+  platoIndex,
+  comp,
+  cid = '',
+  agrupacionOn = false,
+}) {
+  const nombreG = nombreCocinaComplemento(comp) || 'Guarnición';
+  const comandaId = String(comanda?._id || comanda?.id || comanda?.numero || '');
+  if (platoJuntaGuarnicionesEntreVariantes(plato)) {
+    const claveG = claveNombreComplemento(nombreGuarnicionSolo(comp) || nombreG);
+    return `${cid}::gmerge::${idCatalogoPlatoLinea(plato)}::${claveG}`;
+  }
+  return agrupacionOn
+    ? `${cid}::gg::${comandaId}:${platoIndex}`
+    : `${cid}::g::${comandaId}:${platoIndex}:${comp?._id || nombreG}`;
+}
+
+/**
  * ¿El plato tiene guarniciones separables? (flag ON + complementos + no unidos al plato)
  */
 function claveGrupoVariante(v) {
@@ -50,7 +77,43 @@ export function esComplementoVariantePlato(comp, plato) {
   }
   const catalogo = plato?.plato && typeof plato.plato === 'object' ? plato.plato : plato;
   const grupos = catalogo?.complementos || [];
-  return grupos.some((g) => g?.esVariantePlato === true && claveGrupoVariante(g.grupo) === claveGrupoVariante(comp.grupo));
+  return grupos.some((g) =>
+    (g?.esVariantePlato === true || g?.anexarVarianteAlNombre === true)
+    && claveGrupoVariante(g.grupo) === claveGrupoVariante(comp.grupo)
+  );
+}
+
+function grupoCatalogoDeComplemento(comp, plato) {
+  if (!comp) return null;
+  const catalogo = plato?.plato && typeof plato.plato === 'object' ? plato.plato : plato;
+  const grupos = catalogo?.complementos || [];
+  const key = claveGrupoVariante(comp.grupo);
+  if (!key) return null;
+  return grupos.find((g) => claveGrupoVariante(g?.grupo) === key) || null;
+}
+
+/** Esta guarnición se ve en la tabla KDS aunque la vista oculte complementos. */
+export function complementoForzarVisibleTablaKds(comp, plato) {
+  if (!comp) return false;
+  if (esComplementoVariantePlato(comp, plato)) return false;
+  if (comp.forzarVisibleTablaKds === true) return true;
+  const grupo = grupoCatalogoDeComplemento(comp, plato);
+  return !!(grupo && grupo.forzarVisibleTablaKds === true && grupo.esVariantePlato !== true && grupo.anexarVarianteAlNombre !== true);
+}
+
+/** Lista a pintar bajo el plato: todas, o solo las marcadas si la vista oculta guarniciones. */
+export function complementosVisiblesEnTablaKds(comps, plato, ocultarComplementosTabla) {
+  const list = Array.isArray(comps) ? comps.filter(Boolean) : [];
+  if (!ocultarComplementosTabla) return list;
+  return list.filter((c) => complementoForzarVisibleTablaKds(c, plato));
+}
+
+export function unidadGuarnicionVisibleEnTablaKds(unidad, plato, ocultarComplementosTabla) {
+  if (!ocultarComplementosTabla) return true;
+  if (unidad?.tipo === 'grupo_guarniciones') {
+    return (unidad.comps || []).some((c) => complementoForzarVisibleTablaKds(c, plato));
+  }
+  return complementoForzarVisibleTablaKds(unidad?.comp, plato);
 }
 
 export function esGuarnicionSeparable(plato, flagOn) {
@@ -66,13 +129,24 @@ export function esGuarnicionSeparable(plato, flagOn) {
  */
 export function nombrePlatoPadre(plato, usarAlias = true) {
   if (!plato) return '';
-  const variante = String(
-    plato.nombreCocinaPedido
-    || plato.variantePlato?.pronombre
+  const pedido = String(plato.nombreCocinaPedido || '').trim();
+  if (pedido) return pedido;
+  const extra = String(
+    plato.variantePlato?.pronombre
     || plato.variantePlato?.opcion
     || ''
   ).trim();
-  if (variante) return variante;
+  if (plato.variantePlato?.anexaNombre === true && extra) {
+    const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
+    const comercial = String(plato.plato?.nombre || plato.nombre || '').trim();
+    const base = usarAlias ? (alias || comercial) : (comercial || alias);
+    if (!base) return extra;
+    const bLow = base.toLowerCase();
+    const eLow = extra.toLowerCase();
+    if (bLow === eLow || bLow.endsWith(` ${eLow}`)) return base;
+    return `${base} ${extra}`.trim();
+  }
+  if (extra) return extra;
   if (usarAlias) {
     const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
     if (alias) return alias;

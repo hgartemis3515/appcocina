@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
-  FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint,
+  FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint, FaTrash,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
@@ -18,13 +18,15 @@ import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero } from '../../utils/ticketSort';
+import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import {
-  formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge, estadoTicketMeta,
+  formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge,
   getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
   nombreClienteTicket, dniClienteTicket,
   ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
+  estadoEntregaComandaTicket,
 } from '../../utils/ticketAprobacionUi';
 import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket, totalVentasObservadas } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
@@ -87,7 +89,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     turnosLimaYMD: hoyOp,
     _turnosAutoNocheHecho: false,
   });
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, forzarPagoItem, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, quitarDuplicadoItem, forzarPagoItem, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
     fechaDesde,
     fechaHasta,
     incluirHistorial: true,
@@ -105,6 +107,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [filtroMozo, setFiltroMozo] = useState(null);
   const [forzarPagoLoading, setForzarPagoLoading] = useState({});
   const [ticketForzarPago, setTicketForzarPago] = useState(null);
+  const [quitarDuplicadoLoading, setQuitarDuplicadoLoading] = useState({});
+  const [quitarDuplicadoMotivo, setQuitarDuplicadoMotivo] = useState({});
+  const [showQuitarDuplicadoModal, setShowQuitarDuplicadoModal] = useState(null);
   const filtroPeriodoRef = useRef(filtroPeriodo);
   const turnosMetaRef = useRef(turnosMeta);
   filtroPeriodoRef.current = filtroPeriodo;
@@ -214,6 +219,29 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       alert('Error al rechazar: ' + (err.userMessage || err.message));
     } finally {
       setRechazarLoading(prev => ({ ...prev, [ticketId]: false }));
+    }
+  };
+
+  const abrirQuitarDuplicado = (ticket) => {
+    setShowQuitarDuplicadoModal(ticket._id);
+    setQuitarDuplicadoMotivo((prev) => ({ ...prev, [ticket._id]: prev[ticket._id] || 'Ticket duplicado' }));
+  };
+
+  const handleQuitarDuplicado = async (ticketId) => {
+    const motivo = (quitarDuplicadoMotivo[ticketId] || '').trim();
+    if (motivo.length < 3) {
+      alert('El motivo es obligatorio y debe tener al menos 3 caracteres.');
+      return;
+    }
+    const ticket = items.find((t) => String(t._id) === String(ticketId)) || { _id: ticketId };
+    setQuitarDuplicadoLoading((prev) => ({ ...prev, [ticketId]: true }));
+    try {
+      await quitarDuplicadoItem(ticket, motivo, user?._id || user?.id, user?.name || 'Cocina');
+      setShowQuitarDuplicadoModal(null);
+    } catch (err) {
+      alert('Error al quitar duplicado: ' + (err.userMessage || err.message));
+    } finally {
+      setQuitarDuplicadoLoading((prev) => ({ ...prev, [ticketId]: false }));
     }
   };
 
@@ -515,10 +543,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
             onForzarPago={(ticket) => setTicketForzarPago(ticket)}
+            onQuitarDuplicado={abrirQuitarDuplicado}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
+            quitarDuplicadoLoading={quitarDuplicadoLoading}
           />
         ) : modoVista === 'mozos' ? (
           <TicketsMozosPendientesGrid
@@ -543,10 +573,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
             onForzarPago={(ticket) => setTicketForzarPago(ticket)}
+            onQuitarDuplicado={abrirQuitarDuplicado}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
+            quitarDuplicadoLoading={quitarDuplicadoLoading}
           />
         ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
@@ -579,6 +611,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const quedanMasTickets = ticketsPendientesMismaMesa > 1;
                 const platosVis = platosTicketVisibles(ticket);
                 const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
+                const estadoComanda = estadoEntregaComandaTicket(ticket);
                 return (
                   <motion.div
                     key={ticket._id}
@@ -607,8 +640,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
                             {badge.label}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estadoTicketMeta(ticket.estado).bg}`}>
-                            {estadoTicketMeta(ticket.estado).short}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoComanda.bg}`}>
+                            {estadoComanda.label}
                           </span>
                         </div>
                       </div>
@@ -624,7 +657,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         </div>
                         <div className="flex items-center gap-1 text-gray-400 text-xs">
                           <FaUser className="text-gray-500" />
-                          <span>{ticket.nombreMozo || ticket.mozoNombre || '?'}</span>
+                          <BadgeNombreMozo ticket={ticket} />
                         </div>
                       </div>
                       <div className="text-gray-500 text-[10px] mt-1">
@@ -782,20 +815,43 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             Rechazar
                           </button>
                         ) : null}
+                        {ticket.isActive !== false && (
+                          <button
+                            type="button"
+                            onClick={() => abrirQuitarDuplicado(ticket)}
+                            disabled={quitarDuplicadoLoading[ticket._id]}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-rose-800 hover:bg-rose-700
+                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                              transition-colors font-medium text-sm"
+                          >
+                            <FaTrash className="text-xs" />
+                            Quitar duplicado
+                          </button>
                         )}
                       </div>
                     )}
 
-                    {/* Aprobados: solo imprimir */}
-                    {ticket.estado === 'aprobado' && (
-                      <div className="p-2">
+                    {/* Aprobados: imprimir + quitar duplicado */}
+                    {ticket.estado === 'aprobado' && ticket.isActive !== false && (
+                      <div className="p-2 flex gap-2">
                         <button
                           onClick={() => handleImprimir(ticket)}
-                          className="w-full flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
                             text-white py-2 rounded-lg transition-colors text-sm font-medium"
                         >
                           <FaPrint className="text-xs" />
                           Imprimir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => abrirQuitarDuplicado(ticket)}
+                          disabled={quitarDuplicadoLoading[ticket._id]}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-rose-800 hover:bg-rose-700
+                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                            transition-colors text-sm font-medium"
+                        >
+                          <FaTrash className="text-xs" />
+                          Quitar duplicado
                         </button>
                       </div>
                     )}
@@ -954,6 +1010,58 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
                   {rechazarLoading[showRechazarModal] ? 'Rechazando...' : 'Rechazar Ticket'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal quitar duplicado */}
+      <AnimatePresence>
+        {showQuitarDuplicadoModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowQuitarDuplicadoModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-gray-800 rounded-xl p-6 max-w-md w-full border border-gray-600"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <FaTrash className="text-rose-400 text-lg" />
+                <h4 className="text-white font-bold text-lg">Quitar ticket duplicado</h4>
+              </div>
+              <p className="text-gray-400 text-sm mb-3">
+                Sale de la tabla y de los totales. No cambia platos ni el boucher.
+              </p>
+              <textarea
+                value={quitarDuplicadoMotivo[showQuitarDuplicadoModal] || ''}
+                onChange={e => setQuitarDuplicadoMotivo(prev => ({ ...prev, [showQuitarDuplicadoModal]: e.target.value }))}
+                placeholder="Motivo (mínimo 3 caracteres)..."
+                className="w-full bg-gray-700 text-white rounded-lg p-3 text-sm h-24 resize-none border border-gray-600
+                  focus:border-rose-500 focus:outline-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowQuitarDuplicadoModal(null)}
+                  className="flex-1 py-2.5 bg-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-600 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleQuitarDuplicado(showQuitarDuplicadoModal)}
+                  disabled={(quitarDuplicadoMotivo[showQuitarDuplicadoModal] || '').trim().length < 3 || quitarDuplicadoLoading[showQuitarDuplicadoModal]}
+                  className="flex-1 py-2.5 bg-rose-700 text-white rounded-lg text-sm hover:bg-rose-600 transition-colors font-medium
+                    disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                  {quitarDuplicadoLoading[showQuitarDuplicadoModal] ? 'Quitando...' : 'Quitar duplicado'}
                 </button>
               </div>
             </motion.div>

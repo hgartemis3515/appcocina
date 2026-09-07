@@ -6,6 +6,7 @@
  * particionHorizontalCocina → mitad de abajo para principales de ese tipo.
  * particionHorizontalGuarnicionesCocina → misma partición en el panel de guarniciones.
  */
+import { itemOcultaCronometroCocina } from './platoFlagsCocina';
 
 export function slugTipoPedido(plato) {
   if (!plato || typeof plato !== 'object') return '';
@@ -103,6 +104,7 @@ export function anotarReglasTipoEnItems(items, reglas, opts = {}) {
       ...item,
       slugsTipo: slugs,
       soloContadorEnCocina: slugs.some((s) => solo.has(s)),
+      ocultarCronometroCocina: itemOcultaCronometroCocina(item),
       particionHorizontalCocina: slugs.some((s) => part.has(s)),
     };
   });

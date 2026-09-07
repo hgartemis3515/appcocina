@@ -93,6 +93,7 @@ describe('kdsPerfilesVista', () => {
     });
     expect(snap.tamanoFuente).toBe(18);
     expect(snap.juntarGuarnicionesVisualKds).toBe(true);
+    expect(snap.headerTarjetaEstilo).toBe('compacto');
     expect(snap.nightMode).toBeUndefined();
   });
 

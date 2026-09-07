@@ -6,9 +6,10 @@ import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
 import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
 import { estiloParaLlevarKds } from '../../utils/estiloParaLlevarKds';
-import { cantidadGuarnicionEfectiva } from '../../utils/guarnicionesKds';
+import { cantidadGuarnicionEfectiva, complementosVisiblesEnTablaKds } from '../../utils/guarnicionesKds';
 import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
 import { itemAplicaReglaContador } from '../../utils/tipoPlatoReglasCocina';
+import { platoOcultaCronometroCocina } from '../../utils/platoFlagsCocina';
 
 /**
  * Componente aislado para un plato en "EN PREPARACIÓN".
@@ -51,6 +52,7 @@ const PlatoPreparacion = ({
   compId = null,                    // _id del subdoc complemento (para toggle de guarnición)
   estadoAlerta = null,              // null | 'alerta' | 'critica' (tiempo)
   etiquetaPrioridad = null,         // texto VIP/refire para mostrar como badge
+  forzarVisibleTablaKds = false,    // omite ocultarComplementosEnTablaKds en esta fila
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -64,9 +66,15 @@ const PlatoPreparacion = ({
     reglasTipo,
     tipoUnidad === 'guarnicion',
   );
+  const ocultaCronometroPlato = ocultaColaYCronometro || platoOcultaCronometroCocina(plato);
   const compact = tipoUnidad === 'guarnicion';
   const ocultarCuadroCocinero = kdsConfig.ocultarCuadroCocineroAsignado === true;
   const ocultarComplementosTabla = kdsConfig.ocultarComplementosEnTablaKds === true;
+  const compsTabla = complementosVisiblesEnTablaKds(
+    complementosSeleccionados,
+    plato,
+    ocultarComplementosTabla
+  );
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
   const estiloParaLlevar = estiloParaLlevarKds(kdsConfig);
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
@@ -98,7 +106,7 @@ const PlatoPreparacion = ({
   // Cronómetro propio de la guarnición (desde que se asignó / tomó).
   const [elapsedG, setElapsedG] = useState('');
   useEffect(() => {
-    if (tipoUnidad !== 'guarnicion' || ocultaColaYCronometro) {
+    if (tipoUnidad !== 'guarnicion' || ocultaCronometroPlato) {
       setElapsedG('');
       return undefined;
     }
@@ -121,7 +129,7 @@ const PlatoPreparacion = ({
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [tipoUnidad, procesandoPor?.timestamp, ocultaColaYCronometro]);
+  }, [tipoUnidad, procesandoPor?.timestamp, ocultaCronometroPlato]);
 
   // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.1: la tarjeta de guarnición es compacta
   // (un tercio de la altura del plato principal). Mismo ancho, menos padding,
@@ -245,7 +253,7 @@ const PlatoPreparacion = ({
     checkBorderColor = '#6b7280';
   }
 
-  if (tipoUnidad === 'guarnicion' && ocultarComplementosTabla) return null;
+  if (tipoUnidad === 'guarnicion' && ocultarComplementosTabla && !forzarVisibleTablaKds) return null;
 
   return (
     <motion.div
@@ -385,7 +393,7 @@ const PlatoPreparacion = ({
                 🥗 Guarnición
               </span>
             )}
-            {elapsedG && !ocultaColaYCronometro && (
+            {elapsedG && !ocultaCronometroPlato && (
               <span
                 className="px-1.5 py-0.5 rounded-full text-[9px] font-bold tabular-nums bg-cyan-500/20 text-cyan-200 border border-cyan-400/40"
                 title="Cronómetro de esta guarnición (no el del plato principal)"
@@ -430,9 +438,9 @@ const PlatoPreparacion = ({
           </div>
         )}
 
-        {complementosSeleccionados && complementosSeleccionados.length > 0 && !ocultarComplementos && !ocultarComplementosTabla && (
+        {compsTabla.length > 0 && !ocultarComplementos && (
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
-            {complementosSeleccionados.map((comp, i) => {
+            {compsTabla.map((comp, i) => {
               // v2.0: Mostrar siempre la cantidad del complemento
               const opcionTexto = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion;
               const cantidadComp = cantidadGuarnicionEfectiva(comp, { ...plato, cantidad });

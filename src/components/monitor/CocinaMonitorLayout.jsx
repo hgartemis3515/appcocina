@@ -34,6 +34,7 @@ import {
   lineaListaGuarniciones,
   tokenGuarnicion,
   cantidadGuarnicionEfectiva,
+  claveGrupoGuarnicionMonitor,
 } from '../../utils/guarnicionesKds';
 // §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
 // nombre comercial que incluye complementos).
@@ -57,6 +58,7 @@ import {
   partirBloquesHorizontales,
   slugsTipoDePlato,
 } from '../../utils/tipoPlatoReglasCocina';
+import { platoJuntaGuarnicionesEntreVariantes } from '../../utils/platoFlagsCocina';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -1026,9 +1028,10 @@ const CocinaMonitorLayout = ({
         : null;
       const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
       const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
-      const key = agrupacionOn
-        ? `${cid}::gg::${comandaId}:${platoIndex}`
-        : `${cid}::g::${comandaId}:${platoIndex}:${comp._id || nombreG}`;
+      const juntaMerge = platoJuntaGuarnicionesEntreVariantes(plato);
+      const key = claveGrupoGuarnicionMonitor({
+        plato, comanda, platoIndex, comp, cid, agrupacionOn,
+      });
       if (!gruposMap.has(key)) {
         gruposMap.set(key, {
           nombre: nombreG,
@@ -1049,6 +1052,7 @@ const CocinaMonitorLayout = ({
           comandaNumero,
           comandaId,
           platoIndex,
+          juntaMerge,
         });
       }
       const g = gruposMap.get(key);
@@ -1058,7 +1062,7 @@ const CocinaMonitorLayout = ({
       if (nombrePadre) g.padresSet.add(nombrePadre);
       if (modoCocineros && !g.cocinero && cocinero) g.cocinero = cocinero;
       if (!g.cocineroPrincipal && cocineroPrincipal) g.cocineroPrincipal = cocineroPrincipal;
-      if (!agrupacionOn) {
+      if (!agrupacionOn && !juntaMerge) {
         const tiempoInicio = tiempoInicioGuarnicion(comp);
         const lineaId = `${comandaId}:${platoIndex}:g:${comp._id || nombreG}`;
         const colorLinea = colorLineaDesdeId(lineaId);
@@ -1084,19 +1088,19 @@ const CocinaMonitorLayout = ({
     const grupos = Array.from(gruposMap.values()).map((g) => {
       const padres = Array.from(g.padresSet).filter(Boolean);
       const padreTxt = padres.join(' · ');
-      const { padresSet, mesaNum, comandaNumero, comandaId, platoIndex, comps, ...rest } = g;
+      const { padresSet, mesaNum, comandaNumero, comandaId, platoIndex, comps, juntaMerge, ...rest } = g;
       const firstItem = rest.platos?.[0];
       const platoRaw = firstItem?.plato;
       const idxLinea = firstItem?.platoIndex ?? platoIndex;
       const nLinea = obtenerCantidadLinea(firstItem?.comanda, platoRaw, idxLinea);
       const platoRef = platoRaw ? { ...platoRaw, cantidad: nLinea } : platoRaw;
-      const nombre = agrupacionOn
+      const nombre = (agrupacionOn && !juntaMerge)
         ? (tituloGrupoGuarniciones(comps, platoRef, firstItem?.comanda, idxLinea) || rest.nombre)
         : rest.nombre;
-      const tiempoInicio = agrupacionOn ? tiempoInicioGrupo(comps) : rest.tiempoInicio;
+      const tiempoInicio = (agrupacionOn || juntaMerge) ? tiempoInicioGrupo(comps) : rest.tiempoInicio;
       let timers = rest.timers;
-      if (agrupacionOn) {
-        const lineaId = `${comandaId}:${platoIndex}:gg`;
+      if (agrupacionOn || juntaMerge) {
+        const lineaId = juntaMerge ? `${rest.key}:gm` : `${comandaId}:${platoIndex}:gg`;
         timers = tiempoInicio
           ? [{
               tiempoInicio,
@@ -1124,8 +1128,11 @@ const CocinaMonitorLayout = ({
         comandaId,
         platoIndex,
         subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
-        lineaLista: lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea),
+        lineaLista: juntaMerge
+          ? [rest.nombre, formatearReferenciaPadre(padreTxt, modoRefPadre)].filter(Boolean).join(' ')
+          : lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea),
         nombrePadre: padreTxt,
+        juntaMerge: !!juntaMerge,
         cocineroPrincipal: rest.cocineroPrincipal || null,
         pronombrePrincipal: pronombreReferenciaPrincipal(rest.cocineroPrincipal, {
           mapaCocineros: mapaPronombresCocinero,
@@ -1314,6 +1321,15 @@ const CocinaMonitorLayout = ({
   const autoAcomodamientoOn = configVisual.autoAcomodamiento === true;
   const aprovecharEspacioOn = configVisual.aprovecharEspacio === true;
   const zoomLista = autoAgrandamientoOn ? autoScale : undefined;
+  const estiloScrollPanel = {
+    flex: 1,
+    minHeight: 0,
+    minWidth: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
+    overscrollBehavior: 'contain',
+  };
 
   return (
     <div
@@ -1323,6 +1339,7 @@ const CocinaMonitorLayout = ({
         fontFamily: fuenteFamilia,
         minHeight: '100vh',
         height: '100vh',
+        maxHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -1723,16 +1740,16 @@ const CocinaMonitorLayout = ({
       {/* Lista de platos */}
       <div style={{
         flex: 1,
-        overflowY: 'auto',
+        minHeight: 0,
+        minWidth: 0,
+        overflowY: splitActivo ? 'hidden' : 'auto',
         overflowX: 'hidden',
-        // PLAN GUARNICIONES_SEPARADAS v1.1.1 §10: split 50/50 cuando "Lista
-        // complementos" está activo. Izquierda = platos principales, derecha =
-        // panel de guarniciones.
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
         ...(splitActivo ? {
           display: 'flex',
           flexDirection: splitVertical ? 'row' : 'column',
           flexWrap: 'nowrap',
-          overflow: 'hidden',
         } : {}),
       }}>
         {/* Panel izquierdo: platos principales (50% cuando split activo) */}
@@ -1740,7 +1757,7 @@ const CocinaMonitorLayout = ({
           ? {
               flex: '1 1 50%',
               minWidth: splitVertical ? 0 : undefined,
-              minHeight: splitVertical ? undefined : 0,
+              minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
@@ -1750,14 +1767,22 @@ const CocinaMonitorLayout = ({
             }
           : hayParticionTipo
             ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
-            : { flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+            : estiloScrollPanel}>
         {mostrarTitulosSplit && (
           <div style={estiloTituloSplit}>
             {configVisual.tituloListaPlatos || 'PLATOS'}
           </div>
         )}
         <div style={(splitActivo || hayParticionTipo)
-          ? { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }
+          ? {
+              flex: 1,
+              minHeight: 0,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: hayParticionTipo ? 'hidden' : 'auto',
+              WebkitOverflowScrolling: hayParticionTipo ? undefined : 'touch',
+            }
           : undefined}>
         {totalPendientes === 0 ? (
           <MonitorEmptyState
@@ -1767,7 +1792,7 @@ const CocinaMonitorLayout = ({
           />
         ) : hayParticionTipo ? (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', ...bordeMitadParticion }}>
+            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', ...bordeMitadParticion }}>
               {mostrarTituloParticion && (
                 <div style={estiloBarraParticion(colorTituloNormalPart)}>
                   {textoParticionNormal}
@@ -1793,7 +1818,7 @@ const CocinaMonitorLayout = ({
                 cocineroActivoId={cocineroActivoId}
               />
             </div>
-            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', background: fondoMitadTipo }}>
+            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', background: fondoMitadTipo }}>
               {mostrarTituloParticion && (
                 <div style={estiloBarraParticion(colorTituloTipo)}>
                   {textoParticionTipo}
@@ -1859,7 +1884,7 @@ const CocinaMonitorLayout = ({
           <div style={{
             flex: '1 1 50%',
             minWidth: splitVertical ? 0 : undefined,
-            minHeight: splitVertical ? undefined : 0,
+            minHeight: 0,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -1870,7 +1895,15 @@ const CocinaMonitorLayout = ({
                 {configVisual.tituloListaGuarniciones || 'Lista de Guarniciones'}
               </div>
             )}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{
+              flex: 1,
+              minHeight: 0,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: hayParticionGuarnicion ? 'hidden' : 'auto',
+              WebkitOverflowScrolling: hayParticionGuarnicion ? undefined : 'touch',
+            }}>
             {guarnicionesConReglasTipo.length === 0 ? (
               <div style={{
                 margin: 'auto', textAlign: 'center', color: colorTextoSecundario,
@@ -1880,7 +1913,7 @@ const CocinaMonitorLayout = ({
               </div>
             ) : hayParticionGuarnicion ? (
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', ...bordeMitadParticion }}>
+                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', ...bordeMitadParticion }}>
                   {mostrarTituloParticion && (
                     <div style={estiloBarraParticion(colorTituloNormalPart)}>
                       {textoParticionGuarNormal}
@@ -1900,7 +1933,7 @@ const CocinaMonitorLayout = ({
                     tick={tick}
                   />
                 </div>
-                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', background: fondoMitadTipo }}>
+                <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', background: fondoMitadTipo }}>
                   {mostrarTituloParticion && (
                     <div style={estiloBarraParticion(colorTituloTipo)}>
                       {textoParticionGuarTipo}

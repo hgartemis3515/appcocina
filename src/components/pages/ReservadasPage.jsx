@@ -37,6 +37,26 @@ const countdown = (fechaCocina) => {
   return `${h}h ${m}m`;
 };
 
+function clasificarPagoReserva(r) {
+  const pa = r?.pagoAdelantado;
+  if (!pa || pa.activo === false) return 'sin';
+  const pagado = Number(pa.montoPagado) || 0;
+  const total = Number(pa.totalPlatos) || 0;
+  const pend = Number(pa.montoPendiente);
+  if (pagado <= 0) return 'sin';
+  const cubreTotal = total > 0 && pagado + 0.009 >= total;
+  const sinPendiente = Number.isFinite(pend) && pend <= 0.009;
+  if (cubreTotal || (sinPendiente && pagado > 0)) return 'pagada';
+  return 'parcial';
+}
+
+function sufijoPagoReserva(r) {
+  const t = clasificarPagoReserva(r);
+  if (t === 'pagada') return 'Pagada';
+  if (t === 'parcial') return 'Parcial';
+  return '';
+}
+
 export default function ReservadasPage({ onGoToMenu }) {
   const { user, getToken } = useAuth();
   const [soloMias, setSoloMias] = useState(false);
@@ -127,8 +147,11 @@ export default function ReservadasPage({ onGoToMenu }) {
                           <span className="text-indigo-300 text-sm font-mono font-bold">
                             Mesa {r.mesa?.nummesa ?? '?'}
                           </span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-500/30 text-indigo-300 border border-indigo-500/40">
-                            RESERVA
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 inline-flex flex-col items-center leading-tight">
+                            <span>Reserva</span>
+                            {sufijoPagoReserva(r) ? (
+                              <span className="text-[9px] font-bold">{sufijoPagoReserva(r)}</span>
+                            ) : null}
                           </span>
                         </div>
                         {(r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber) ? (

@@ -60,6 +60,10 @@ import {
   playKdsNotificationSound,
   playKdsEventSound,
 } from '../../utils/kdsNotificationSounds';
+import {
+  HEADER_TARJETA_ESTILOS,
+  resolverHeaderTarjetaEstilo,
+} from '../../utils/estiloHeaderTarjetaKds';
 
 /**
  * Pestaña unificada Vista + Alertas de las tablas KDS,
@@ -412,6 +416,54 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
 
         <section className={`rounded-xl border ${borderModal} ${cardBg} p-4 flex flex-col gap-4`}>
           <h3 className={`text-lg font-bold ${textModal}`}>Tarjeta</h3>
+          <fieldset className="space-y-2">
+            <legend className={`${textModal} font-semibold`}>Estilos de tarjeta de comanda</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Cómo se ordenan en la barra superior: orden, número de comanda, mesa, reloj, mozo y Prep.
+              Compacto y dos filas quitan el hueco del diseño de dos columnas.
+            </p>
+            {HEADER_TARJETA_ESTILOS.map((estilo) => {
+              const activo = resolverHeaderTarjetaEstilo(config) === estilo.id;
+              return (
+                <label key={estilo.id} className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="headerTarjetaEstiloKds"
+                    checked={activo}
+                    onChange={() => updateConfig({ headerTarjetaEstilo: estilo.id })}
+                    className="w-4 h-4 mt-1 accent-blue-500"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className={`${textModal} font-semibold block`}>{estilo.label}</span>
+                    <span className={`${textSecondary} text-xs block mb-1.5`}>{estilo.desc}</span>
+                    <span
+                      className={`block rounded border px-1.5 py-1 font-mono leading-tight ${
+                        nightMode ? 'bg-gray-900/80 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                      }`}
+                      aria-hidden
+                    >
+                      {estilo.id === 'compacto' && (
+                        <span className="text-[10px] tracking-tight">3 · #12 · M5 · ⏱00:12 · 👤Ana · Prep 2/3</span>
+                      )}
+                      {estilo.id === 'dosFilas' && (
+                        <span className="text-[10px] block">
+                          <span className="block">3 · #12 · M5 · ⏱00:12</span>
+                          <span className="block">👤 Ana · Prep 2/3</span>
+                        </span>
+                      )}
+                      {estilo.id === 'clasico' && (
+                        <span className="text-[10px] block">
+                          <span className="flex justify-between gap-2"><span>Orden #12</span><span>M5</span></span>
+                          <span className="flex justify-between gap-2"><span>3</span><span>⏱00:12</span></span>
+                          <span className="flex justify-between gap-2"><span>👤 Ana</span><span>Prep 2/3</span></span>
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
           <fieldset className="space-y-2">
             <legend className={`${textModal} font-semibold`}>Nombre en las tarjetas</legend>
             <p className={`${textSecondary} text-xs`}>
@@ -928,6 +980,9 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                     spellCheck={false}
                   />
                 </div>
+                <p className={`${textSecondary} text-[10px] mt-1`}>
+                  Respaldo si el mozo no tiene color de perfil. En Configuración del sistema se puede forzar un color único para todos.
+                </p>
               </label>
             </div>
             <span style={estiloMozoNombreKds(config)}>👤 Juan Pérez</span>

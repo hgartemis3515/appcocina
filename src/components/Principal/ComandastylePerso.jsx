@@ -12,7 +12,6 @@ import {
   FaSync, 
   FaTimes,
   FaCheckCircle,
-  FaClock,
   FaChevronRight,
   FaUndo,
   FaPause,
@@ -46,7 +45,10 @@ import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { useConfig } from "../../contexts/ConfigContext";
-import { estiloMozoNombreKds } from "../../utils/estiloMozoNombreKds";
+import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda } from "../../utils/estiloMozoNombreKds";
+import { comandaKdsEstiloCompacto } from "../../utils/kdsComandaEstilo";
+import HeaderTarjetaComandaKds from "../common/HeaderTarjetaComandaKds";
+import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
 import { colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { 
   aplicarFiltrosAComandas, 
@@ -57,7 +59,7 @@ import {
   clasesHeaderReservaKds
 } from "../../utils/kdsFilters";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId } from "../../utils/platoHelpers";
-import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds } from "../../utils/guarnicionesKds";
+import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
@@ -3826,7 +3828,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       {/* Grid principal estilo SICAR - Configurable, mejor espaciado */}
       {/* Padding inferior para la barra sticky */}
       <div
-        className="flex-1 overflow-hidden p-3 flex flex-col pb-24"
+        className="flex-1 min-h-0 overflow-hidden p-3 flex flex-col pb-24"
         style={{ backgroundColor: fondoConjunto }}
       >
         {todasComandas.length === 0 ? (
@@ -3849,7 +3851,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           <>
             {/* Grid configurable: cuadrados altos 300x500px - CSS Grid pixel-perfect */}
             <motion.div 
-              className="flex-1 overflow-y-auto p-4"
+              className="flex-1 min-h-0 overflow-y-auto p-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
@@ -4940,7 +4942,17 @@ const SicarComandaCard = ({
   juntarGuarnicionesVisualKds = true,
 }) => {
   const { config: kdsMozoConfig } = useConfig();
-  const estiloMozo = estiloMozoNombreKds(kdsMozoConfig);
+  const cocinaCfg = useConfiguracionCocina();
+  const estiloMozo = estiloMozoNombreKds(kdsMozoConfig, {
+    fondoOverride: resolverFondoNombreMozo({
+      colorPerfil: colorPerfilDeComanda(comanda),
+      configCocina: cocinaCfg,
+      configVista: kdsMozoConfig,
+    }),
+  });
+  const compactoKds = comandaKdsEstiloCompacto(comanda);
+  const estiloHeader = resolverEstiloHeaderTarjetaComanda(kdsMozoConfig, { forzarCompacto: compactoKds });
+  const padHeader = paddingHeaderTarjetaKds(estiloHeader);
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
   const platosEliminadosHistorial = React.useMemo(() => {
@@ -5272,7 +5284,7 @@ const SicarComandaCard = ({
       }}
     >
       {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) - Zona Click 1 */}
-      <div className={`relative p-3 ${bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`} onClick={onToggleSelect}>
+      <div className={`relative ${padHeader} ${bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`} onClick={onToggleSelect}>
         {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
         {/* Solo mostrar cuando está en estado 'finalizar' (contorno verde) */}
         <AnimatePresence>
@@ -5302,39 +5314,24 @@ const SicarComandaCard = ({
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="flex items-start justify-between mb-2">
-          {/* Izquierda: Orden # y número de tarjeta */}
-          <div>
-            <div className="text-white font-bold text-xl mb-1" style={{ 
-              fontFamily: 'Arial, sans-serif'
-            }}>
-              Orden #{comanda.comandaNumber || "N/A"}
-            </div>
-            <div className="text-white font-semibold text-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {cardNumber}
-            </div>
-          </div>
-
-          {/* Derecha: Mesa # y Cronómetro */}
-          <div className="flex flex-col items-end">
-            <div className="text-white font-semibold text-lg mb-1" style={{ fontFamily: 'Arial, sans-serif' }}>
-              {obtenerNombreMesa ? obtenerNombreMesa(comanda.mesas) : (comanda.mesas?.nombreCombinado || `M${comanda.mesas?.nummesa || 'N/A'}`)}
-            </div>
-            <div className="flex items-center gap-1">
-              <FaClock className="text-white text-sm" />
-              <div className={`text-white font-bold text-base ${minutosActuales >= alertRedMinutes ? 'text-red-200' : minutosActuales >= alertYellowMinutes ? 'text-yellow-200' : 'text-white'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
-                {tiempoFormateado}
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Mozo y badges inline en header - Compacto */}
-        <div className="flex items-center justify-between text-white text-xs flex-wrap gap-1">
-          <span className="font-semibold" style={estiloMozo}>
-            👤 {comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
-          </span>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Badge: creada desde dashboard/backend */}
+        <HeaderTarjetaComandaKds
+          estilo={estiloHeader}
+          cardNumber={cardNumber}
+          comanda={comanda}
+          nombreMesa={obtenerNombreMesa ? obtenerNombreMesa(comanda.mesas) : (comanda.mesas?.nombreCombinado || `M${comanda.mesas?.nummesa || 'N/A'}`)}
+          tiempoFormateado={tiempoFormateado}
+          minutosActuales={minutosActuales}
+          alertYellowMinutes={alertYellowMinutes}
+          alertRedMinutes={alertRedMinutes}
+          estiloMozo={estiloMozo}
+          nombreMozo={comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
+          prepText={platosPreparacion.length > 0
+            ? `Prep ${platosPreparacion.length}/${totalPlatos}${platosEliminadosFinal.length > 0 ? ` (${platosEliminadosFinal.length} elim)` : ''}`
+            : ''}
+          prepTitle={platosEliminadosFinal.length > 0
+            ? `Prep ${platosPreparacion.length}/${totalPlatos} (${platosEliminadosFinal.length} elim)`
+            : `Prep ${platosPreparacion.length}/${totalPlatos}`}
+        >
             {comanda.origenCreacion === 'dashboard' && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -5347,35 +5344,20 @@ const SicarComandaCard = ({
                 Backend{comanda.areaNombre || comanda.mesas?.area?.nombre ? ` · ${comanda.areaNombre || comanda.mesas?.area?.nombre}` : ''}
               </motion.span>
             )}
-            {/* v7.4: Badge del cocinero que está procesando la comanda */}
             {comanda.procesandoPor?.cocineroId && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 className={`px-1.5 py-0.5 rounded text-xs font-bold ${
                   comanda.procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
-                    ? 'bg-yellow-500 text-black' // Mi comanda - amarillo
-                    : 'bg-gray-600 text-white' // Comanda de otro
+                    ? 'bg-yellow-500 text-black'
+                    : 'bg-gray-600 text-white'
                 }`}
                 style={{ fontFamily: 'Arial, sans-serif' }}
               >
                 👨‍🍳 {comanda.procesandoPor.alias || comanda.procesandoPor.nombre || 'Cocinero'}
               </motion.span>
             )}
-            {/* Badge Espera X/Total (Y elim) */}
-            {platosPreparacion.length > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="px-1.5 py-0.5 bg-gray-600/70 rounded text-xs font-semibold"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-                title={platosEliminadosFinal.length > 0 ? `Prep ${platosPreparacion.length}/${totalPlatos} (${platosEliminadosFinal.length} elim)` : `Prep ${platosPreparacion.length}/${totalPlatos}`}
-              >
-                Prep {platosPreparacion.length}/{totalPlatos}
-                {platosEliminadosFinal.length > 0 && ` (${platosEliminadosFinal.length} elim)`}
-              </motion.span>
-            )}
-            {/* Badge Listos Y */}
             {platosListos.length > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -5386,7 +5368,6 @@ const SicarComandaCard = ({
                 Listos {platosListos.length}
               </motion.span>
             )}
-            {/* Badge urgente si >20min */}
             {minutosActuales >= alertRedMinutes && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -5398,7 +5379,6 @@ const SicarComandaCard = ({
                 ¡Urgente!
               </motion.span>
             )}
-            {/* PARRAFO 5 - ICONO 🚀 rojo v5.5: Si comanda tiene prioridadOrden > 0 */}
             {comanda.prioridadOrden > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -5410,8 +5390,7 @@ const SicarComandaCard = ({
                 🚀
               </motion.span>
             )}
-          </div>
-        </div>
+        </HeaderTarjetaComandaKds>
       </div>
 
       {/* Badges movidos al header - ya no hay sección "EN ESPERA" separada */}
@@ -5528,6 +5507,7 @@ const SicarComandaCard = ({
                           tipoServicio={plato.tipoServicio || 'mesa'}
                           tipoUnidad="guarnicion"
                           ocultarComplementos
+                          forzarVisibleTablaKds={unidadGuarnicionVisibleEnTablaKds(unidad, plato, true)}
                           compId={unidad.compId}
                           estadoAlerta={alerta}
                           etiquetaPrioridad={etiquetaPrioridad}

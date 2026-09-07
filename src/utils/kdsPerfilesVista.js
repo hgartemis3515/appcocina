@@ -42,6 +42,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'mozoNombreTamano',
   'mozoNombreColor',
   'mozoNombreFondo',
+  'headerTarjetaEstilo',
   'fondoConjuntoTarjetas',
   'fondoConjuntoTarjetasClaro',
   'alertYellowMinutes',

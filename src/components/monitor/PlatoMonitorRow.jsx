@@ -255,7 +255,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
 
   // Animaciones (Personalizar → Animaciones de tarjetas; default ON)
   const animOn = configVisual.animacionesTarjetas !== false;
-  const mostrarCronometro = item.soloContadorEnCocina !== true;
+  const mostrarCronometro = item.soloContadorEnCocina !== true
+    && item.ocultarCronometroCocina !== true;
 
   if (!animOn) {
     return (

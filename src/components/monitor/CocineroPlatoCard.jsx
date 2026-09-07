@@ -255,12 +255,14 @@ const CocineroPlatoCard = React.forwardRef(({
     && hayNotaCuadro;
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
-    const textoNombres = nombresListaGuarniciones(
-      item.comps,
-      platoConCantidadDeLinea(platos[0]),
-      platos[0]?.comanda,
-      platos[0]?.platoIndex,
-    ) || `- ${nombre}`;
+    const textoNombres = item.juntaMerge
+      ? `- ${nombre}`
+      : (nombresListaGuarniciones(
+        item.comps,
+        platoConCantidadDeLinea(platos[0]),
+        platos[0]?.comanda,
+        platos[0]?.platoIndex,
+      ) || `- ${nombre}`);
     return (
       <GuarnicionListaLinea
         texto={textoNombres}
@@ -276,7 +278,9 @@ const CocineroPlatoCard = React.forwardRef(({
         tamanioPadre={tamanioFuentePadre}
         espaciado={espaciado}
         cronometroIso={timers[0]?.tiempoInicio || item.tiempoInicio || null}
-        ocultarCronometro={configVisual.ocultarCronometroGuarniciones === true}
+        ocultarCronometro={configVisual.ocultarCronometroGuarniciones === true
+          || item.soloContadorEnCocina === true
+          || item.ocultarCronometroCocina === true}
         colorCronometro={colorTextoPrincipal}
         tamanioCronometro={tamanioFuenteCronometro}
         conCuadro={forzarCuadroPorNota}
@@ -647,7 +651,8 @@ const CocineroPlatoCard = React.forwardRef(({
   );
 
   const ocultarCronometroG = (esGuarnicion && configVisual.ocultarCronometroGuarniciones === true)
-    || item.soloContadorEnCocina === true;
+    || item.soloContadorEnCocina === true
+    || item.ocultarCronometroCocina === true;
   const ladoDerecho = ocultarCronometroG ? null : (
     <div
       style={{

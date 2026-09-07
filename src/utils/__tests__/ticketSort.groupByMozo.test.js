@@ -73,5 +73,7 @@ describe('ticketParaDetalleGrupo', () => {
     expect(g.subtotal).toBe(100);
     expect(g.montoDescuento).toBe(5);
     expect(g.total).toBe(95);
+    expect(g._esGrupoComandas).toBe(true);
+    expect(g._grupoTickets.map((t) => t._id)).toEqual(['1', '2']);
   });
 });

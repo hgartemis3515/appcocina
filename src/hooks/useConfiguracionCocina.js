@@ -21,6 +21,8 @@ const DEFAULT = {
     deshabilitarAgrupacionGuarniciones: false,
     primerToqueFinalizarAsignado: true,
     entregarPlatoEnteroAbsoluto: true,
+    forzarColorMozoUnico: false,
+    colorMozoForzado: '#1e3a8a',
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -55,6 +57,11 @@ export async function fetchConfiguracionCocina(getToken) {
                 deshabilitarAgrupacionGuarniciones: cfg.deshabilitarAgrupacionGuarniciones === true,
                 primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado !== false,
                 entregarPlatoEnteroAbsoluto: cfg.entregarPlatoEnteroAbsoluto !== false,
+                forzarColorMozoUnico: cfg.forzarColorMozoUnico === true,
+                colorMozoForzado: (typeof cfg.colorMozoForzado === 'string'
+                    && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cfg.colorMozoForzado))
+                    ? cfg.colorMozoForzado
+                    : '#1e3a8a',
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,

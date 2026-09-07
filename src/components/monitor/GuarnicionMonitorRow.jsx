@@ -271,7 +271,8 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
 
   const animOn = configVisual.animacionesTarjetas !== false;
   const mostrarCronometro = configVisual.ocultarCronometroGuarniciones !== true
-    && item.soloContadorEnCocina !== true;
+    && item.soloContadorEnCocina !== true
+    && item.ocultarCronometroCocina !== true;
 
   if (!animOn) {
     return (

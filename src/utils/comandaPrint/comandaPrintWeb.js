@@ -15,6 +15,7 @@ import {
   formatComandasNumbersLabel,
   EPSON_TM_M30II_RECEIPT,
 } from './comandaHtml.js';
+import { getComandaIdsFromTicket } from '../ticketComandaDisplay';
 
 /**
  * Default JSON fetch helper (no auth). Used when opts.fetchJson is not provided.
@@ -81,7 +82,7 @@ async function obtenerConfigMonedaViva(fetchJson) {
   }
 }
 
-function mergeDatosImprimibles(lista) {
+export function mergeDatosImprimibles(lista) {
   const items = (lista || []).filter(Boolean);
   if (!items.length) return null;
   if (items.length === 1) return items[0];
@@ -132,12 +133,45 @@ async function fetchYFusionarComandas(ids, fetchJson) {
   const unique = [];
   for (const d of resultados) {
     if (!d) continue;
-    const key = d.ticketId ? String(d.ticketId) : `local-${unique.length}`;
+    const key = d.ticketId
+      ? `t:${d.ticketId}`
+      : (d.comandaNumero != null ? `c:${d.comandaNumero}` : `local-${unique.length}`);
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(d);
   }
   return mergeDatosImprimibles(unique);
+}
+
+async function fetchYFusionarTicketsAprobacion(tickets, fetchJson) {
+  const resultados = await Promise.all((tickets || []).map(async (t) => {
+    const id = t?._id || t?.ticketId;
+    if (!id) return mapearTicketADatos(t);
+    try {
+      const res = await fetchJson(`/api/aprobacion/${id}/ticket-imprimible`);
+      if (res?.success && res.datos) return res.datos;
+    } catch {
+      /* snapshot local */
+    }
+    return mapearTicketADatos(t);
+  }));
+  return mergeDatosImprimibles(resultados.filter(Boolean));
+}
+
+function idsComandaDeGrupo(ticket, ticketsGrupo = []) {
+  const ids = [];
+  const seen = new Set();
+  const pushAll = (src) => {
+    for (const id of getComandaIdsFromTicket(src)) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+  };
+  pushAll(ticket);
+  for (const t of ticketsGrupo) pushAll(t);
+  return ids;
 }
 
 /**
@@ -393,12 +427,36 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
   const datosFromTicket = mapearTicketADatos(ticket);
   const ticketId = ticket._id || ticket.ticketId || null;
   const tieneSnapshot = Array.isArray(ticket.platos) && ticket.platos.length > 0;
+  const ticketsGrupo = Array.isArray(ticket._grupoTickets)
+    ? ticket._grupoTickets.filter(Boolean)
+    : [];
+  const idsGrupo = idsComandaDeGrupo(ticket, ticketsGrupo);
 
   const printOpts = {
     ...opts,
     ticketEstado: ticket.estado,
     comandasNumbersOverride: ticket.comandasNumbers || opts.comandasNumbersOverride || null,
   };
+
+  // Grupo de comandas: misma lógica que comandas.html (fusionar todas, no solo la primera).
+  if (ticketsGrupo.length > 1) {
+    const fetchJson = opts.fetchJson || defaultFetchJson;
+    const datos = await fetchYFusionarTicketsAprobacion(ticketsGrupo, fetchJson);
+    return imprimirComandaWeb({
+      ...printOpts,
+      comandaId: null,
+      comandaIds: idsGrupo.length > 1 ? idsGrupo : null,
+      datos,
+    });
+  }
+  if (idsGrupo.length > 1) {
+    return imprimirComandaWeb({
+      ...printOpts,
+      comandaId: null,
+      datos: null,
+      comandaIds: idsGrupo,
+    });
+  }
 
   // Pagos parciales: varios TicketAprobacion comparten la misma comanda.
   // Imprimir siempre el snapshot de ESTE ticket, no GET /comanda/:id/ticket-imprimible
@@ -425,11 +483,8 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
   }
 
   // Legacy: impresión desde comanda sin ticket de aprobación
-  const comandaId = ticket.comandasIds?.[0]
+  const comandaId = idsGrupo[0]
     || ticket.comandaId
-    || (Array.isArray(ticket.comandas) && ticket.comandas.length > 0
-      ? (typeof ticket.comandas[0] === 'string' ? ticket.comandas[0] : ticket.comandas[0]?._id)
-      : null)
     || (ticket.comanda?._id)
     || null;
 

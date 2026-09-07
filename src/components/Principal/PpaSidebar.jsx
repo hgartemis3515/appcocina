@@ -12,6 +12,7 @@ import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda 
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
+import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import { ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago } from '../../utils/ticketAprobacionUi';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
 
@@ -250,9 +251,7 @@ export default function PpaSidebar({ socket, onClose }) {
                   )}
                   <div className="flex items-center gap-2">
                     <FaUser className="text-gray-400 text-xs" />
-                    <span className="text-gray-400 text-xs">
-                      {ticket.nombreMozo || ticket.mozoNombre || 'Mozo'}
-                    </span>
+                    <BadgeNombreMozo ticket={ticket} />
                   </div>
                 </div>
 

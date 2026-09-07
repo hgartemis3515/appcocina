@@ -115,6 +115,106 @@ export const estadoTicketMeta = (estado) => {
   return { label: estado || '—', short: estado || '—', bg: 'bg-gray-500/30 text-gray-300' };
 };
 
+/** Comanda cerrada en comandas.html (chip Pagado / Entregado / Completado). */
+const ESTADOS_COMANDA_CERRADA = new Set(['entregado', 'pagado', 'completado']);
+/** Plato ya entregado en app mozos (no basta salió ni pago adelantado). */
+const ESTADOS_PLATO_ENTREGADO_MOZOS = new Set(['entregado', 'pagado']);
+
+const META_ENTREGA_SI = {
+  label: 'ENTREGADO',
+  entregado: true,
+  bg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+};
+const META_ENTREGA_NO = {
+  label: 'Pendiente',
+  entregado: false,
+  bg: 'bg-amber-500/20 text-amber-200 border border-amber-500/40',
+};
+
+function statusComandaDeTicket(c) {
+  if (!c || typeof c !== 'object') return '';
+  return String(c.status || c.estado || '').toLowerCase();
+}
+
+function platoLineaActivaEntrega(p) {
+  if (!p || p.eliminado || p.anulado) return false;
+  const e = String(p.estado || '').toLowerCase();
+  if (e === 'cancelado' || e === 'anulado') return false;
+  return true;
+}
+
+/** Estados vivos de plato en comandas populadas (no el snapshot del ticket). */
+function estadosPlatosVivosComanda(ticket) {
+  const cmds = Array.isArray(ticket?.comandas) ? ticket.comandas : [];
+  const estados = [];
+  for (const c of cmds) {
+    if (!c || typeof c !== 'object') continue;
+    const platos = Array.isArray(c.platos) ? c.platos : [];
+    for (const p of platos) {
+      if (!platoLineaActivaEntrega(p)) continue;
+      estados.push(String(p.estado || '').toLowerCase());
+    }
+  }
+  return estados;
+}
+
+function todosPlatosEntregadosEnMozos(estados) {
+  if (!estados.length) return false;
+  return estados.every((s) => ESTADOS_PLATO_ENTREGADO_MOZOS.has(s));
+}
+
+function comandasCerradasComoHtml(ticket) {
+  const cmds = Array.isArray(ticket?.comandas) ? ticket.comandas : [];
+  const statuses = cmds.map(statusComandaDeTicket).filter(Boolean);
+  if (!statuses.length) return false;
+  return statuses.every((s) => ESTADOS_COMANDA_CERRADA.has(s));
+}
+
+function mesaEstaLibre(ticket) {
+  const mesa = ticket?.mesa;
+  if (!mesa || typeof mesa !== 'object') return null;
+  const e = String(mesa.estado || '').toLowerCase();
+  if (!e) return null;
+  return e === 'libre';
+}
+
+export const esPagoAdelantado = (ticket) => {
+  if (ticket?.esPagoAdelantado === true) return true;
+  const t = String(ticket?.tipo || '').toLowerCase();
+  return t === 'pago_adelantado' || t === 'adelantado';
+};
+
+/**
+ * Estado de entrega de la comanda (comandas.html), no el de aprobación del ticket.
+ * Pago adelantado: ENTREGADO solo si en mozos los platos ya están entregado/pagado.
+ * Comanda normal: ENTREGADO si en comandas.html está pagado/entregado/completado,
+ * o si los platos ya se entregaron en mozos y la mesa quedó libre.
+ */
+export function estadoEntregaComandaTicket(ticket) {
+  const vivos = estadosPlatosVivosComanda(ticket);
+  const entregadosMozos = todosPlatosEntregadosEnMozos(vivos);
+
+  if (esPagoAdelantado(ticket)) {
+    return entregadosMozos ? META_ENTREGA_SI : META_ENTREGA_NO;
+  }
+
+  const cerradas = comandasCerradasComoHtml(ticket);
+  const mesaLibre = mesaEstaLibre(ticket);
+
+  if (cerradas) return META_ENTREGA_SI;
+  if (entregadosMozos && mesaLibre === true) return META_ENTREGA_SI;
+
+  return META_ENTREGA_NO;
+}
+
+export function estadoEntregaTickets(tickets) {
+  const list = Array.isArray(tickets) ? tickets : [];
+  if (!list.length) return META_ENTREGA_NO;
+  const metas = list.map(estadoEntregaComandaTicket);
+  if (metas.every((m) => m.entregado)) return META_ENTREGA_SI;
+  return META_ENTREGA_NO;
+}
+
 export const nombreClienteTicket = (ticket) =>
   ticket?.cliente?.nombre || ticket?.nombreCliente || ticket?.clienteNombre || '';
 
@@ -125,11 +225,6 @@ export const esTicketComanda = (ticket) =>
   ticket?.tipo === 'comanda_completa' || String(ticket?.tipo || '').toUpperCase() === 'COMANDA';
 
 export const esPagoParcial = (ticket) => ticket?.tipo === 'pago_parcial';
-
-export const esPagoAdelantado = (ticket) => {
-  const t = String(ticket?.tipo || '').toLowerCase();
-  return t === 'pago_adelantado' || t === 'adelantado';
-};
 
 export function ticketEsAltaSinPago(ticket) {
   if (!ticket) return false;

@@ -62,6 +62,24 @@ describe('obtenerNombreDisplayCocina', () => {
     expect(obtenerNombreDisplayCocina(plato)).toBe('CAFÉ');
   });
 
+  test('variación de nombre usa el snapshot completo (KDS y Ver Cocina)', () => {
+    const plato = {
+      nombreCocinaPedido: 'Pollo leña Pierna',
+      variantePlato: { opcion: 'Pierna', pronombre: 'Pierna', anexaNombre: true },
+      plato: { nombre: 'Pollo leña', nombreCocina: 'P.LEÑA' },
+    };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Pollo leña Pierna');
+    expect(obtenerNombreDisplayCocina(plato, { habilitadoEnKds: true })).toBe('Pollo leña Pierna');
+  });
+
+  test('variación de nombre sin snapshot concatena alias + opción', () => {
+    const plato = {
+      variantePlato: { opcion: 'Pierna', pronombre: 'Pierna', anexaNombre: true },
+      plato: { nombre: 'Pollo leña', nombreCocina: 'P.LEÑA' },
+    };
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('P.LEÑA Pierna');
+  });
+
   test('alias vacío cae al nombre comercial', () => {
     const plato = { plato: { nombre: 'Ceviche Clásico', nombreCocina: '' } };
     expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Ceviche Clásico');

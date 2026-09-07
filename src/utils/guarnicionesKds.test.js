@@ -11,7 +11,11 @@ const {
   expandirUnidadesTrabajo,
   claveAgrupacionUnidad,
   estadoAlertaGuarnicion,
-  prioridadUnidad
+  prioridadUnidad,
+  claveGrupoGuarnicionMonitor,
+  complementoForzarVisibleTablaKds,
+  complementosVisiblesEnTablaKds,
+  unidadGuarnicionVisibleEnTablaKds,
 } = require('./guarnicionesKds');
 
 describe('normalizarGuarnicionKey', () => {
@@ -60,6 +64,59 @@ describe('esGuarnicionSeparable', () => {
     };
     expect(platoUneComplementos(plato)).toBe(true);
     expect(esGuarnicionSeparable(plato, true)).toBe(false);
+  });
+  test('variación de nombre no es guarnición separable', () => {
+    const plato = {
+      nombre: 'Pollo leña',
+      nombreCocinaPedido: 'Pollo leña Pierna',
+      variantePlato: { grupo: 'Corte', opcion: 'Pierna', pronombre: 'Pierna', anexaNombre: true },
+      complementosSeleccionados: [{ grupo: 'Corte', opcion: 'Pierna', cantidad: 1 }],
+      plato: {
+        nombre: 'Pollo leña',
+        complementos: [{ grupo: 'Corte', anexarVarianteAlNombre: true, opciones: [{ nombre: 'Pierna' }] }],
+      },
+    };
+    expect(esGuarnicionSeparable(plato, true)).toBe(false);
+    expect(nombrePlatoPadre(plato)).toBe('Pollo leña Pierna');
+  });
+});
+
+describe('forzarVisibleTablaKds', () => {
+  const plato = {
+    complementosSeleccionados: [
+      { grupo: 'Acomp', opcion: 'Papas', cantidad: 1 },
+      { grupo: 'Salsa', opcion: 'Huancaína', cantidad: 1, forzarVisibleTablaKds: true },
+    ],
+    plato: {
+      complementos: [
+        { grupo: 'Acomp', opciones: [{ nombre: 'Papas' }] },
+        { grupo: 'Salsa', forzarVisibleTablaKds: true, opciones: [{ nombre: 'Huancaína' }] },
+      ],
+    },
+  };
+
+  test('snapshot o catálogo marcan la guarnición forzada', () => {
+    expect(complementoForzarVisibleTablaKds({ grupo: 'Salsa', opcion: 'Huancaína' }, plato)).toBe(true);
+    expect(complementoForzarVisibleTablaKds({ grupo: 'Acomp', opcion: 'Papas' }, plato)).toBe(false);
+  });
+
+  test('con ocultar tabla solo deja las forzadas', () => {
+    const visibles = complementosVisiblesEnTablaKds(plato.complementosSeleccionados, plato, true);
+    expect(visibles.map((c) => c.opcion)).toEqual(['Huancaína']);
+    expect(complementosVisiblesEnTablaKds(plato.complementosSeleccionados, plato, false)).toHaveLength(2);
+  });
+
+  test('fila de guarnición sigue visible si está forzada', () => {
+    expect(unidadGuarnicionVisibleEnTablaKds(
+      { tipo: 'guarnicion', comp: { grupo: 'Salsa', opcion: 'Huancaína' } },
+      plato,
+      true
+    )).toBe(true);
+    expect(unidadGuarnicionVisibleEnTablaKds(
+      { tipo: 'guarnicion', comp: { grupo: 'Acomp', opcion: 'Papas' } },
+      plato,
+      true
+    )).toBe(false);
   });
 });
 
@@ -1024,5 +1081,56 @@ describe('unidadesParaVistaKds (solo visual)', () => {
     expect(vista.some((u) => u.tipo === 'guarnicion' && u.compId === 'c1')).toBe(true);
     expect(vista.some((u) => u.tipo === 'guarnicion' && u.compId === 'c2')).toBe(false);
     expect(unidadGuarnicionAsignadaA(raw[1], 'cook-b')).toBe(true);
+  });
+});
+
+describe('claveGrupoGuarnicionMonitor', () => {
+  const papaya = { _id: 'c1', grupo: 'Bebida', opcion: 'Jugo de papaya' };
+  const arroz = { _id: 'c2', grupo: 'Acomp', opcion: 'Arroz' };
+  const comanda = { _id: 'cmd1' };
+  const cat = { _id: 'dch', juntarGuarnicionesEntreVariantes: true };
+  const cafe = {
+    platoId: 12,
+    nombreCocinaPedido: 'CAFÉ',
+    juntarGuarnicionesEntreVariantes: true,
+    plato: cat,
+  };
+  const te = {
+    platoId: 12,
+    nombreCocinaPedido: 'TÉ',
+    juntarGuarnicionesEntreVariantes: true,
+    plato: cat,
+  };
+
+  test('6 papaya de café y 4 de té usan la misma clave', () => {
+    const kCafe = claveGrupoGuarnicionMonitor({
+      plato: cafe, comanda, platoIndex: 0, comp: papaya, cid: 'cook1', agrupacionOn: false,
+    });
+    const kTe = claveGrupoGuarnicionMonitor({
+      plato: te, comanda, platoIndex: 1, comp: papaya, cid: 'cook1', agrupacionOn: false,
+    });
+    expect(kCafe).toBe(kTe);
+    expect(kCafe).toContain('gmerge');
+  });
+
+  test('papaya y arroz no se mezclan', () => {
+    const kPapaya = claveGrupoGuarnicionMonitor({
+      plato: cafe, comanda, platoIndex: 0, comp: papaya, cid: 'cook1',
+    });
+    const kArroz = claveGrupoGuarnicionMonitor({
+      plato: cafe, comanda, platoIndex: 0, comp: arroz, cid: 'cook1',
+    });
+    expect(kPapaya).not.toBe(kArroz);
+  });
+
+  test('sin flag sigue separando por línea (6+4)', () => {
+    const plato = { platoId: 12, plato: { _id: 'dch' } };
+    const k0 = claveGrupoGuarnicionMonitor({
+      plato, comanda, platoIndex: 0, comp: papaya, cid: 'cook1', agrupacionOn: false,
+    });
+    const k1 = claveGrupoGuarnicionMonitor({
+      plato, comanda, platoIndex: 1, comp: papaya, cid: 'cook1', agrupacionOn: false,
+    });
+    expect(k0).not.toBe(k1);
   });
 });

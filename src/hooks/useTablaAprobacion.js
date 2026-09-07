@@ -17,6 +17,7 @@
  *   ticket-reportado         → actualizar lista
  *   ticket-ppa-nuevo         → refrescar PPA
  *   ticket-ppa-actualizado   → actualizar PPA
+ *   ticket-eliminado         → quitar de lista (duplicado o anulado)
  *
  * PLAN_BUG_CONEXION_APROBACION_TICKETS_COCINA:
  * El hook ahora admite un `socket` externo (ej. el de useSocketCocina cuando el KDS
@@ -55,6 +56,12 @@ const normalizeTicket = (ticket) => {
     next = { ...ticket, tipo: 'pago_adelantado' };
   }
   return aplicarTotalNetoTicket(next);
+};
+
+const tipoApiDeTicket = (ticket) => {
+  const t = String(ticket?.tipo || '').toUpperCase();
+  if (t === 'ADELANTADO' || t === 'PAGO_ADELANTADO') return 'ADELANTADO';
+  return 'COMANDA';
 };
 
 /**
@@ -313,6 +320,13 @@ export default function useTablaAprobacion({
       fetchItemsDebounced();
     };
 
+    const handleTicketEliminado = (data) => {
+      if (data?.ticketId) {
+        setItems((prev) => prev.filter((t) => String(t._id) !== String(data.ticketId)));
+      }
+      fetchItemsDebounced();
+    };
+
     if (externalSocket) {
       // Reutilizar socket externo (ej. del KDS). No lo creamos ni lo destruimos.
       activeSocket = externalSocket;
@@ -339,6 +353,7 @@ export default function useTablaAprobacion({
       activeSocket.on('ticket-ppa-aprobado', handlePpaAprobado);
       activeSocket.on('ticket-ppa-rechazado', handlePpaRechazado);
       activeSocket.on('ticket-actualizado', handleTicketActualizado);
+      activeSocket.on('ticket-eliminado', handleTicketEliminado);
     } else {
       // Sin socket externo: crear uno propio (caso TicketsPpaPage standalone)
       const getStoredToken = () => {
@@ -384,6 +399,7 @@ export default function useTablaAprobacion({
       newSocket.on('ticket-ppa-aprobado', handlePpaAprobado);
       newSocket.on('ticket-ppa-rechazado', handlePpaRechazado);
       newSocket.on('ticket-actualizado', handleTicketActualizado);
+      newSocket.on('ticket-eliminado', handleTicketEliminado);
     }
 
     socketRef.current = activeSocket;
@@ -403,6 +419,7 @@ export default function useTablaAprobacion({
       s.off('ticket-ppa-aprobado', handlePpaAprobado);
       s.off('ticket-ppa-rechazado', handlePpaRechazado);
       s.off('ticket-actualizado', handleTicketActualizado);
+      s.off('ticket-eliminado', handleTicketEliminado);
 
       if (ownsSocketRef.current) {
         console.log('[TablaAprobacion] Desconectando socket propio');
@@ -485,6 +502,30 @@ export default function useTablaAprobacion({
       throw new Error(data?.error || 'Error al rechazar');
     } catch (err) {
       console.error('Error al rechazar item:', err.message);
+      throw err;
+    }
+  }, []);
+
+  const quitarDuplicadoItem = useCallback(async (ticket, motivo, usuarioId, usuarioNombre) => {
+    const ticketId = ticket?._id || ticket;
+    if (!motivo || String(motivo).trim().length < 3) {
+      throw new Error('El motivo es obligatorio y debe tener al menos 3 caracteres.');
+    }
+    try {
+      const data = await apiPut(`/api/aprobacion/${ticketId}/eliminar`, {
+        tipo: tipoApiDeTicket(ticket),
+        motivo: String(motivo).trim(),
+        usuarioId,
+        usuarioNombre,
+        duplicado: true,
+      });
+      if (data?.success) {
+        setItems((prev) => prev.filter((t) => String(t._id) !== String(ticketId)));
+        return data;
+      }
+      throw new Error(data?.error || data?.message || 'Error al quitar duplicado');
+    } catch (err) {
+      console.error('Error al quitar duplicado:', err.message);
       throw err;
     }
   }, []);
@@ -578,6 +619,7 @@ export default function useTablaAprobacion({
     aprobarItem,
     reportarItem,
     rechazarItem,
+    quitarDuplicadoItem,
     forzarPagoItem,
     imprimirComanda,
     cantidadPendientes,
