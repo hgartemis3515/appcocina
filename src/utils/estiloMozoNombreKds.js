@@ -21,6 +21,18 @@ function clampInt(n, min, max, fallback) {
   return Math.min(max, Math.max(min, Math.round(v)));
 }
 
+function campoColorDeMozo(mozos, campo) {
+  const deMozo = (x) => (x && typeof x === 'object' && x[campo]) ? x[campo] : null;
+  if (Array.isArray(mozos)) {
+    for (const item of mozos) {
+      const c = deMozo(item);
+      if (c) return c;
+    }
+    return null;
+  }
+  return deMozo(mozos);
+}
+
 /** Color de perfil del mozo poblado en un ticket. */
 export function colorPerfilDeTicket(ticket) {
   const m = ticket?.mozo;
@@ -28,20 +40,19 @@ export function colorPerfilDeTicket(ticket) {
   return ticket?.colorPerfilMozo || null;
 }
 
+export function colorLetraDeTicket(ticket) {
+  const m = ticket?.mozo;
+  if (m && typeof m === 'object' && m.colorLetraPerfil) return m.colorLetraPerfil;
+  return ticket?.colorLetraPerfilMozo || null;
+}
+
 /** Color de perfil del mozo poblado en una comanda KDS. */
 export function colorPerfilDeComanda(comanda) {
-  const m = comanda?.mozos;
-  const deMozo = (x) => (x && typeof x === 'object' && x.colorPerfil) ? x.colorPerfil : null;
-  if (Array.isArray(m)) {
-    for (const item of m) {
-      const c = deMozo(item);
-      if (c) return c;
-    }
-  } else {
-    const c = deMozo(m);
-    if (c) return c;
-  }
-  return comanda?.colorPerfilMozo || null;
+  return campoColorDeMozo(comanda?.mozos, 'colorPerfil') || comanda?.colorPerfilMozo || null;
+}
+
+export function colorLetraDeComanda(comanda) {
+  return campoColorDeMozo(comanda?.mozos, 'colorLetraPerfil') || comanda?.colorLetraPerfilMozo || null;
 }
 
 /**
@@ -78,9 +89,11 @@ export function estiloMozoNombreKds(config = {}, opts = {}) {
     MOZO_NOMBRE_TAMANO_MAX,
     MOZO_NOMBRE_DEFAULT.mozoNombreTamano
   );
-  const color = hexValidoOrdenCola(config.mozoNombreColor)
-    ? config.mozoNombreColor
-    : MOZO_NOMBRE_DEFAULT.mozoNombreColor;
+  const color = hexValidoOrdenCola(opts.colorOverride)
+    ? opts.colorOverride
+    : (hexValidoOrdenCola(config.mozoNombreColor)
+      ? config.mozoNombreColor
+      : MOZO_NOMBRE_DEFAULT.mozoNombreColor);
   const fondo = hexValidoOrdenCola(opts.fondoOverride)
     ? opts.fondoOverride
     : (hexValidoOrdenCola(config.mozoNombreFondo) ? config.mozoNombreFondo : null);

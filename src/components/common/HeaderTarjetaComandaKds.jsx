@@ -43,6 +43,7 @@ export default function HeaderTarjetaComandaKds({
   alertRedMinutes,
   estiloMozo,
   nombreMozo,
+  colorLetraMozo,
   prepText,
   prepTitle,
   children,
@@ -51,10 +52,11 @@ export default function HeaderTarjetaComandaKds({
   const tam = tamanoLetraHeaderTarjetaKds(config);
   const estiloDato = estiloDatoHeaderTarjetaKds(config);
   const fondoMozo = hexValidoOrdenCola(estiloMozo?.backgroundColor) ? estiloMozo.backgroundColor : null;
-  const estiloMozoChip = estiloDatoHeaderTarjetaKds(
-    config,
-    fondoMozo ? { fondoOverride: fondoMozo } : { omitirFondo: true }
-  );
+  const colorLetra = hexValidoOrdenCola(colorLetraMozo) ? colorLetraMozo : null;
+  const estiloMozoChip = estiloDatoHeaderTarjetaKds(config, {
+    ...(fondoMozo ? { fondoOverride: fondoMozo } : { omitirFondo: true }),
+    ...(colorLetra ? { colorOverride: colorLetra } : {}),
+  });
   const estiloReloj = estiloDatoHeaderTarjetaKds(config, {
     colorOverride: colorRelojHeaderTarjeta(
       minutosActuales,

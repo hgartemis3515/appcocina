@@ -1,7 +1,7 @@
 import { getComandasNumbersFromTicket, getComandaIdsFromTicket } from './ticketComandaDisplay';
 import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
 import { totalesVistaTicket } from './ticketTotales';
-import { colorPerfilDeTicket } from './estiloMozoNombreKds';
+import { colorPerfilDeTicket, colorLetraDeTicket } from './estiloMozoNombreKds';
 
 export const TICKET_SORT_OPTIONS = [
   { key: 'fecha', label: 'Fecha', defaultDir: 'desc' },
@@ -25,7 +25,7 @@ export function getMozosFromTickets(tickets) {
     const nombre = getMozoNombre(ticket);
     const key = nombre.toLowerCase();
     if (!map.has(key)) {
-      map.set(key, { nombre, key, count: 0, colorPerfil: colorPerfilDeTicket(ticket) });
+      map.set(key, { nombre, key, count: 0, colorPerfil: colorPerfilDeTicket(ticket), colorLetra: colorLetraDeTicket(ticket) });
     }
     map.get(key).count += 1;
   }
@@ -43,7 +43,7 @@ export function groupTicketsByMozo(tickets) {
     const nombre = getMozoNombre(ticket);
     const key = nombre.toLowerCase();
     if (!map.has(key)) {
-      map.set(key, { key, nombre, colorPerfil: colorPerfilDeTicket(ticket), tickets: [] });
+      map.set(key, { key, nombre, colorPerfil: colorPerfilDeTicket(ticket), colorLetra: colorLetraDeTicket(ticket), tickets: [] });
     }
     map.get(key).tickets.push(ticket);
   }

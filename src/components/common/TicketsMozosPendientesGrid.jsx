@@ -178,7 +178,7 @@ function CuadroMozo({
       <header className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-gray-800/90 border-b border-amber-500/20">
         <FaUser className="text-amber-400 text-xs flex-shrink-0" />
         <h3 className="truncate min-w-0">
-          <BadgeNombreMozo nombre={grupo.nombre} colorPerfil={grupo.colorPerfil} />
+          <BadgeNombreMozo nombre={grupo.nombre} colorPerfil={grupo.colorPerfil} colorLetra={grupo.colorLetra} />
         </h3>
         <span className="text-[10px] text-gray-400 flex-shrink-0">
           {n} comanda{n !== 1 ? 's' : ''}
@@ -429,7 +429,7 @@ export default function TicketsMozosPendientesGrid({
                 ? 'bg-amber-500 text-black border-amber-400'
                 : 'bg-gray-800 text-gray-300 border-gray-700 hover:text-white'}`}
           >
-            <BadgeNombreMozo nombre={m.nombre} colorPerfil={m.colorPerfil} />
+            <BadgeNombreMozo nombre={m.nombre} colorPerfil={m.colorPerfil} colorLetra={m.colorLetra} />
             <span className="ml-1 opacity-70">{m.count}</span>
           </button>
         ))}

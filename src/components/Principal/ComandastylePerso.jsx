@@ -45,7 +45,7 @@ import { getApiUrl } from "../../config/apiConfig";
 import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { useConfig } from "../../contexts/ConfigContext";
-import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda } from "../../utils/estiloMozoNombreKds";
+import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, colorLetraDeComanda } from "../../utils/estiloMozoNombreKds";
 import { comandaKdsEstiloCompacto } from "../../utils/kdsComandaEstilo";
 import HeaderTarjetaComandaKds from "../common/HeaderTarjetaComandaKds";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
@@ -4945,12 +4945,14 @@ const SicarComandaCard = ({
 }) => {
   const { config: kdsMozoConfig } = useConfig();
   const cocinaCfg = useConfiguracionCocina();
+  const colorLetraMozo = colorLetraDeComanda(comanda);
   const estiloMozo = estiloMozoNombreKds(kdsMozoConfig, {
     fondoOverride: resolverFondoNombreMozo({
       colorPerfil: colorPerfilDeComanda(comanda),
       configCocina: cocinaCfg,
       configVista: kdsMozoConfig,
     }),
+    colorOverride: colorLetraMozo,
   });
   const compactoKds = comandaKdsEstiloCompacto(comanda);
   const estiloHeader = resolverEstiloHeaderTarjetaComanda(kdsMozoConfig, { forzarCompacto: compactoKds });
@@ -5327,6 +5329,7 @@ const SicarComandaCard = ({
           alertYellowMinutes={alertYellowMinutes}
           alertRedMinutes={alertRedMinutes}
           estiloMozo={estiloMozo}
+          colorLetraMozo={colorLetraMozo}
           nombreMozo={comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}
           prepText={platosPreparacion.length > 0
             ? `Prep ${platosPreparacion.length}/${totalPlatos}${platosEliminadosFinal.length > 0 ? ` (${platosEliminadosFinal.length} elim)` : ''}`

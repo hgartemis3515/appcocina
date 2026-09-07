@@ -2,6 +2,7 @@ const {
   estiloMozoNombreKds,
   resolverFondoNombreMozo,
   colorPerfilDeComanda,
+  colorLetraDeComanda,
   MOZO_NOMBRE_DEFAULT,
 } = require('./estiloMozoNombreKds');
 
@@ -29,6 +30,14 @@ describe('estiloMozoNombreKds', () => {
     expect(st.backgroundColor).toBeUndefined();
     expect(st.fontSize).toBe(`${MOZO_NOMBRE_DEFAULT.mozoNombreTamano}px`);
     expect(st.fontFamily).toMatch(/Arial/);
+  });
+
+  test('colorOverride gana al color de letra de vista', () => {
+    const st = estiloMozoNombreKds(
+      { mozoNombreColor: '#ffffff' },
+      { colorOverride: '#fde68a' }
+    );
+    expect(st.color).toBe('#fde68a');
   });
 
   test('fondoOverride gana al fondo de vista', () => {
@@ -103,5 +112,13 @@ describe('colorPerfilDeComanda', () => {
     expect(colorPerfilDeComanda({
       mozos: [{ name: 'Ana' }, { name: 'Luis', colorPerfil: '#be123c' }],
     })).toBe('#be123c');
+  });
+});
+
+describe('colorLetraDeComanda', () => {
+  test('lee colorLetraPerfil del mozo poblado', () => {
+    expect(colorLetraDeComanda({
+      mozos: { name: 'Ana', colorLetraPerfil: '#fde68a' },
+    })).toBe('#fde68a');
   });
 });
