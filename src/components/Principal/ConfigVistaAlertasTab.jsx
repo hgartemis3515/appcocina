@@ -62,7 +62,11 @@ import {
 } from '../../utils/kdsNotificationSounds';
 import {
   HEADER_TARJETA_ESTILOS,
+  HEADER_TARJETA_LETRAS_DEFAULT,
+  HEADER_TARJETA_TAMANO_MIN,
+  HEADER_TARJETA_TAMANO_MAX,
   resolverHeaderTarjetaEstilo,
+  estiloDatoHeaderTarjetaKds,
 } from '../../utils/estiloHeaderTarjetaKds';
 
 /**
@@ -443,19 +447,21 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                       aria-hidden
                     >
                       {estilo.id === 'compacto' && (
-                        <span className="text-[10px] tracking-tight">3 · #12 · M5 · ⏱00:12 · 👤Ana · Prep 2/3</span>
+                        <span className="text-[10px] tracking-tight">
+                          3 · #12 · M5 · ⏱00:12 · 👤Ana{config.headerTarjetaOcultarPrep === true ? '' : ' · Prep 2/3'}
+                        </span>
                       )}
                       {estilo.id === 'dosFilas' && (
                         <span className="text-[10px] block">
                           <span className="block">3 · #12 · M5 · ⏱00:12</span>
-                          <span className="block">👤 Ana · Prep 2/3</span>
+                          <span className="block">👤 Ana{config.headerTarjetaOcultarPrep === true ? '' : ' · Prep 2/3'}</span>
                         </span>
                       )}
                       {estilo.id === 'clasico' && (
                         <span className="text-[10px] block">
                           <span className="flex justify-between gap-2"><span>Orden #12</span><span>M5</span></span>
                           <span className="flex justify-between gap-2"><span>3</span><span>⏱00:12</span></span>
-                          <span className="flex justify-between gap-2"><span>👤 Ana</span><span>Prep 2/3</span></span>
+                          <span className="flex justify-between gap-2"><span>👤 Ana</span><span>{config.headerTarjetaOcultarPrep === true ? '' : 'Prep 2/3'}</span></span>
                         </span>
                       )}
                     </span>
@@ -463,6 +469,127 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 </label>
               );
             })}
+          </fieldset>
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Letras del encabezado</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Aplica a orden, número de comanda, mesa, reloj, mozo, N/S y Prep en los tres estilos de tarjeta. Se guarda con Guardar y en el perfil.
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.headerTarjetaOcultarPrep === true}
+                onChange={(e) => updateConfig({ headerTarjetaOcultarPrep: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Ocultar Prep</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>
+                  No muestra el recuento Prep (platos en preparación / total) en la barra de la tarjeta.
+                </span>
+              </span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra</span>
+                <select
+                  value={config.headerTarjetaFuente || HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFuente}
+                  onChange={(e) => updateConfig({ headerTarjetaFuente: e.target.value })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {ORDEN_COLA_FUENTES.map((f) => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Tamaño de letra</span>
+                <select
+                  value={config.headerTarjetaTamano || HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaTamano}
+                  onChange={(e) => updateConfig({ headerTarjetaTamano: parseInt(e.target.value, 10) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                >
+                  {Array.from(
+                    { length: HEADER_TARJETA_TAMANO_MAX - HEADER_TARJETA_TAMANO_MIN + 1 },
+                    (_, i) => HEADER_TARJETA_TAMANO_MIN + i
+                  ).map((size) => (
+                    <option key={size} value={size}>{size}px</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.headerTarjetaColor, HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaColor)}
+                    onChange={(e) => updateConfig({ headerTarjetaColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de letra del encabezado"
+                  />
+                  <input
+                    type="text"
+                    value={config.headerTarjetaColor || HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaColor}
+                    onChange={(e) => updateConfig({ headerTarjetaColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de contorno</span>
+                <p className={`${textSecondary} text-xs mb-1`}>Borde del recuadro de cada dato.</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.headerTarjetaContorno, HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaContorno)}
+                    onChange={(e) => updateConfig({ headerTarjetaContorno: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de contorno del encabezado"
+                  />
+                  <input
+                    type="text"
+                    value={config.headerTarjetaContorno || HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaContorno}
+                    onChange={(e) => updateConfig({ headerTarjetaContorno: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Fondo del cuadro</span>
+                <p className={`${textSecondary} text-xs mb-1`}>Color detrás de las letras de cada dato.</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.headerTarjetaFondo, HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFondo)}
+                    onChange={(e) => updateConfig({ headerTarjetaFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo del cuadro del encabezado"
+                  />
+                  <input
+                    type="text"
+                    value={config.headerTarjetaFondo || HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFondo}
+                    onChange={(e) => updateConfig({ headerTarjetaFondo: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <span style={estiloDatoHeaderTarjetaKds(config)}>3</span>
+              <span style={estiloDatoHeaderTarjetaKds(config)}>#12</span>
+              <span style={estiloDatoHeaderTarjetaKds(config)}>M5</span>
+              <span style={estiloDatoHeaderTarjetaKds(config)}>⏱ 00:12</span>
+              <span style={estiloDatoHeaderTarjetaKds(config)}>👤 Ana</span>
+              {config.headerTarjetaOcultarPrep !== true && (
+                <span style={estiloDatoHeaderTarjetaKds(config)}>Prep 2/3</span>
+              )}
+            </div>
           </fieldset>
           <fieldset className="space-y-2">
             <legend className={`${textModal} font-semibold`}>Nombre en las tarjetas</legend>

@@ -2,9 +2,16 @@ import React from 'react';
 import { textoNumeroSerieKds } from '../../utils/kdsComandaEstilo';
 
 /** N/S junto al cronómetro y el mozo en la tarjeta KDS. */
-export default function BadgeNumeroSerieKds({ comanda, compacto = false }) {
+export default function BadgeNumeroSerieKds({ comanda, compacto = false, style }) {
   const serie = textoNumeroSerieKds(comanda);
   if (!serie) return null;
+  if (style) {
+    return (
+      <span className="inline-flex items-center" style={style} title={`Número de serie ${serie}`}>
+        N/S {serie}
+      </span>
+    );
+  }
   return (
     <span
       className={`inline-flex items-center font-black tabular-nums leading-none tracking-normal text-white ${

@@ -5824,6 +5824,7 @@ const SicarComandaCard = ({
         </AnimatePresence>
         <HeaderTarjetaComandaKds
           estilo={estiloHeader}
+          config={kdsMozoConfig}
           cardNumber={cardNumber}
           comanda={comanda}
           nombreMesa={nombreMesaKds(comanda)}
