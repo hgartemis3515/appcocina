@@ -47,6 +47,21 @@ function AccionesCompactas(props) {
   return <AccionesTicket {...props} compact />;
 }
 
+function CheckSel({ checked, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+        checked ? 'bg-rose-600 border-rose-400 text-white text-[9px] font-bold' : 'border-gray-500 bg-gray-800'
+      }`}
+      title={checked ? 'Quitar de la selección' : 'Marcar para eliminar'}
+    >
+      {checked ? '✓' : ''}
+    </button>
+  );
+}
+
 function FilaTicket({
   ticket,
   mesa,
@@ -57,18 +72,27 @@ function FilaTicket({
   onReportar,
   onRechazar,
   onForzarPago,
-  onQuitarDuplicado,
   aprobarLoading,
   reportarLoading,
   rechazarLoading,
   forzarPagoLoading,
-  quitarDuplicadoLoading = {},
+  seleccionActiva = false,
+  seleccionado = false,
+  onToggleSeleccion,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const { neto } = totalesVistaTicket(ticket);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
   return (
-    <tr className={`border-t border-gray-800/80 hover:bg-gray-800/40 ${indent ? 'bg-gray-950/50' : ''}`}>
+    <tr
+      className={`border-t border-gray-800/80 hover:bg-gray-800/40 ${indent ? 'bg-gray-950/50' : ''} ${seleccionado ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+      onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
+    >
+      {seleccionActiva && (
+        <td className="px-1 py-0.5 w-6">
+          <CheckSel checked={seleccionado} onToggle={() => onToggleSeleccion?.(ticket)} />
+        </td>
+      )}
       <td className="px-2 py-0.5 text-gray-200 text-xs whitespace-nowrap">
         {indent ? '' : (mesa != null ? mesa : '—')}
       </td>
@@ -89,9 +113,9 @@ function FilaTicket({
       <td className="px-1 py-0.5 text-center">
         <BadgeEstadoComanda meta={estadoComanda} />
       </td>
-      <td className="px-1 py-0.5">
+      <td className="px-1 py-0.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-center gap-1">
-          <BotonVerDetalle onClick={() => onVerDetalle(ticket)} />
+          <BotonVerDetalle onClick={(e) => { e?.stopPropagation?.(); onVerDetalle(ticket); }} />
           <AccionesCompactas
             ticket={ticket}
             onImprimir={onImprimir}
@@ -99,12 +123,10 @@ function FilaTicket({
             onReportar={onReportar}
             onRechazar={onRechazar}
             onForzarPago={onForzarPago}
-            onQuitarDuplicado={onQuitarDuplicado}
             aprobarLoading={!!aprobarLoading[ticket._id]}
             reportarLoading={!!reportarLoading[ticket._id]}
             rechazarLoading={!!rechazarLoading[ticket._id]}
             forzarPagoLoading={!!forzarPagoLoading[ticket._id]}
-            quitarDuplicadoLoading={!!quitarDuplicadoLoading[ticket._id]}
           />
         </div>
       </td>
@@ -123,18 +145,20 @@ function CuadroMozo({
   onReportar,
   onRechazar,
   onForzarPago,
-  onQuitarDuplicado,
   aprobarLoading,
   reportarLoading,
   rechazarLoading,
   forzarPagoLoading,
-  quitarDuplicadoLoading = {},
   onVerDetalle,
+  seleccionActiva = false,
+  idsSeleccionados = [],
+  onToggleSeleccion,
 }) {
   const [abiertos, setAbiertos] = useState(() => new Set());
   const kpis = resumenKpisTickets(grupo.tickets);
   const n = grupo.tickets.length;
   const filas = groupTicketsComoComandasHtml(grupo.tickets);
+  const idSet = new Set((idsSeleccionados || []).map(String));
 
   const toggleGrupo = (id) => {
     setAbiertos((prev) => {
@@ -165,6 +189,7 @@ function CuadroMozo({
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-[1] bg-gray-900 border-b border-gray-700">
             <tr className="text-[9px] uppercase tracking-wider text-gray-400">
+              {seleccionActiva && <th className="w-6 px-1 py-1" />}
               <th className="text-left px-2 py-1 font-semibold">Mesa</th>
               <th className="text-left px-2 py-1 font-semibold">Comanda</th>
               <th className="text-center px-2 py-1 font-semibold">Estado</th>
@@ -181,10 +206,11 @@ function CuadroMozo({
               const estadoGrupo = estadoEntregaTickets(fila.tickets);
 
               if (!esGrupo) {
+                const ticket = fila.tickets[0];
                 return (
                   <FilaTicket
                     key={fila.id}
-                    ticket={fila.tickets[0]}
+                    ticket={ticket}
                     mesa={fila.mesa}
                     onVerDetalle={onVerDetalle}
                     onImprimir={onImprimir}
@@ -192,24 +218,34 @@ function CuadroMozo({
                     onReportar={onReportar}
                     onRechazar={onRechazar}
                     onForzarPago={onForzarPago}
-                    onQuitarDuplicado={onQuitarDuplicado}
                     aprobarLoading={aprobarLoading}
                     reportarLoading={reportarLoading}
                     rechazarLoading={rechazarLoading}
                     forzarPagoLoading={forzarPagoLoading}
-                    quitarDuplicadoLoading={quitarDuplicadoLoading}
+                    seleccionActiva={seleccionActiva}
+                    seleccionado={idSet.has(String(ticket?._id))}
+                    onToggleSeleccion={onToggleSeleccion}
                   />
                 );
               }
 
+              const grupoSel = fila.tickets.length > 0 && fila.tickets.every((t) => idSet.has(String(t._id)));
               return (
                 <React.Fragment key={fila.id}>
-                  <tr className="border-t border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08]">
+                  <tr
+                    className={`border-t border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] ${grupoSel ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+                    onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
+                  >
+                    {seleccionActiva && (
+                      <td className="px-1 py-0.5 w-6">
+                        <CheckSel checked={grupoSel} onToggle={() => onToggleSeleccion?.(fila.tickets)} />
+                      </td>
+                    )}
                     <td className="px-2 py-0.5 text-gray-200 text-xs whitespace-nowrap">{mesaLabel}</td>
                     <td className="px-2 py-0.5">
                       <button
                         type="button"
-                        onClick={() => toggleGrupo(fila.id)}
+                        onClick={(e) => { e.stopPropagation(); toggleGrupo(fila.id); }}
                         className="flex items-center gap-1 min-w-0 text-left"
                       >
                         <span className="text-amber-400 text-[10px] w-3 shrink-0">
@@ -263,12 +299,13 @@ function CuadroMozo({
                       onReportar={onReportar}
                       onRechazar={onRechazar}
                       onForzarPago={onForzarPago}
-                      onQuitarDuplicado={onQuitarDuplicado}
                       aprobarLoading={aprobarLoading}
                       reportarLoading={reportarLoading}
                       rechazarLoading={rechazarLoading}
                       forzarPagoLoading={forzarPagoLoading}
-                      quitarDuplicadoLoading={quitarDuplicadoLoading}
+                      seleccionActiva={seleccionActiva}
+                      seleccionado={idSet.has(String(ticket._id))}
+                      onToggleSeleccion={onToggleSeleccion}
                     />
                   ))}
                 </React.Fragment>
@@ -310,8 +347,9 @@ export default function TicketsMozosPendientesGrid({
   reportarLoading = {},
   rechazarLoading = {},
   forzarPagoLoading = {},
-  onQuitarDuplicado,
-  quitarDuplicadoLoading = {},
+  seleccionActiva = false,
+  idsSeleccionados = [],
+  onToggleSeleccion,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const grupos = groupTicketsByMozo(tickets);
@@ -359,12 +397,10 @@ export default function TicketsMozosPendientesGrid({
                   onReportar={onReportar}
                   onRechazar={onRechazar}
                   onForzarPago={(t) => { onForzarPago?.(t); setDetalleTicket(null); }}
-                  onQuitarDuplicado={onQuitarDuplicado}
                   aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                   reportarLoading={!!reportarLoading[detalleTicket._id]}
                   rechazarLoading={!!rechazarLoading[detalleTicket._id]}
                   forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
-                  quitarDuplicadoLoading={!!quitarDuplicadoLoading[detalleTicket._id]}
                 />
               </div>
             ) : null
@@ -410,13 +446,14 @@ export default function TicketsMozosPendientesGrid({
             onReportar={onReportar}
             onRechazar={onRechazar}
             onForzarPago={onForzarPago}
-            onQuitarDuplicado={onQuitarDuplicado}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
-            quitarDuplicadoLoading={quitarDuplicadoLoading}
             onVerDetalle={setDetalleTicket}
+            seleccionActiva={seleccionActiva}
+            idsSeleccionados={idsSeleccionados}
+            onToggleSeleccion={onToggleSeleccion}
           />
         ))}
       </div>

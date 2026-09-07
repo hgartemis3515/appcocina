@@ -107,9 +107,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [filtroMozo, setFiltroMozo] = useState(null);
   const [forzarPagoLoading, setForzarPagoLoading] = useState({});
   const [ticketForzarPago, setTicketForzarPago] = useState(null);
-  const [quitarDuplicadoLoading, setQuitarDuplicadoLoading] = useState({});
-  const [quitarDuplicadoMotivo, setQuitarDuplicadoMotivo] = useState({});
-  const [showQuitarDuplicadoModal, setShowQuitarDuplicadoModal] = useState(null);
+  const [modoEliminar, setModoEliminar] = useState(false);
+  const [idsEliminar, setIdsEliminar] = useState([]);
+  const [motivoEliminarLote, setMotivoEliminarLote] = useState('Ticket duplicado');
+  const [showEliminarLoteModal, setShowEliminarLoteModal] = useState(false);
+  const [eliminandoLote, setEliminandoLote] = useState(false);
   const filtroPeriodoRef = useRef(filtroPeriodo);
   const turnosMetaRef = useRef(turnosMeta);
   filtroPeriodoRef.current = filtroPeriodo;
@@ -222,26 +224,47 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
-  const abrirQuitarDuplicado = (ticket) => {
-    setShowQuitarDuplicadoModal(ticket._id);
-    setQuitarDuplicadoMotivo((prev) => ({ ...prev, [ticket._id]: prev[ticket._id] || 'Ticket duplicado' }));
+  const toggleSeleccionTickets = (ticketOrList) => {
+    const list = Array.isArray(ticketOrList) ? ticketOrList : [ticketOrList];
+    const ids = list.map((t) => String(t?._id || t || '')).filter(Boolean);
+    if (!ids.length) return;
+    setIdsEliminar((prev) => {
+      const set = new Set(prev.map(String));
+      const allOn = ids.every((id) => set.has(id));
+      if (allOn) ids.forEach((id) => set.delete(id));
+      else ids.forEach((id) => set.add(id));
+      return [...set];
+    });
   };
 
-  const handleQuitarDuplicado = async (ticketId) => {
-    const motivo = (quitarDuplicadoMotivo[ticketId] || '').trim();
+  const salirModoEliminar = () => {
+    setModoEliminar(false);
+    setIdsEliminar([]);
+    setShowEliminarLoteModal(false);
+  };
+
+  const handleEliminarSeleccionados = async () => {
+    const motivo = (motivoEliminarLote || '').trim();
     if (motivo.length < 3) {
       alert('El motivo es obligatorio y debe tener al menos 3 caracteres.');
       return;
     }
-    const ticket = items.find((t) => String(t._id) === String(ticketId)) || { _id: ticketId };
-    setQuitarDuplicadoLoading((prev) => ({ ...prev, [ticketId]: true }));
-    try {
-      await quitarDuplicadoItem(ticket, motivo, user?._id || user?.id, user?.name || 'Cocina');
-      setShowQuitarDuplicadoModal(null);
-    } catch (err) {
-      alert('Error al quitar duplicado: ' + (err.userMessage || err.message));
-    } finally {
-      setQuitarDuplicadoLoading((prev) => ({ ...prev, [ticketId]: false }));
+    if (!idsEliminar.length) return;
+    setEliminandoLote(true);
+    const errores = [];
+    for (const id of idsEliminar) {
+      const ticket = items.find((t) => String(t._id) === String(id)) || { _id: id };
+      try {
+        await quitarDuplicadoItem(ticket, motivo, user?._id || user?.id, user?.name || 'Cocina');
+      } catch (err) {
+        errores.push(`#${ticket.ticketNumber || id}: ${err.userMessage || err.message}`);
+      }
+    }
+    setEliminandoLote(false);
+    salirModoEliminar();
+    setMotivoEliminarLote('Ticket duplicado');
+    if (errores.length) {
+      alert('Algunos tickets no se pudieron quitar:\n' + errores.join('\n'));
     }
   };
 
@@ -274,9 +297,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     hasta: fechaHasta,
   })), [items, filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta]);
 
-  const cantidadPendientes = itemsEnPeriodo.filter((t) => t.estado === 'pendiente_aprobacion').length;
-  const cantidadParciales = itemsEnPeriodo.filter((t) => t.tipo === 'pago_parcial' && t.estado === 'pendiente_aprobacion').length;
-  const cantidadPPA = itemsEnPeriodo.filter((t) => t.tipo === 'pago_adelantado' && t.estado === 'pendiente_aprobacion').length;
+  const kpisPeriodo = useMemo(() => resumenKpisTickets(itemsEnPeriodo), [itemsEnPeriodo]);
 
   const itemsPorEstado = useMemo(() => {
     if (filtro === 'pendientes') return itemsEnPeriodo.filter(t => t.estado === 'pendiente_aprobacion');
@@ -352,7 +373,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               />
               <KpiChip
                 label="Ventas pagadas"
-                value={formatCurrency(kpisTabla.aprobados)}
+                value={formatCurrency(kpisPeriodo.aprobados)}
                 valueClass="text-[#2ecc71]"
               />
               {kpisTabla.descuento > 0 && (
@@ -366,21 +387,21 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
             <VistaModoToggle modo={modoVista} onChange={handleModoVista} />
-            {cantidadPendientes > 0 && (
-              <span className="bg-violet-500 text-white text-sm px-3 py-1 rounded-full font-bold animate-pulse">
-                {cantidadPendientes} pendiente{cantidadPendientes > 1 ? 's' : ''}
-              </span>
-            )}
-            {cantidadParciales > 0 && (
-              <span className="bg-amber-500/80 text-white text-xs px-2 py-1 rounded-full">
-                {cantidadParciales} parcial{cantidadParciales > 1 ? 'es' : ''} por aprobar
-              </span>
-            )}
-            {cantidadPPA > 0 && (
-              <span className="bg-violet-500/80 text-white text-xs px-2 py-1 rounded-full">
-                {cantidadPPA} adelantado{cantidadPPA > 1 ? 's' : ''} por aprobar
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (modoEliminar) salirModoEliminar();
+                else setModoEliminar(true);
+              }}
+              className={`p-2 rounded-lg border transition-colors ${
+                modoEliminar
+                  ? 'bg-rose-700 border-rose-400 text-white'
+                  : 'border-gray-700 text-gray-400 hover:text-white hover:border-rose-500/50'
+              }`}
+              title="Eliminar tickets de la tabla (marcar comandas)"
+            >
+              <FaTrash className="text-sm" />
+            </button>
             <SocketConnectionBadge connectionStatus={connectionStatus} authError={authError} />
             <BotonCandadoCocina compact />
             <button
@@ -393,6 +414,34 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           </div>
         </div>
       </header>
+
+      {modoEliminar && (
+        <div className="flex-shrink-0 z-40 bg-rose-950/90 border-b border-rose-700/50">
+          <div className="max-w-7xl w-full mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
+            <p className="text-rose-100 text-sm">
+              Marca las comandas a quitar de la tabla
+              {idsEliminar.length > 0 ? ` · ${idsEliminar.length} seleccionada${idsEliminar.length !== 1 ? 's' : ''}` : ''}
+            </p>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={salirModoEliminar}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-700 text-gray-200 hover:bg-gray-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!idsEliminar.length}
+                onClick={() => setShowEliminarLoteModal(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Eliminar{idsEliminar.length ? ` (${idsEliminar.length})` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filtros de estado (siempre visibles) + fechas abajo (siempre visibles) */}
       <div className="flex-shrink-0 z-40 bg-gray-900/95 border-b border-gray-800">
@@ -543,12 +592,13 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
             onForzarPago={(ticket) => setTicketForzarPago(ticket)}
-            onQuitarDuplicado={abrirQuitarDuplicado}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
-            quitarDuplicadoLoading={quitarDuplicadoLoading}
+            seleccionActiva={modoEliminar}
+            idsSeleccionados={idsEliminar}
+            onToggleSeleccion={toggleSeleccionTickets}
           />
         ) : modoVista === 'mozos' ? (
           <TicketsMozosPendientesGrid
@@ -573,12 +623,13 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
             onForzarPago={(ticket) => setTicketForzarPago(ticket)}
-            onQuitarDuplicado={abrirQuitarDuplicado}
+            seleccionActiva={modoEliminar}
+            idsSeleccionados={idsEliminar}
+            onToggleSeleccion={toggleSeleccionTickets}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
-            quitarDuplicadoLoading={quitarDuplicadoLoading}
           />
         ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
@@ -612,13 +663,17 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const platosVis = platosTicketVisibles(ticket);
                 const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
+                const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
                 return (
                   <motion.div
                     key={ticket._id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg"
+                    onClick={() => { if (modoEliminar) toggleSeleccionTickets(ticket); }}
+                    className={`bg-gray-800 rounded-xl border overflow-hidden shadow-lg ${
+                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-gray-700'
+                    } ${modoEliminar ? 'cursor-pointer' : ''}`}
                   >
                     {/* Header del card */}
                     <div className={`p-3 ${
@@ -628,7 +683,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       'bg-violet-600/20 border-b border-violet-500/30'
                     }`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-yellow-300 text-sm font-mono font-bold">
+                        <span className="text-yellow-300 text-sm font-mono font-bold flex items-center gap-2">
+                          {modoEliminar && (
+                            <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${
+                              selEliminar ? 'bg-rose-600 border-rose-400 text-white' : 'border-gray-500 bg-gray-900'
+                            }`}>{selEliminar ? '✓' : ''}</span>
+                          )}
                           Comanda: {comandaLabel}
                           {ticket.ticketNumber != null && (
                             <span className="text-amber-200/90 font-normal ml-1">
@@ -753,7 +813,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
                     {/* Acciones según estado del ticket */}
                     {ticket.estado === 'pendiente_aprobacion' && (
-                      <div className="p-3 flex gap-2 flex-wrap">
+                      <div className="p-3 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleImprimir(ticket)}
                           className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
@@ -815,43 +875,19 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             Rechazar
                           </button>
                         ) : null}
-                        {ticket.isActive !== false && (
-                          <button
-                            type="button"
-                            onClick={() => abrirQuitarDuplicado(ticket)}
-                            disabled={quitarDuplicadoLoading[ticket._id]}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-rose-800 hover:bg-rose-700
-                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                              transition-colors font-medium text-sm"
-                          >
-                            <FaTrash className="text-xs" />
-                            Quitar duplicado
-                          </button>
-                        )}
                       </div>
                     )}
 
-                    {/* Aprobados: imprimir + quitar duplicado */}
-                    {ticket.estado === 'aprobado' && ticket.isActive !== false && (
-                      <div className="p-2 flex gap-2">
+                    {/* Aprobados: imprimir */}
+                    {ticket.estado === 'aprobado' && (
+                      <div className="p-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleImprimir(ticket)}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
+                          className="w-full flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
                             text-white py-2 rounded-lg transition-colors text-sm font-medium"
                         >
                           <FaPrint className="text-xs" />
                           Imprimir
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => abrirQuitarDuplicado(ticket)}
-                          disabled={quitarDuplicadoLoading[ticket._id]}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-rose-800 hover:bg-rose-700
-                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                            transition-colors text-sm font-medium"
-                        >
-                          <FaTrash className="text-xs" />
-                          Quitar duplicado
                         </button>
                       </div>
                     )}
@@ -1017,15 +1053,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         )}
       </AnimatePresence>
 
-      {/* Modal quitar duplicado */}
+      {/* Modal eliminar tickets seleccionados */}
       <AnimatePresence>
-        {showQuitarDuplicadoModal && (
+        {showEliminarLoteModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowQuitarDuplicadoModal(null)}
+            onClick={() => !eliminandoLote && setShowEliminarLoteModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9 }}
@@ -1036,32 +1072,34 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             >
               <div className="flex items-center gap-2 mb-3">
                 <FaTrash className="text-rose-400 text-lg" />
-                <h4 className="text-white font-bold text-lg">Quitar ticket duplicado</h4>
+                <h4 className="text-white font-bold text-lg">Quitar de la tabla</h4>
               </div>
               <p className="text-gray-400 text-sm mb-3">
-                Sale de la tabla y de los totales. No cambia platos ni el boucher.
+                {idsEliminar.length} ticket{idsEliminar.length !== 1 ? 's' : ''} saldrán de la tabla y de los totales.
+                No cambia platos ni el boucher. Queda registrado en auditoría.
               </p>
               <textarea
-                value={quitarDuplicadoMotivo[showQuitarDuplicadoModal] || ''}
-                onChange={e => setQuitarDuplicadoMotivo(prev => ({ ...prev, [showQuitarDuplicadoModal]: e.target.value }))}
+                value={motivoEliminarLote}
+                onChange={e => setMotivoEliminarLote(e.target.value)}
                 placeholder="Motivo (mínimo 3 caracteres)..."
                 className="w-full bg-gray-700 text-white rounded-lg p-3 text-sm h-24 resize-none border border-gray-600
                   focus:border-rose-500 focus:outline-none"
               />
               <div className="flex gap-3 mt-4">
                 <button
-                  onClick={() => setShowQuitarDuplicadoModal(null)}
+                  onClick={() => setShowEliminarLoteModal(false)}
+                  disabled={eliminandoLote}
                   className="flex-1 py-2.5 bg-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-600 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
-                  onClick={() => handleQuitarDuplicado(showQuitarDuplicadoModal)}
-                  disabled={(quitarDuplicadoMotivo[showQuitarDuplicadoModal] || '').trim().length < 3 || quitarDuplicadoLoading[showQuitarDuplicadoModal]}
+                  onClick={handleEliminarSeleccionados}
+                  disabled={(motivoEliminarLote || '').trim().length < 3 || eliminandoLote}
                   className="flex-1 py-2.5 bg-rose-700 text-white rounded-lg text-sm hover:bg-rose-600 transition-colors font-medium
                     disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
-                  {quitarDuplicadoLoading[showQuitarDuplicadoModal] ? 'Quitando...' : 'Quitar duplicado'}
+                  {eliminandoLote ? 'Quitando...' : 'Eliminar'}
                 </button>
               </div>
             </motion.div>

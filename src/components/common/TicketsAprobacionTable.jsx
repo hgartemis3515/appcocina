@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill, FaTrash,
+  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo } from '../../utils/ticketSort';
@@ -23,8 +23,8 @@ function SortIcon({ active, dir }) {
 }
 
 export function AccionesTicket({
-  ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago, onQuitarDuplicado,
-  aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading, quitarDuplicadoLoading,
+  ticket, onImprimir, onAprobar, onReportar, onRechazar, onForzarPago,
+  aprobarLoading, reportarLoading, rechazarLoading, forzarPagoLoading,
   compact = false,
 }) {
   const isComanda = esTicketComanda(ticket);
@@ -33,7 +33,6 @@ export function AccionesTicket({
   const puedeAprobar = ticketPuedeAprobarse(ticket);
   const puedeForzar = ticketPuedeForzarPago(ticket) && !ticket.boucher;
   const puedeReportar = esComandaOParcial && pendiente && !ticketEsAltaSinPago(ticket);
-  const puedeQuitarDuplicado = ticket.isActive !== false && typeof onQuitarDuplicado === 'function';
   const btnPad = compact
     ? 'p-1.5 w-8 h-8'
     : 'p-2.5 w-10 h-10';
@@ -49,17 +48,6 @@ export function AccionesTicket({
       >
         <FaPrint className={iconCls} />
       </button>
-      {puedeQuitarDuplicado && (
-        <button
-          type="button"
-          onClick={() => onQuitarDuplicado(ticket)}
-          disabled={quitarDuplicadoLoading}
-          className={`${btnPad} inline-flex items-center justify-center rounded-md bg-rose-800 hover:bg-rose-700 disabled:bg-gray-600 text-white`}
-          title="Quitar duplicado (sale de la tabla, no cambia platos)"
-        >
-          <FaTrash className={iconCls} />
-        </button>
-      )}
       {pendiente && (
         <>
           {puedeAprobar && (
@@ -111,6 +99,21 @@ export function AccionesTicket({
   );
 }
 
+function CheckSel({ checked, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
+        checked ? 'bg-rose-600 border-rose-400 text-white text-[10px] font-bold' : 'border-gray-500 bg-gray-800'
+      }`}
+      title={checked ? 'Quitar de la selección' : 'Marcar para eliminar'}
+    >
+      {checked ? '✓' : ''}
+    </button>
+  );
+}
+
 function FilaTicketAvanzado({
   ticket,
   indent = false,
@@ -120,12 +123,13 @@ function FilaTicketAvanzado({
   onReportar,
   onRechazar,
   onForzarPago,
-  onQuitarDuplicado,
   aprobarLoading,
   reportarLoading,
   rechazarLoading,
   forzarPagoLoading,
-  quitarDuplicadoLoading = {},
+  seleccionActiva = false,
+  seleccionado = false,
+  onToggleSeleccion,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -136,7 +140,15 @@ function FilaTicketAvanzado({
   const nPlatos = platosVis.length;
   const { neto, montoDesc } = totalesVistaTicket(ticket);
   return (
-    <tr className={`border-t border-gray-800 hover:bg-gray-800/60 align-top ${indent ? 'bg-gray-950/40' : ''}`}>
+    <tr
+      className={`border-t border-gray-800 hover:bg-gray-800/60 align-top ${indent ? 'bg-gray-950/40' : ''} ${seleccionado ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+      onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
+    >
+      {seleccionActiva && (
+        <td className="px-2 py-2 w-8">
+          <CheckSel checked={seleccionado} onToggle={() => onToggleSeleccion?.(ticket)} />
+        </td>
+      )}
       <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
         {indent ? '' : formatDateTime(ticket.createdAt)}
       </td>
@@ -153,7 +165,7 @@ function FilaTicketAvanzado({
           </div>
           <button
             type="button"
-            onClick={() => onDetalle(ticket)}
+            onClick={(e) => { e.stopPropagation(); onDetalle(ticket); }}
             className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
             title="Detalle de la comanda"
           >
@@ -212,7 +224,7 @@ function FilaTicketAvanzado({
           <div className="text-[9px] text-yellow-500/80 mt-0.5">Por aprobar</div>
         )}
       </td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
         <AccionesTicket
           ticket={ticket}
           onImprimir={onImprimir}
@@ -220,12 +232,10 @@ function FilaTicketAvanzado({
           onReportar={onReportar}
           onRechazar={onRechazar}
           onForzarPago={onForzarPago}
-          onQuitarDuplicado={onQuitarDuplicado}
           aprobarLoading={!!aprobarLoading[ticket._id]}
           reportarLoading={!!reportarLoading[ticket._id]}
           rechazarLoading={!!rechazarLoading[ticket._id]}
           forzarPagoLoading={!!forzarPagoLoading[ticket._id]}
-          quitarDuplicadoLoading={!!quitarDuplicadoLoading[ticket._id]}
         />
       </td>
     </tr>
@@ -247,17 +257,19 @@ export default function TicketsAprobacionTable({
   onReportar,
   onRechazar,
   onForzarPago,
-  onQuitarDuplicado,
   aprobarLoading = {},
   reportarLoading = {},
   rechazarLoading = {},
   forzarPagoLoading = {},
-  quitarDuplicadoLoading = {},
+  seleccionActiva = false,
+  idsSeleccionados = [],
+  onToggleSeleccion,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
   const totalVentas = useMemo(() => totalVentasObservadas(tickets), [tickets]);
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
+  const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
 
   const toggleGrupo = (id) => {
     setGruposAbiertos((prev) => {
@@ -318,12 +330,10 @@ export default function TicketsAprobacionTable({
                 onReportar={(t) => { onReportar(t); }}
                 onRechazar={(t) => { onRechazar(t); }}
                 onForzarPago={(t) => { onForzarPago?.(t); setDetalleTicket(null); }}
-                onQuitarDuplicado={onQuitarDuplicado}
                 aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                 reportarLoading={!!reportarLoading[detalleTicket._id]}
                 rechazarLoading={!!rechazarLoading[detalleTicket._id]}
                 forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
-                quitarDuplicadoLoading={!!quitarDuplicadoLoading[detalleTicket._id]}
               />
             </div>
           }
@@ -333,6 +343,7 @@ export default function TicketsAprobacionTable({
         <table className="w-full text-sm min-w-[1080px]">
           <thead className="sticky top-0 z-10 bg-gray-900 border-b border-gray-700">
             <tr className="text-[10px] uppercase tracking-wider text-gray-400">
+              {seleccionActiva && <th className="px-2 py-3 w-8" />}
               {[
                 { key: 'fecha', label: 'Fecha', align: 'text-left' },
                 { key: 'comanda', label: 'Comanda', align: 'text-left' },
@@ -372,18 +383,20 @@ export default function TicketsAprobacionTable({
                 onReportar,
                 onRechazar,
                 onForzarPago,
-                onQuitarDuplicado,
                 aprobarLoading,
                 reportarLoading,
                 rechazarLoading,
                 forzarPagoLoading,
-                quitarDuplicadoLoading,
+                seleccionActiva,
+                onToggleSeleccion,
               };
               if (fila.tipo !== 'grupo') {
+                const ticket = fila.tickets[0];
                 return (
                   <FilaTicketAvanzado
                     key={fila.id}
-                    ticket={fila.tickets[0]}
+                    ticket={ticket}
+                    seleccionado={idSet.has(String(ticket?._id))}
                     {...propsFila}
                   />
                 );
@@ -394,9 +407,18 @@ export default function TicketsAprobacionTable({
               const nPlatos = platosTicketVisibles(grupoTicket).length;
               const first = fila.tickets[0];
               const estadoGrupo = estadoEntregaTickets(fila.tickets);
+              const grupoSel = fila.tickets.length > 0 && fila.tickets.every((t) => idSet.has(String(t._id)));
               return (
                 <React.Fragment key={fila.id}>
-                  <tr className="border-t border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] align-top">
+                  <tr
+                    className={`border-t border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] align-top ${grupoSel ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+                    onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
+                  >
+                    {seleccionActiva && (
+                      <td className="px-2 py-2 w-8">
+                        <CheckSel checked={grupoSel} onToggle={() => onToggleSeleccion?.(fila.tickets)} />
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
                       {formatDateTime(first.createdAt)}
                     </td>
@@ -404,7 +426,7 @@ export default function TicketsAprobacionTable({
                       <div className="flex items-start justify-between gap-2">
                         <button
                           type="button"
-                          onClick={() => toggleGrupo(fila.id)}
+                          onClick={(e) => { e.stopPropagation(); toggleGrupo(fila.id); }}
                           className="min-w-0 text-left"
                         >
                           <div className="text-amber-300 font-bold">
@@ -418,7 +440,7 @@ export default function TicketsAprobacionTable({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDetalleTicket(grupoTicket)}
+                          onClick={(e) => { e.stopPropagation(); setDetalleTicket(grupoTicket); }}
                           className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
                           title="Ver detalle del grupo"
                         >
@@ -455,7 +477,7 @@ export default function TicketsAprobacionTable({
                     <td className="px-3 py-2">
                       <button
                         type="button"
-                        onClick={() => onImprimir(grupoTicket)}
+                        onClick={(e) => { e.stopPropagation(); onImprimir(grupoTicket); }}
                         className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-white"
                         title="Imprimir grupo de comandas"
                       >
@@ -468,6 +490,7 @@ export default function TicketsAprobacionTable({
                       key={ticket._id}
                       ticket={ticket}
                       indent
+                      seleccionado={idSet.has(String(ticket._id))}
                       {...propsFila}
                     />
                   ))}
@@ -477,7 +500,7 @@ export default function TicketsAprobacionTable({
           </tbody>
           <tfoot className="sticky bottom-0 bg-gray-950 border-t-2 border-amber-500/50">
             <tr>
-              <td colSpan={5} className="px-3 py-3 text-sm font-semibold text-gray-200">
+              <td colSpan={seleccionActiva ? 6 : 5} className="px-3 py-3 text-sm font-semibold text-gray-200">
                 Total ventas
                 <span className="ml-2 text-[11px] font-normal text-gray-500">
                   {tickets.length} en esta vista

@@ -35,6 +35,8 @@ import {
   tokenGuarnicion,
   cantidadGuarnicionEfectiva,
   claveGrupoGuarnicionMonitor,
+  nombreCatalogoPlatoCocina,
+  lineaListaGuarnicionMerge,
 } from '../../utils/guarnicionesKds';
 // §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
 // nombre comercial que incluye complementos).
@@ -1010,7 +1012,13 @@ const CocinaMonitorLayout = ({
     const gruposMap = new Map();
     for (const item of items) {
       const { comanda, plato, platoIndex, comp } = item;
-      const nombrePadre = obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato';
+      const juntaMerge = platoJuntaGuarnicionesEntreVariantes(plato);
+      const nombrePadre = juntaMerge
+        ? (nombreCatalogoPlatoCocina(plato)
+          || String(plato.nombre || '').trim()
+          || obtenerNombreDisplayCocina(plato, { forzar: true })
+          || 'Plato')
+        : (obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato');
       const comandaId = String(comanda._id || comanda.id || comanda.numero || '');
       const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
       const comandaNumero = comanda.numero || comanda.numeroMesa || null;
@@ -1028,7 +1036,6 @@ const CocinaMonitorLayout = ({
         : null;
       const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
       const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
-      const juntaMerge = platoJuntaGuarnicionesEntreVariantes(plato);
       const key = claveGrupoGuarnicionMonitor({
         plato, comanda, platoIndex, comp, cid, agrupacionOn,
       });
@@ -1104,7 +1111,7 @@ const CocinaMonitorLayout = ({
         timers = tiempoInicio
           ? [{
               tiempoInicio,
-              cantidad: 1,
+              cantidad: juntaMerge ? Math.max(1, rest.cantidadTotal) : 1,
               mesa: mesaNum,
               comandaNumero,
               comandaId,
@@ -1129,7 +1136,7 @@ const CocinaMonitorLayout = ({
         platoIndex,
         subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
         lineaLista: juntaMerge
-          ? [rest.nombre, formatearReferenciaPadre(padreTxt, modoRefPadre)].filter(Boolean).join(' ')
+          ? lineaListaGuarnicionMerge(rest.nombre, rest.cantidadTotal, padreTxt, modoRefPadre)
           : lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea),
         nombrePadre: padreTxt,
         juntaMerge: !!juntaMerge,

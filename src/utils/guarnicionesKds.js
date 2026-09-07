@@ -323,6 +323,33 @@ export function labelComplementoConCantidad(comp, plato, comanda, platoIndex) {
   return cant > 1 ? `${base} x${cant}` : base;
 }
 
+/** Nombre del plato en catálogo (DCH), sin CAFÉ/TÉ de MIX ni anexos. */
+export function nombreCatalogoPlatoCocina(plato, usarAlias = true) {
+  if (!plato) return '';
+  const cat = plato.plato && typeof plato.plato === 'object' && !Array.isArray(plato.plato)
+    ? plato.plato
+    : null;
+  const alias = String((cat && cat.nombreCocina) || '').trim();
+  const comercial = String((cat && cat.nombre) || '').trim();
+  if (usarAlias) return alias || comercial;
+  return comercial || alias;
+}
+
+export function labelConCantidadTotal(nombre, cantidad) {
+  const base = String(nombre || '').trim();
+  const n = Number(cantidad);
+  const cant = Number.isFinite(n) && n > 1 ? Math.floor(n) : 0;
+  if (!base) return cant ? `x${cant}` : '';
+  return cant ? `${base} x${cant}` : base;
+}
+
+export function lineaListaGuarnicionMerge(nombre, cantidad, nombrePadre, modoRef = 'parentesis') {
+  const nombres = labelConCantidadTotal(nombre, cantidad);
+  const ref = formatearReferenciaPadre(nombrePadre, modoRef);
+  const cuerpo = [nombres, ref].filter(Boolean).join(' ');
+  return cuerpo ? `- ${cuerpo}` : '';
+}
+
 export function tituloGrupoGuarniciones(comps, plato, comanda, platoIndex) {
   const list = (Array.isArray(comps) ? comps : []).filter(c => c && !c.eliminado);
   return list.map((c) => labelComplementoConCantidad(c, plato, comanda, platoIndex)).filter(Boolean).join(' + ');

@@ -16,6 +16,9 @@ const {
   complementoForzarVisibleTablaKds,
   complementosVisiblesEnTablaKds,
   unidadGuarnicionVisibleEnTablaKds,
+  nombreCatalogoPlatoCocina,
+  labelConCantidadTotal,
+  lineaListaGuarnicionMerge,
 } = require('./guarnicionesKds');
 
 describe('normalizarGuarnicionKey', () => {
@@ -1132,5 +1135,37 @@ describe('claveGrupoGuarnicionMonitor', () => {
       plato, comanda, platoIndex: 1, comp: papaya, cid: 'cook1', agrupacionOn: false,
     });
     expect(k0).not.toBe(k1);
+  });
+});
+
+describe('nombreCatalogoPlatoCocina y merge visual', () => {
+  const cafe = {
+    nombreCocinaPedido: 'CAFÉ',
+    variantePlato: { opcion: 'CAFÉ', pronombre: 'CAFÉ' },
+    nombreCocina: 'CAFÉ',
+    nombre: 'Desayuno',
+    plato: { _id: 'dch', nombreCocina: 'DCH', nombre: 'Desayuno continental hotel' },
+  };
+
+  test('el referencial es DCH, no CAFÉ', () => {
+    expect(nombreCatalogoPlatoCocina(cafe)).toBe('DCH');
+    expect(nombrePlatoPadre(cafe)).toBe('CAFÉ');
+  });
+
+  test('sin alias de cocina usa el nombre comercial del catálogo', () => {
+    expect(nombreCatalogoPlatoCocina({
+      nombreCocinaPedido: 'TÉ',
+      plato: { nombre: 'Desayuno continental hotel' },
+    })).toBe('Desayuno continental hotel');
+  });
+
+  test('labelConCantidadTotal pone el total junto al nombre', () => {
+    expect(labelConCantidadTotal('Jugo', 10)).toBe('Jugo x10');
+    expect(labelConCantidadTotal('Jugo', 1)).toBe('Jugo');
+  });
+
+  test('lineaListaGuarnicionMerge: jugo x10 (DCH)', () => {
+    expect(lineaListaGuarnicionMerge('Jugo', 10, 'DCH', 'parentesis'))
+      .toBe('- Jugo x10 (DCH)');
   });
 });

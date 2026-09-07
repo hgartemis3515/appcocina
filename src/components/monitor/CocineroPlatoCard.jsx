@@ -7,7 +7,7 @@ import MesaChips from './MesaChips';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
-import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea } from '../../utils/guarnicionesKds';
+import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
@@ -256,7 +256,7 @@ const CocineroPlatoCard = React.forwardRef(({
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = item.juntaMerge
-      ? `- ${nombre}`
+      ? `- ${labelConCantidadTotal(nombre, cantidadTotal)}`
       : (nombresListaGuarniciones(
         item.comps,
         platoConCantidadDeLinea(platos[0]),
