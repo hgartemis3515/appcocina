@@ -319,6 +319,35 @@ export function matchFechaRangoTicket(createdAt, {
   return true;
 }
 
+/**
+ * Rango que usa /api/aprobacion/desglose-ventas (igual que cierre/reportes).
+ * DIA = 00:00 → primer cierre; NOCHE = primer cierre → 23:59.
+ */
+export function rangoConsultaDesglose(periodo, {
+  primerCierreHoyAt = null,
+  fechaDesde = null,
+  fechaHasta = null,
+} = {}) {
+  const key = String(periodo || 'hoy').toLowerCase();
+  const hoy = getFechaOperativa();
+  const corte = primerCierreHoyAt ? new Date(primerCierreHoyAt) : null;
+  const corteOk = corte && Number.isFinite(corte.getTime());
+  if (key === 'dia' && corteOk) {
+    return {
+      fechaInicio: moment.tz(hoy, 'YYYY-MM-DD', ZONA).startOf('day').toISOString(),
+      fechaFin: corte.toISOString(),
+    };
+  }
+  if (key === 'noche' && corteOk) {
+    return {
+      fechaInicio: corte.toISOString(),
+      fechaFin: moment.tz(hoy, 'YYYY-MM-DD', ZONA).endOf('day').toISOString(),
+    };
+  }
+  const r = rangoFechasDePeriodo(periodo, fechaDesde, fechaHasta);
+  return { fechaInicio: r.desde, fechaFin: r.hasta };
+}
+
 export function etiquetaPeriodoTickets(periodo, primerCierreHoyAt) {
   const key = String(periodo || '').toLowerCase();
   if (key === 'dia' && primerCierreHoyAt) {

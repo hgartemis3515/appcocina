@@ -264,10 +264,15 @@ export default function TicketsAprobacionTable({
   seleccionActiva = false,
   idsSeleccionados = [],
   onToggleSeleccion,
+  totalVentasPeriodo = null,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
-  const totalVentas = useMemo(() => totalVentasObservadas(tickets), [tickets]);
+  const totalVentas = useMemo(() => {
+    const n = Number(totalVentasPeriodo);
+    if (Number.isFinite(n) && n >= 0 && totalVentasPeriodo != null) return n;
+    return totalVentasObservadas(tickets);
+  }, [totalVentasPeriodo, tickets]);
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
 
@@ -503,7 +508,7 @@ export default function TicketsAprobacionTable({
               <td colSpan={seleccionActiva ? 6 : 5} className="px-3 py-3 text-sm font-semibold text-gray-200">
                 Total ventas
                 <span className="ml-2 text-[11px] font-normal text-gray-500">
-                  {tickets.length} en esta vista
+                  {totalVentasPeriodo != null ? 'igual a cierre / reportes' : `${tickets.length} en esta vista`}
                 </span>
               </td>
               <td className="px-3 py-3 text-right text-lg font-black text-amber-300 tabular-nums whitespace-nowrap">

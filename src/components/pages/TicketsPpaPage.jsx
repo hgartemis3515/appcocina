@@ -27,8 +27,9 @@ import {
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
   estadoEntregaComandaTicket,
+  rangoConsultaDesglose,
 } from '../../utils/ticketAprobacionUi';
-import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket, totalVentasObservadas } from '../../utils/ticketTotales';
+import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -112,6 +113,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [motivoEliminarLote, setMotivoEliminarLote] = useState('Ticket duplicado');
   const [showEliminarLoteModal, setShowEliminarLoteModal] = useState(false);
   const [eliminandoLote, setEliminandoLote] = useState(false);
+  const [kpisCierre, setKpisCierre] = useState(null);
   const filtroPeriodoRef = useRef(filtroPeriodo);
   const turnosMetaRef = useRef(turnosMeta);
   filtroPeriodoRef.current = filtroPeriodo;
@@ -159,6 +161,29 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     };
     // Solo al montar: aplicarTurnos lee el periodo actual al responder.
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const rango = rangoConsultaDesglose(filtroPeriodo, {
+      primerCierreHoyAt,
+      fechaDesde,
+      fechaHasta,
+    });
+    apiGet('/api/aprobacion/desglose-ventas', {
+      fechaInicio: rango.fechaInicio,
+      fechaFin: rango.fechaFin,
+    }).then((data) => {
+      if (cancelled || !data?.success) return;
+      setKpisCierre({
+        totalVentas: Number(data.totalVentas) || 0,
+        pendiente: Number(data.ventasPendientes) || 0,
+        aprobados: Number(data.ventasAprobadas) || 0,
+      });
+    }).catch(() => {
+      if (!cancelled) setKpisCierre(null);
+    });
+    return () => { cancelled = true; };
+  }, [filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta, items]);
 
   const setPeriodo = (id) => {
     setFiltroPeriodo(id);
@@ -298,6 +323,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   })), [items, filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta]);
 
   const kpisPeriodo = useMemo(() => resumenKpisTickets(itemsEnPeriodo), [itemsEnPeriodo]);
+  const kpisHeader = kpisCierre || {
+    totalVentas: kpisPeriodo.totalVenta,
+    pendiente: kpisPeriodo.pendiente,
+    aprobados: kpisPeriodo.aprobados,
+  };
 
   const itemsPorEstado = useMemo(() => {
     if (filtro === 'pendientes') return itemsEnPeriodo.filter(t => t.estado === 'pendiente_aprobacion');
@@ -322,9 +352,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
     return sortTickets(porMozo, sortBy, sortDir);
   }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro]);
-
-  const kpisTabla = useMemo(() => resumenKpisTickets(itemsFiltrados), [itemsFiltrados]);
-  const totalVentasVista = useMemo(() => totalVentasObservadas(itemsFiltrados), [itemsFiltrados]);
 
   const handleSortChange = (field, dir) => {
     setSortBy(field);
@@ -363,23 +390,23 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <div className="flex items-center gap-2 flex-wrap">
               <KpiChip
                 label="Total ventas"
-                value={formatCurrency(totalVentasVista)}
+                value={formatCurrency(kpisHeader.totalVentas)}
                 valueClass="text-amber-300"
               />
               <KpiChip
                 label="Ventas pendientes"
-                value={formatCurrency(kpisTabla.pendiente)}
+                value={formatCurrency(kpisHeader.pendiente)}
                 valueClass="text-[#f59e0b]"
               />
               <KpiChip
                 label="Ventas pagadas"
-                value={formatCurrency(kpisPeriodo.aprobados)}
+                value={formatCurrency(kpisHeader.aprobados)}
                 valueClass="text-[#2ecc71]"
               />
-              {kpisTabla.descuento > 0 && (
+              {kpisPeriodo.descuento > 0 && (
                 <KpiChip
                   label="Descuentos"
-                  value={`-${formatCurrency(kpisTabla.descuento)}`}
+                  value={`-${formatCurrency(kpisPeriodo.descuento)}`}
                   valueClass="text-[#e74c3c]"
                 />
               )}
@@ -599,6 +626,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             seleccionActiva={modoEliminar}
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
+            totalVentasPeriodo={kpisHeader.totalVentas}
           />
         ) : modoVista === 'mozos' ? (
           <TicketsMozosPendientesGrid

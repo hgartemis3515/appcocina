@@ -1,4 +1,4 @@
-import { estadoEntregaComandaTicket, estadoEntregaTickets } from './ticketAprobacionUi';
+import { estadoEntregaComandaTicket, estadoEntregaTickets, rangoConsultaDesglose, rangoFechasDePeriodo } from './ticketAprobacionUi';
 
 describe('estadoEntregaComandaTicket', () => {
   test('comanda pagada y mesa libre → ENTREGADO (como comandas.html)', () => {
@@ -79,5 +79,20 @@ describe('estadoEntregaComandaTicket', () => {
     };
     expect(estadoEntregaTickets([a]).entregado).toBe(true);
     expect(estadoEntregaTickets([a, b]).entregado).toBe(false);
+  });
+});
+
+describe('rangoConsultaDesglose', () => {
+  test('DIA usa 00:00 Lima hasta el primer cierre', () => {
+    const corte = '2026-09-06T23:00:00.000Z';
+    const r = rangoConsultaDesglose('dia', { primerCierreHoyAt: corte });
+    expect(new Date(r.fechaFin).toISOString()).toBe(new Date(corte).toISOString());
+    expect(new Date(r.fechaInicio).getTime()).toBeLessThan(new Date(r.fechaFin).getTime());
+  });
+
+  test('hoy usa YYYY-MM-DD como reportes', () => {
+    const r = rangoConsultaDesglose('hoy');
+    const esperado = rangoFechasDePeriodo('hoy');
+    expect(r).toEqual({ fechaInicio: esperado.desde, fechaFin: esperado.hasta });
   });
 });
