@@ -24,6 +24,14 @@ describe('Ver Cocina: agrupar el mismo plato (normal + reserva)', () => {
     expect(claveGrupoPlato(mesa, 'Lomo Saltado')).not.toBe(claveGrupoPlato(llevar, 'Lomo Saltado'));
   });
 
+  test('extra llevar no se junta con mesa ni con para llevar', () => {
+    const mesa = { ...base, tipoServicio: 'mesa' };
+    const llevar = { ...base, tipoServicio: 'para_llevar' };
+    const extra = { ...base, tipoServicio: 'extra_llevar' };
+    expect(claveGrupoPlato(extra, 'Lomo Saltado')).not.toBe(claveGrupoPlato(mesa, 'Lomo Saltado'));
+    expect(claveGrupoPlato(extra, 'Lomo Saltado')).not.toBe(claveGrupoPlato(llevar, 'Lomo Saltado'));
+  });
+
   test('otro cocinero no comparte cuadro cuando se agrupa por cocinero', () => {
     const a = { ...base, procesandoPor: { cocineroId: 'cook1' } };
     const b = { ...base, procesandoPor: { cocineroId: 'cook2' } };

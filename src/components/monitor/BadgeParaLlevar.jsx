@@ -4,10 +4,10 @@ import { COLOR_PARA_LLEVAR, COLOR_PARA_LLEVAR_BORDE } from '../../utils/estiloPa
 /**
  * Etiqueta PARA LLEVAR a la derecha del nombre del plato (KDS y Ver Cocina).
  */
-export default function BadgeParaLlevar({ fontSize = 12 }) {
+export default function BadgeParaLlevar({ fontSize = 12, texto = 'PARA LLEVAR' }) {
   return (
     <span
-      title="Este plato es para llevar (no se sirve en mesa)"
+      title={texto === 'EXTRA CLIENTE' ? 'Extra cliente' : 'Este plato es para llevar (no se sirve en mesa)'}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -25,7 +25,7 @@ export default function BadgeParaLlevar({ fontSize = 12 }) {
         lineHeight: 1.2,
       }}
     >
-      PARA LLEVAR
+      {texto}
     </span>
   );
 }

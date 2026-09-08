@@ -13,9 +13,12 @@ import {
   normalizarId,
   tipoServicioDePlato,
   esPlatoParaLlevar,
+  esPlatoExtraLlevar,
   grupoTieneParaLlevar,
+  grupoTieneExtraLlevar,
   nombreMesaKds,
   LABEL_PARA_LLEVAR,
+  LABEL_EXTRA_CLIENTE,
 } from '../platoHelpers';
 
 describe('obtenerNombreDisplayCocina', () => {
@@ -155,6 +158,15 @@ describe('tipoServicio / PARA LLEVAR', () => {
   test('mesa por defecto', () => {
     expect(tipoServicioDePlato({ plato: { nombre: 'Lomo' }, comanda: {} })).toBe('mesa');
     expect(esPlatoParaLlevar({ tipoServicio: 'mesa' })).toBe(false);
+  });
+
+  test('extra_llevar no es para_llevar ni mesa', () => {
+    const item = { plato: { tipoServicio: 'extra_llevar' }, comanda: {} };
+    expect(tipoServicioDePlato(item)).toBe('extra_llevar');
+    expect(esPlatoParaLlevar(item)).toBe(false);
+    expect(esPlatoExtraLlevar(item)).toBe(true);
+    expect(grupoTieneExtraLlevar([item])).toBe(true);
+    expect(LABEL_EXTRA_CLIENTE).toBe('EXTRA CLIENTE');
   });
 
   test('grupoTieneParaLlevar en item de monitor', () => {

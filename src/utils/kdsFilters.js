@@ -836,10 +836,15 @@ export function esComandaReserva(comanda) {
   return comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva;
 }
 
-/** Plato para llevar (línea), no el status de la comanda. */
+/** Plato para llevar (línea), no el status de la comanda. Extra llevar no es PPA. */
 export function esLineaParaLlevar(plato) {
   if (!plato) return false;
   return plato.tipoServicio === 'para_llevar' || plato.paraLlevar === true;
+}
+
+export function esLineaExtraLlevar(plato) {
+  if (!plato) return false;
+  return plato.tipoServicio === 'extra_llevar';
 }
 
 /**
@@ -981,6 +986,7 @@ export default {
   esComandaReserva,
   esComandaSoloParaLlevar,
   esLineaParaLlevar,
+  esLineaExtraLlevar,
   platoRetenidoFueraDeCocina,
   tiempoInicioPlatoCocina,
   instanteInicioCocinaComanda,

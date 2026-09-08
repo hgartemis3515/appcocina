@@ -9,7 +9,7 @@ import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
-import { grupoTieneParaLlevar, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
+import { grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
 import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
@@ -331,6 +331,8 @@ const CocineroPlatoCard = React.forwardRef(({
   });
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
   const hayParaLlevar = !esGuarnicion && grupoTieneParaLlevar(platos);
+  const hayExtraLlevar = !esGuarnicion && grupoTieneExtraLlevar(platos);
+  const hayLlevarColor = !esGuarnicion && grupoTieneLlevarColor(platos);
 
   const fsUrgente = escalaDetalle(tamanioFuenteDetalle, 0.85);
   const fsAtencion = escalaDetalle(tamanioFuenteDetalle, 0.75);
@@ -523,17 +525,20 @@ const CocineroPlatoCard = React.forwardRef(({
             fontWeight: pesoFuentePlato,
             lineHeight: 1.05,
             color: colorNombrePlato,
-            textShadow: hayParaLlevar ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
+            textShadow: hayLlevarColor ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
             wordBreak: 'break-word',
             overflowWrap: 'anywhere',
             whiteSpace: 'normal',
-            ...(hayParaLlevar ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
+            ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
           }}
         >
           {nombreVisible}
         </div>
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
+        )}
+        {hayExtraLlevar && (
+          <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
         )}
         {/* Badge cantidad - personalizable (default blanco) */}
         <span style={estiloCantidadBadge(configVisual)}>

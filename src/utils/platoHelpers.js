@@ -174,20 +174,31 @@ export const tieneNombrePlato = (plato) => {
 };
 
 /**
- * tipoServicio vive en la línea de plato (`mesa` | `para_llevar`), no en la comanda.
+ * tipoServicio vive en la línea de plato (`mesa` | `para_llevar` | `extra_llevar`).
  * El item del monitor es `{ plato, comanda }`.
  */
 export const tipoServicioDePlato = (item) => {
   if (!item || typeof item !== 'object') return 'mesa';
   const t = item.tipoServicio || item.plato?.tipoServicio || item.comanda?.tipoServicio;
-  return t === 'para_llevar' ? 'para_llevar' : 'mesa';
+  if (t === 'para_llevar' || t === 'extra_llevar') return t;
+  return 'mesa';
 };
 
 export const esPlatoParaLlevar = (item) => tipoServicioDePlato(item) === 'para_llevar';
+export const esPlatoExtraLlevar = (item) => tipoServicioDePlato(item) === 'extra_llevar';
+export const esPlatoLlevarColor = (item) => esPlatoParaLlevar(item) || esPlatoExtraLlevar(item);
 
 export const grupoTieneParaLlevar = (platos = []) => platos.some(esPlatoParaLlevar);
+export const grupoTieneExtraLlevar = (platos = []) => platos.some(esPlatoExtraLlevar);
+export const grupoTieneLlevarColor = (platos = []) => platos.some(esPlatoLlevarColor);
 
 export const LABEL_PARA_LLEVAR = 'PARA LLEVAR';
+export const LABEL_EXTRA_CLIENTE = 'EXTRA CLIENTE';
+export const etiquetaTipoServicioKds = (tipo) => {
+  if (tipo === 'extra_llevar') return LABEL_EXTRA_CLIENTE;
+  if (tipo === 'para_llevar') return LABEL_PARA_LLEVAR;
+  return null;
+};
 
 function platosActivosComanda(comanda) {
   return (comanda?.platos || []).filter((p) => p && p.eliminado !== true && p.anulado !== true);

@@ -345,12 +345,14 @@ const PlatoPreparacion = ({
           </span>
 
           {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
-          {tipoServicio === 'para_llevar' && (
+          {(tipoServicio === 'para_llevar' || tipoServicio === 'extra_llevar') && (
             <span
               style={estiloParaLlevar}
-              title="Este plato es para llevar (no se sirve en mesa)"
+              title={tipoServicio === 'extra_llevar'
+                ? 'Extra cliente (para llevar sin pago adelantado)'
+                : 'Este plato es para llevar (no se sirve en mesa)'}
             >
-              PARA LLEVAR
+              {tipoServicio === 'extra_llevar' ? 'EXTRA CLIENTE' : 'PARA LLEVAR'}
             </span>
           )}
           

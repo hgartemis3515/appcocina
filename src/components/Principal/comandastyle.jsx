@@ -1979,7 +1979,7 @@ const ComandaStyle = ({
           tomado: true,
           primerToqueFinalizar: primerToqueFinalizarAsignado
         });
-      } else {
+        } else {
         nuevoEstado = siguienteEstadoToquePlato(estadoActual, { tomado: false });
       }
       
@@ -4023,25 +4023,25 @@ const ComandaStyle = ({
       alert('Seleccione una comanda o marque al menos un plato para anular');
       return;
     }
-
+    
     const platosMarcados = indicesPlatosMarcadosKds(platosChecked, platoStates, comandaId);
     if (platosMarcados.length === 0) {
       alert('Marque en verde el plato a anular, o use “Anular Toda la Comanda”.');
       return;
     }
-
+    
     if (!anularMotivo) {
       alert('Seleccione un motivo de anulación');
       return;
     }
-
+    
     setAnularLoading(true);
-
+    
     try {
       for (const platoIndex of platosMarcados) {
         await apiPut(`/api/comanda/${comandaId}/anular-plato/${platoIndex}`, {
-          motivo: anularMotivo,
-          observaciones: anularObservaciones,
+            motivo: anularMotivo,
+            observaciones: anularObservaciones,
           sourceApp: 'cocina',
           usuarioId: userId || undefined,
         });
@@ -4069,30 +4069,30 @@ const ComandaStyle = ({
       alert('Seleccione una comanda para anular');
       return;
     }
-
+    
     if (!anularMotivo) {
       alert('Seleccione un motivo de anulación');
       return;
     }
-
+    
     const comanda = comandas.find(c => String(c._id) === String(comandaId));
     if (!comanda) {
       alert('Comanda no encontrada');
       return;
     }
-
+    
     const confirmar = window.confirm(
       `¿Está seguro de anular TODA la comanda #${comanda.comandaNumber}?\n` +
       `Esto anulará todos los platos y la comanda pasará a estado CANCELADO.`
     );
     if (!confirmar) return;
-
+    
     setAnularLoading(true);
-
+    
     try {
       await apiPut(`/api/comanda/${comandaId}/anular-todo`, {
-        motivo: anularMotivo,
-        observaciones: anularObservaciones,
+          motivo: anularMotivo,
+          observaciones: anularObservaciones,
         sourceApp: 'cocina',
         usuarioId: userId || undefined,
       });
@@ -4738,7 +4738,7 @@ const ComandaStyle = ({
                   const platosMarcados = getTotalPlatosMarcados();
                   const idMarcado = comandaIdDesdePlatosMarcados(platosChecked, platoStates);
                   const canAnular = selectedOrders.size === 1 || Boolean(idMarcado);
-
+                  
                   return (
                     <motion.button
                       onClick={() => {
@@ -5724,7 +5724,7 @@ const SicarComandaCard = ({
   // - Supervisor: puede mostrar estados si está tomada por cualquiera
   // - No supervisor: solo si la tiene él
   const puedeMostrarEstados = isSupervisorView ? estaTomada : laTengoYo;
-
+  
   if (puedeMostrarEstados) {
     if (comandaState === 'dejar') {
       // Estado DEJAR: contorno rojo
@@ -5998,7 +5998,7 @@ const SicarComandaCard = ({
                       const etiquetaPrioridad = prio === 3 ? 'REFIRE' : prio === 2 ? 'VIP' : prio === 1 ? 'PROMO' : null;
                       const cantG = Number(unidad.cantidadEfectiva)
                         || (unidad.tipo === 'grupo_guarniciones'
-                          ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
+                        ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
                           : (comp.cantidad || 1));
                       return (
                         <PlatoPreparacion

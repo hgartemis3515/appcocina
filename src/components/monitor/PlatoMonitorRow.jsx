@@ -5,7 +5,7 @@ import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
-import { grupoTieneParaLlevar, obtenerNombreDisplayCocina, esPlatoParaLlevar } from '../../utils/platoHelpers';
+import { grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina, esPlatoParaLlevar } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
 import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
@@ -87,6 +87,8 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
 
   // Detectar si alguno es para llevar
   const hayParaLlevar = grupoTieneParaLlevar(platos);
+  const hayExtraLlevar = grupoTieneExtraLlevar(platos);
+  const hayLlevarColor = grupoTieneLlevarColor(platos);
 
   // Config visual
   const fuenteFamilia = configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif';
@@ -139,13 +141,16 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           style={{
             minWidth: 0,
             color: colorNombrePlato,
-            ...(hayParaLlevar ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
+            ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
           }}
         >
           {nombreVisible}
         </span>
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
+        )}
+        {hayExtraLlevar && (
+          <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
         )}
         <span style={estiloCantidadBadge(configVisual)}>
           {textoCantidadBadge(cantidadTotal, configVisual)}
