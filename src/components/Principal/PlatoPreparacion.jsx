@@ -6,6 +6,7 @@ import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
 import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
 import { estiloParaLlevarKds } from '../../utils/estiloParaLlevarKds';
+import { estiloCocineroNombreKds, textoNombreCocineroKds } from '../../utils/estiloCocineroNombreKds';
 import { cantidadGuarnicionEfectiva, complementosVisiblesEnTablaKds } from '../../utils/guarnicionesKds';
 import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
 import { itemAplicaReglaContador } from '../../utils/tipoPlatoReglasCocina';
@@ -77,6 +78,11 @@ const PlatoPreparacion = ({
   );
   const mostrarBadgeGuarnicion = kdsConfig.mostrarBadgeGuarnicion !== false;
   const estiloParaLlevar = estiloParaLlevarKds(kdsConfig);
+  const estiloCocinero = estiloCocineroNombreKds(kdsConfig);
+  const textoCocinero = textoNombreCocineroKds(procesandoPor, {
+    usuarioActualId,
+    usarPronombre: kdsConfig.usarPronombreCocineroKds === true,
+  });
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
   const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
   const estiloCantidad = estiloCantidadPlatoKds(kdsConfig);
@@ -353,11 +359,8 @@ const PlatoPreparacion = ({
             <motion.span
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`inline-flex items-center gap-1 ${compact ? 'px-1 py-0 text-[10px]' : 'px-2 py-0.5 text-xs'} font-medium ${
-                procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
-                  ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-              }`}
+              className={`inline-flex items-center gap-1 ${compact ? 'px-1 py-0 text-[10px]' : 'px-2 py-0.5 text-xs'} font-medium`}
+              style={estiloCocinero}
               title={`Tomado por: ${procesandoPor.nombre || procesandoPor.alias || 'Cocinero'}`}
             >
               <motion.span
@@ -367,9 +370,7 @@ const PlatoPreparacion = ({
                 👨‍🍳
               </motion.span>
               <span className={compact ? 'max-w-[50px] truncate' : 'max-w-[60px] truncate'}>
-                {procesandoPor.cocineroId?.toString() === usuarioActualId?.toString()
-                  ? 'Tú'
-                  : (procesandoPor.alias || procesandoPor.nombre || 'Cocinero')}
+                {textoCocinero}
               </span>
               {/* PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero (FIFO por timestamp) */}
               {numeroColaCocinero != null && !ocultaColaYCronometro && (

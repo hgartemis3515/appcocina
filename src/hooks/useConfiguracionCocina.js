@@ -24,6 +24,7 @@ const DEFAULT = {
     forzarColorMozoUnico: false,
     colorMozoForzado: '#1e3a8a',
     ignorarFondoVistaMozo: false,
+    ocultarAnularEnTablasKds: true,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -64,6 +65,7 @@ export async function fetchConfiguracionCocina(getToken) {
                     ? cfg.colorMozoForzado
                     : '#1e3a8a',
                 ignorarFondoVistaMozo: cfg.ignorarFondoVistaMozo === true,
+                ocultarAnularEnTablasKds: cfg.ocultarAnularEnTablasKds !== false,
                 tiemposGuarnicion: {
                     umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
                     umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,

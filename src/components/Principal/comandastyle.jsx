@@ -123,7 +123,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, ocultarAnularEnTablasKds } = useConfiguracionCocina(getToken);
   const asignacionBackupSnapshot = useAsignacionBackupKds();
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
@@ -4733,8 +4733,8 @@ const ComandaStyle = ({
                   );
                 })()}
 
-                {/* 🔥 NUEVO: Botón ANULAR - Anular platos desde cocina */}
-                {(() => {
+                {/* ANULAR: oculto por default (config.cocina.ocultarAnularEnTablasKds) */}
+                {ocultarAnularEnTablasKds !== true && (() => {
                   const platosMarcados = getTotalPlatosMarcados();
                   const idMarcado = comandaIdDesdePlatosMarcados(platosChecked, platoStates);
                   const canAnular = selectedOrders.size === 1 || Boolean(idMarcado);

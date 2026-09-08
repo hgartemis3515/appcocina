@@ -37,6 +37,9 @@ describe('kdsPerfilesVista', () => {
       nombreComplementoColor: '#fde68a',
       nombreComplementoFondo: '#1f2937',
       ocultarCuadroCocineroAsignado: true,
+      usarPronombreCocineroKds: true,
+      cocineroNombreColor: '#111111',
+      cocineroNombreFondo: '#22c55e',
       ocultarComplementosEnTablaKds: true,
       paraLlevarTamano: 18,
       alertYellowMinutes: 10,
@@ -73,6 +76,9 @@ describe('kdsPerfilesVista', () => {
     expect(snap.nombreComplementoColor).toBe('#fde68a');
     expect(snap.nombreComplementoFondo).toBe('#1f2937');
     expect(snap.ocultarCuadroCocineroAsignado).toBe(true);
+    expect(snap.usarPronombreCocineroKds).toBe(true);
+    expect(snap.cocineroNombreColor).toBe('#111111');
+    expect(snap.cocineroNombreFondo).toBe('#22c55e');
     expect(snap.ocultarComplementosEnTablaKds).toBe(true);
     expect(snap.paraLlevarTamano).toBe(18);
     expect(snap.timbreClave).toBe('ding_dong');

@@ -36,6 +36,10 @@ import {
   estiloMozoNombreKds,
 } from '../../utils/estiloMozoNombreKds';
 import {
+  COCINERO_NOMBRE_DEFAULT,
+  estiloCocineroNombreKds,
+} from '../../utils/estiloCocineroNombreKds';
+import {
   NOMBRE_PLATO_DEFAULT,
   NOMBRE_PLATO_TAMANO_MIN,
   NOMBRE_PLATO_TAMANO_MAX,
@@ -1016,6 +1020,74 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </span>
             </span>
           </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.usarPronombreCocineroKds === true}
+              onChange={(e) => updateConfig({ usarPronombreCocineroKds: e.target.checked })}
+              className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+            />
+            <span>
+              <span className={`${textModal} font-semibold block`}>Usar pronombre de cocina en el nombre del cocinero</span>
+              <span className={`${textSecondary} text-xs block mt-0.5`}>
+                Marcado: en cada plato se muestra el pronombre de Cocineros (ej. C3) en vez del alias o nombre.
+                Si el cocinero no tiene pronombre, se usa el alias. Recargue o pulse Guardar.
+              </span>
+            </span>
+          </label>
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Cuadro del nombre del cocinero</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Color de letra y fondo del recuadro junto a cada plato (quién lo está cocinando).
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.cocineroNombreColor, COCINERO_NOMBRE_DEFAULT.cocineroNombreColor)}
+                    onChange={(e) => updateConfig({ cocineroNombreColor: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de letra del nombre del cocinero"
+                  />
+                  <input
+                    type="text"
+                    value={config.cocineroNombreColor || COCINERO_NOMBRE_DEFAULT.cocineroNombreColor}
+                    onChange={(e) => updateConfig({ cocineroNombreColor: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de fondo</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.cocineroNombreFondo, COCINERO_NOMBRE_DEFAULT.cocineroNombreFondo)}
+                    onChange={(e) => updateConfig({ cocineroNombreFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo del nombre del cocinero"
+                  />
+                  <input
+                    type="text"
+                    value={config.cocineroNombreFondo || COCINERO_NOMBRE_DEFAULT.cocineroNombreFondo}
+                    onChange={(e) => updateConfig({ cocineroNombreFondo: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            {config.ocultarCuadroCocineroAsignado !== true && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium" style={estiloCocineroNombreKds(config)}>
+                👨‍🍳 {config.usarPronombreCocineroKds === true ? 'C3' : 'Chef 3'}
+              </span>
+            )}
+          </fieldset>
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Etiqueta PARA LLEVAR</legend>
             <p className={`${textSecondary} text-xs`}>
@@ -1371,8 +1443,8 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               )}
               <span className="inline-flex mt-1" style={estiloParaLlevarKds(config)}>PARA LLEVAR</span>
               {config.ocultarCuadroCocineroAsignado !== true && (
-                <span className="inline-flex mt-1 items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-300 border border-green-500/30 rounded">
-                  👨‍🍳 Tú
+                <span className="inline-flex mt-1 items-center gap-1 px-2 py-0.5 text-[10px] font-medium" style={estiloCocineroNombreKds(config)}>
+                  👨‍🍳 {config.usarPronombreCocineroKds === true ? 'C3' : 'Tú'}
                 </span>
               )}
             </div>

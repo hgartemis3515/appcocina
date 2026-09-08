@@ -109,7 +109,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
-  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto } = useConfiguracionCocina(getToken);
+  const { permitirGuarnicionesSeparadas, deshabilitarAgrupacionGuarniciones, deshabilitarOrdenSecuencialGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, ocultarAnularEnTablasKds } = useConfiguracionCocina(getToken);
   const asignacionBackupSnapshot = useAsignacionBackupKds();
   const { config: kdsVistaConfig } = useConfig();
   const usarNombreCocinaEnTablaKds = kdsVistaConfig.usarNombreCocinaEnTablaKds !== false;
@@ -4245,8 +4245,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   );
                 })()}
 
-                {/* 🔥 NUEVO: Botón ANULAR - Anular platos desde cocina */}
-                {(() => {
+                {ocultarAnularEnTablasKds !== true && (() => {
                   const platosMarcados = getTotalPlatosMarcados();
                   const idMarcado = comandaIdDesdePlatosMarcados(platosChecked, platoStates);
                   const canAnular = selectedOrders.size === 1 || Boolean(idMarcado);
