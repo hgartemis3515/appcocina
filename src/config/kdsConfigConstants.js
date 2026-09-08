@@ -443,13 +443,22 @@ export const normalizarConfiguracion = (partialConfig = {}) => {
   Object.keys(partialConfig).forEach(key => {
     if (key === 'design') {
       config.design = { ...config.design, ...partialConfig.design };
-      if (partialConfig.design.fontSize) config.tamanoFuente = partialConfig.design.fontSize;
-      if (partialConfig.design.cols) config.columnasGrid = partialConfig.design.cols;
-      if (partialConfig.design.rows) config.filasGrid = partialConfig.design.rows;
     } else if (partialConfig[key] !== undefined) {
       config[key] = partialConfig[key];
     }
   });
+
+  // `design` es compatibilidad antigua: no debe pisar tamanoFuente/columnas/filas
+  // si esos campos ya vienen en el snapshot del perfil.
+  if (partialConfig.tamanoFuente === undefined && partialConfig.design?.fontSize) {
+    config.tamanoFuente = partialConfig.design.fontSize;
+  }
+  if (partialConfig.columnasGrid === undefined && partialConfig.design?.cols) {
+    config.columnasGrid = partialConfig.design.cols;
+  }
+  if (partialConfig.filasGrid === undefined && partialConfig.design?.rows) {
+    config.filasGrid = partialConfig.design.rows;
+  }
 
   if (!partialConfig.tamanoFuentePlatos) config.tamanoFuentePlatos = 18;
 
@@ -534,6 +543,7 @@ export const STORAGE_KEYS = {
   VIEW_MODE: 'cocinaViewMode',
   LAST_CLEANUP: 'kdsLastCleanup',
   PERFILES_VISTA: 'kdsPerfilesVista',
+  PERFIL_ACTIVO_POR_USUARIO: 'kdsPerfilActivoPorUsuario',
 };
 
 export const LIMPIEZA_CONFIG = {

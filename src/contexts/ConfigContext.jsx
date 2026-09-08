@@ -26,12 +26,23 @@ import {
 } from '../utils/kdsPerfilesVista';
 import { syncKdsNotificationSound } from '../utils/kdsNotificationSounds';
 import { apiGet, apiPost, apiPut, apiDelete } from '../config/apiClient';
+import { useAuth } from './AuthContext';
+import {
+  claveConfigKdsUsuario,
+  idUsuarioCocina,
+  sanitizarIdPerfilTablasKds,
+  leerConfigKdsInicial,
+  leerConfigKdsUsuario,
+  persistirSnapshotKdsUsuario,
+  construirConfigDesdePerfilTablasKds,
+} from '../utils/kdsPerfilPorUsuario';
 
 /**
  * ConfigContext - Contexto para gestión centralizada de configuración KDS
  * 
  * Funcionalidades:
  * - Carga automática con migración de versiones
+ * - Perfil de tablas KDS por cuenta (no se comparte al cambiar usuario en el mismo dispositivo)
  * - Limpieza automática de estados obsoletos
  * - Sincronización entre pestañas (storage events)
  * - Validación de configuración
@@ -43,15 +54,14 @@ const ConfigContext = createContext(null);
  * Proveedor del contexto de configuración
  */
 export const ConfigProvider = ({ children }) => {
-  // Estado principal de configuración
+  const { user, cocineroConfig, configLoading, configError, isMonitorMode } = useAuth();
+
+  // Estado principal de configuración (por usuario de la sesión, no global del dispositivo)
   const [config, setConfigState] = useState(() => {
-    // Intentar cargar configuración guardada
     try {
-      const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
+      const savedConfig = leerConfigKdsInicial();
       if (savedConfig) {
-        const parsed = JSON.parse(savedConfig);
-        // Normalizar para asegurar que todos los campos existan
-        return normalizarConfiguracion(parsed);
+        return normalizarConfiguracion(savedConfig);
       }
     } catch (e) {
       console.warn('[ConfigContext] Error cargando configuración guardada:', e);
@@ -72,6 +82,9 @@ export const ConfigProvider = ({ children }) => {
 
   // Ref para debounce de guardado
   const saveTimeoutRef = useRef(null);
+  const usuarioKdsRef = useRef(idUsuarioCocina(user));
+  const listoUsuarioKdsRef = useRef('');
+  const ultimoPerfilServidorRef = useRef('');
 
   useEffect(() => {
     perfilesVistaRef.current = perfilesVista;
@@ -117,6 +130,13 @@ export const ConfigProvider = ({ children }) => {
   /**
    * Guarda la configuración en localStorage con debounce
    */
+  const escribirConfigLocal = useCallback((configToSave) => {
+    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
+    localStorage.setItem(STORAGE_KEYS.CONFIG_VERSION, KDS_CONFIG_VERSION);
+    const uid = usuarioKdsRef.current;
+    if (uid) persistirSnapshotKdsUsuario(uid, configToSave);
+  }, []);
+
   const saveConfig = useCallback((newConfig) => {
     const configToSave = {
       ...newConfig,
@@ -133,8 +153,7 @@ export const ConfigProvider = ({ children }) => {
 
     saveTimeoutRef.current = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configRef.current));
-        localStorage.setItem(STORAGE_KEYS.CONFIG_VERSION, KDS_CONFIG_VERSION);
+        escribirConfigLocal(configRef.current);
         setLastSaved(new Date());
         console.log('[ConfigContext] Configuración guardada');
       } catch (e) {
@@ -143,7 +162,7 @@ export const ConfigProvider = ({ children }) => {
         setIsSaving(false);
       }
     }, 300);
-  }, []);
+  }, [escribirConfigLocal]);
 
   /**
    * Escribe kdsConfig en localStorage ya (sin esperar el debounce).
@@ -161,8 +180,7 @@ export const ConfigProvider = ({ children }) => {
     };
     configRef.current = configToSave;
     try {
-      localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
-      localStorage.setItem(STORAGE_KEYS.CONFIG_VERSION, KDS_CONFIG_VERSION);
+      escribirConfigLocal(configToSave);
       setLastSaved(new Date());
       setIsSaving(false);
       return true;
@@ -171,7 +189,27 @@ export const ConfigProvider = ({ children }) => {
       setIsSaving(false);
       return false;
     }
+  }, [escribirConfigLocal]);
+
+  const persistirPerfilTablasKdsEnServidor = useCallback((userId, perfilId) => {
+    const uid = String(userId || '').trim();
+    if (!uid) return;
+    const limpio = sanitizarIdPerfilTablasKds(perfilId);
+    const key = `${uid}:${limpio || ''}`;
+    if (ultimoPerfilServidorRef.current === key) return;
+    ultimoPerfilServidorRef.current = key;
+    apiPut(`/api/cocineros/${uid}/config`, { perfilTablasKdsId: limpio }).catch(() => {});
   }, []);
+
+  const aplicarConfigUsuario = useCallback((cfg, { persistirServidor = false } = {}) => {
+    const next = normalizarConfiguracion(cfg || DEFAULT_KDS_CONFIG);
+    setConfigState(next);
+    setPerfilActivoState(next.perfilActivo || null);
+    persistConfigNow(next);
+    if (persistirServidor) {
+      persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, next.perfilActivo);
+    }
+  }, [persistConfigNow, persistirPerfilTablasKdsEnServidor]);
 
   /**
    * Actualiza la configuración (parcial o completa)
@@ -241,10 +279,11 @@ export const ConfigProvider = ({ children }) => {
     setConfigState(newConfig);
     setPerfilActivoState(perfilId);
     saveConfig(newConfig);
+    persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfilId);
     
     console.log(`[ConfigContext] Perfil aplicado: ${perfil.nombre}`);
     return true;
-  }, [config, saveConfig]);
+  }, [config, saveConfig, persistirPerfilTablasKdsEnServidor]);
 
   /**
    * Carga un perfil de vista (plantilla predefinida o perfil guardado en servidor).
@@ -257,6 +296,7 @@ export const ConfigProvider = ({ children }) => {
       setConfigState(newConfig);
       setPerfilActivoState(perfilId);
       saveConfig(newConfig);
+      persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfilId);
       return true;
     }
     const custom = perfilesVistaRef.current.find(p => p.id === perfilId);
@@ -269,8 +309,9 @@ export const ConfigProvider = ({ children }) => {
     setConfigState(newConfig);
     setPerfilActivoState(custom.id);
     saveConfig(newConfig);
+    persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, custom.id);
     return true;
-  }, [config, saveConfig]);
+  }, [config, saveConfig, persistirPerfilTablasKdsEnServidor]);
 
   const recargarPerfilesVista = useCallback(async () => {
     setCargandoPerfilesVista(true);
@@ -292,6 +333,83 @@ export const ConfigProvider = ({ children }) => {
       setCargandoPerfilesVista(false);
     }
   }, []);
+
+  const perfilTablasKdsIdServidor = cocineroConfig?.perfilTablasKdsId;
+  const tieneConfigCocinero = !!cocineroConfig;
+
+  /**
+   * Al cambiar de cuenta en este dispositivo, guarda el snapshot del usuario anterior
+   * y restaura el perfil de tablas KDS de quien entra.
+   */
+  useEffect(() => {
+    const userId = idUsuarioCocina(user);
+    const prev = usuarioKdsRef.current;
+    const cambioUsuario = prev !== userId;
+
+    if (cambioUsuario && saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      setIsSaving(false);
+    }
+
+    if (cambioUsuario && prev && configRef.current) {
+      persistirSnapshotKdsUsuario(prev, configRef.current);
+    }
+
+    if (cambioUsuario) {
+      listoUsuarioKdsRef.current = '';
+      ultimoPerfilServidorRef.current = '';
+    }
+    usuarioKdsRef.current = userId || '';
+
+    if (!userId) return;
+    if (listoUsuarioKdsRef.current === userId) return;
+
+    const saved = leerConfigKdsUsuario(userId);
+    if (saved) {
+      aplicarConfigUsuario(saved, { persistirServidor: true });
+      listoUsuarioKdsRef.current = userId;
+      recargarPerfilesVista();
+      return;
+    }
+
+    if (isMonitorMode) {
+      listoUsuarioKdsRef.current = userId || 'monitor';
+      return;
+    }
+
+    if (configLoading) return;
+    if (!tieneConfigCocinero && !configError) return;
+
+    let cancelled = false;
+    (async () => {
+      const lista = await recargarPerfilesVista();
+      if (cancelled || usuarioKdsRef.current !== userId) return;
+      const serverId = sanitizarIdPerfilTablasKds(perfilTablasKdsIdServidor);
+      if (serverId) {
+        aplicarConfigUsuario(construirConfigDesdePerfilTablasKds(serverId, lista), {
+          persistirServidor: false,
+        });
+      } else {
+        aplicarConfigUsuario({ ...DEFAULT_KDS_CONFIG });
+      }
+      listoUsuarioKdsRef.current = userId;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user?.id,
+    user?._id,
+    isMonitorMode,
+    configLoading,
+    tieneConfigCocinero,
+    perfilTablasKdsIdServidor,
+    configError,
+    aplicarConfigUsuario,
+    recargarPerfilesVista,
+  ]);
 
   /**
    * Crea un perfil con la vista/alertas actuales (servidor, tipo tablas_kds).
@@ -335,17 +453,20 @@ export const ConfigProvider = ({ children }) => {
         setConfigState((prev) => {
           const newConfig = { ...prev, perfilActivo: perfil.id };
           persistConfigNow(newConfig);
+          persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfil.id);
           return newConfig;
         });
         return { ok: true, perfil, localOnly: false };
       }
+      persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfilLocal.id);
       return { ok: true, perfil: perfilLocal, localOnly: true };
     } catch (e) {
+      persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfilLocal.id);
       return { ok: true, perfil: perfilLocal, localOnly: true };
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [persistConfigNow]);
+  }, [persistConfigNow, persistirPerfilTablasKdsEnServidor]);
 
   /**
    * Sobrescribe un perfil guardado con la vista actual.
@@ -389,19 +510,21 @@ export const ConfigProvider = ({ children }) => {
           setConfigState((prev) => {
             const newConfig = { ...prev, perfilActivo: perfil.id };
             persistConfigNow(newConfig);
+            persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfil.id);
             return newConfig;
           });
         }
         return { ok: true, localOnly: false };
       }
       await apiPut(`/api/perfiles-tablas-kds/${perfilId}`, { config: snap });
+      persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, perfilId);
       return { ok: true, localOnly: false };
     } catch (e) {
       return { ok: true, localOnly: true };
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [persistConfigNow]);
+  }, [persistConfigNow, persistirPerfilTablasKdsEnServidor]);
 
   /**
    * Elimina un perfil guardado (borrado lógico en servidor).
@@ -417,6 +540,7 @@ export const ConfigProvider = ({ children }) => {
       setConfigState((prev) => {
         const newConfig = { ...prev, perfilActivo: null };
         persistConfigNow(newConfig);
+        persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, null);
         return newConfig;
       });
     }
@@ -430,7 +554,7 @@ export const ConfigProvider = ({ children }) => {
     } finally {
       setGuardandoPerfilVista(false);
     }
-  }, [perfilActivo, persistConfigNow]);
+  }, [perfilActivo, persistConfigNow, persistirPerfilTablasKdsEnServidor]);
 
   /**
    * Resetea la configuración a valores por defecto
@@ -441,13 +565,14 @@ export const ConfigProvider = ({ children }) => {
     setConfigState(newConfig);
     setPerfilActivoState(null);
     saveConfig(newConfig);
+    persistirPerfilTablasKdsEnServidor(usuarioKdsRef.current, null);
     
     // Limpiar estados locales
     ejecutarLimpieza('manual');
     
     console.log('[ConfigContext] Configuración reseteada a valores por defecto');
     return true;
-  }, [saveConfig]);
+  }, [saveConfig, persistirPerfilTablasKdsEnServidor]);
 
   /**
    * Obtiene el perfil activo actual
@@ -461,15 +586,19 @@ export const ConfigProvider = ({ children }) => {
   useEffect(() => {
     // Escuchar cambios de storage desde otras pestañas
     const handleStorageChange = (e) => {
-      if (e.key === STORAGE_KEYS.CONFIG && e.newValue) {
-        try {
-          const newConfig = JSON.parse(e.newValue);
-          setConfigState(normalizarConfiguracion(newConfig));
-          setPerfilActivoState(newConfig.perfilActivo || null);
-          console.log('[ConfigContext] Configuración sincronizada desde otra pestaña');
-        } catch (err) {
-          console.warn('[ConfigContext] Error sincronizando configuración:', err);
-        }
+      const uid = usuarioKdsRef.current;
+      const claveUsuario = uid ? claveConfigKdsUsuario(uid) : '';
+      const esClaveDeEsteUsuario = claveUsuario && e.key === claveUsuario;
+      const esGlobalSinSesion = !uid && e.key === STORAGE_KEYS.CONFIG;
+      if (!esClaveDeEsteUsuario && !esGlobalSinSesion) return;
+      if (!e.newValue) return;
+      try {
+        const newConfig = JSON.parse(e.newValue);
+        setConfigState(normalizarConfiguracion(newConfig));
+        setPerfilActivoState(newConfig.perfilActivo || null);
+        console.log('[ConfigContext] Configuración sincronizada desde otra pestaña');
+      } catch (err) {
+        console.warn('[ConfigContext] Error sincronizando configuración:', err);
       }
     };
 
