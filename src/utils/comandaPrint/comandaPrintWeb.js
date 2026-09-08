@@ -336,9 +336,11 @@ function mapearTicketADatos(ticket) {
     const precio = Number(p.precioUnitario ?? p.precio ?? p.plato?.precio) || 0;
     const cantidad = Number(p.cantidad) || 1;
     const subRaw = Number(p.subtotal);
-    const tipoServicio = p.tipoServicio === 'para_llevar' || p.paraLlevar === true
+    const tipoServicio = p.tipoServicio === 'extra_llevar'
+      ? 'extra_llevar'
+      : (p.tipoServicio === 'para_llevar' || p.paraLlevar === true
       ? 'para_llevar'
-      : (p.tipoServicio || 'mesa');
+      : (p.tipoServicio || 'mesa'));
     return {
       nombre: p.plato?.nombre || p.nombre || 'Plato',
       nombreComercial: p.plato?.nombre,

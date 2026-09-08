@@ -43,7 +43,7 @@ export default function PlatoTicketItem({
               {(plato.tipoServicio === 'para_llevar' || plato.tipoServicio === 'extra_llevar') && (
                 <span className={`${metaClass} bg-amber-600/30 text-amber-300 px-1 rounded flex-shrink-0`}>
                   {plato.tipoServicio === 'extra_llevar'
-                    ? (isCompact ? 'Extra' : 'Extra cliente')
+                    ? (isCompact ? 'EXTRA' : 'EXTRA LLEVAR')
                     : (isCompact ? 'Llevar' : 'Para llevar')}
                 </span>
               )}

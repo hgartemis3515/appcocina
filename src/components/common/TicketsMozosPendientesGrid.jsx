@@ -9,7 +9,7 @@ import {
   ticketParaDetalleGrupo,
 } from '../../utils/ticketSort';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
-import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets } from '../../utils/ticketAprobacionUi';
+import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar } from '../../utils/ticketAprobacionUi';
 import { totalesVistaTicket, resumenKpisTickets } from '../../utils/ticketTotales';
 
 function BadgeEstadoComanda({ meta }) {
@@ -105,6 +105,11 @@ function FilaTicket({
           <span className={`text-[8px] px-1 py-0 rounded-full border leading-none ${badge.bg}`}>
             {badge.label}
           </span>
+          {ticketTieneExtraLlevar(ticket) ? (
+            <span className="text-[8px] px-1 py-0 rounded-full border leading-none bg-purple-500/20 text-purple-300 border-purple-500/40">
+              EXTRA LLEVAR
+            </span>
+          ) : null}
           {ticket.createdAt && (
             <span className="text-[9px] text-gray-500">{formatTime(ticket.createdAt)}</span>
           )}
@@ -254,6 +259,11 @@ function CuadroMozo({
                         <span className="text-amber-300 font-bold text-xs truncate">
                           GRUPO {fila.label || ''}
                         </span>
+                        {fila.tickets.some(ticketTieneExtraLlevar) ? (
+                          <span className="text-[8px] px-1 py-0 rounded-full border bg-purple-500/20 text-purple-300 border-purple-500/40 shrink-0">
+                            EXTRA LLEVAR
+                          </span>
+                        ) : null}
                         <span className="text-[9px] text-amber-200/70 shrink-0">
                           {fila.tickets.length} comandas
                         </span>

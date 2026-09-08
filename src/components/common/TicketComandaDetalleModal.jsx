@@ -91,7 +91,7 @@ function TablaPlatosComanda({ items, totalComanda, montoDesc, ocultarGuarnicione
                   </p>
                   {(item.tipoServicio === 'para_llevar' || item.tipoServicio === 'extra_llevar') && (
                     <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                      {item.tipoServicio === 'extra_llevar' ? 'Extra cliente' : 'Para llevar'}
+                      {item.tipoServicio === 'extra_llevar' ? 'EXTRA LLEVAR' : 'Para llevar'}
                     </span>
                   )}
                   {item.notaEspecial ? (

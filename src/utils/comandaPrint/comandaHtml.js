@@ -139,6 +139,7 @@ const ETIQUETAS_DEFAULT_COMANDA = {
   dni: 'DNI',
   observaciones: 'Obs',
   paraLlevar: 'PARA LLEVAR',
+  extraLlevar: 'EXTRA LLEVAR',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -282,7 +283,7 @@ function estimarAltura(datos, bloques) {
   const productos = datos.productos || [];
   for (const prod of productos) {
     h += ALTURA_POR_FILA_PX;
-    if (prod.paraLlevar || prod.tipoServicio === 'para_llevar') {
+    if (prod.paraLlevar || prod.tipoServicio === 'para_llevar' || prod.tipoServicio === 'extra_llevar') {
       h += 14;
     }
     if (prod.complementos?.length) {
@@ -467,7 +468,11 @@ export function generarHtmlComanda({ datos, plantilla, serverOrigin, omitirGuarn
     for (const prod of datos.productos) {
       if (!prod || prod.eliminado || prod.anulado) continue;
       const nombre = escapeHtml(prod.nombre || 'Plato');
-      const marcadorPL = prod.paraLlevar ? ` <span style="font-weight:700;">[${escapeHtml(etiquetas.paraLlevar)}]</span>` : '';
+      const marcadorPL = prod.tipoServicio === 'extra_llevar'
+        ? ` <span style="font-weight:700;">[${escapeHtml(etiquetas.extraLlevar || 'EXTRA LLEVAR')}]</span>`
+        : (prod.paraLlevar || prod.tipoServicio === 'para_llevar')
+          ? ` <span style="font-weight:700;">[${escapeHtml(etiquetas.paraLlevar)}]</span>`
+          : '';
       const cantidad = Number(prod.cantidad) || 1;
       const precio = Number(prod.precioUnitario ?? prod.precio) || 0;
       const subRaw = Number(prod.subtotal);
@@ -639,13 +644,14 @@ function mapLineaProductoImpresion(p, comanda, index) {
   const precio = resolverPrecioLineaImpresion(p);
   const cantidad = cantidadLineaImpresion(p, comanda, index);
   const subRaw = Number(p?.subtotal);
-  const paraLlevar = esParaLlevarLinea(p);
+  const extraLlevar = p?.tipoServicio === 'extra_llevar';
+  const paraLlevar = !extraLlevar && esParaLlevarLinea(p);
   return {
     nombre: p.plato?.nombre || p.nombre || 'Plato',
     cantidad,
     precio,
     subtotal: Number.isFinite(subRaw) && subRaw > 0 ? subRaw : precio * cantidad,
-    tipoServicio: paraLlevar ? 'para_llevar' : (p.tipoServicio || 'mesa'),
+    tipoServicio: extraLlevar ? 'extra_llevar' : (paraLlevar ? 'para_llevar' : (p.tipoServicio || 'mesa')),
     complementos: (p.complementosSeleccionados || p.complementos || []).map((c) => ({
       grupo: c.grupo,
       opcion: c.opcion,

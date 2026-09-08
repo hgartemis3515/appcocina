@@ -259,6 +259,18 @@ export const esTicketComanda = (ticket) =>
 
 export const esPagoParcial = (ticket) => ticket?.tipo === 'pago_parcial';
 
+export function ticketTieneExtraLlevar(ticket) {
+  return (ticket?.platos || []).some(
+    (p) => p && !p.eliminado && !p.anulado && p.tipoServicio === 'extra_llevar'
+  );
+}
+
+export function etiquetaTipoServicioTicket(tipo) {
+  if (tipo === 'extra_llevar') return 'EXTRA LLEVAR';
+  if (tipo === 'para_llevar') return 'Para llevar';
+  return '';
+}
+
 export function ticketEsAltaSinPago(ticket) {
   if (!ticket) return false;
   const origen = String(ticket.origen || '').toLowerCase();

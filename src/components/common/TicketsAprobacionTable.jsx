@@ -9,7 +9,7 @@ import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
   nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
   ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
-  estadoEntregaComandaTicket, estadoEntregaTickets,
+  estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
@@ -159,6 +159,11 @@ function FilaTicketAvanzado({
             <div className="text-white font-semibold">
               {indent ? <span className="text-gray-600 mr-1">↳</span> : null}
               {comandaLabel}
+              {ticketTieneExtraLlevar(ticket) ? (
+                <span className="ml-1.5 inline-flex align-middle text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                  EXTRA LLEVAR
+                </span>
+              ) : null}
             </div>
             {ticket.ticketNumber != null && (
               <div className="text-[10px] text-amber-200/80">Ticket #{ticket.ticketNumber}</div>
@@ -437,6 +442,11 @@ export default function TicketsAprobacionTable({
                           <div className="text-amber-300 font-bold">
                             <span className="inline-block w-3 text-[10px]">{expandido ? '▼' : '▶'}</span>
                             {' '}GRUPO {fila.label || ''}
+                            {fila.tickets.some(ticketTieneExtraLlevar) ? (
+                              <span className="ml-1.5 inline-flex align-middle text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                EXTRA LLEVAR
+                              </span>
+                            ) : null}
                           </div>
                           <div className="text-[10px] text-amber-200/80">
                             {fila.tickets.length} comandas
