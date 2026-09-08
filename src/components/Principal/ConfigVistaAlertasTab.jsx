@@ -69,6 +69,8 @@ import {
   resolverHeaderTarjetaEstilo,
   estiloDatoHeaderTarjetaKds,
 } from '../../utils/estiloHeaderTarjetaKds';
+import { COLOR_RESERVA_KDS_DEFAULT } from '../../utils/kdsFilters';
+import { RESERVA_TEXTO_DEFAULT } from '../../utils/estiloReservaKds';
 
 /**
  * Pestaña unificada Vista + Alertas de las tablas KDS,
@@ -590,6 +592,178 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               {config.headerTarjetaOcultarPrep !== true && (
                 <span style={estiloDatoHeaderTarjetaKds(config)}>Prep 2/3</span>
               )}
+            </div>
+          </fieldset>
+          <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Color de reserva</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Color de la tarjeta, letras de RESERVA / horarios / cronómetro, y el cuadro detrás (como el número de comanda). Por defecto la tarjeta es celeste y el cuadro negro. Se guarda con Guardar y en el perfil.
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.ocultarCohetePrioridadKds === true}
+                onChange={(e) => updateConfig({ ocultarCohetePrioridadKds: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Ocultar cohete de prioridad</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>
+                  No muestra el 🚀 en el encabezado de comandas priorizadas, para ahorrar espacio.
+                </span>
+              </span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block col-span-2">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de la tarjeta</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.colorReservaKds, COLOR_RESERVA_KDS_DEFAULT)}
+                    onChange={(e) => updateConfig({ colorReservaKds: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo de la tarjeta de reserva"
+                  />
+                  <input
+                    type="text"
+                    value={config.colorReservaKds || COLOR_RESERVA_KDS_DEFAULT}
+                    onChange={(e) => updateConfig({ colorReservaKds: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra RESERVA</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.colorReservaTexto, RESERVA_TEXTO_DEFAULT.colorReservaTexto)}
+                    onChange={(e) => updateConfig({ colorReservaTexto: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de la palabra RESERVA"
+                  />
+                  <input
+                    type="text"
+                    value={config.colorReservaTexto || RESERVA_TEXTO_DEFAULT.colorReservaTexto}
+                    onChange={(e) => updateConfig({ colorReservaTexto: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra horarios</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.colorReservaHorario, RESERVA_TEXTO_DEFAULT.colorReservaHorario)}
+                    onChange={(e) => updateConfig({ colorReservaHorario: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de los horarios de reserva"
+                  />
+                  <input
+                    type="text"
+                    value={config.colorReservaHorario || RESERVA_TEXTO_DEFAULT.colorReservaHorario}
+                    onChange={(e) => updateConfig({ colorReservaHorario: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Fondo del cuadro</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.colorReservaCuadro, RESERVA_TEXTO_DEFAULT.colorReservaCuadro)}
+                    onChange={(e) => updateConfig({ colorReservaCuadro: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo del cuadro de reserva"
+                  />
+                  <input
+                    type="text"
+                    value={config.colorReservaCuadro || RESERVA_TEXTO_DEFAULT.colorReservaCuadro}
+                    onChange={(e) => updateConfig({ colorReservaCuadro: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra cronómetro</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.colorReservaCronometro, RESERVA_TEXTO_DEFAULT.colorReservaCronometro)}
+                    onChange={(e) => updateConfig({ colorReservaCronometro: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de letra del cronómetro de atraso"
+                  />
+                  <input
+                    type="text"
+                    value={config.colorReservaCronometro || RESERVA_TEXTO_DEFAULT.colorReservaCronometro}
+                    onChange={(e) => updateConfig({ colorReservaCronometro: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Fondo cronómetro</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hexParaColorPicker(config.colorReservaCronometroFondo, RESERVA_TEXTO_DEFAULT.colorReservaCronometroFondo)}
+                    onChange={(e) => updateConfig({ colorReservaCronometroFondo: e.target.value })}
+                    className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                    aria-label="Color de fondo del cronómetro de atraso"
+                  />
+                  <input
+                    type="text"
+                    value={config.colorReservaCronometroFondo || RESERVA_TEXTO_DEFAULT.colorReservaCronometroFondo}
+                    onChange={(e) => updateConfig({ colorReservaCronometroFondo: e.target.value })}
+                    className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span style={{
+                backgroundColor: hexParaColorPicker(config.colorReservaCuadro, RESERVA_TEXTO_DEFAULT.colorReservaCuadro),
+                padding: '2px 6px',
+                borderRadius: 6,
+                display: 'inline-flex',
+                gap: 6,
+                fontFamily: 'Arial, sans-serif',
+              }}>
+                <span style={{
+                  color: hexParaColorPicker(config.colorReservaTexto, RESERVA_TEXTO_DEFAULT.colorReservaTexto),
+                  fontWeight: 900,
+                  fontSize: '0.95rem',
+                }}>RESERVA</span>
+                <span style={{
+                  color: hexParaColorPicker(config.colorReservaHorario, RESERVA_TEXTO_DEFAULT.colorReservaHorario),
+                  fontWeight: 900,
+                  fontSize: '0.95rem',
+                }}>6:00pm a 7:00pm</span>
+              </span>
+              <span style={{
+                backgroundColor: hexParaColorPicker(config.colorReservaCronometroFondo, RESERVA_TEXTO_DEFAULT.colorReservaCronometroFondo),
+                color: hexParaColorPicker(config.colorReservaCronometro, RESERVA_TEXTO_DEFAULT.colorReservaCronometro),
+                padding: '2px 6px',
+                borderRadius: 6,
+                fontWeight: 700,
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '0.85rem',
+              }}>+01:20</span>
             </div>
           </fieldset>
           <fieldset className="space-y-2">

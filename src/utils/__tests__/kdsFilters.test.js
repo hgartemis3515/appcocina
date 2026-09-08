@@ -16,7 +16,10 @@ import {
   clasesHeaderReservaKds,
   platoRetenidoFueraDeCocina,
   tiempoInicioPlatoCocina,
-  instanteInicioCocinaComanda
+  instanteInicioCocinaComanda,
+  textoHorarioReservaKds,
+  msRetrasoReserva,
+  formatCronometroMs
 } from '../kdsFilters';
 
 // ============================================================
@@ -418,19 +421,18 @@ describe('esComandaSoloParaLlevar / clasesHeaderReservaKds', () => {
     expect(esComandaSoloParaLlevar({ platos: [] })).toBe(false);
   });
 
-  test('header morado en reserva mesa y rosado en reserva solo llevar', () => {
+  test('header usa celeste por defecto y el color de Vista y alertas', () => {
     expect(clasesHeaderReservaKds(reservaMesa)).toEqual({
-      bg: 'bg-purple-700',
-      border: 'border-purple-700',
+      hex: '#7DD3FC',
+      bg: '',
+      border: '',
     });
     expect(clasesHeaderReservaKds(reservaLlevar)).toEqual({
-      bg: 'bg-pink-600',
-      border: 'border-pink-600',
+      hex: '#7DD3FC',
+      bg: '',
+      border: '',
     });
-    expect(clasesHeaderReservaKds(reservaMixta)).toEqual({
-      bg: 'bg-purple-700',
-      border: 'border-purple-700',
-    });
+    expect(clasesHeaderReservaKds(reservaMesa, { colorReservaKds: '#f97316' }).hex).toBe('#f97316');
     expect(clasesHeaderReservaKds({ origenCreacion: 'mozos' })).toBeNull();
   });
 });
@@ -500,5 +502,36 @@ describe('instanteInicioCocinaComanda', () => {
     expect(instanteInicioCocinaComanda({
       createdAt: '2026-09-07T18:00:00.000Z',
     })).toBe('2026-09-07T18:00:00.000Z');
+  });
+});
+
+describe('textoHorarioReservaKds / retraso', () => {
+  test('usa createdAt del pedido y hora de atención: 6:00pm a 7:00pm', () => {
+    expect(textoHorarioReservaKds({
+      origenCreacion: 'reserva',
+      createdAt: '2026-09-07T18:00:00.000-05:00',
+      fechaCocinaProgramada: '2026-09-07T15:30:00.000-05:00',
+      fechaAtencionReserva: '2026-09-07T19:00:00.000-05:00',
+    })).toBe('6:00pm a 7:00pm');
+  });
+
+  test('sin horas no inventa texto', () => {
+    expect(textoHorarioReservaKds({ origenCreacion: 'reserva' })).toBe('');
+  });
+
+  test('retraso es 0 antes de la hora de atención', () => {
+    expect(msRetrasoReserva({
+      fechaAtencionReserva: '2026-09-07T18:05:00.000-05:00',
+    }, new Date('2026-09-07T18:00:00.000-05:00').getTime())).toBe(0);
+  });
+
+  test('retraso cuenta desde la hora de atención', () => {
+    expect(msRetrasoReserva({
+      fechaAtencionReserva: '2026-09-07T18:05:00.000-05:00',
+    }, new Date('2026-09-07T18:07:00.000-05:00').getTime())).toBe(120000);
+  });
+
+  test('formatCronometroMs mm:ss', () => {
+    expect(formatCronometroMs(125000)).toBe('02:05');
   });
 });

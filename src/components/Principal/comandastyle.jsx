@@ -66,6 +66,7 @@ import { useConfig } from "../../contexts/ConfigContext";
 import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, colorLetraDeComanda } from "../../utils/estiloMozoNombreKds";
 import { comandaKdsEstiloCompacto } from "../../utils/kdsComandaEstilo";
 import HeaderTarjetaComandaKds from "../common/HeaderTarjetaComandaKds";
+import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
@@ -236,6 +237,7 @@ const ComandaStyle = ({
     if (plato?.overrideOrdenCola === true) return true;
     const comanda = (comandas || []).find(c => String(c._id) === String(comandaId));
     if (comanda?.omitirOrdenEntrega === true) return true;
+    if (esComandaReserva(comanda)) return true;
     const id = plato?._id;
     if (comandaId != null && id != null && overridesAprobados.has(`${comandaId}-${id}`)) return true;
     if (comandaId != null && platoIndex != null && overridesAprobados.has(`${comandaId}-${platoIndex}`)) return true;
@@ -3128,7 +3130,7 @@ const ComandaStyle = ({
         const comanda = comandas.find(c => c._id === comandaId);
         if (comanda && comanda.prioridadOrden > 0) {
           try {
-            await axios.put(`${getApiUrl()}/${comandaId}/prioridad`, { prioridadOrden: 0 });
+            await apiPut(`/api/comanda/${comandaId}/prioridad`, { prioridadOrden: 0 });
           } catch (err) {
             console.warn('⚠️ No se pudo resetear prioridad:', err);
           }
@@ -3622,7 +3624,7 @@ const ComandaStyle = ({
       // PARRAFO 6 - RESET UX v5.5: Resetear prioridadOrden=0 al finalizar
       comandasExitosas.forEach(async (comandaId) => {
         try {
-          await axios.put(`${getApiUrl()}/${comandaId}/prioridad`, { prioridadOrden: 0 });
+          await apiPut(`/api/comanda/${comandaId}/prioridad`, { prioridadOrden: 0 });
         } catch (err) {
           console.warn('⚠️ No se pudo resetear prioridad:', err);
         }
@@ -3948,7 +3950,7 @@ const ComandaStyle = ({
       // TOGGLE: Si ya tiene prioridad, quitarla; si no, asignarla
       const tienePrioridad = comanda.prioridadOrden > 0;
       const nuevaPrioridad = tienePrioridad ? 0 : Date.now();
-      await axios.put(`${getApiUrl()}/${comanda._id}/prioridad`, { prioridadOrden: nuevaPrioridad });
+      await apiPut(`/api/comanda/${comanda._id}/prioridad`, { prioridadOrden: nuevaPrioridad });
       setSelectedOrders(new Set());
       setToastMessage({ 
         type: 'success', 
@@ -5532,10 +5534,10 @@ const SicarComandaCard = ({
     ? platosEliminadosConNombres 
     : platosEliminados;
   // Calcular color de fondo según tiempo (actualizado en tiempo real) - Colores mejorados
-  const headerReserva = clasesHeaderReservaKds(comanda);
+  const headerReserva = clasesHeaderReservaKds(comanda, kdsMozoConfig);
   const [minutosActuales, setMinutosActuales] = useState(tiempo.minutos);
-  const [bgColor, setBgColor] = useState(headerReserva?.bg || "bg-gray-500");
-  const [borderColor, setBorderColor] = useState(headerReserva?.border || "border-gray-500");
+  const [bgColor, setBgColor] = useState(headerReserva ? '' : "bg-gray-500");
+  const [borderColor, setBorderColor] = useState(headerReserva ? '' : "border-gray-500");
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -5547,8 +5549,8 @@ const SicarComandaCard = ({
       setMinutosActuales(diffMinutos);
       
       if (headerReserva) {
-        setBgColor(headerReserva.bg);
-        setBorderColor(headerReserva.border);
+        setBgColor('');
+        setBorderColor('');
         return;
       }
       // Actualizar colores según tiempo - Borde y encabezado con el mismo color
@@ -5569,8 +5571,8 @@ const SicarComandaCard = ({
   // Inicializar colores - Borde y encabezado con el mismo color
   useEffect(() => {
     if (headerReserva) {
-      setBgColor(headerReserva.bg);
-      setBorderColor(headerReserva.border);
+      setBgColor('');
+      setBorderColor('');
       return;
     }
     if (minutosActuales >= alertRedMinutes) {
@@ -5680,6 +5682,12 @@ const SicarComandaCard = ({
   // En modo nocturno: fondo oscuro, texto claro
   // En modo claro: fondo claro, texto oscuro
   const bgPlatos = nightMode ? "bg-gray-800" : "bg-white";
+  const bgBarPrep = headerReserva
+    ? 'bg-black/20 hover:bg-black/25 active:bg-black/30 border-black/20'
+    : (nightMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border-gray-600' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-gray-300');
+  const textBarPrep = headerReserva
+    ? 'text-white'
+    : (nightMode ? 'text-gray-200' : 'text-gray-800');
   const textPlatos = nightMode ? "text-white" : "text-gray-900";
   const textPlatosHover = nightMode ? "hover:bg-gray-700" : "hover:bg-gray-100";
   // Colores para estado preparando (amarillo)
@@ -5744,7 +5752,7 @@ const SicarComandaCard = ({
   return (
     <motion.div 
       layoutId={`order-${comandaId}`}
-      className={`${bgColor} ${borderColor} flex flex-col relative cursor-pointer`}
+      className={`${headerReserva ? '' : `${bgColor} ${borderColor}`} flex flex-col relative cursor-pointer`}
       style={{
         fontFamily: 'Arial, sans-serif',
         width: '300px',
@@ -5752,7 +5760,8 @@ const SicarComandaCard = ({
         borderRadius: '12px',
         boxShadow: shadowStyle,
         border: borderStyle,
-        background: backgroundStyle
+        background: backgroundStyle,
+        ...(!backgroundStyle && headerReserva ? { backgroundColor: headerReserva.hex } : {})
       }}
       initial={{ opacity: 0, scale: 0.8, y: 100 }}
       animate={{ 
@@ -5769,7 +5778,11 @@ const SicarComandaCard = ({
       }}
     >
       {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) - Zona Click 1 */}
-      <div className={`relative ${padHeader} ${bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`} onClick={onToggleSelect}>
+      <div
+        className={`relative ${padHeader} ${headerReserva ? '' : bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`}
+        style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
+        onClick={onToggleSelect}
+      >
         {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
         {/* Solo mostrar cuando está en estado 'finalizar' (contorno verde) */}
         <AnimatePresence>
@@ -5866,7 +5879,7 @@ const SicarComandaCard = ({
                 ¡Urgente!
               </motion.span>
             )}
-            {comanda.prioridadOrden > 0 && (
+            {comanda.prioridadOrden > 0 && kdsMozoConfig.ocultarCohetePrioridadKds !== true && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: [1, 1.2, 1] }}
@@ -5891,7 +5904,10 @@ const SicarComandaCard = ({
       )}
 
       {/* Lista de platos vertical */}
-      <div className={`flex-1 overflow-y-auto ${bgPlatos}`}>
+      <div
+        className={`flex-1 overflow-y-auto ${headerReserva ? '' : bgPlatos}`}
+        style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
+      >
         <div className="flex flex-col h-full">
           {/* Observaciones del mozo - se muestra solo si hay contenido */}
           {typeof comanda.observaciones === 'string' && comanda.observaciones.trim() !== '' && (
@@ -5923,14 +5939,15 @@ const SicarComandaCard = ({
                     onToggleSelect();
                   }
                 }}
-                className={`h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors border-b ${nightMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border-gray-600' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-gray-300'}`}
+                className={`h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors border-b ${bgBarPrep}`}
               >
-                <span className={`font-medium text-xs uppercase tracking-wider ${nightMode ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                <span className={`font-medium text-xs uppercase tracking-wider ${textBarPrep}`} style={{ fontFamily: 'Arial, sans-serif' }}>
                   📋 EN PREPARACIÓN
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${nightMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-800'}`}>
                   {platosPreparacion.length}/{totalPlatos}
                 </span>
+                <CronometroAtrasoReservaKds comanda={comanda} config={kdsMozoConfig} />
               </div>
               <div className="px-2 py-2 space-y-1">
                 {platosPreparacion.flatMap((plato, index) => {

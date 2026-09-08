@@ -99,6 +99,9 @@ describe('kdsPerfilesVista', () => {
     expect(snap.headerTarjetaColor).toBe('#ffffff');
     expect(snap.headerTarjetaContorno).toBe('#4b5563');
     expect(snap.headerTarjetaFondo).toBe('#111827');
+    expect(snap.colorReservaKds).toBe('#7DD3FC');
+    expect(snap.colorReservaCuadro).toBe('#000000');
+    expect(snap.ocultarCohetePrioridadKds).toBe(false);
     expect(snap.nightMode).toBeUndefined();
   });
 

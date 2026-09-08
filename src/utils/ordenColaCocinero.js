@@ -1,3 +1,5 @@
+import { esComandaReserva } from './kdsFilters';
+
 /**
  * ordenColaCocinero.js
  *
@@ -15,7 +17,14 @@
  * - Si se salta el orden (solo #2, o #4 sin #1..#3) → Solicitar Orden / bloqueo.
  * - La cantidad viaja con la línea: marcar el #1 con ×N finaliza las N unidades.
  * - Al complementar con platos de otros cocineros, la regla aplica por cola de cada cocinero.
+ * - Comandas de reserva no entran a la cola secuencial (no bloquean ni se bloquean).
  */
+
+export function comandaOmiteOrdenSecuencial(comanda) {
+    if (!comanda) return false;
+    if (comanda.omitirOrdenEntrega === true) return true;
+    return esComandaReserva(comanda);
+}
 
 /**
  * Estados considerados "en proceso" / finalizable (no recoger/salio/entregado).
@@ -57,6 +66,7 @@ export function calcularNumerosColaPorCocinero(comandas) {
 
     for (const comanda of comandas) {
         if (!comanda || !Array.isArray(comanda.platos)) continue;
+        if (comandaOmiteOrdenSecuencial(comanda)) continue;
         const comandaId = comanda._id || comanda.id;
         comanda.platos.forEach((plato, platoIndex) => {
             if (!platoEnProceso(plato)) return;
@@ -163,7 +173,9 @@ export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) 
     const sinCola = [];
 
     for (const item of platosMarcados) {
-        if (tieneOverride(item)) {
+        if (tieneOverride(item) || comandaOmiteOrdenSecuencial(item.comanda) || comandaOmiteOrdenSecuencial(
+            (comandas || []).find((c) => String(c._id || c.id) === String(item.comandaId))
+        )) {
             finalizables.push(item);
             continue;
         }

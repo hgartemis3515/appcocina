@@ -8,6 +8,7 @@ import {
   tamanoLetraHeaderTarjetaKds,
 } from '../../utils/estiloHeaderTarjetaKds';
 import { hexValidoOrdenCola } from '../../utils/estiloNumeroOrdenKds';
+import BadgeReservaKds from './BadgeReservaKds';
 
 function Chip({ style, title, children }) {
   if (children == null || children === '') return null;
@@ -77,6 +78,7 @@ export default function HeaderTarjetaComandaKds({
   const prep = prepVisible
     ? <Chip style={estiloDato} title={prepTitle || prepText}>{prepText}</Chip>
     : null;
+  const reserva = <BadgeReservaKds comanda={comanda} config={config} />;
   const serie = <BadgeNumeroSerieKds comanda={comanda} style={estiloDato} />;
   const wrap = estilo === 'clasico' ? 'flex flex-wrap items-center gap-1.5' : 'flex flex-wrap items-center gap-1';
 
@@ -98,6 +100,7 @@ export default function HeaderTarjetaComandaKds({
           <div className={wrap}>
             {serie}
             {prep}
+            {reserva}
             {children}
           </div>
         </div>
@@ -121,6 +124,7 @@ export default function HeaderTarjetaComandaKds({
           <div className={wrap}>
             {serie}
             {prep}
+            {reserva}
             {children}
           </div>
         </div>
@@ -139,6 +143,7 @@ export default function HeaderTarjetaComandaKds({
       </Chip>
       {serie}
       {prep}
+      {reserva}
       {children}
     </div>
   );

@@ -892,14 +892,77 @@ export function esComandaSoloParaLlevar(comanda) {
   return platos.every((p) => p.tipoServicio === 'para_llevar');
 }
 
-const HEADER_RESERVA_MESA = { bg: 'bg-purple-700', border: 'border-purple-700' };
-const HEADER_RESERVA_LLEVAR = { bg: 'bg-pink-600', border: 'border-pink-600' };
+const HEX_RESERVA = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
-/** Header KDS: reserva mesa = morado; reserva solo llevar = rosado. */
-export function clasesHeaderReservaKds(comanda) {
+/** Celeste por defecto (Vista y alertas → Color de reserva). */
+export const COLOR_RESERVA_KDS_DEFAULT = '#7DD3FC';
+
+export function hexColorReservaKds(config) {
+  const v = String(config?.colorReservaKds || '').trim();
+  return HEX_RESERVA.test(v) ? v : COLOR_RESERVA_KDS_DEFAULT;
+}
+
+/** Header/tabla KDS de reserva: color configurable (mismo para mesa y llevar). */
+export function clasesHeaderReservaKds(comanda, config) {
   if (!esComandaReserva(comanda)) return null;
-  if (esComandaSoloParaLlevar(comanda)) return HEADER_RESERVA_LLEVAR;
-  return HEADER_RESERVA_MESA;
+  const hex = hexColorReservaKds(config);
+  return { hex, bg: '', border: '' };
+}
+
+/** Hora en que se creó el pedido (comanda), no la de cocina programada. */
+export function fechaPedidoReserva(comanda) {
+  if (!comanda) return null;
+  if (comanda.createdAt) return comanda.createdAt;
+  const orig = comanda.origenReserva;
+  if (orig && typeof orig === 'object' && orig.createdAt) return orig.createdAt;
+  const platos = Array.isArray(comanda.platos) ? comanda.platos : [];
+  for (const p of platos) {
+    if (p?.tiempos?.pedido) return p.tiempos.pedido;
+  }
+  return null;
+}
+
+export function fechaAtencionReserva(comanda) {
+  if (comanda?.fechaAtencionReserva) return comanda.fechaAtencionReserva;
+  const orig = comanda?.origenReserva;
+  if (orig && typeof orig === 'object') return orig.fechaReserva || null;
+  return null;
+}
+
+export function formatHoraAmPmLima(dateLike) {
+  if (!dateLike) return '';
+  const m = moment.tz(dateLike, 'America/Lima');
+  if (!m.isValid()) return '';
+  const h24 = m.hour();
+  const min = m.minute();
+  const ampm = h24 >= 12 ? 'pm' : 'am';
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}:${String(min).padStart(2, '0')}${ampm}`;
+}
+
+/** Horas a la derecha de RESERVA: "6:00pm a 7:00pm". */
+export function textoHorarioReservaKds(comanda) {
+  const pedido = formatHoraAmPmLima(fechaPedidoReserva(comanda));
+  const atencion = formatHoraAmPmLima(fechaAtencionReserva(comanda));
+  if (pedido && atencion) return `${pedido} a ${atencion}`;
+  return pedido || atencion || '';
+}
+
+export function msRetrasoReserva(comanda, ahora = Date.now()) {
+  const at = fechaAtencionReserva(comanda);
+  if (!at) return 0;
+  const t = new Date(at).getTime();
+  if (!Number.isFinite(t)) return 0;
+  return Math.max(0, ahora - t);
+}
+
+export function formatCronometroMs(ms) {
+  const totalSec = Math.max(0, Math.floor(Number(ms) / 1000) || 0);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 // ============================================================
@@ -921,5 +984,13 @@ export default {
   platoRetenidoFueraDeCocina,
   tiempoInicioPlatoCocina,
   instanteInicioCocinaComanda,
-  clasesHeaderReservaKds
+  clasesHeaderReservaKds,
+  hexColorReservaKds,
+  COLOR_RESERVA_KDS_DEFAULT,
+  fechaPedidoReserva,
+  fechaAtencionReserva,
+  formatHoraAmPmLima,
+  textoHorarioReservaKds,
+  msRetrasoReserva,
+  formatCronometroMs
 };
