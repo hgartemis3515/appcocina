@@ -40,10 +40,6 @@ export default function ReservaSidebar({ socket, onClose }) {
   const handleAtenderYa = async (reserva) => {
     const reservaId = reserva._id;
     const texto = String(motivo[reservaId] || '').trim();
-    if (texto.length < 3) {
-      alert('El motivo es obligatorio (mínimo 3 caracteres) para auditoría.');
-      return;
-    }
     if (loadingId) return;
     setLoadingId(reservaId);
     try {
@@ -166,7 +162,7 @@ export default function ReservaSidebar({ socket, onClose }) {
                     <textarea
                       value={motivo[r._id] || ''}
                       onChange={(e) => setMotivo((prev) => ({ ...prev, [r._id]: e.target.value }))}
-                      placeholder="Motivo (auditoría)…"
+                      placeholder="Motivo (opcional)…"
                       className="w-full bg-gray-900 border border-pink-500/40 rounded-lg p-2 text-xs text-white min-h-[64px]"
                     />
                     <div className="flex gap-2">

@@ -19,7 +19,7 @@ import {
 } from '../utils/numeracionTimersMonitor';
 import { platoCoincideCocineroFiltro } from '../utils/cocineroFiltroIds';
 import { obtenerNombreDisplayCocina } from '../utils/platoHelpers';
-import { slugsTipoDePlato, slugTipoPedido } from '../utils/tipoPlatoReglasCocina';
+import { slugsTipoDePlato } from '../utils/tipoPlatoReglasCocina';
 import { platoRetenidoFueraDeCocina, tiempoInicioPlatoCocina } from '../utils/kdsFilters';
 
 // Platos tomados por un cocinero: su estado backend sigue siendo pedido/en_espera
@@ -91,8 +91,10 @@ function claveGrupoPlato(plato, nombre) {
   const nombreNorm = (nombre || '').trim().toLowerCase();
   const obs = (plato.observaciones || plato.nota || plato.notaEspecial || '').trim().toLowerCase();
   const tipoServicio = (plato.tipoServicio === 'para_llevar') ? 'para_llevar' : 'mesa';
-  const tipoPedido = slugTipoPedido(plato) || '';
-  return `${platoTipoId}::${nombreNorm}::${claveComplementos(plato)}::${obs}::${tipoServicio}::${tipoPedido}`;
+  // No incluir tipoPedido: reservas a menudo no lo traen y el mismo plato
+  // (normal + reserva) se partía en dos cuadros. La partición horizontal
+  // sigue usando slugsTipoDePlato aparte.
+  return `${platoTipoId}::${nombreNorm}::${claveComplementos(plato)}::${obs}::${tipoServicio}`;
 }
 
 /** ID corto y estable para React key (evita colisiones con caracteres especiales). */
