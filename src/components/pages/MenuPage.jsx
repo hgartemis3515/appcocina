@@ -18,11 +18,14 @@ import {
   FaTv,
   FaDesktop,
   FaCalendarAlt,
-  FaExternalLinkAlt
+  FaExternalLinkAlt,
+  FaExpand,
+  FaCompress
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import { getServerBaseUrl } from '../../config/apiConfig';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
+import useFullscreen from '../../hooks/useFullscreen';
 
 /**
  * MenuPage - Menú principal del App de Cocina
@@ -34,6 +37,7 @@ import BotonCandadoCocina from '../common/BotonCandadoCocina';
  */
 const MenuPage = ({ onNavigate }) => {
   const { user, logout, cocineroConfig, configLoading, getZonasActivas, hasPermission } = useAuth();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
   const [showViewSelector, setShowViewSelector] = useState(false);
   const [showCocinaViewSelector, setShowCocinaViewSelector] = useState(false);
 
@@ -247,6 +251,15 @@ const MenuPage = ({ onNavigate }) => {
                 <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Arial Black, sans-serif' }}>
                   COCINA SAN BENITO
                 </h1>
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className="flex items-center justify-center w-10 h-10 bg-gray-800 hover:bg-gray-700 text-amber-400 rounded-lg border border-amber-400/40 transition-colors"
+                  title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                  aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                >
+                  {isFullscreen ? <FaCompress /> : <FaExpand />}
+                </button>
                 <button
                   type="button"
                   onClick={() => {

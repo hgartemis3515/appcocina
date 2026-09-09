@@ -195,6 +195,15 @@ const KdsTopBar = ({
 
         <BotonCandadoCocina compact />
 
+        <button
+          onClick={onToggleFullscreen}
+          className={primaryBtn}
+          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+        >
+          {isFullscreen ? <FaCompress /> : <FaExpand />}
+        </button>
+
         {/* Buscar */}
         <button
           onClick={onToggleSearch}
@@ -273,14 +282,6 @@ const KdsTopBar = ({
             <FaArrowLeft />
             <span className="hidden lg:inline">Menú</span>
           </button>
-          <button
-            onClick={onToggleFullscreen}
-            className={actionBtn}
-            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-            aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          >
-            {isFullscreen ? <FaCompress /> : <FaExpand />}
-          </button>
         </div>
 
         {/* --- Overflow `⋮` en móvil (< md) --- */}
@@ -303,11 +304,6 @@ const KdsTopBar = ({
               <OverflowItem onClick={run(onShowReports)} icon={<FaChartBar />} label="Reportes" />
               <OverflowItem onClick={run(onShowRevertir)} icon={<FaUndo />} label="Revertir" />
               <OverflowItem onClick={run(onShowConfig)} icon={<FaCog />} label="Configuración" />
-              <OverflowItem
-                onClick={run(onToggleFullscreen)}
-                icon={isFullscreen ? <FaCompress /> : <FaExpand />}
-                label={isFullscreen ? "Salir pantalla completa" : "Pantalla completa"}
-              />
               <OverflowItem
                 onClick={run(onGoToMenu)}
                 icon={<FaArrowLeft />}

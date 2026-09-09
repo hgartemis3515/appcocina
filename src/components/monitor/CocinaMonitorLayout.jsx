@@ -54,6 +54,7 @@ import {
 import { contarGuarnicionesPorNombre, claveNombreComplemento } from '../../utils/nombreComplementoCanonico';
 import ContadorGuarnicionesBar from './ContadorGuarnicionesBar';
 import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
+import useFullscreen from '../../hooks/useFullscreen';
 import {
   anotarReglasTipoEnItems,
   partirItemsHorizontales,
@@ -61,6 +62,7 @@ import {
   slugsTipoDePlato,
 } from '../../utils/tipoPlatoReglasCocina';
 import { platoJuntaGuarnicionesEntreVariantes } from '../../utils/platoFlagsCocina';
+import { FaExpand, FaCompress } from 'react-icons/fa';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
 
@@ -336,6 +338,7 @@ const CocinaMonitorLayout = ({
 }) => {
   const tick = useCocinaMonitorTimer();
   useHubChromeZoom();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
   const reloj = useMemo(
     () => moment().tz('America/Lima').format('HH:mm:ss'),
     [tick]
@@ -1443,6 +1446,29 @@ const CocinaMonitorLayout = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: 600,
+              background: 'transparent',
+              color: colorAcento,
+              border: `2px solid ${colorAcento}55`,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {isFullscreen ? <FaCompress /> : <FaExpand />}
+          </button>
           {!modoFijo && onVolver && (
             <button
               onClick={onVolver}
