@@ -458,13 +458,13 @@ describe('platoRetenidoFueraDeCocina', () => {
     })).toBe(false);
   });
 
-  test('mesa sin PPA entra; mesa con PPA pendiente no', () => {
+  test('mesa entra aunque el PPA esté pendiente', () => {
     expect(platoRetenidoFueraDeCocina({ estado: 'pedido', tipoServicio: 'mesa' })).toBe(false);
     expect(platoRetenidoFueraDeCocina({
       estado: 'pedido',
       tipoServicio: 'mesa',
       pagoAdelantado: { requerido: true, estadoTicket: 'pendiente_aprobacion' },
-    })).toBe(true);
+    })).toBe(false);
   });
 
   test('extra llevar entra a KDS sin PPA', () => {
