@@ -159,6 +159,9 @@ describe('nombreGuarnicionSolo', () => {
   test('sin opción devuelve string vacío', () => {
     expect(nombreGuarnicionSolo({})).toBe('');
   });
+  test('incluye variación de complemento', () => {
+    expect(nombreGuarnicionSolo({ opcion: 'Ensalada', variacion: 'Limón' })).toBe('Ensalada Limón');
+  });
 });
 
 const { textoGuarnicionEnPrincipal } = require('./guarnicionesKds');

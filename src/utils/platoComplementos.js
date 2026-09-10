@@ -10,7 +10,9 @@ export function getComplementosDePlato(plato) {
 
   return raw
     .map((comp) => {
-      const opcion = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || '');
+      const opcionBase = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || '');
+      const variacion = String(comp.variacion || '').trim();
+      const opcion = variacion ? `${opcionBase} ${variacion}`.trim() : opcionBase;
       const grupo = comp.grupo || '';
       const cantidad = (Math.max(1, Number(comp.cantidad) || 1)) * nPlatos;
       const precio = comp.precio != null ? Number(comp.precio) : null;

@@ -198,8 +198,11 @@ export function nombreGuarnicionConPadre(comp, nombrePadre, plato, comanda, plat
  * Ej: "Arroz". La cantidad la muestra la tarjeta principal vía props.cantidad.
  */
 export function nombreGuarnicionSolo(comp) {
+  if (!comp) return '';
   const opcion = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || '');
-  return opcion || '';
+  const v = String(comp.variacion || '').trim();
+  if (!opcion) return v;
+  return v ? `${opcion} ${v}` : opcion;
 }
 
 /**

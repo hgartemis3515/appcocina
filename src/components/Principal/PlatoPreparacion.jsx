@@ -7,7 +7,7 @@ import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
 import { estiloParaLlevarKds } from '../../utils/estiloParaLlevarKds';
 import { estiloCocineroNombreKds, textoNombreCocineroKds } from '../../utils/estiloCocineroNombreKds';
-import { cantidadGuarnicionEfectiva, complementosVisiblesEnTablaKds } from '../../utils/guarnicionesKds';
+import { cantidadGuarnicionEfectiva, complementosVisiblesEnTablaKds, nombreGuarnicionSolo } from '../../utils/guarnicionesKds';
 import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
 import { itemAplicaReglaContador } from '../../utils/tipoPlatoReglasCocina';
 import { platoOcultaCronometroCocina } from '../../utils/platoFlagsCocina';
@@ -445,7 +445,7 @@ const PlatoPreparacion = ({
           <div className="flex flex-col gap-0.5 pointer-events-none mt-0.5">
             {compsTabla.map((comp, i) => {
               // v2.0: Mostrar siempre la cantidad del complemento
-              const opcionTexto = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion;
+              const opcionTexto = nombreGuarnicionSolo(comp) || (Array.isArray(comp.opcion) ? comp.opcion.join(', ') : comp.opcion);
               const cantidadComp = cantidadGuarnicionEfectiva(comp, { ...plato, cantidad });
               
               return (

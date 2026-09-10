@@ -2219,7 +2219,11 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           comandaId, platoId, platoIndex, plato, comp, compId,
           tipo: 'guarnicion',
           cantidad: 1,
-          nombre: Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || 'Guarnición'),
+          nombre: (() => {
+            const base = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || 'Guarnición');
+            const v = String(comp.variacion || '').trim();
+            return v ? `${base} ${v}` : (base || 'Guarnición');
+          })(),
           procesandoPor: comp.procesandoPor,
           estadoBackend: comp.estadoCocina || 'pedido',
           estadoVisual
