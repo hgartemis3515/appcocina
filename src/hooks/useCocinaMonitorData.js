@@ -16,7 +16,7 @@ import moment from 'moment-timezone';
 import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
 import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
-import { platoCoincideId, normalizarId } from '../utils/platoHelpers';
+import { platoCoincideId, normalizarId, fusionarComandaPreservandoToma } from '../utils/platoHelpers';
 
 const ESTADOS_LISTOS = new Set(['recoger', 'salio', 'entregado', 'pagado']);
 
@@ -63,17 +63,7 @@ function aplicarFinalizacionEnComandas(comandas, comandaId, platoId, nuevoEstado
 }
 
 function fusionarComandaSinRegresarListo(local, incoming) {
-  const incomingPlatos = incoming.platos || [];
-  const localPlatos = local?.platos || [];
-  const platos = incomingPlatos.map((inc) => {
-    if (ESTADOS_LISTOS.has(inc.estado)) return { ...inc, procesandoPor: null };
-    const loc = localPlatos.find((lp) => platoCoincideId(lp, inc._id) || platoCoincideId(inc, lp._id));
-    if (loc && ESTADOS_LISTOS.has(loc.estado)) {
-      return { ...inc, estado: loc.estado, procesandoPor: null };
-    }
-    return inc;
-  });
-  return { ...incoming, platos };
+  return fusionarComandaPreservandoToma(local, incoming);
 }
 
 function extraerComandaPayload(payload) {
@@ -180,9 +170,11 @@ const useCocinaMonitorData = ({ getToken, cocineroId = null }) => {
       const comanda = payload.comanda || payload;
       if (comanda.programadaPorReserva === true) return prev;
       const id = comanda._id || comanda.id;
-      const exists = prev.some(c => idsIguales(c._id || c.id, id));
-      if (exists) return prev;
-      return [...prev, comanda];
+      const idx = prev.findIndex(c => idsIguales(c._id || c.id, id));
+      if (idx === -1) return [...prev, comanda];
+      const next = prev.slice();
+      next[idx] = fusionarComandaSinRegresarListo(prev[idx], comanda);
+      return next;
     });
   }, []);
 

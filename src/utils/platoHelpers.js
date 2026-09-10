@@ -144,6 +144,71 @@ export const platoCoincideId = (plato, platoId) => {
   return false;
 };
 
+const ESTADOS_LISTOS_TOMA = new Set(['recoger', 'salio', 'entregado', 'pagado']);
+
+export function platoTieneCocineroAsignado(plato) {
+  const id = plato?.procesandoPor?.cocineroId;
+  return id != null && String(id).length > 0 && String(id) !== 'undefined';
+}
+
+/**
+ * Fusiona snapshot incoming con el local: no pierde procesandoPor si el
+ * evento llega sin cocinero (nueva-comanda antes de auto-asignar).
+ * Tampoco devuelve a pedido un plato ya en recoger/salio.
+ */
+export function fusionarComandaPreservandoToma(local, incoming) {
+  if (!incoming) return local || incoming;
+  const incomingPlatos = incoming.platos || [];
+  const localPlatos = local?.platos || [];
+  const platos = incomingPlatos.map((inc) => {
+    if (ESTADOS_LISTOS_TOMA.has(inc.estado)) return { ...inc, procesandoPor: null };
+    const loc = localPlatos.find((lp) => platoCoincideId(lp, inc._id) || platoCoincideId(inc, lp._id));
+    if (loc && ESTADOS_LISTOS_TOMA.has(loc.estado)) {
+      return { ...inc, estado: loc.estado, procesandoPor: null };
+    }
+    if (!platoTieneCocineroAsignado(inc) && platoTieneCocineroAsignado(loc)) {
+      return {
+        ...inc,
+        procesandoPor: loc.procesandoPor,
+        asignacionMeta: inc.asignacionMeta || loc.asignacionMeta,
+        estado: loc.estado || inc.estado,
+      };
+    }
+    return inc;
+  });
+  return { ...incoming, platos };
+}
+
+export function aplicarTomaPlatoEnComandas(comandas, comandaId, platoId, procesandoPor) {
+  if (!Array.isArray(comandas) || !comandaId || !platoId || !procesandoPor) return comandas;
+  return comandas.map((comanda) => {
+    if (String(comanda._id) !== String(comandaId) && String(comanda.id || '') !== String(comandaId)) {
+      return comanda;
+    }
+    return {
+      ...comanda,
+      platos: (comanda.platos || []).map((p) => (
+        platoCoincideId(p, platoId) ? { ...p, procesandoPor } : p
+      )),
+    };
+  });
+}
+
+export function aplicarLiberacionPlatoEnComandas(comandas, comandaId, platoId) {
+  if (!Array.isArray(comandas) || !comandaId || !platoId) return comandas;
+  return comandas.map((comanda) => {
+    if (String(comanda._id) !== String(comandaId) && String(comanda.id || '') !== String(comandaId)) {
+      return comanda;
+    }
+    return {
+      ...comanda,
+      platos: (comanda.platos || []).map((p) => (
+        platoCoincideId(p, platoId) ? { ...p, procesandoPor: null } : p
+      )),
+    };
+  });
+}
+
 /**
  * Resuelve el índice real del plato en `comanda.platos`.
  * Necesario cuando el buscador entrega copias `{ ...plato, _puntuacion }`:

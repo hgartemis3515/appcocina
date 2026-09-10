@@ -39,4 +39,19 @@ describe('aplicarComandaActualizadaMonitor (reservas → Ver Cocina)', () => {
     const next = aplicarComandaActualizadaMonitor(prev, { comanda: comandaReserva });
     expect(next.map((c) => c._id).sort()).toEqual(['otra', 'res1']);
   });
+
+  test('no pisa procesandoPor local si el snapshot llega sin cocinero', () => {
+    const prev = [{
+      _id: 'res1',
+      platos: [{ _id: 'p1', estado: 'en_espera', procesandoPor: { cocineroId: 'c1', alias: 'Ana' } }],
+    }];
+    const next = aplicarComandaActualizadaMonitor(prev, {
+      comanda: {
+        _id: 'res1',
+        IsActive: true,
+        platos: [{ _id: 'p1', estado: 'pedido' }],
+      },
+    });
+    expect(next[0].platos[0].procesandoPor.cocineroId).toBe('c1');
+  });
 });

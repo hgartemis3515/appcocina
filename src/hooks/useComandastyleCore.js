@@ -21,7 +21,7 @@ import moment from 'moment-timezone';
 import { getApiUrl } from '../config/apiConfig';
 import useSocketCocina from './useSocketCocina';
 import { esEventoGuarnicion, aplicarEventoGuarnicion } from '../utils/guarnicionesKds';
-import { platoCoincideId } from '../utils/platoHelpers';
+import { platoCoincideId, fusionarComandaPreservandoToma, aplicarTomaPlatoEnComandas, aplicarLiberacionPlatoEnComandas } from '../utils/platoHelpers';
 import { playKdsEventSound } from '../utils/kdsNotificationSounds';
 
 /**
@@ -194,7 +194,7 @@ const useComandastyleCore = ({
     setComandasOriginales(prev => {
       const existe = prev.find(c => c._id === nuevaComanda._id);
       if (existe) {
-        return prev.map(c => c._id === nuevaComanda._id ? nuevaComanda : c);
+        return prev.map(c => c._id === nuevaComanda._id ? fusionarComandaPreservandoToma(c, nuevaComanda) : c);
       }
       return [nuevaComanda, ...prev];
     });
@@ -219,7 +219,7 @@ const useComandastyleCore = ({
       const index = prev.findIndex(c => c._id === comandaActualizada._id);
       if (index !== -1) {
         const actualizadas = [...prev];
-        actualizadas[index] = comandaActualizada;
+        actualizadas[index] = fusionarComandaPreservandoToma(prev[index], comandaActualizada);
         return actualizadas;
       }
       return [comandaActualizada, ...prev];
@@ -233,6 +233,15 @@ const useComandastyleCore = ({
 
     if (esEventoGuarnicion(data)) {
       setComandasOriginales(prev => aplicarEventoGuarnicion(prev, data));
+      return;
+    }
+
+    if (data.tipo === 'PLATO_TOMADO' && data.procesandoPor) {
+      setComandasOriginales(prev => aplicarTomaPlatoEnComandas(prev, data.comandaId, data.platoId, data.procesandoPor));
+      return;
+    }
+    if (data.tipo === 'PLATO_LIBERADO') {
+      setComandasOriginales(prev => aplicarLiberacionPlatoEnComandas(prev, data.comandaId, data.platoId));
       return;
     }
 

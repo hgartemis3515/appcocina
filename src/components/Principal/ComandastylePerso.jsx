@@ -63,7 +63,7 @@ import {
   instanteInicioCocinaComanda
 } from "../../utils/kdsFilters";
 import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados } from "../../utils/kdsAnularPlatos";
-import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma, aplicarTomaPlatoEnComandas, aplicarLiberacionPlatoEnComandas } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
@@ -935,7 +935,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       const lista = Array.isArray(prev) ? prev : [];
       const existe = lista.some(c => c && String(c._id) === nuevaId);
       if (existe) {
-        return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
+        return lista.map(c => String(c._id) === nuevaId ? fusionarComandaPreservandoToma(c, nuevaComanda) : c);
       }
       return [nuevaComanda, ...lista];
     });
@@ -945,7 +945,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       const lista = Array.isArray(prev) ? prev : [];
       const existe = lista.some(c => c && String(c._id) === nuevaId);
       if (existe) {
-        return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
+        return lista.map(c => String(c._id) === nuevaId ? fusionarComandaPreservandoToma(c, nuevaComanda) : c);
       }
       return [nuevaComanda, ...lista];
     });
@@ -1091,6 +1091,22 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         return;
       }
     }
+
+    const upsertComandaConToma = (prev) => {
+      const lista = Array.isArray(prev) ? prev : [];
+      const idActualizada = String(comandaActualizada._id);
+      const index = lista.findIndex(c => c && String(c._id) === idActualizada);
+      if (index !== -1) {
+        const nuevas = [...lista];
+        nuevas[index] = fusionarComandaPreservandoToma(lista[index], comandaActualizada);
+        return nuevas;
+      }
+      if (comandaActualizada.platos && comandaActualizada.platos.length > 0) {
+        return [comandaActualizada, ...lista];
+      }
+      return lista;
+    };
+    setComandasOriginales(upsertComandaConToma);
     
     // Detectar platos eliminados comparando la comanda anterior con la nueva
     setComandas(prev => {
@@ -1213,7 +1229,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         const nuevas = [...prev];
         // Crear una nueva referencia completa del objeto para forzar re-render
         // Esto asegura que React detecte el cambio y re-renderice
-        nuevas[index] = JSON.parse(JSON.stringify(comandaActualizada));
+        nuevas[index] = fusionarComandaPreservandoToma(
+          comandaAnterior,
+          JSON.parse(JSON.stringify(comandaActualizada))
+        );
         console.log('✅ Comanda actualizada en estado. Nueva versión:', {
           _id: nuevas[index]._id,
           comandaNumber: nuevas[index].comandaNumber,
@@ -1269,6 +1288,19 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
     if (esEventoGuarnicion(data)) {
       setComandas(prev => aplicarEventoGuarnicion(prev, data));
+      return;
+    }
+
+    if (data.tipo === 'PLATO_TOMADO' && data.procesandoPor) {
+      const patchTomado = (prev) => aplicarTomaPlatoEnComandas(prev, data.comandaId, data.platoId, data.procesandoPor);
+      setComandas(patchTomado);
+      setComandasOriginales(patchTomado);
+      return;
+    }
+    if (data.tipo === 'PLATO_LIBERADO') {
+      const patchLiberado = (prev) => aplicarLiberacionPlatoEnComandas(prev, data.comandaId, data.platoId);
+      setComandas(patchLiberado);
+      setComandasOriginales(patchLiberado);
       return;
     }
     

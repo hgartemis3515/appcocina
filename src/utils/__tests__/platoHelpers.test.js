@@ -19,6 +19,7 @@ import {
   nombreMesaKds,
   LABEL_PARA_LLEVAR,
   LABEL_EXTRA_CLIENTE,
+  fusionarComandaPreservandoToma,
 } from '../platoHelpers';
 
 describe('obtenerNombreDisplayCocina', () => {
@@ -188,5 +189,34 @@ describe('nombreMesaKds', () => {
   test('mesa numerada sigue M#', () => {
     expect(nombreMesaKds({ mesas: { nummesa: 7 } })).toBe('M7');
     expect(nombreMesaKds({ mesas: { nombreCombinado: 'M5,6' } })).toBe('M5,6');
+  });
+});
+
+describe('fusionarComandaPreservandoToma', () => {
+  test('no pierde procesandoPor si el incoming llega sin cocinero', () => {
+    const local = {
+      _id: 'c1',
+      platos: [{ _id: 'p1', estado: 'en_espera', procesandoPor: { cocineroId: 'cook1', alias: 'Ana' } }],
+    };
+    const incoming = {
+      _id: 'c1',
+      platos: [{ _id: 'p1', estado: 'pedido', nombre: 'Lomo' }],
+    };
+    const next = fusionarComandaPreservandoToma(local, incoming);
+    expect(next.platos[0].procesandoPor.cocineroId).toBe('cook1');
+    expect(next.platos[0].nombre).toBe('Lomo');
+  });
+
+  test('incoming con cocinero gana', () => {
+    const local = {
+      _id: 'c1',
+      platos: [{ _id: 'p1', estado: 'pedido' }],
+    };
+    const incoming = {
+      _id: 'c1',
+      platos: [{ _id: 'p1', estado: 'en_espera', procesandoPor: { cocineroId: 'cook2', alias: 'Luis' } }],
+    };
+    const next = fusionarComandaPreservandoToma(local, incoming);
+    expect(next.platos[0].procesandoPor.alias).toBe('Luis');
   });
 });

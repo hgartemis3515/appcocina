@@ -71,7 +71,7 @@ import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
 import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados } from "../../utils/kdsAnularPlatos";
-import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma } from "../../utils/platoHelpers";
 import {
   expandirUnidadesTrabajo,
   estadoAlertaGuarnicion,
@@ -564,7 +564,7 @@ const ComandaStyle = ({
       const lista = Array.isArray(prev) ? prev : [];
       const existe = lista.some(c => c && String(c._id) === nuevaId);
       if (existe) {
-        return lista.map(c => String(c._id) === nuevaId ? nuevaComanda : c);
+        return lista.map(c => String(c._id) === nuevaId ? fusionarComandaPreservandoToma(c, nuevaComanda) : c);
       }
       return [nuevaComanda, ...lista];
     });
@@ -829,7 +829,10 @@ const ComandaStyle = ({
         const nuevas = [...prev];
         // Crear una nueva referencia completa del objeto para forzar re-render
         // Esto asegura que React detecte el cambio y re-renderice
-        nuevas[index] = JSON.parse(JSON.stringify(comandaActualizada));
+        nuevas[index] = fusionarComandaPreservandoToma(
+          comandaAnterior,
+          JSON.parse(JSON.stringify(comandaActualizada))
+        );
         console.log('✅ Comanda actualizada en estado. Nueva versión:', {
           _id: nuevas[index]._id,
           comandaNumber: nuevas[index].comandaNumber,
