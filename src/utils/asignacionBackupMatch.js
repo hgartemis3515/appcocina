@@ -77,8 +77,15 @@ export function encontrarReglaPlato(fuente, plato) {
     : null;
   if (isReglaAsignada(reglaPlato)) return { tipo: 'plato', regla: reglaPlato };
 
-  const categoria = plato.categoria || (plato.plato && plato.plato.categoria);
-  if (categoria) {
+  const cats = [];
+  const nested = plato.plato && typeof plato.plato === 'object' ? plato.plato : null;
+  const arr = plato.categorias || nested?.categorias;
+  if (Array.isArray(arr) && arr.length) arr.forEach((c) => { const n = String(c || '').trim(); if (n) cats.push(n); });
+  else {
+    const one = plato.categoria || nested?.categoria;
+    if (one) cats.push(String(one).trim());
+  }
+  for (const categoria of cats) {
     const reglaCat = reglasCat.find((r) => r.categoria === categoria && r.activo !== false);
     if (isReglaAsignada(reglaCat)) return { tipo: 'categoria', regla: reglaCat };
   }
