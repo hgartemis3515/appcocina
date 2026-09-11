@@ -154,10 +154,6 @@ export function nombrePlatoPadre(plato, usarAlias = true) {
   return plato.plato?.nombre || plato.nombre || '';
 }
 
-/**
- * Devuelve el nombre de la guarnición con referencia al padre.
- * Ej: "Papas fritas (Lomo Saltado)".
- */
 /** Guarniciones por unidad de plato × cantidad de la línea (`cantidades[i]` o `plato.cantidad`). */
 export function cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex) {
   const porUnidad = Math.max(1, Number(comp?.cantidad) || 1);
@@ -185,10 +181,37 @@ export function platoConCantidadDeLinea(item) {
   return { ...plato, cantidad: n };
 }
 
-export function nombreGuarnicionConPadre(comp, nombrePadre, plato, comanda, platoIndex) {
+const DEFAULT_GUARNICION_CANTIDAD_PREFIJO = '+';
+
+/** Prefijo de cantidad en nombre de guarnición (+ / × / x / vacío). */
+export function prefijoCantidadGuarnicion(configVisual = {}) {
+  const raw = configVisual.guarnicionCantidadPrefijo;
+  if (raw === false) return '';
+  if (raw === true || raw == null) return DEFAULT_GUARNICION_CANTIDAD_PREFIJO;
+  return String(raw).slice(0, 4);
+}
+
+export function posicionCantidadGuarnicion(configVisual = {}) {
+  return configVisual.guarnicionCantidadPosicion === 'derecha' ? 'derecha' : 'izquierda';
+}
+
+/** cant ≤ 1 → solo nombre. Default: "+2 Papa frita". */
+export function textoNombreConCantidadGuarnicion(nombre, cantidad, configVisual = {}) {
+  const base = String(nombre || '').trim();
+  const n = Number(cantidad);
+  const cant = Number.isFinite(n) && n > 1 ? Math.floor(n) : 0;
+  if (!cant) return base;
+  const qty = `${prefijoCantidadGuarnicion(configVisual)}${cant}`;
+  if (!base) return qty;
+  return posicionCantidadGuarnicion(configVisual) === 'derecha'
+    ? `${base} ${qty}`
+    : `${qty} ${base}`;
+}
+
+export function nombreGuarnicionConPadre(comp, nombrePadre, plato, comanda, platoIndex, configVisual) {
   const opcion = Array.isArray(comp.opcion) ? comp.opcion.join(', ') : (comp.opcion || '');
   const cant = cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex);
-  const base = cant > 1 ? `${opcion} x${cant}` : opcion;
+  const base = textoNombreConCantidadGuarnicion(opcion, cant, configVisual);
   if (!nombrePadre) return base;
   return `${base} (${nombrePadre})`;
 }
@@ -209,18 +232,18 @@ export function nombreGuarnicionSolo(comp) {
  * Texto bajo el plato principal (Ver Cocina / Distribuir): solo el nombre
  * de la opción ("Res"), nunca el grupo ("Sabores: Res").
  */
-export function textoGuarnicionEnPrincipal(comp, plato, comanda, platoIndex) {
+export function textoGuarnicionEnPrincipal(comp, plato, comanda, platoIndex, configVisual) {
   if (comp == null) return '';
   if (typeof comp === 'string') return comp.trim();
   if (comp.eliminado) return '';
   const opcion = nombreGuarnicionSolo(comp) || String(comp.nombre || '').trim();
   if (!opcion) return '';
   const cant = cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex);
-  return cant > 1 ? `${opcion} ×${cant}` : opcion;
+  return textoNombreConCantidadGuarnicion(opcion, cant, configVisual);
 }
 
 /** Suma guarniciones de varias líneas (p. ej. grupo del monitor ×3 platos). */
-export function textosGuarnicionesDeGrupo(items) {
+export function textosGuarnicionesDeGrupo(items, configVisual) {
   const map = new Map();
   for (const item of items || []) {
     const plato = item?.plato || item;
@@ -248,7 +271,7 @@ export function textosGuarnicionesDeGrupo(items) {
     }
   }
   return [...map.values()].map(({ opcion, cantidad }) => (
-    cantidad > 1 ? `${opcion} ×${cantidad}` : opcion
+    textoNombreConCantidadGuarnicion(opcion, cantidad, configVisual)
   ));
 }
 
@@ -320,10 +343,10 @@ export function nombreCocinaComplemento(comp, platoPadre) {
   return nombreGuarnicionSolo(comp);
 }
 
-export function labelComplementoConCantidad(comp, plato, comanda, platoIndex) {
+export function labelComplementoConCantidad(comp, plato, comanda, platoIndex, configVisual) {
   const base = nombreCocinaComplemento(comp, plato);
   const cant = cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex);
-  return cant > 1 ? `${base} x${cant}` : base;
+  return textoNombreConCantidadGuarnicion(base, cant, configVisual);
 }
 
 /** Nombre del plato en catálogo (DCH), sin CAFÉ/TÉ de MIX ni anexos. */
@@ -338,24 +361,20 @@ export function nombreCatalogoPlatoCocina(plato, usarAlias = true) {
   return comercial || alias;
 }
 
-export function labelConCantidadTotal(nombre, cantidad) {
-  const base = String(nombre || '').trim();
-  const n = Number(cantidad);
-  const cant = Number.isFinite(n) && n > 1 ? Math.floor(n) : 0;
-  if (!base) return cant ? `x${cant}` : '';
-  return cant ? `${base} x${cant}` : base;
+export function labelConCantidadTotal(nombre, cantidad, configVisual) {
+  return textoNombreConCantidadGuarnicion(nombre, cantidad, configVisual);
 }
 
-export function lineaListaGuarnicionMerge(nombre, cantidad, nombrePadre, modoRef = 'parentesis') {
-  const nombres = labelConCantidadTotal(nombre, cantidad);
+export function lineaListaGuarnicionMerge(nombre, cantidad, nombrePadre, modoRef = 'parentesis', configVisual) {
+  const nombres = labelConCantidadTotal(nombre, cantidad, configVisual);
   const ref = formatearReferenciaPadre(nombrePadre, modoRef);
   const cuerpo = [nombres, ref].filter(Boolean).join(' ');
   return cuerpo ? `- ${cuerpo}` : '';
 }
 
-export function tituloGrupoGuarniciones(comps, plato, comanda, platoIndex) {
+export function tituloGrupoGuarniciones(comps, plato, comanda, platoIndex, configVisual) {
   const list = (Array.isArray(comps) ? comps : []).filter(c => c && !c.eliminado);
-  return list.map((c) => labelComplementoConCantidad(c, plato, comanda, platoIndex)).filter(Boolean).join(' + ');
+  return list.map((c) => labelComplementoConCantidad(c, plato, comanda, platoIndex, configVisual)).filter(Boolean).join(' + ');
 }
 
 export function formatearReferenciaPadre(nombrePadre, modo = 'de') {
@@ -366,18 +385,18 @@ export function formatearReferenciaPadre(nombrePadre, modo = 'de') {
   return `de ${n}`;
 }
 
-export function labelsListaGuarniciones(comps, plato, comanda, platoIndex) {
+export function labelsListaGuarniciones(comps, plato, comanda, platoIndex, configVisual) {
   const list = (Array.isArray(comps) ? comps : []).filter(c => c && !c.eliminado && c.estadoCocina !== 'recoger');
-  return list.map((c) => labelComplementoConCantidad(c, plato, comanda, platoIndex)).filter(Boolean).join(', ');
+  return list.map((c) => labelComplementoConCantidad(c, plato, comanda, platoIndex, configVisual)).filter(Boolean).join(', ');
 }
 
-export function nombresListaGuarniciones(comps, plato, comanda, platoIndex) {
-  const nombres = labelsListaGuarniciones(comps, plato, comanda, platoIndex);
+export function nombresListaGuarniciones(comps, plato, comanda, platoIndex, configVisual) {
+  const nombres = labelsListaGuarniciones(comps, plato, comanda, platoIndex, configVisual);
   return nombres ? `- ${nombres}` : '';
 }
 
-export function lineaListaGuarniciones(comps, nombrePadre, modoRef = 'parentesis', plato, comanda, platoIndex) {
-  const nombres = labelsListaGuarniciones(comps, plato, comanda, platoIndex);
+export function lineaListaGuarniciones(comps, nombrePadre, modoRef = 'parentesis', plato, comanda, platoIndex, configVisual) {
+  const nombres = labelsListaGuarniciones(comps, plato, comanda, platoIndex, configVisual);
   const ref = formatearReferenciaPadre(nombrePadre, modoRef);
   const cuerpo = [nombres, ref].filter(Boolean).join(' ');
   return cuerpo ? `- ${cuerpo}` : '';
@@ -434,7 +453,7 @@ export function unidadesParaVistaKds(unidades, opts = {}) {
  */
 export function expandirUnidadesTrabajo(plato, opts = {}) {
   if (!plato) return [];
-  const { flagOn = false, agrupacionOn = false, usarAlias = true, comanda = null, platoIndex = -1 } = opts;
+  const { flagOn = false, agrupacionOn = false, usarAlias = true, comanda = null, platoIndex = -1, configVisual } = opts;
   const nPlatos = comanda
     ? obtenerCantidadLinea(comanda, plato, platoIndex)
     : Math.max(1, Number(plato?.cantidad) || 1);
@@ -489,7 +508,7 @@ export function expandirUnidadesTrabajo(plato, opts = {}) {
         compIds: items.map((p) => p.compId),
         compId: first.compId,
         nombrePadre,
-        nombreGuarnicion: tituloGrupoGuarniciones(items.map((p) => p.comp), plato, comanda, platoIndex),
+        nombreGuarnicion: tituloGrupoGuarniciones(items.map((p) => p.comp), plato, comanda, platoIndex, configVisual),
         cantidadEfectiva: items.reduce((s, p) => s + cantidadGuarnicionEfectiva(p.comp, plato, comanda, platoIndex), 0),
         grupoGuarnicionesId
       });

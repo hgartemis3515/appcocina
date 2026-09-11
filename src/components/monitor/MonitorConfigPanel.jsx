@@ -22,6 +22,11 @@ import {
   textoCantidadBadge,
   prefijoCantidadBadge,
 } from '../../utils/monitorBadgeStyles';
+import {
+  prefijoCantidadGuarnicion,
+  posicionCantidadGuarnicion,
+  textoNombreConCantidadGuarnicion,
+} from '../../utils/guarnicionesKds';
 
 const FUENTES_DISPONIBLES = [
   { id: 'inter', label: 'Inter (default)', value: 'Inter, system-ui, sans-serif' },
@@ -1870,6 +1875,75 @@ const MonitorConfigPanel = ({
                 {textoCantidadBadge(n, configVisual)}
               </span>
             ))}
+          </div>
+        </Section>
+
+        <Section title="Cantidad en guarniciones" colorAcento={colorAcento}>
+          <p style={{ fontSize: '11px', color: colorTextoSecundario, margin: '0 0 8px', width: '100%' }}>
+            Cómo se muestra ×2 / +2 junto al nombre de la guarnición (Papa frita, zarza, etc.).
+          </p>
+          <label style={lbl}>
+            Símbolo
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {[
+                { v: '+', t: '+' },
+                { v: '×', t: '×' },
+                { v: 'x', t: 'x' },
+                { v: '', t: 'Ninguno' },
+              ].map(({ v, t }) => {
+                const actual = prefijoCantidadGuarnicion(configVisual);
+                const activo = actual === v;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => guardar({ guarnicionCantidadPrefijo: v })}
+                    title={v === '' ? 'Solo el número' : `Usar “${v}”`}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      minWidth: v === '' ? '72px' : '36px',
+                      background: activo ? `${colorAcento}33` : 'transparent',
+                      border: activo ? `1px solid ${colorAcento}` : inp.border,
+                    }}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </label>
+          <label style={lbl}>
+            Posición
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {[
+                { v: 'izquierda', t: 'Izquierda del nombre' },
+                { v: 'derecha', t: 'Derecha del nombre' },
+              ].map(({ v, t }) => {
+                const actual = posicionCantidadGuarnicion(configVisual);
+                const activo = actual === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => guardar({ guarnicionCantidadPosicion: v })}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      background: activo ? `${colorAcento}33` : 'transparent',
+                      border: activo ? `1px solid ${colorAcento}` : inp.border,
+                    }}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </label>
+          <div style={{ fontSize: '13px', color: colorTextoPrincipal, width: '100%', marginTop: '4px' }}>
+            Vista previa: {textoNombreConCantidadGuarnicion('Papa frita', 2, configVisual) || 'Papa frita'}
           </div>
         </Section>
 

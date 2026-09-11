@@ -256,12 +256,13 @@ const CocineroPlatoCard = React.forwardRef(({
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = item.juntaMerge
-      ? `- ${labelConCantidadTotal(nombre, cantidadTotal)}`
+      ? `- ${labelConCantidadTotal(nombre, cantidadTotal, configVisual)}`
       : (nombresListaGuarniciones(
         item.comps,
         platoConCantidadDeLinea(platos[0]),
         platos[0]?.comanda,
         platos[0]?.platoIndex,
+        configVisual,
       ) || `- ${nombre}`);
     return (
       <GuarnicionListaLinea
@@ -311,7 +312,7 @@ const CocineroPlatoCard = React.forwardRef(({
     complementosTexto = item.subtitulo || '';
   } else {
     const complementosSet = new Set();
-    for (const texto of textosGuarnicionesDeGrupo(platos)) {
+    for (const texto of textosGuarnicionesDeGrupo(platos, configVisual)) {
       complementosSet.add(texto);
     }
     if (configVisual.notasJuntoAGuarniciones === false) {

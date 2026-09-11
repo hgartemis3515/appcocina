@@ -97,6 +97,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
           platoConCantidadDeLinea(item.platos?.[0]),
           item.platos?.[0]?.comanda,
           item.platos?.[0]?.platoIndex,
+          configVisual,
         ) || `- ${nombre}`}
         textoPadre={refPadre}
         textoCocinero={textoCocinero}

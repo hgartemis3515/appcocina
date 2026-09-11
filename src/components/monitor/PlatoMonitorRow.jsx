@@ -73,7 +73,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
   // Complementos / notas (todos los platos del grupo comparten la misma clave)
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
   const complementosSet = new Set();
-  for (const texto of textosGuarnicionesDeGrupo(platos)) {
+  for (const texto of textosGuarnicionesDeGrupo(platos, configVisual)) {
     complementosSet.add(texto);
   }
   if (configVisual.notasJuntoAGuarniciones === false) {

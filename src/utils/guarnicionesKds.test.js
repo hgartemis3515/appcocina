@@ -20,6 +20,9 @@ const {
   nombreCatalogoPlatoCocina,
   labelConCantidadTotal,
   lineaListaGuarnicionMerge,
+  textoNombreConCantidadGuarnicion,
+  prefijoCantidadGuarnicion,
+  posicionCantidadGuarnicion,
 } = require('./guarnicionesKds');
 
 describe('normalizarGuarnicionKey', () => {
@@ -129,14 +132,14 @@ describe('nombreGuarnicionConPadre', () => {
     const comp = { opcion: 'Papas fritas', cantidad: 1 };
     expect(nombreGuarnicionConPadre(comp, 'Lomo Saltado')).toBe('Papas fritas (Lomo Saltado)');
   });
-  test('cantidad > 1 añade xN', () => {
+  test('cantidad > 1 añade +N a la izquierda', () => {
     const comp = { opcion: 'Papas fritas', cantidad: 3 };
-    expect(nombreGuarnicionConPadre(comp, 'Lomo Saltado')).toBe('Papas fritas x3 (Lomo Saltado)');
+    expect(nombreGuarnicionConPadre(comp, 'Lomo Saltado')).toBe('+3 Papas fritas (Lomo Saltado)');
   });
-  test('1 por unidad × 3 platos añade x3', () => {
+  test('1 por unidad × 3 platos añade +3', () => {
     const comp = { opcion: 'Zarza criolla', cantidad: 1 };
     expect(nombreGuarnicionConPadre(comp, 'Lomo Saltado', { cantidad: 3 }))
-      .toBe('Zarza criolla x3 (Lomo Saltado)');
+      .toBe('+3 Zarza criolla (Lomo Saltado)');
   });
   test('sin padre devuelve solo la guarnición', () => {
     expect(nombreGuarnicionConPadre({ opcion: 'Ensalada', cantidad: 1 }, '')).toBe('Ensalada');
@@ -171,14 +174,23 @@ describe('textoGuarnicionEnPrincipal', () => {
     expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Res' })).toBe('Res');
     expect(textoGuarnicionEnPrincipal({ grupo: 'Guarnición', opcion: 'Arroz' })).toBe('Arroz');
   });
-  test('cantidad > 1 añade ×N', () => {
-    expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Pollo', cantidad: 2 })).toBe('Pollo ×2');
+  test('cantidad > 1 añade +N a la izquierda', () => {
+    expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Pollo', cantidad: 2 })).toBe('+2 Pollo');
   });
-  test('3 platos × 1 zarza por unidad = Zarza ×3', () => {
+  test('3 platos × 1 zarza por unidad = +3 Zarza', () => {
     expect(textoGuarnicionEnPrincipal(
       { grupo: 'Guarnición', opcion: 'Zarza criolla', cantidad: 1 },
       { cantidad: 3 }
-    )).toBe('Zarza criolla ×3');
+    )).toBe('+3 Zarza criolla');
+  });
+  test('config derecha y sin símbolo', () => {
+    expect(textoGuarnicionEnPrincipal(
+      { opcion: 'Pollo', cantidad: 2 },
+      null,
+      null,
+      undefined,
+      { guarnicionCantidadPrefijo: '', guarnicionCantidadPosicion: 'derecha' }
+    )).toBe('Pollo 2');
   });
   test('eliminado no se muestra', () => {
     expect(textoGuarnicionEnPrincipal({ grupo: 'Sabores', opcion: 'Res', eliminado: true })).toBe('');
@@ -241,12 +253,12 @@ describe('cantidadGuarnicionEfectiva (por unidad × platos)', () => {
     const unidades = expandirUnidadesTrabajo(plato, { flagOn: true, agrupacionOn: true });
     const grupo = unidades.find((u) => u.tipo === 'grupo_guarniciones');
     expect(grupo.cantidadEfectiva).toBe(6);
-    expect(grupo.nombreGuarnicion).toBe('Zarza criolla x3 + Pan más x3');
+    expect(grupo.nombreGuarnicion).toBe('+3 Zarza criolla + +3 Pan más');
   });
 
   test('tituloGrupoGuarniciones multiplica por platos', () => {
     expect(tituloGrupoGuarniciones([zarza, pan], { cantidad: 3 }))
-      .toBe('Zarza criolla x3 + Pan más x3');
+      .toBe('+3 Zarza criolla + +3 Pan más');
   });
 
   test('textosGuarnicionesDeGrupo suma 3 líneas de qty 1', () => {
@@ -260,8 +272,8 @@ describe('cantidadGuarnicionEfectiva (por unidad × platos)', () => {
       },
     }));
     expect(textosGuarnicionesDeGrupo(items)).toEqual([
-      'Zarza criolla ×3',
-      'Pan más ×3',
+      '+3 Zarza criolla',
+      '+3 Pan más',
     ]);
   });
 
@@ -276,8 +288,8 @@ describe('cantidadGuarnicionEfectiva (por unidad × platos)', () => {
       },
     }];
     expect(textosGuarnicionesDeGrupo(items)).toEqual([
-      'Zarza criolla ×3',
-      'Pan más ×3',
+      '+3 Zarza criolla',
+      '+3 Pan más',
     ]);
   });
 
@@ -294,7 +306,7 @@ describe('cantidadGuarnicionEfectiva (por unidad × platos)', () => {
       comanda: { cantidades: [3], platos: [plato] },
       platoIndex: 0,
     }];
-    expect(textosGuarnicionesDeGrupo(items)).toEqual(['Pan ×6', 'Jose ×6']);
+    expect(textosGuarnicionesDeGrupo(items)).toEqual(['+6 Pan', '+6 Jose']);
   });
 
   test('textosGuarnicionesDeGrupo sin platoIndex usa comanda.platos', () => {
@@ -310,7 +322,7 @@ describe('cantidadGuarnicionEfectiva (por unidad × platos)', () => {
       plato,
       comanda: { cantidades: [3], platos: [plato] },
     }];
-    expect(textosGuarnicionesDeGrupo(items)).toEqual(['Pan ×6', 'Jose ×6']);
+    expect(textosGuarnicionesDeGrupo(items)).toEqual(['+6 Pan', '+6 Jose']);
   });
 
   test('platoConCantidadDeLinea toma cantidades[i] aunque falte platoIndex', () => {
@@ -969,7 +981,7 @@ describe('agrupacion y pronombre', () => {
       { opcion: 'arroz', pronombre: '' },
       { opcion: 'Papas', cantidad: 2, pronombre: 'PFrita' },
     ]);
-    expect(titulo).toBe('P FRITA + ENSAL + arroz + PFrita x2');
+    expect(titulo).toBe('P FRITA + ENSAL + arroz + +2 PFrita');
   });
 
   test('formatearReferenciaPadre modos', () => {
@@ -1186,13 +1198,32 @@ describe('nombreCatalogoPlatoCocina y merge visual', () => {
     })).toBe('Desayuno continental hotel');
   });
 
-  test('labelConCantidadTotal pone el total junto al nombre', () => {
-    expect(labelConCantidadTotal('Jugo', 10)).toBe('Jugo x10');
+  test('labelConCantidadTotal pone el total a la izquierda', () => {
+    expect(labelConCantidadTotal('Jugo', 10)).toBe('+10 Jugo');
     expect(labelConCantidadTotal('Jugo', 1)).toBe('Jugo');
   });
 
-  test('lineaListaGuarnicionMerge: jugo x10 (DCH)', () => {
+  test('lineaListaGuarnicionMerge: +10 Jugo (DCH)', () => {
     expect(lineaListaGuarnicionMerge('Jugo', 10, 'DCH', 'parentesis'))
-      .toBe('- Jugo x10 (DCH)');
+      .toBe('- +10 Jugo (DCH)');
+  });
+});
+
+describe('textoNombreConCantidadGuarnicion', () => {
+  test('default izquierda con +', () => {
+    expect(prefijoCantidadGuarnicion({})).toBe('+');
+    expect(posicionCantidadGuarnicion({})).toBe('izquierda');
+    expect(textoNombreConCantidadGuarnicion('Papa frita', 2)).toBe('+2 Papa frita');
+  });
+  test('derecha con ×', () => {
+    const cfg = { guarnicionCantidadPrefijo: '×', guarnicionCantidadPosicion: 'derecha' };
+    expect(textoNombreConCantidadGuarnicion('Papa frita', 2, cfg)).toBe('Papa frita ×2');
+  });
+  test('sin símbolo solo el número', () => {
+    const cfg = { guarnicionCantidadPrefijo: '' };
+    expect(textoNombreConCantidadGuarnicion('Papa frita', 2, cfg)).toBe('2 Papa frita');
+  });
+  test('cantidad 1 no añade cifra', () => {
+    expect(textoNombreConCantidadGuarnicion('Papa frita', 1)).toBe('Papa frita');
   });
 });

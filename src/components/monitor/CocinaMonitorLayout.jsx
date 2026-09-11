@@ -170,6 +170,8 @@ const DEFAULT_CONFIG = {
   pesoFuentePlato: '800',
   animacionesTarjetas: true,
   ...BADGE_DEFAULTS,
+  guarnicionCantidadPrefijo: '+',
+  guarnicionCantidadPosicion: 'izquierda',
   mostrarCocineroTomado: true,
   mostrarComplementos: true,
   tiempoAmarillo: 5,
@@ -1105,7 +1107,7 @@ const CocinaMonitorLayout = ({
       const nLinea = obtenerCantidadLinea(firstItem?.comanda, platoRaw, idxLinea);
       const platoRef = platoRaw ? { ...platoRaw, cantidad: nLinea } : platoRaw;
       const nombre = (agrupacionOn && !juntaMerge)
-        ? (tituloGrupoGuarniciones(comps, platoRef, firstItem?.comanda, idxLinea) || rest.nombre)
+        ? (tituloGrupoGuarniciones(comps, platoRef, firstItem?.comanda, idxLinea, configVisual) || rest.nombre)
         : rest.nombre;
       const tiempoInicio = (agrupacionOn || juntaMerge) ? tiempoInicioGrupo(comps) : rest.tiempoInicio;
       let timers = rest.timers;
@@ -1139,8 +1141,8 @@ const CocinaMonitorLayout = ({
         platoIndex,
         subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
         lineaLista: juntaMerge
-          ? lineaListaGuarnicionMerge(rest.nombre, rest.cantidadTotal, padreTxt, modoRefPadre)
-          : lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea),
+          ? lineaListaGuarnicionMerge(rest.nombre, rest.cantidadTotal, padreTxt, modoRefPadre, configVisual)
+          : lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea, configVisual),
         nombrePadre: padreTxt,
         juntaMerge: !!juntaMerge,
         cocineroPrincipal: rest.cocineroPrincipal || null,
