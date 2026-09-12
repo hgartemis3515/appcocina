@@ -589,14 +589,6 @@ export const AuthProvider = ({ children }) => {
   }, [user]);
 
   /**
-   * Verificar si el usuario puede realizar acciones sensibles
-   * (supervisor o admin)
-   */
-  const canPerformSensitiveActions = useCallback(() => {
-    return hasRole(['supervisor', 'admin']);
-  }, [hasRole]);
-
-  /**
    * Verificar si el usuario tiene un permiso específico
    * @param {string} permiso - ID del permiso a verificar
    */
@@ -606,6 +598,16 @@ export const AuthProvider = ({ children }) => {
     // Verificar si el permiso está en la lista de permisos del usuario
     return permisos.includes(permiso);
   }, [user, permisos]);
+
+  /**
+   * Verificar si el usuario puede realizar acciones sensibles
+   * (supervisor/admin/cajero o permiso de utilidad supervisor / vista supervisor)
+   */
+  const canPerformSensitiveActions = useCallback(() => {
+    return hasRole(['supervisor', 'admin', 'cajero'])
+      || hasPermission('utilidad-supervisor')
+      || hasPermission('ver-vista-supervisor-cocina');
+  }, [hasRole, hasPermission]);
 
   /**
    * Verifica si el usuario tiene una regla específica activa

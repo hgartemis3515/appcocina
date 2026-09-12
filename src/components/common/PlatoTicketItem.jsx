@@ -18,13 +18,17 @@ export default function PlatoTicketItem({
   showEstado = false,
   ocultarGuarniciones = false,
   className = '',
+  estiloNombre,
+  estiloMeta,
 }) {
   if (!plato) return null;
 
   const complementos = getComplementosDePlato(plato);
   const nota = (plato.notaEspecial || '').trim();
   const isCompact = size === 'xs';
-  const nombreClass = isCompact ? 'text-gray-200 text-xs' : 'text-gray-200 text-sm';
+  const custom = !!estiloNombre;
+  const g = (cls) => (custom ? '' : cls);
+  const nombreClass = isCompact ? `${g('text-gray-200')} text-xs` : `${g('text-gray-200')} text-sm`;
   const metaClass = isCompact ? 'text-[10px]' : 'text-xs';
   const estado = String(plato.estado || '').toLowerCase();
 
@@ -32,12 +36,12 @@ export default function PlatoTicketItem({
     <div className={`py-1 ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-1.5 min-w-0 flex-1">
-          <span className={`text-gray-400 flex-shrink-0 ${metaClass}`}>
+          <span className={`${g('text-gray-400')} flex-shrink-0 ${metaClass}`} style={estiloMeta}>
             {plato.cantidad}x
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`${nombreClass} truncate`}>
+              <span className={`${nombreClass} truncate`} style={estiloNombre}>
                 {plato.nombre}
               </span>
               {(plato.tipoServicio === 'para_llevar' || plato.tipoServicio === 'extra_llevar') && (
@@ -59,28 +63,29 @@ export default function PlatoTicketItem({
                 {complementos.map((comp, i) => (
                   <div
                     key={comp.key || i}
-                    className={`${metaClass} leading-tight pl-0.5 text-gray-400`}
+                    className={`${metaClass} leading-tight pl-0.5 ${g('text-gray-400')}`}
+                    style={estiloMeta}
                   >
-                    <span className="text-violet-400/80 font-medium">└ </span>
+                    <span className={`${g('text-violet-400/80')} font-medium`}>└ </span>
                     {comp.grupo ? (
                       <>
-                        <span className="text-gray-500 font-medium">{comp.grupo}:</span>{' '}
-                        <span className="text-gray-300">{comp.opcion}</span>
-                        <span className="text-gray-500"> x{comp.cantidad || 1}</span>
+                        <span className={`${g('text-gray-500')} font-medium`}>{comp.grupo}:</span>{' '}
+                        <span className={g('text-gray-300')}>{comp.opcion}</span>
+                        <span className={g('text-gray-500')}> x{comp.cantidad || 1}</span>
                       </>
                     ) : (
-                      <span className="text-gray-300">
+                      <span className={g('text-gray-300')}>
                         · {formatComplementoTexto(comp)}
                       </span>
                     )}
                     {comp.pronombre ? (
-                      <span className="text-violet-300/90"> · {comp.pronombre}</span>
+                      <span className={g('text-violet-300/90')}> · {comp.pronombre}</span>
                     ) : null}
                     {comp.precio != null && comp.precio > 0 && (
-                      <span className="text-gray-500"> ({formatCurrency(comp.precio)})</span>
+                      <span className={g('text-gray-500')}> ({formatCurrency(comp.precio)})</span>
                     )}
                     {showEstado && comp.estadoCocina ? (
-                      <span className="text-gray-500"> · {comp.estadoCocina.replace('_', ' ')}</span>
+                      <span className={g('text-gray-500')}> · {comp.estadoCocina.replace('_', ' ')}</span>
                     ) : null}
                   </div>
                 ))}
@@ -112,7 +117,7 @@ export default function PlatoTicketItem({
         </div>
 
         {showSubtotal && (
-          <span className={`text-gray-400 flex-shrink-0 ${metaClass}`}>
+          <span className={`${g('text-gray-400')} flex-shrink-0 ${metaClass}`} style={estiloMeta}>
             {formatCurrency(plato.subtotal)}
           </span>
         )}

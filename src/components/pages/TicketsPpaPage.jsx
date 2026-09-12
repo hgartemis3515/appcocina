@@ -30,7 +30,9 @@ import {
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
   estadoEntregaComandaTicket,
   rangoConsultaDesglose,
+  ticketEsParaLlevar,
 } from '../../utils/ticketAprobacionUi';
+import { estiloCuerpoParaLlevarTickets, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
 import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
@@ -119,6 +121,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [showRechazarModal, setShowRechazarModal] = useState(null);
   const [modoVista, setModoVista] = useState(loadModoVistaTickets);
   const [tablaPrefs, setTablaPrefs] = useState(loadTicketsTablaPrefs);
+  const estilosTxtTabla = useMemo(() => estilosTextoTicketsTabla(tablaPrefs), [tablaPrefs]);
   const [showTablaConfig, setShowTablaConfig] = useState(false);
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
@@ -731,6 +734,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
                 const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
+                const esParaLlevar = ticketEsParaLlevar(ticket);
+                const estiloCuerpoPL = esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined;
+                const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-gray-700';
                 return (
                   <motion.div
                     key={ticket._id}
@@ -815,36 +821,39 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       )}
                     </div>
 
+                    <div style={estiloCuerpoPL}>
                     {/* Platos */}
-                    <div className="p-3 max-h-48 overflow-y-auto border-b border-gray-700">
+                    <div className={`p-3 max-h-48 overflow-y-auto border-b ${bordeSeccion}`}>
                       {platosVis.map((plato, i) => (
                         <PlatoTicketItem
                           key={plato.platoLineaId || plato._id || i}
                           plato={plato}
                           size="sm"
                           ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+                          estiloNombre={estilosTxtTabla.platos}
+                          estiloMeta={estilosTxtTabla.platosMeta}
                         />
                       ))}
                     </div>
 
                     {/* Total & Pago */}
-                    <div className="p-3 border-b border-gray-700">
+                    <div className={`p-3 border-b ${bordeSeccion}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
                           <FaMoneyBill className="text-green-400" />
-                          <span className="text-white font-bold">{formatCurrency(neto)}</span>
+                          <span className="text-white font-bold" style={estilosTxtTabla.total}>{formatCurrency(neto)}</span>
                         </div>
                         <div className="text-gray-500 text-xs flex items-center gap-2">
-                          {ticket.voucherId && <span>V: {ticket.voucherId}</span>}
-                          <span className="uppercase">{ticket.moneda || 'Soles'}</span>
-                          <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''}>
+                          {ticket.voucherId && <span style={estilosTxtTabla.resto}>V: {ticket.voucherId}</span>}
+                          <span className="uppercase" style={estilosTxtTabla.resto}>{ticket.moneda || 'Soles'}</span>
+                          <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''} style={ticket.estado === 'pendiente_aprobacion' ? undefined : estilosTxtTabla.resto}>
                             · {labelPagoTicket(ticket)}
                           </span>
                         </div>
                       </div>
                       {montoDesc > 0 && (
                         <div className="mt-1.5 space-y-0.5 text-xs">
-                          <div className="flex justify-between text-gray-400">
+                          <div className="flex justify-between text-gray-400" style={estilosTxtTabla.resto}>
                             <span>Subtotal</span>
                             <span>{formatCurrency(bruto)}</span>
                           </div>
@@ -853,7 +862,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
                             {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
                           </div>
-                          <div className="flex justify-between text-white font-semibold">
+                          <div className="flex justify-between text-white font-semibold" style={estilosTxtTabla.total}>
                             <span>TOTAL</span>
                             <span>{formatCurrency(neto)}</span>
                           </div>
@@ -862,7 +871,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&
                         (ticket.montoRecibido != null || ticket.vuelto != null) && (
                         <div className="mt-2 flex items-center justify-between text-xs bg-gray-900/50 rounded px-2 py-1.5">
-                          <span className="text-gray-400">
+                          <span className="text-gray-400" style={estilosTxtTabla.resto}>
                             Recibido: <span className="text-gray-200 font-medium">{formatCurrency(ticket.montoRecibido)}</span>
                           </span>
                           <span className="text-green-400 font-bold">
@@ -874,11 +883,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
                     {/* Cliente */}
                     {(nombreClienteTicket(ticket) || dniClienteTicket(ticket)) && (
-                      <div className="px-3 py-1 border-b border-gray-700 text-xs text-gray-400">
+                      <div className={`px-3 py-1 border-b ${bordeSeccion} text-xs text-gray-400`} style={estilosTxtTabla.resto}>
                         <FaUser className="inline mr-1" />
                         {nombreClienteTicket(ticket) || 'Cliente'}
                         {dniClienteTicket(ticket) && (
-                          <span className="ml-2 text-gray-500">DNI: {dniClienteTicket(ticket)}</span>
+                          <span className="ml-2" style={estilosTxtTabla.resto}>DNI: {dniClienteTicket(ticket)}</span>
                         )}
                       </div>
                     )}
@@ -1009,6 +1018,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         </button>
                       </div>
                     )}
+                    </div>
                   </motion.div>
                 );
               })}

@@ -1,4 +1,6 @@
 import moment from 'moment-timezone';
+import { comandaEsSinMesaOParaLlevar } from './platoHelpers';
+import { TICKETS_TABLA_VISUAL_DEFAULT, normalizeTicketsTablaVisual } from './estiloTicketsTabla';
 
 const ZONA = 'America/Lima';
 const MODO_VISTA_KEY = 'cocinaTicketsModoVista';
@@ -9,7 +11,16 @@ const DEFAULT_DIAS = 30;
 export const DEFAULT_TICKETS_TABLA_PREFS = {
   ocultarGuarniciones: false,
   imprimirSinGuarniciones: false,
+  ...TICKETS_TABLA_VISUAL_DEFAULT,
 };
+
+function normalizeTicketsTablaPrefs(parsed) {
+  return {
+    ocultarGuarniciones: !!parsed?.ocultarGuarniciones,
+    imprimirSinGuarniciones: !!parsed?.imprimirSinGuarniciones,
+    ...normalizeTicketsTablaVisual(parsed),
+  };
+}
 
 export const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
 
@@ -61,20 +72,14 @@ export function loadTicketsTablaPrefs() {
     const raw = localStorage.getItem(TABLA_PREFS_KEY);
     if (!raw) return { ...DEFAULT_TICKETS_TABLA_PREFS };
     const parsed = JSON.parse(raw);
-    return {
-      ocultarGuarniciones: !!parsed?.ocultarGuarniciones,
-      imprimirSinGuarniciones: !!parsed?.imprimirSinGuarniciones,
-    };
+    return normalizeTicketsTablaPrefs(parsed);
   } catch {
     return { ...DEFAULT_TICKETS_TABLA_PREFS };
   }
 }
 
 export function saveTicketsTablaPrefs(prefs) {
-  const next = {
-    ocultarGuarniciones: !!prefs?.ocultarGuarniciones,
-    imprimirSinGuarniciones: !!prefs?.imprimirSinGuarniciones,
-  };
+  const next = normalizeTicketsTablaPrefs(prefs);
   try {
     localStorage.setItem(TABLA_PREFS_KEY, JSON.stringify(next));
   } catch {
@@ -263,6 +268,37 @@ export function ticketTieneExtraLlevar(ticket) {
   return (ticket?.platos || []).some(
     (p) => p && !p.eliminado && !p.anulado && p.tipoServicio === 'extra_llevar'
   );
+}
+
+function platoEsParaLlevar(p) {
+  return !!(p && (p.tipoServicio === 'para_llevar' || p.paraLlevar === true));
+}
+
+function numMesaEsVacia(num) {
+  if (num == null || num === '') return true;
+  const s = String(num).trim().toUpperCase();
+  return s === 'N/A' || s === 'SIN MESA' || s === '?' || s === 'PARA LLEVAR';
+}
+
+/** Comanda / ticket completo para llevar (no EXTRA LLEVAR suelto). */
+export function ticketEsParaLlevar(ticket) {
+  if (!ticket) return false;
+  if (ticket.sinMesa === true) return true;
+  const mesa = ticket.mesa;
+  if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return true;
+
+  const cmds = Array.isArray(ticket.comandas) ? ticket.comandas : [];
+  const cmdsObj = cmds.filter((c) => c && typeof c === 'object' && !Array.isArray(c) && (c.sinMesa != null || c.platos || c.mesas || c.mesa));
+  if (cmdsObj.length && cmdsObj.every((c) => comandaEsSinMesaOParaLlevar(c))) return true;
+
+  const platos = (ticket.platos || []).filter((p) => p && p.eliminado !== true && p.anulado !== true);
+  if (platos.length && platos.every(platoEsParaLlevar)) return true;
+
+  const num = ticket.numMesa ?? mesa?.nummesa ?? mesa?.numero;
+  if (numMesaEsVacia(num) && (!mesa || typeof mesa !== 'object' || !mesa._id)) {
+    return platos.some(platoEsParaLlevar);
+  }
+  return false;
 }
 
 export function etiquetaTipoServicioTicket(tipo) {
