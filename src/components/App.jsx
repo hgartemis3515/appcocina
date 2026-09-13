@@ -16,7 +16,6 @@ import DistribuirCocinaMonitoresPage from './pages/DistribuirCocinaMonitoresPage
 import ProtectedRoute from './common/ProtectedRoute';
 import PantallaBloqueoOverlay from './common/PantallaBloqueoOverlay';
 import { FaSpinner } from 'react-icons/fa';
-import ChatFabCocina from './Chat/ChatFabCocina';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
 
 /**
@@ -186,7 +185,6 @@ const AppRouter = () => {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <MenuPage onNavigate={navigateTo} />
-        <ChatFabCocina />
         {alertasOverlay}
       </ProtectedRoute>
     );
@@ -200,7 +198,6 @@ const AppRouter = () => {
           onGoToMenu={goToMenu}
           initialOptions={cocinaOptions}
         />
-        <ChatFabCocina />
         {alertasOverlay}
       </ProtectedRoute>
     );
@@ -215,7 +212,6 @@ const AppRouter = () => {
           onGoToMenu={goToMenu}
           initialOptions={cocinaOptions}
         />
-        <ChatFabCocina />
         {alertasOverlay}
       </ProtectedRoute>
     );
@@ -230,7 +226,6 @@ const AppRouter = () => {
           onGoToMenu={goToMenu}
           initialOptions={cocinaOptions}
         />
-        <ChatFabCocina />
         {alertasOverlay}
       </ProtectedRoute>
     );

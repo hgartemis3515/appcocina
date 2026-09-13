@@ -15,6 +15,7 @@ import {
   FaCheckCircle,
   FaChevronRight,
   FaUndo,
+  FaTrash,
   FaPause,
   FaUserFriends,
   FaExpand,
@@ -29,6 +30,7 @@ import ConfigModal from "./ConfigModal";
 import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
+import EliminarPlatoKdsModal from "./EliminarPlatoKdsModal";
 import TomarCocineroModal from "./TomarCocineroModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import PpaSidebar from "./PpaSidebar";
@@ -70,7 +72,7 @@ import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
-import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados } from "../../utils/kdsAnularPlatos";
+import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, haySeleccionEliminarPlatoKds, resolverEliminarPlatosKds, resumenPlatosSeleccionadosKds } from "../../utils/kdsAnularPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma } from "../../utils/platoHelpers";
 import {
   expandirUnidadesTrabajo,
@@ -161,6 +163,9 @@ const ComandaStyle = ({
   const [anularMotivo, setAnularMotivo] = useState('');
   const [anularObservaciones, setAnularObservaciones] = useState('');
   const [anularLoading, setAnularLoading] = useState(false);
+  const [showEliminarPlatoModal, setShowEliminarPlatoModal] = useState(false);
+  const [eliminarPlatoMotivo, setEliminarPlatoMotivo] = useState('');
+  const [eliminarPlatoLoading, setEliminarPlatoLoading] = useState(false);
   // 🔥 NUEVO: Estado para modal de dejar plato (con motivo para auditoría)
   const [showDejarModal, setShowDejarModal] = useState(false);
   const [dejarMotivo, setDejarMotivo] = useState('');
@@ -366,6 +371,7 @@ const ComandaStyle = ({
     setShowRevertir(false);
     setShowSearch(false);
     setShowAnularModal(false);
+    setShowEliminarPlatoModal(false);
     setShowDejarModal(false);
     setShowHistorial(false);
     
@@ -4117,6 +4123,55 @@ const ComandaStyle = ({
     }
   }, [selectedOrders, platosChecked, platoStates, anularMotivo, anularObservaciones, comandas, obtenerComandas, userId]);
 
+  const abrirModalEliminarPlato = useCallback(() => {
+    const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
+    if (!r.ok) {
+      alert(r.error);
+      return;
+    }
+    setShowEliminarPlatoModal(true);
+  }, [platosChecked, platoStates, comandas]);
+
+  const handleEliminarPlatosKds = useCallback(async () => {
+    const motivo = (eliminarPlatoMotivo || '').trim();
+    if (motivo.length < 2) {
+      alert('El motivo de eliminación es obligatorio (mínimo 2 caracteres)');
+      return;
+    }
+    const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
+    if (!r.ok) {
+      alert(r.error);
+      return;
+    }
+    setEliminarPlatoLoading(true);
+    try {
+      await apiPut(`/api/comanda/${r.comandaId}/eliminar-platos`, {
+        platosAEliminar: r.indices,
+        motivo,
+        sourceApp: 'cocina',
+        usuarioId: userId || undefined,
+        usuarioNombre: userName || undefined,
+      });
+      setEliminarPlatoMotivo('');
+      setShowEliminarPlatoModal(false);
+      setPlatosChecked(new Map());
+      setPlatoStates(new Map());
+      setSelectedOrders(new Set());
+      obtenerComandas();
+    } catch (error) {
+      console.error('Error al eliminar plato:', error);
+      alert(error.response?.data?.message || error.userMessage || error.message || 'Error al eliminar el plato');
+    } finally {
+      setEliminarPlatoLoading(false);
+    }
+  }, [eliminarPlatoMotivo, platosChecked, platoStates, comandas, obtenerComandas, userId, userName]);
+
+  useEffect(() => {
+    if (!haySeleccionEliminarPlatoKds(platosChecked, platoStates, comandas)) {
+      setShowEliminarPlatoModal(false);
+    }
+  }, [platosChecked, platoStates, comandas]);
+
   // REGLA COCINA: Esta función fue eliminada - Cocina nunca maneja 'entregado' (exclusivo de mozos)
   // La función marcarEntregadas ya no existe en cocina
 
@@ -4192,6 +4247,16 @@ const ComandaStyle = ({
   const textButton = nightMode ? 'text-white' : 'text-gray-900';
   const bgBottomBar = nightMode ? 'bg-gray-900' : 'bg-white';
   const borderBottomBar = nightMode ? 'border-gray-700' : 'border-gray-300';
+  const showBtnEliminarPlato = hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA)
+    && haySeleccionEliminarPlatoKds(platosChecked, platoStates, comandas);
+  const platosResumenEliminar = showEliminarPlatoModal
+    ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
+        cantidad: item.cantidad,
+        nombre: obtenerNombreDisplayCocina(item.plato, { habilitadoEnKds: usarNombreCocinaEnTablaKds })
+          || obtenerNombrePlato(item.plato)
+          || 'Sin nombre'
+      }))
+    : [];
 
   return (
     <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col ${bgMain} ${textMain} overflow-hidden`}>
@@ -4370,7 +4435,7 @@ const ComandaStyle = ({
             </motion.div>
 
             {/* Barra inferior sticky: Boton Contextual (Tomar/Dejar/Finalizar) → Finalizar Comanda → Revertir → Paginado */}
-            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between flex-wrap gap-2 px-4 py-3 pr-20 ${bgBottomBar} border-t ${borderBottomBar} z-[80]`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
+            <div className={`fixed bottom-0 left-0 right-0 flex items-center justify-between flex-wrap gap-2 px-4 py-3 ${bgBottomBar} border-t ${borderBottomBar} z-[80]`} style={{ boxShadow: '0 -4px 6px rgba(0,0,0,0.1)' }}>
               {/* Orden: Botón Contextual → Finalizar Comanda → Revertir → Paginado */}
               <div className="flex items-center flex-wrap gap-3">
                 {/* 1. BOTÓN CONTEXTUAL MULTI-COCINERO v7.2
@@ -4740,6 +4805,24 @@ const ComandaStyle = ({
                   );
                 })()}
 
+                <AnimatePresence>
+                {showBtnEliminarPlato && (
+                  <motion.button
+                    key="eliminar-plato-kds"
+                    onClick={abrirModalEliminarPlato}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-sm shadow-lg ring-2 ring-red-300 flex items-center gap-1"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <FaTrash className="text-sm" />
+                    Eliminar plato
+                  </motion.button>
+                )}
+                </AnimatePresence>
+
                 {/* ANULAR: oculto por default (config.cocina.ocultarAnularEnTablasKds) */}
                 {ocultarAnularEnTablasKds !== true && (() => {
                   const platosMarcados = getTotalPlatosMarcados();
@@ -4875,6 +4958,20 @@ const ComandaStyle = ({
           onClose={() => setShowHistorial(false)}
         />
       )}
+
+      <EliminarPlatoKdsModal
+        open={showEliminarPlatoModal}
+        nightMode={nightMode}
+        platos={platosResumenEliminar}
+        motivo={eliminarPlatoMotivo}
+        onMotivoChange={setEliminarPlatoMotivo}
+        loading={eliminarPlatoLoading}
+        onCancel={() => {
+          setShowEliminarPlatoModal(false);
+          setEliminarPlatoMotivo('');
+        }}
+        onConfirm={handleEliminarPlatosKds}
+      />
 
       {/* 🔥 NUEVO: Modal de Anulación desde Cocina */}
       <AnimatePresence>

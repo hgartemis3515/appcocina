@@ -68,14 +68,14 @@ describe('obtenerNombreDisplayCocina', () => {
     expect(obtenerNombreDisplayCocina(plato)).toBe('CAFÉ');
   });
 
-  test('variación de nombre usa el snapshot completo (KDS y Ver Cocina)', () => {
+  test('variación de nombre en cocina usa alias + opción (no el nombre de carta)', () => {
     const plato = {
       nombreCocinaPedido: 'Pollo leña Pierna',
       variantePlato: { opcion: 'Pierna', pronombre: 'Pierna', anexaNombre: true },
       plato: { nombre: 'Pollo leña', nombreCocina: 'P.LEÑA' },
     };
-    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('Pollo leña Pierna');
-    expect(obtenerNombreDisplayCocina(plato, { habilitadoEnKds: true })).toBe('Pollo leña Pierna');
+    expect(obtenerNombreDisplayCocina(plato, { forzar: true })).toBe('P.LEÑA Pierna');
+    expect(obtenerNombreDisplayCocina(plato, { habilitadoEnKds: true })).toBe('P.LEÑA Pierna');
   });
 
   test('variación de nombre sin snapshot concatena alias + opción', () => {
@@ -113,6 +113,25 @@ describe('obtenerNombreDisplayCocina', () => {
       plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' },
     };
     expect(obtenerNombreDisplayCocina(linea, { forzar: true })).toBe('CEV');
+  });
+
+  test('para_llevar ignora snapshot comercial y muestra nombreCocina', () => {
+    const linea = {
+      tipoServicio: 'para_llevar',
+      nombreCocinaPedido: 'Ceviche Clásico',
+      plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' },
+    };
+    expect(obtenerNombreDisplayCocina(linea, { forzar: true })).toBe('CEV');
+    expect(obtenerNombreDisplayCocina(linea, { habilitadoEnKds: true })).toBe('CEV');
+  });
+
+  test('extra_llevar en tabla KDS usa alias de cocina', () => {
+    const linea = {
+      tipoServicio: 'extra_llevar',
+      nombreCocinaPedido: 'Lomo Saltado',
+      plato: { nombre: 'Lomo Saltado', nombreCocina: 'Lomo S/' },
+    };
+    expect(obtenerNombreDisplayCocina(linea, { habilitadoEnKds: true })).toBe('Lomo S/');
   });
 
   test('item de monitor { plato, comanda } también resuelve el alias', () => {

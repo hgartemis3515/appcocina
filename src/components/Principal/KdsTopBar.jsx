@@ -14,6 +14,7 @@ import {
   FaCalendarAlt,
 } from "react-icons/fa";
 import BotonCandadoCocina from "../common/BotonCandadoCocina";
+import ChatFabCocina from "../Chat/ChatFabCocina";
 
 /**
  * KdsTopBar — Barra superior compartida por las 3 vistas KDS
@@ -147,6 +148,7 @@ const KdsTopBar = ({
           </span>
           <span className={`text-[10px] sm:text-xs ${textSecondary}`}>{fechaStr}</span>
         </div>
+        <ChatFabCocina />
 
         {/* Badge de vista: compacto en móvil, completo en sm+ */}
         <div

@@ -25,7 +25,7 @@ import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
  */
 const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, modoTarjeta = false }, ref) => {
   const { nombre, cantidadTotal, platos = [], tiempoInicio } = item;
-  const nombreVisible = obtenerNombreDisplayCocina(platos[0]?.plato || item, { forzar: true }) || nombre;
+  const nombreVisible = obtenerNombreDisplayCocina(platos[0] || item, { forzar: true }) || nombre;
 
   // Cronómetro (del plato más antiguo del grupo)
   const segundos = calcularSegundos(tiempoInicio);

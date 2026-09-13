@@ -6,7 +6,7 @@ import { getServerBaseUrl } from '../../config/apiConfig';
 
 /**
  * ChatFabCocina v2 — Panel Messenger-like (split: contactos + hilo)
- * FAB inferior derecha. Oculto en monitores TV.
+ * Botón en la barra superior (a la derecha de la hora). Oculto en monitores TV.
  */
 
 const PRIORIDADES = [
@@ -17,21 +17,17 @@ const PRIORIDADES = [
   { code: 'critica', label: 'Crítica', color: '#c0392b' }
 ];
 
-const FAB_STYLE = {
-  position: 'fixed',
-  bottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
-  right: 'max(16px, env(safe-area-inset-right, 0px))',
-  left: 'auto',
-  top: 'auto',
-  zIndex: 10050,
-  width: 56,
-  height: 56,
-  borderRadius: '50%',
+const BAR_STYLE = {
+  position: 'relative',
+  width: 44,
+  height: 44,
+  flexShrink: 0,
+  borderRadius: 12,
   background: 'linear-gradient(135deg, #d4af37 0%, #b8860b 100%)',
   color: '#0a0a0f',
-  fontSize: 24,
+  fontSize: 20,
   cursor: 'pointer',
-  boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -459,7 +455,7 @@ export default function ChatFabCocina() {
       type="button"
       onClick={() => { setAbierto(true); setVistaHiloMovil(false); }}
       className="chat-fab-cocina"
-      style={FAB_STYLE}
+      style={BAR_STYLE}
       title="Chat interno"
     >💬
       {noLeidos > 0 && (
@@ -657,13 +653,17 @@ export default function ChatFabCocina() {
     </div>
   );
 
-  return createPortal(
+  return (
     <>
-      <ChatResponsiveStyles />
       {fab}
-      {panel}
-    </>,
-    document.body
+      {createPortal(
+        <>
+          <ChatResponsiveStyles />
+          {panel}
+        </>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -672,19 +672,15 @@ function ChatResponsiveStyles() {
     <style>{`
       @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
       .chat-fab-cocina {
-        position: fixed !important;
-        bottom: max(16px, env(safe-area-inset-bottom, 0px)) !important;
-        right: max(16px, env(safe-area-inset-right, 0px)) !important;
-        left: auto !important;
-        top: auto !important;
-        z-index: 10050 !important;
-        width: 56px; height: 56px; border-radius: 50%;
+        position: relative !important;
+        width: 44px; height: 44px; border-radius: 12px;
         background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
-        color: #0a0a0f; font-size: 24px; cursor: pointer;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.5);
-        display: flex; align-items: center; justify-content: center;
+        color: #0a0a0f; font-size: 20px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        display: inline-flex; align-items: center; justify-content: center;
         border: none; touch-action: manipulation;
         margin: 0 !important; padding: 0 !important;
+        flex-shrink: 0;
       }
       .chat-btn-icon-soft {
         background: transparent; border: none; color: #d4af37; font-size: 20px; cursor: pointer; padding: 4px;
@@ -781,10 +777,7 @@ function ChatResponsiveStyles() {
       }
       @media (max-width: 700px) {
         .chat-fab-cocina {
-          width: 52px !important; height: 52px !important; font-size: 22px !important;
-          bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
-          right: max(12px, env(safe-area-inset-right, 0px)) !important;
-          left: auto !important; top: auto !important;
+          width: 40px !important; height: 40px !important; font-size: 18px !important;
         }
         .chat-panel-cocina {
           width: 100vw; left: 0; right: 0; top: 0; bottom: 0;

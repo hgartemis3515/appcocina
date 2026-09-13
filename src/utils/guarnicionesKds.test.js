@@ -86,6 +86,14 @@ describe('esGuarnicionSeparable', () => {
     expect(esGuarnicionSeparable(plato, true)).toBe(false);
     expect(nombrePlatoPadre(plato)).toBe('Pollo leña Pierna');
   });
+  test('para llevar con snapshot comercial usa alias de cocina', () => {
+    const plato = {
+      tipoServicio: 'para_llevar',
+      nombreCocinaPedido: 'Lomo Saltado Completo',
+      plato: { nombre: 'Lomo Saltado Completo', nombreCocina: 'Lomo S/' },
+    };
+    expect(nombrePlatoPadre(plato, true)).toBe('Lomo S/');
+  });
 });
 
 describe('forzarVisibleTablaKds', () => {

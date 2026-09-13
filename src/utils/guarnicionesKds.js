@@ -129,29 +129,36 @@ export function esGuarnicionSeparable(plato, flagOn) {
  */
 export function nombrePlatoPadre(plato, usarAlias = true) {
   if (!plato) return '';
-  const pedido = String(plato.nombreCocinaPedido || '').trim();
-  if (pedido) return pedido;
+  const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
+  const comercial = String(plato.plato?.nombre || plato.nombre || '').trim();
   const extra = String(
     plato.variantePlato?.pronombre
     || plato.variantePlato?.opcion
     || ''
   ).trim();
+  const base = usarAlias ? (alias || comercial) : (comercial || alias);
   if (plato.variantePlato?.anexaNombre === true && extra) {
-    const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
-    const comercial = String(plato.plato?.nombre || plato.nombre || '').trim();
-    const base = usarAlias ? (alias || comercial) : (comercial || alias);
     if (!base) return extra;
     const bLow = base.toLowerCase();
     const eLow = extra.toLowerCase();
     if (bLow === eLow || bLow.endsWith(` ${eLow}`)) return base;
     return `${base} ${extra}`.trim();
   }
-  if (extra) return extra;
-  if (usarAlias) {
-    const alias = String(plato.plato?.nombreCocina || plato.nombreCocina || '').trim();
-    if (alias) return alias;
+  const pedido = String(plato.nombreCocinaPedido || '').trim();
+  if (pedido) {
+    if (usarAlias && alias) {
+      const pLow = pedido.toLowerCase();
+      if (pLow === alias.toLowerCase()) return alias;
+      if (comercial && pLow === comercial.toLowerCase()) return alias;
+      if (comercial && pLow.startsWith(`${comercial.toLowerCase()} `)) {
+        return `${alias}${pedido.slice(comercial.length)}`.trim();
+      }
+    }
+    return pedido;
   }
-  return plato.plato?.nombre || plato.nombre || '';
+  if (extra) return extra;
+  if (usarAlias && alias) return alias;
+  return comercial || '';
 }
 
 /** Guarniciones por unidad de plato × cantidad de la línea (`cantidades[i]` o `plato.cantidad`). */

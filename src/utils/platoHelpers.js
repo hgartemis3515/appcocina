@@ -52,31 +52,54 @@ function anexarSufijoNombre(base, extra) {
   return `${b} ${e}`.trim();
 }
 
+function mismoNombreCocina(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+/** Si el snapshot copió el nombre de carta, sustituye por el alias de cocina. */
+function pedidoConAliasCocina(pedido, alias, oficial, usarAlias) {
+  const p = String(pedido || '').trim();
+  if (!p) return '';
+  const a = String(alias || '').trim();
+  const o = String(oficial || '').trim();
+  if (!usarAlias || !a) return p;
+  if (mismoNombreCocina(p, a)) return a;
+  if (o && mismoNombreCocina(p, o)) return a;
+  if (o && p.toLowerCase().startsWith(`${o.toLowerCase()} `)) {
+    return `${a}${p.slice(o.length)}`.trim();
+  }
+  return p;
+}
+
 export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
   if (!plato || typeof plato !== 'object') return '';
   // Item de Ver Cocina: { plato: linea, comanda } — el alias vive en la línea / catálogo.
-  const linea = (plato.comanda != null && plato.plato && typeof plato.plato === 'object')
-    ? plato.plato
-    : plato;
+  const nested = plato.plato;
+  const nestedEsLinea = nested && typeof nested === 'object' && !Array.isArray(nested)
+    && (nested.estado != null || nested.tipoServicio != null || nested.nombreCocinaPedido != null
+      || nested.complementosSeleccionados != null || nested.plato != null);
+  const linea = (plato.comanda != null && nestedEsLinea) ? nested : plato;
   const oficial = obtenerNombrePlato(linea);
   const alias = String(
     linea?.plato?.nombreCocina || linea?.nombreCocina || ''
   ).trim();
   const pedido = String(linea?.nombreCocinaPedido || '').trim();
-  if (pedido) return pedido;
   const extraVar = String(
     linea?.variantePlato?.pronombre
     || linea?.variantePlato?.opcion
     || ''
   ).trim();
+  const usarAlias = opts.forzar === true || opts.habilitadoEnKds === true;
+  const baseCocina = usarAlias ? (alias || oficial) : (oficial || alias);
   if (linea?.variantePlato?.anexaNombre === true && extraVar) {
-    const usarAlias = opts.forzar === true || opts.habilitadoEnKds === true;
-    const base = usarAlias ? (alias || oficial) : (oficial || alias);
-    return anexarSufijoNombre(base, extraVar);
+    return anexarSufijoNombre(baseCocina, extraVar);
+  }
+  if (pedido) {
+    return pedidoConAliasCocina(pedido, alias, oficial, usarAlias);
   }
   if (extraVar) return extraVar;
   if (!alias) return oficial;
-  if (opts.forzar === true || opts.habilitadoEnKds === true) return alias;
+  if (usarAlias) return alias;
   return oficial;
 };
 

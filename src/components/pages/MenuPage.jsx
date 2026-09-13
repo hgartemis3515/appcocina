@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { getServerBaseUrl } from '../../config/apiConfig';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
+import ChatFabCocina from '../Chat/ChatFabCocina';
 import useFullscreen from '../../hooks/useFullscreen';
 
 /**
@@ -278,6 +279,7 @@ const MenuPage = ({ onNavigate }) => {
           
           {/* Usuario y logout */}
           <div className="flex items-center gap-4">
+            <ChatFabCocina />
             <div className="text-right hidden sm:block">
               <p className="text-white text-sm font-medium">{user?.name || 'Cocinero'}</p>
               <p className="text-gray-400 text-xs capitalize">{user?.rol || 'cocinero'}</p>
