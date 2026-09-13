@@ -63,9 +63,18 @@ describe('ticketEsParaLlevar', () => {
     expect(ticketEsParaLlevar({ sinMesa: true, platos: [] })).toBe(true);
   });
 
-  test('todos los platos para_llevar', () => {
+  test('comanda de mesa no se pinta morado aunque los platos sean para_llevar', () => {
     expect(ticketEsParaLlevar({
       numMesa: 4,
+      platos: [
+        { nombre: 'A', tipoServicio: 'para_llevar' },
+        { nombre: 'B', paraLlevar: true },
+      ],
+    })).toBe(false);
+  });
+
+  test('sin mesa y todos los platos para_llevar sí es para llevar', () => {
+    expect(ticketEsParaLlevar({
       platos: [
         { nombre: 'A', tipoServicio: 'para_llevar' },
         { nombre: 'B', paraLlevar: true },
@@ -89,10 +98,17 @@ describe('ticketEsParaLlevar', () => {
     })).toBe(false);
   });
 
-  test('comandas sin mesa', () => {
+  test('comandas sin mesa (ticket también sin mesa)', () => {
     expect(ticketEsParaLlevar({
-      numMesa: 1,
       comandas: [{ sinMesa: true, platos: [{ tipoServicio: 'para_llevar' }] }],
     })).toBe(true);
+  });
+
+  test('ticket con mesa real no es para llevar aunque una comanda hija sea sin mesa', () => {
+    expect(ticketEsParaLlevar({
+      numMesa: 1,
+      mesa: { _id: 'm1', nummesa: 1 },
+      comandas: [{ sinMesa: true, platos: [{ tipoServicio: 'para_llevar' }] }],
+    })).toBe(false);
   });
 });

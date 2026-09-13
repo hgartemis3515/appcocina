@@ -287,18 +287,19 @@ export function ticketEsParaLlevar(ticket) {
   const mesa = ticket.mesa;
   if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return true;
 
+  const num = ticket.numMesa ?? mesa?.nummesa ?? mesa?.numero;
+  const tieneMesaReal =
+    !numMesaEsVacia(num)
+    || (mesa && typeof mesa === 'object' && !!(mesa._id || mesa.id) && mesa.sinMesa !== true);
+  if (tieneMesaReal) return false;
+
   const cmds = Array.isArray(ticket.comandas) ? ticket.comandas : [];
   const cmdsObj = cmds.filter((c) => c && typeof c === 'object' && !Array.isArray(c) && (c.sinMesa != null || c.platos || c.mesas || c.mesa));
   if (cmdsObj.length && cmdsObj.every((c) => comandaEsSinMesaOParaLlevar(c))) return true;
 
   const platos = (ticket.platos || []).filter((p) => p && p.eliminado !== true && p.anulado !== true);
   if (platos.length && platos.every(platoEsParaLlevar)) return true;
-
-  const num = ticket.numMesa ?? mesa?.nummesa ?? mesa?.numero;
-  if (numMesaEsVacia(num) && (!mesa || typeof mesa !== 'object' || !mesa._id)) {
-    return platos.some(platoEsParaLlevar);
-  }
-  return false;
+  return platos.some(platoEsParaLlevar);
 }
 
 export function etiquetaTipoServicioTicket(tipo) {
