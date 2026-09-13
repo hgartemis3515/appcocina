@@ -1,5 +1,4 @@
 import moment from 'moment-timezone';
-import { comandaEsSinMesaOParaLlevar } from './platoHelpers';
 import { TICKETS_TABLA_VISUAL_DEFAULT, normalizeTicketsTablaVisual } from './estiloTicketsTabla';
 
 const ZONA = 'America/Lima';
@@ -271,35 +270,41 @@ export function ticketTieneExtraLlevar(ticket) {
 }
 
 function platoEsParaLlevar(p) {
-  return !!(p && (p.tipoServicio === 'para_llevar' || p.paraLlevar === true));
+  if (!p) return false;
+  if (p.paraLlevar === true) return true;
+  const raw = String(p.tipoServicio || p.tipoPedido || '').toLowerCase().trim().replace(/[\s-]+/g, '_');
+  return raw === 'para_llevar' || raw === 'llevar';
 }
 
-function numMesaEsVacia(num) {
-  if (num == null || num === '') return true;
-  const s = String(num).trim().toUpperCase();
-  return s === 'N/A' || s === 'SIN MESA' || s === '?' || s === 'PARA LLEVAR';
+function platosActivosTicket(list) {
+  return (list || []).filter((p) => p && p.eliminado !== true && p.anulado !== true);
 }
 
-/** Comanda / ticket completo para llevar (no EXTRA LLEVAR suelto). */
+function esFullParaLlevar(platos) {
+  const activos = platosActivosTicket(platos);
+  if (!activos.length) return false;
+  return activos.every(platoEsParaLlevar);
+}
+
+/** Solo morado si el ticket es 100% para llevar. Sin evidencia, queda el color normal. */
 export function ticketEsParaLlevar(ticket) {
   if (!ticket) return false;
   if (ticket.sinMesa === true) return true;
   const mesa = ticket.mesa;
   if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return true;
 
-  const num = ticket.numMesa ?? mesa?.nummesa ?? mesa?.numero;
-  const tieneMesaReal =
-    !numMesaEsVacia(num)
-    || (mesa && typeof mesa === 'object' && !!(mesa._id || mesa.id) && mesa.sinMesa !== true);
-  if (tieneMesaReal) return false;
-
   const cmds = Array.isArray(ticket.comandas) ? ticket.comandas : [];
-  const cmdsObj = cmds.filter((c) => c && typeof c === 'object' && !Array.isArray(c) && (c.sinMesa != null || c.platos || c.mesas || c.mesa));
-  if (cmdsObj.length && cmdsObj.every((c) => comandaEsSinMesaOParaLlevar(c))) return true;
+  const cmdsObj = cmds.filter((c) => c && typeof c === 'object' && !Array.isArray(c));
+  if (cmdsObj.length && cmdsObj.every((c) => c.sinMesa === true)) return true;
 
-  const platos = (ticket.platos || []).filter((p) => p && p.eliminado !== true && p.anulado !== true);
-  if (platos.length && platos.every(platoEsParaLlevar)) return true;
-  return platos.some(platoEsParaLlevar);
+  const platosTicket = platosActivosTicket(ticket.platos);
+  const snapshotTieneTipo = platosTicket.some((p) => p.tipoServicio || p.tipoPedido || p.paraLlevar === true);
+  if (snapshotTieneTipo) return esFullParaLlevar(platosTicket);
+
+  const platosCmds = cmdsObj.flatMap((c) => platosActivosTicket(c.platos));
+  if (esFullParaLlevar(platosCmds)) return true;
+
+  return false;
 }
 
 export function etiquetaTipoServicioTicket(tipo) {

@@ -63,22 +63,28 @@ describe('ticketEsParaLlevar', () => {
     expect(ticketEsParaLlevar({ sinMesa: true, platos: [] })).toBe(true);
   });
 
-  test('comanda de mesa no se pinta morado aunque los platos sean para_llevar', () => {
+  test('comanda full para llevar es morada aunque tenga número de mesa', () => {
     expect(ticketEsParaLlevar({
       numMesa: 4,
+      mesa: { _id: 'm1', nummesa: 4 },
       platos: [
         { nombre: 'A', tipoServicio: 'para_llevar' },
         { nombre: 'B', paraLlevar: true },
       ],
-    })).toBe(false);
+    })).toBe(true);
   });
 
-  test('sin mesa y todos los platos para_llevar sí es para llevar', () => {
+  test('platos de comanda poblada full para llevar también pintan morado', () => {
     expect(ticketEsParaLlevar({
-      platos: [
-        { nombre: 'A', tipoServicio: 'para_llevar' },
-        { nombre: 'B', paraLlevar: true },
-      ],
+      numMesa: 2,
+      platos: [],
+      comandas: [{
+        mesaNumero: 2,
+        platos: [
+          { tipoServicio: 'para_llevar' },
+          { tipoServicio: 'para_llevar' },
+        ],
+      }],
     })).toBe(true);
   });
 
@@ -104,11 +110,33 @@ describe('ticketEsParaLlevar', () => {
     })).toBe(true);
   });
 
-  test('ticket con mesa real no es para llevar aunque una comanda hija sea sin mesa', () => {
+  test('comanda de mesa normal no es morada', () => {
     expect(ticketEsParaLlevar({
-      numMesa: 1,
-      mesa: { _id: 'm1', nummesa: 1 },
-      comandas: [{ sinMesa: true, platos: [{ tipoServicio: 'para_llevar' }] }],
+      numMesa: 8,
+      mesa: { _id: 'm8', nummesa: 8 },
+      platos: [{ tipoServicio: 'mesa' }, { tipoServicio: 'mesa' }],
+    })).toBe(false);
+  });
+
+  test('aprobados: comandas pobladas sin tipoServicio no pintan morado', () => {
+    expect(ticketEsParaLlevar({
+      numMesa: 5,
+      estado: 'aprobado',
+      platos: [{ nombre: 'Pollo', tipoServicio: 'mesa' }],
+      comandas: [{
+        comandaNumber: 1270,
+        sinMesa: false,
+        platos: [{ estado: 'pedido', eliminado: false, anulado: false }],
+      }],
+    })).toBe(false);
+    expect(ticketEsParaLlevar({
+      numMesa: 5,
+      estado: 'aprobado',
+      platos: [],
+      comandas: [{
+        comandaNumber: 1270,
+        platos: [{ estado: 'pedido' }],
+      }],
     })).toBe(false);
   });
 });
