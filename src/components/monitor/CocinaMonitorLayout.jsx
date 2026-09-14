@@ -34,6 +34,7 @@ import {
   lineaListaGuarniciones,
   tokenGuarnicion,
   cantidadGuarnicionEfectiva,
+  deduplicarGuarnicionesJunta,
   claveGrupoGuarnicionMonitor,
   nombreCatalogoPlatoCocina,
   lineaListaGuarnicionMerge,
@@ -984,10 +985,10 @@ const CocinaMonitorLayout = ({
 
   const filasContadorGuarniciones = useMemo(() => {
     if (!mostrarContadorGuarniciones) return [];
-    const filas = itemsGuarnicionRaw.map(({ plato, comanda, platoIndex, comp }) => ({
-      nombre: nombreGuarnicionSolo(comp),
-      cantidad: cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex),
-      pronombre: pronombreDesdeCatalogo(plato, comp) || String((comp && comp.pronombre) || '').trim(),
+    const filas = deduplicarGuarnicionesJunta(itemsGuarnicionRaw).map((item) => ({
+      nombre: nombreGuarnicionSolo(item.comp),
+      cantidad: item.qty,
+      pronombre: pronombreDesdeCatalogo(item.plato, item.comp) || String((item.comp && item.comp.pronombre) || '').trim(),
     }));
     return contarGuarnicionesPorNombre(filas, {
       conPronombre: configVisual.contadorGuarnicionesConPronombre === true,
@@ -997,15 +998,15 @@ const CocinaMonitorLayout = ({
 
   const opcionesContadorLive = useMemo(() => {
     const map = new Map();
-    for (const { plato, comanda, platoIndex, comp } of itemsGuarnicionRaw) {
-      const nombre = nombreGuarnicionSolo(comp);
+    for (const item of deduplicarGuarnicionesJunta(itemsGuarnicionRaw)) {
+      const nombre = nombreGuarnicionSolo(item.comp);
       const clave = claveNombreComplemento(nombre);
       if (!clave) continue;
       const prev = map.get(clave);
       map.set(clave, {
         clave,
         nombre: (prev && prev.nombre) || nombre,
-        platos: (prev ? prev.platos : 0) + cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex),
+        platos: (prev ? prev.platos : 0) + item.qty,
       });
     }
     return [...map.values()].sort((a, b) => b.platos - a.platos || a.nombre.localeCompare(b.nombre, 'es'));
@@ -1068,7 +1069,8 @@ const CocinaMonitorLayout = ({
         });
       }
       const g = gruposMap.get(key);
-      g.cantidadTotal += qty;
+      if (juntaMerge) g.cantidadTotal = Math.max(g.cantidadTotal, qty);
+      else g.cantidadTotal += qty;
       g.comps.push(comp);
       g.platos.push({ plato, comanda, platoIndex, cocinero, cocineroPrincipal });
       if (nombrePadre) g.padresSet.add(nombrePadre);

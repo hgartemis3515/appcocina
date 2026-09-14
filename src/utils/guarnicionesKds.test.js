@@ -23,6 +23,7 @@ const {
   textoNombreConCantidadGuarnicion,
   prefijoCantidadGuarnicion,
   posicionCantidadGuarnicion,
+  deduplicarGuarnicionesJunta,
 } = require('./guarnicionesKds');
 
 describe('normalizarGuarnicionKey', () => {
@@ -1233,5 +1234,24 @@ describe('textoNombreConCantidadGuarnicion', () => {
   });
   test('cantidad 1 no añade cifra', () => {
     expect(textoNombreConCantidadGuarnicion('Papa frita', 1)).toBe('Papa frita');
+  });
+});
+
+describe('deduplicarGuarnicionesJunta', () => {
+  test('pecho y pierna no duplican papa en el contador', () => {
+    const comanda = { _id: 'c1', cantidades: [1, 1] };
+    const papa = { opcion: 'Papa frita', cantidad: 1 };
+    const pecho = {
+      juntarGuarnicionesEntreVariantes: true,
+      plato: { _id: 'leña', juntarGuarnicionesEntreVariantes: true },
+      cantidad: 1,
+    };
+    const pierna = { ...pecho };
+    const out = deduplicarGuarnicionesJunta([
+      { plato: pecho, comanda, platoIndex: 0, comp: papa },
+      { plato: pierna, comanda, platoIndex: 1, comp: papa },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].qty).toBe(1);
   });
 });

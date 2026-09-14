@@ -170,6 +170,32 @@ export function cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex) {
   return porUnidad * nPlatos;
 }
 
+/**
+ * Contador de barra: si el plato junta guarniciones entre variantes,
+ * pecho+pierna no suman 2 papas cuando el mozo eligió 1.
+ */
+export function deduplicarGuarnicionesJunta(items) {
+  const list = Array.isArray(items) ? items : [];
+  const juntaMax = new Map();
+  const out = [];
+  for (const item of list) {
+    const { plato, comanda, platoIndex, comp } = item;
+    const qty = cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex);
+    if (platoJuntaGuarnicionesEntreVariantes(plato)) {
+      const comandaId = String(comanda?._id || comanda?.id || '');
+      const pid = idCatalogoPlatoLinea(plato);
+      const clave = claveNombreComplemento(nombreGuarnicionSolo(comp));
+      const k = `${comandaId}::${pid}::${clave}`;
+      const prev = juntaMax.get(k);
+      if (prev == null || qty > prev.qty) juntaMax.set(k, { ...item, qty });
+      continue;
+    }
+    out.push({ ...item, qty });
+  }
+  juntaMax.forEach((v) => out.push(v));
+  return out;
+}
+
 export function platoConCantidadDeLinea(item) {
   const plato = item?.plato;
   if (!plato) return plato;
