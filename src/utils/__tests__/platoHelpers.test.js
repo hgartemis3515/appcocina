@@ -144,6 +144,26 @@ describe('obtenerNombreDisplayCocina', () => {
     };
     expect(obtenerNombreDisplayCocina(item, { forzar: true })).toBe('Lomo S/');
   });
+
+  test('para_llevar reescribe snapshot comercial aunque el acento no coincida', () => {
+    const linea = {
+      tipoServicio: 'para_llevar',
+      nombre: 'Ceviche Clasico',
+      nombreCocinaPedido: 'Ceviche Clásico',
+      plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV' },
+    };
+    expect(obtenerNombreDisplayCocina(linea, { forzar: true })).toBe('CEV');
+  });
+
+  test('para_llevar usa linea.nombre como comercial si el populate vino fino', () => {
+    const linea = {
+      tipoServicio: 'para_llevar',
+      nombre: 'Ceviche Clásico',
+      nombreCocinaPedido: 'Ceviche Clásico',
+      plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV', precio: 30, id: 12 },
+    };
+    expect(obtenerNombreDisplayCocina(linea, { forzar: true })).toBe('CEV');
+  });
 });
 
 describe('platoCoincideId', () => {
@@ -237,5 +257,29 @@ describe('fusionarComandaPreservandoToma', () => {
     };
     const next = fusionarComandaPreservandoToma(local, incoming);
     expect(next.platos[0].procesandoPor.alias).toBe('Luis');
+  });
+
+  test('PPA sin nombreCocina no pisa el alias local del catálogo', () => {
+    const local = {
+      _id: 'c1',
+      platos: [{
+        _id: 'p1',
+        tipoServicio: 'para_llevar',
+        nombreCocinaPedido: 'Ceviche Clásico',
+        plato: { nombre: 'Ceviche Clásico', nombreCocina: 'CEV', precio: 30 },
+      }],
+    };
+    const incoming = {
+      _id: 'c1',
+      platos: [{
+        _id: 'p1',
+        tipoServicio: 'para_llevar',
+        nombreCocinaPedido: 'Ceviche Clásico',
+        plato: { nombre: 'Ceviche Clásico', precio: 30, id: 12 },
+      }],
+    };
+    const next = fusionarComandaPreservandoToma(local, incoming);
+    expect(next.platos[0].plato.nombreCocina).toBe('CEV');
+    expect(obtenerNombreDisplayCocina(next.platos[0], { forzar: true })).toBe('CEV');
   });
 });

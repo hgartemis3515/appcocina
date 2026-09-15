@@ -52,21 +52,57 @@ function anexarSufijoNombre(base, extra) {
   return `${b} ${e}`.trim();
 }
 
-function mismoNombreCocina(a, b) {
-  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+function normalizarClaveNombreCocina(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
-/** Si el snapshot copió el nombre de carta, sustituye por el alias de cocina. */
-function pedidoConAliasCocina(pedido, alias, oficial, usarAlias) {
+function mismoNombreCocina(a, b) {
+  return normalizarClaveNombreCocina(a) === normalizarClaveNombreCocina(b);
+}
+
+function oficialesNombreCocina(linea, oficial) {
+  const out = [];
+  const add = (v) => {
+    const s = String(v || '').trim();
+    if (!s) return;
+    if (!out.some((x) => mismoNombreCocina(x, s))) out.push(s);
+  };
+  add(oficial);
+  add(linea?.nombre);
+  add(linea?.plato?.nombre);
+  return out;
+}
+
+/**
+ * Si el snapshot copió el nombre de carta (típico en para_llevar / PPA),
+ * sustituye por el alias de cocina de platos.html.
+ */
+export function pedidoConAliasCocina(pedido, alias, oficiales, usarAlias) {
   const p = String(pedido || '').trim();
   if (!p) return '';
   const a = String(alias || '').trim();
-  const o = String(oficial || '').trim();
   if (!usarAlias || !a) return p;
   if (mismoNombreCocina(p, a)) return a;
-  if (o && mismoNombreCocina(p, o)) return a;
-  if (o && p.toLowerCase().startsWith(`${o.toLowerCase()} `)) {
-    return `${a}${p.slice(o.length)}`.trim();
+  const list = Array.isArray(oficiales) ? oficiales : [oficiales];
+  const pNorm = normalizarClaveNombreCocina(p);
+  for (const raw of list) {
+    const o = String(raw || '').trim();
+    if (!o) continue;
+    if (mismoNombreCocina(p, o)) return a;
+    if (p.toLowerCase().startsWith(`${o.toLowerCase()} `)) {
+      return `${a}${p.slice(o.length)}`.trim();
+    }
+    const oNorm = normalizarClaveNombreCocina(o);
+    if (oNorm && pNorm.startsWith(`${oNorm} `)) {
+      const nWords = o.split(/\s+/).filter(Boolean).length;
+      const rest = p.split(/\s+/).filter(Boolean).slice(nWords).join(' ');
+      return rest ? `${a} ${rest}`.trim() : a;
+    }
   }
   return p;
 }
@@ -91,11 +127,12 @@ export const obtenerNombreDisplayCocina = (plato, opts = {}) => {
   ).trim();
   const usarAlias = opts.forzar === true || opts.habilitadoEnKds === true;
   const baseCocina = usarAlias ? (alias || oficial) : (oficial || alias);
+  const oficiales = oficialesNombreCocina(linea, oficial);
   if (linea?.variantePlato?.anexaNombre === true && extraVar) {
     return anexarSufijoNombre(baseCocina, extraVar);
   }
   if (pedido) {
-    return pedidoConAliasCocina(pedido, alias, oficial, usarAlias);
+    return pedidoConAliasCocina(pedido, alias, oficiales, usarAlias);
   }
   if (extraVar) return extraVar;
   if (!alias) return oficial;
@@ -174,30 +211,56 @@ export function platoTieneCocineroAsignado(plato) {
   return id != null && String(id).length > 0 && String(id) !== 'undefined';
 }
 
+function catalogoPlatoDeLinea(linea) {
+  const cat = linea?.plato;
+  if (!cat || typeof cat !== 'object' || Array.isArray(cat)) return null;
+  if (cat.nombre != null || cat.nombreCocina != null || cat.precio != null || cat.codigo != null) {
+    return cat;
+  }
+  return null;
+}
+
+/** PPA emite populate fino sin nombreCocina: no pisa el alias local del catálogo. */
+function fusionarCatalogoPlatoLinea(loc, inc) {
+  const locCat = catalogoPlatoDeLinea(loc);
+  const incCat = catalogoPlatoDeLinea(inc);
+  if (!incCat) return locCat || inc?.plato;
+  if (!locCat) return incCat;
+  const aliasInc = String(incCat.nombreCocina || '').trim();
+  const aliasLoc = String(locCat.nombreCocina || '').trim();
+  return {
+    ...locCat,
+    ...incCat,
+    nombreCocina: aliasInc || aliasLoc || incCat.nombreCocina,
+  };
+}
+
 /**
  * Fusiona snapshot incoming con el local: no pierde procesandoPor si el
  * evento llega sin cocinero (nueva-comanda antes de auto-asignar).
  * Tampoco devuelve a pedido un plato ya en recoger/salio.
+ * Conserva nombreCocina del catálogo si el socket (PPA) llegó sin él.
  */
 export function fusionarComandaPreservandoToma(local, incoming) {
   if (!incoming) return local || incoming;
   const incomingPlatos = incoming.platos || [];
   const localPlatos = local?.platos || [];
   const platos = incomingPlatos.map((inc) => {
-    if (ESTADOS_LISTOS_TOMA.has(inc.estado)) return { ...inc, procesandoPor: null };
     const loc = localPlatos.find((lp) => platoCoincideId(lp, inc._id) || platoCoincideId(inc, lp._id));
+    const merged = { ...inc, plato: fusionarCatalogoPlatoLinea(loc, inc) };
+    if (ESTADOS_LISTOS_TOMA.has(inc.estado)) return { ...merged, procesandoPor: null };
     if (loc && ESTADOS_LISTOS_TOMA.has(loc.estado)) {
-      return { ...inc, estado: loc.estado, procesandoPor: null };
+      return { ...merged, estado: loc.estado, procesandoPor: null };
     }
     if (!platoTieneCocineroAsignado(inc) && platoTieneCocineroAsignado(loc)) {
       return {
-        ...inc,
+        ...merged,
         procesandoPor: loc.procesandoPor,
         asignacionMeta: inc.asignacionMeta || loc.asignacionMeta,
         estado: loc.estado || inc.estado,
       };
     }
-    return inc;
+    return merged;
   });
   return { ...incoming, platos };
 }

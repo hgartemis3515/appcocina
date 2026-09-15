@@ -252,11 +252,15 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
     return true;
   }, [getToken]);
 
+  const persistirDistribucionRef = useRef(persistirDistribucion);
+  persistirDistribucionRef.current = persistirDistribucion;
+
   const programarPersistencia = useCallback(() => {
     if (!loadedRef.current) return;
     setPersistStatus('Guardando…');
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null;
       void persistirDistribucion().catch((err) => {
         console.warn('[DistribuirCocina] Auto-guardado:', err.message);
         setPersistStatus('No se pudo guardar');
@@ -266,7 +270,11 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
   }, [persistirDistribucion]);
 
   useEffect(() => () => {
-    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+      void persistirDistribucionRef.current?.().catch(() => {});
+    }
   }, []);
 
   const agregarCocineroMonitor = (numero, valor) => {
@@ -1152,7 +1160,7 @@ pause
           getToken={getToken}
           ventanaHija={ventanas[personalizarMonitor] || null}
           perfilAplicar={asignacionPerfil[personalizarMonitor] || 'none'}
-          cocineroId={idsDeMonitor(asignacion[personalizarMonitor])}
+          cocineroId={serializeIdsMonitor(asignacion[personalizarMonitor])}
           onClose={() => setPersonalizarMonitor(null)}
         />
       )}

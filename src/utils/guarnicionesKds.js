@@ -11,7 +11,7 @@
  */
 
 import { platoCoincideCocineroFiltro } from './cocineroFiltroIds';
-import { platoCoincideId, normalizarId } from './platoHelpers';
+import { platoCoincideId, normalizarId, pedidoConAliasCocina } from './platoHelpers';
 import { claveNombreComplemento } from './nombreComplementoCanonico';
 import { obtenerCantidadLinea } from './numeracionTimersMonitor';
 import {
@@ -146,15 +146,7 @@ export function nombrePlatoPadre(plato, usarAlias = true) {
   }
   const pedido = String(plato.nombreCocinaPedido || '').trim();
   if (pedido) {
-    if (usarAlias && alias) {
-      const pLow = pedido.toLowerCase();
-      if (pLow === alias.toLowerCase()) return alias;
-      if (comercial && pLow === comercial.toLowerCase()) return alias;
-      if (comercial && pLow.startsWith(`${comercial.toLowerCase()} `)) {
-        return `${alias}${pedido.slice(comercial.length)}`.trim();
-      }
-    }
-    return pedido;
+    return pedidoConAliasCocina(pedido, alias, [comercial, plato.nombre, plato.plato?.nombre], usarAlias);
   }
   if (extra) return extra;
   if (usarAlias && alias) return alias;

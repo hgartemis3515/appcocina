@@ -24,8 +24,17 @@ const PersonalizarMonitorRemoto = ({
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const saveTimerRef = useRef(null);
+  const pendingConfigRef = useRef(null);
+  const persistirRef = useRef(null);
+  const getTokenRef = useRef(getToken);
+  const perfilAplicarRef = useRef(perfilAplicar);
+  const cocineroIdRef = useRef(cocineroId);
+  const aplicarYPublicarRef = useRef(null);
   const localDesignRef = useRef(localDesign);
   localDesignRef.current = localDesign;
+  getTokenRef.current = getToken;
+  perfilAplicarRef.current = perfilAplicar;
+  cocineroIdRef.current = cocineroId;
 
   const [perfiles, setPerfiles] = useState([]);
   const [perfilSelId, setPerfilSelId] = useState(null);
@@ -40,9 +49,11 @@ const PersonalizarMonitorRemoto = ({
     publicarDisenoMonitor(numero, completa, ventanaHija);
     return completa;
   }, [numero, ventanaHija]);
+  aplicarYPublicarRef.current = aplicarYPublicar;
 
   const persistir = useCallback(async (config) => {
     if (!getToken) return;
+    pendingConfigRef.current = null;
     try {
       setGuardando(true);
       const token = getToken();
@@ -57,6 +68,18 @@ const PersonalizarMonitorRemoto = ({
       setGuardando(false);
     }
   }, [getToken, numero]);
+  persistirRef.current = persistir;
+
+  const flushPersistirPendiente = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pending = pendingConfigRef.current;
+    if (!pending) return;
+    pendingConfigRef.current = null;
+    void persistirRef.current?.(pending);
+  }, []);
 
   const authHeaders = useCallback(() => ({ Authorization: `Bearer ${getToken?.()}` }), [getToken]);
 
@@ -210,39 +233,41 @@ const PersonalizarMonitorRemoto = ({
       setCargando(true);
       setMensaje(null);
       try {
-        const token = getToken?.();
+        const token = getTokenRef.current?.();
         if (!token) return;
         const base = getServerBaseUrl();
         const vis = await axios.get(`${base}/api/pantallas-cocina/${numero}/config-visual`, {
           headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
         });
         const data = vis.data?.data;
+        const aplicar = aplicarYPublicarRef.current;
         if (alive && data?.tieneOverride && data.config && Object.keys(data.config).length > 0) {
-          aplicarYPublicar(data.config);
+          aplicar?.(data.config);
           return;
         }
-        if (perfilAplicar && perfilAplicar !== 'none' && perfilAplicar !== 'auto') {
-          const res = await axios.get(`${base}/api/perfiles-ver-cocina/${perfilAplicar}`, {
+        const perfil = perfilAplicarRef.current;
+        if (perfil && perfil !== 'none' && perfil !== 'auto') {
+          const res = await axios.get(`${base}/api/perfiles-ver-cocina/${perfil}`, {
             headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
           });
           if (alive) {
-            aplicarYPublicar(res.data?.data?.config || {});
-            setPerfilSelId(perfilAplicar);
+            aplicar?.(res.data?.data?.config || {});
+            setPerfilSelId(perfil);
           }
           return;
         }
-        const cid = primerCocineroIdFiltro(cocineroId);
-        if (perfilAplicar === 'auto' && cid) {
+        const cid = primerCocineroIdFiltro(cocineroIdRef.current);
+        if (perfil === 'auto' && cid) {
           const res = await axios.get(`${base}/api/cocineros/${cid}/perfil-ver-cocina`, {
             headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
           });
-          if (alive) aplicarYPublicar(res.data?.data || {});
+          if (alive) aplicar?.(res.data?.data || {});
           return;
         }
-        if (alive) aplicarYPublicar(DEFAULT_CONFIG);
+        if (alive) aplicar?.(DEFAULT_CONFIG);
       } catch (err) {
         if (alive) {
-          aplicarYPublicar(DEFAULT_CONFIG);
+          aplicarYPublicarRef.current?.(DEFAULT_CONFIG);
           if (err?.response?.status !== 404) {
             setMensaje({ tipo: 'error', texto: 'No se pudo cargar el diseño actual' });
           }
@@ -252,20 +277,25 @@ const PersonalizarMonitorRemoto = ({
       }
     })();
     return () => { alive = false; };
-  }, [numero, getToken, perfilAplicar, cocineroId, aplicarYPublicar]);
+  }, [numero]);
 
   const onChange = useCallback((nueva) => {
     const completa = aplicarYPublicar(nueva);
+    pendingConfigRef.current = completa;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => persistir(completa), 600);
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void persistir(completa);
+    }, 600);
   }, [aplicarYPublicar, persistir]);
 
   useEffect(() => () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-  }, []);
+    flushPersistirPendiente();
+  }, [flushPersistirPendiente]);
 
   const onReset = useCallback(async () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    pendingConfigRef.current = null;
     try {
       setGuardando(true);
       const token = getToken?.();
@@ -285,6 +315,12 @@ const PersonalizarMonitorRemoto = ({
     setLocalDesign(snapshotConfigPerfil(DEFAULT_CONFIG));
   }, [getToken, numero, ventanaHija]);
 
+  const handleClose = useCallback((e) => {
+    e?.stopPropagation?.();
+    flushPersistirPendiente();
+    onClose?.();
+  }, [flushPersistirPendiente, onClose]);
+
   const configVisual = { ...DEFAULT_CONFIG, ...localDesign };
   const colorFondo = configVisual.colorFondo || '#0a0a0f';
   const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
@@ -293,7 +329,7 @@ const PersonalizarMonitorRemoto = ({
   const cidAsignado = primerCocineroIdFiltro(cocineroId);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70" onClick={handleClose}>
       <div
         className="bg-gray-950 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -312,7 +348,7 @@ const PersonalizarMonitorRemoto = ({
                 {mensaje.texto}
               </span>
             )}
-            <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-white" aria-label="Cerrar">
+            <button type="button" onClick={handleClose} className="p-2 text-gray-400 hover:text-white" aria-label="Cerrar">
               <FaTimes />
             </button>
           </div>
