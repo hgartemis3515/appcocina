@@ -72,7 +72,8 @@ import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
-import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, haySeleccionEliminarPlatoKds, resolverEliminarPlatosKds, resumenPlatosSeleccionadosKds } from "../../utils/kdsAnularPlatos";
+import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds } from "../../utils/kdsAnularPlatos";
+import { contarPlatosReversiblesKds } from "../../utils/kdsRevertirPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma } from "../../utils/platoHelpers";
 import {
   expandirUnidadesTrabajo,
@@ -4124,13 +4125,16 @@ const ComandaStyle = ({
   }, [selectedOrders, platosChecked, platoStates, anularMotivo, anularObservaciones, comandas, obtenerComandas, userId]);
 
   const abrirModalEliminarPlato = useCallback(() => {
-    const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
+    const r = resolverAccionEliminarKds(platosChecked, platoStates, comandas, {
+      eliminarPlatos: hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA),
+      eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA),
+    });
     if (!r.ok) {
       alert(r.error);
       return;
     }
     setShowEliminarPlatoModal(true);
-  }, [platosChecked, platoStates, comandas]);
+  }, [platosChecked, platoStates, comandas, hasPermission]);
 
   const handleEliminarPlatosKds = useCallback(async () => {
     const motivo = (eliminarPlatoMotivo || '').trim();
@@ -4138,7 +4142,10 @@ const ComandaStyle = ({
       alert('El motivo de eliminación es obligatorio (mínimo 2 caracteres)');
       return;
     }
-    const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
+    const r = resolverAccionEliminarKds(platosChecked, platoStates, comandas, {
+      eliminarPlatos: hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA),
+      eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA),
+    });
     if (!r.ok) {
       alert(r.error);
       return;
@@ -4164,7 +4171,7 @@ const ComandaStyle = ({
     } finally {
       setEliminarPlatoLoading(false);
     }
-  }, [eliminarPlatoMotivo, platosChecked, platoStates, comandas, obtenerComandas, userId, userName]);
+  }, [eliminarPlatoMotivo, platosChecked, platoStates, comandas, obtenerComandas, userId, userName, hasPermission]);
 
   useEffect(() => {
     if (!haySeleccionEliminarPlatoKds(platosChecked, platoStates, comandas)) {
@@ -4247,8 +4254,11 @@ const ComandaStyle = ({
   const textButton = nightMode ? 'text-white' : 'text-gray-900';
   const bgBottomBar = nightMode ? 'bg-gray-900' : 'bg-white';
   const borderBottomBar = nightMode ? 'border-gray-700' : 'border-gray-300';
-  const showBtnEliminarPlato = hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA)
-    && haySeleccionEliminarPlatoKds(platosChecked, platoStates, comandas);
+  const accionEliminarKds = resolverAccionEliminarKds(platosChecked, platoStates, comandas, {
+    eliminarPlatos: hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA),
+    eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA),
+  });
+  const showBtnEliminarPlato = accionEliminarKds.ok;
   const platosResumenEliminar = showEliminarPlatoModal
     ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
         cantidad: item.cantidad,
@@ -4763,32 +4773,9 @@ const ComandaStyle = ({
                   );
                 })()}
 
-                {/* 3. Botón REVERTIR v5.5 - Texto dinámico con conteo de platos en RECOGER */}
+                {/* 3. Botón REVERTIR: recoger, salió y entregado (no pagado) */}
                 {(() => {
-                  // Solo platos en estado RECOGER - SIN límite de tiempo
-                  // EXCLUIR platos eliminados y ANULADOS (irreversibles desde cocina)
-                  const platosReversibles = comandas.flatMap(c => 
-                    (c.platos || [])
-                      .filter(p => {
-                        // EXCLUIR platos eliminados (soft delete técnico)
-                        if (p.eliminado === true) return false;
-                        // EXCLUIR platos ANULADOS (acción de mozo - IRREVERSIBLE)
-                        if (p.anulado === true) return false;
-                        const estado = p.estado || 'en_espera';
-                        // SOLO platos en estado 'recoger' son reversibles
-                        return estado === 'recoger';
-                      })
-                      .map(p => ({
-                        comandaId: c._id,
-                        comandaNumber: c.comandaNumber,
-                        platoId: p.plato?._id || p._id || p.platoId,
-                        nombre: p.plato?.nombre || p.nombre || 'Sin nombre',
-                        estado: p.estado,
-                        mozo: c.mozoNombre || c.mozos?.name || 'Sin mozo',
-                        mesa: obtenerNombreMesa(c.mesas, c)
-                      }))
-                  );
-                  const totalReversibles = platosReversibles.length;
+                  const totalReversibles = contarPlatosReversiblesKds(comandas);
                   return (
                     <motion.button
                       onClick={() => {
@@ -4818,7 +4805,7 @@ const ComandaStyle = ({
                     whileTap={{ scale: 0.95 }}
                   >
                     <FaTrash className="text-sm" />
-                    Eliminar plato
+                    {accionEliminarKds.label || 'Eliminar plato'}
                   </motion.button>
                 )}
                 </AnimatePresence>
@@ -4962,6 +4949,7 @@ const ComandaStyle = ({
       <EliminarPlatoKdsModal
         open={showEliminarPlatoModal}
         nightMode={nightMode}
+        titulo={accionEliminarKds.label || 'Eliminar plato'}
         platos={platosResumenEliminar}
         motivo={eliminarPlatoMotivo}
         onMotivoChange={setEliminarPlatoMotivo}

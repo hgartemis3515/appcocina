@@ -8,6 +8,7 @@ import { FaTrash } from "react-icons/fa";
 const EliminarPlatoKdsModal = ({
   open,
   nightMode = true,
+  titulo = 'Eliminar plato',
   platos = [],
   motivo,
   onMotivoChange,
@@ -44,7 +45,7 @@ const EliminarPlatoKdsModal = ({
               <div className="w-16 h-16 rounded-full bg-red-600/20 flex items-center justify-center mx-auto mb-4">
                 <FaTrash className="text-2xl text-red-500" />
               </div>
-              <h2 className={`text-lg font-bold ${textMain} mb-2`}>Eliminar plato</h2>
+              <h2 className={`text-lg font-bold ${textMain} mb-2`}>{titulo}</h2>
               <p className={`text-sm ${textSecondary} mb-4`}>
                 Esta acción quedará registrada en auditoría.
               </p>
@@ -86,7 +87,7 @@ const EliminarPlatoKdsModal = ({
                     : 'bg-gray-400 cursor-not-allowed'
                 }`}
               >
-                {loading ? 'Eliminando...' : 'Eliminar'}
+                {loading ? 'Eliminando...' : titulo}
               </button>
             </div>
           </motion.div>

@@ -3,6 +3,10 @@ import {
   indicesPlatosMarcadosKds,
   comandaIdDesdePlatosMarcados,
   PERMISO_ELIMINAR_PLATOS_COCINA,
+  PERMISO_ELIMINAR_COMANDAS_COCINA,
+  esEliminarComandaCompletaKds,
+  resolverAccionEliminarKds,
+  hayBotonEliminarKds,
   esEstadoSeleccionEliminarPlato,
   indicesPlatosSeleccionadosKds,
   comandaIdDesdePlatosSeleccionados,
@@ -44,6 +48,7 @@ describe('kdsAnularPlatos', () => {
 
   test('PERMISO_ELIMINAR_PLATOS_COCINA es el id de roles.html', () => {
     expect(PERMISO_ELIMINAR_PLATOS_COCINA).toBe('eliminar-platos-cocina');
+    expect(PERMISO_ELIMINAR_COMANDAS_COCINA).toBe('eliminar-comandas-cocina');
   });
 
   test('esEstadoSeleccionEliminarPlato: verde, recoger y primer click libre', () => {
@@ -100,5 +105,23 @@ describe('kdsAnularPlatos', () => {
       { _id: id, platos: [{}, {}, {}, {}] },
     ]);
     expect(ok).toEqual({ ok: true, comandaId: id, indices: [3] });
+  });
+
+  test('un plato o todos los activos = eliminar comanda; parcial = plato', () => {
+    const id = '507f1f77bcf86cd799439011';
+    const cinco = { _id: id, platos: [{}, {}, {}, {}, {}] };
+    expect(esEliminarComandaCompletaKds(cinco, [0, 1, 2, 3, 4])).toBe(true);
+    expect(esEliminarComandaCompletaKds(cinco, [0, 1])).toBe(false);
+    expect(esEliminarComandaCompletaKds({ _id: id, platos: [{}] }, [0])).toBe(true);
+    const permsAmbos = { eliminarPlatos: true, eliminarComanda: true };
+    expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [cinco], permsAmbos).tipo).toBe('plato');
+    const statesAll = new Map([[`${id}-0`, 'seleccionado'], [`${id}-1`, 'seleccionado'], [`${id}-2`, 'seleccionado'], [`${id}-3`, 'seleccionado'], [`${id}-4`, 'seleccionado']]);
+    expect(resolverAccionEliminarKds(new Map(), statesAll, [cinco], permsAmbos).label).toBe('Eliminar comanda');
+    expect(resolverAccionEliminarKds(new Map(), statesAll, [cinco], { eliminarPlatos: true, eliminarComanda: false }).ok).toBe(false);
+    expect(hayBotonEliminarKds(new Map(), statesAll, [cinco], { eliminarPlatos: true, eliminarComanda: false })).toBe(false);
+    const unica = { _id: id, platos: [{}] };
+    expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [unica], { eliminarPlatos: true, eliminarComanda: false }).ok).toBe(false);
+    expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [unica], { eliminarPlatos: false, eliminarComanda: true }).ok).toBe(true);
+    expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [unica], { eliminarPlatos: false, eliminarComanda: true }).label).toBe('Eliminar comanda');
   });
 });
