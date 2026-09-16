@@ -56,7 +56,7 @@ export function AccionesTicket({
               onClick={() => onAprobar(ticket)}
               disabled={aprobarLoading}
               className={`${btnPad} inline-flex items-center justify-center rounded-md bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white`}
-              title="Aprobar solicitud de cobro"
+              title="Cobrar solicitud de cobro"
             >
               <FaCheck className={iconCls} />
             </button>

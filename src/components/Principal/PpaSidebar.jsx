@@ -319,7 +319,7 @@ export default function PpaSidebar({ socket, onClose }) {
                       transition-colors font-medium"
                   >
                     <FaCheck className="text-xs" />
-                    {aprobarLoading[ticket._id] ? '...' : 'Aprobar'}
+                    {aprobarLoading[ticket._id] ? '...' : 'Cobrar'}
                   </button>
                   )}
                   {ticketPuedeForzarPago(ticket) && !ticket.boucher && (

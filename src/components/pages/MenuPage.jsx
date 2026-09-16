@@ -169,7 +169,7 @@ const MenuPage = ({ onNavigate }) => {
     {
       id: 'ppa',
       title: 'Tabla de Comandas y Pagos Adelantados',
-      subtitle: 'Aprobar comandas y pagos adelantados',
+      subtitle: 'Cobrar comandas y pagos adelantados',
       icon: FaShoppingBag,
       color: 'from-violet-500 to-purple-600',
       shadowColor: 'shadow-violet-500/30',

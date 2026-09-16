@@ -3677,8 +3677,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     setShowEliminarPlatoModal(true);
   }, [platosChecked, platoStates, comandas, hasPermission]);
 
-  const handleEliminarPlatosKds = useCallback(async () => {
-    const motivo = (eliminarPlatoMotivo || '').trim();
+  const handleEliminarPlatosKds = useCallback(async (motivoOverride) => {
+    const motivo = String(motivoOverride || eliminarPlatoMotivo || '').trim();
     if (motivo.length < 2) {
       alert('El motivo de eliminación es obligatorio (mínimo 2 caracteres)');
       return;

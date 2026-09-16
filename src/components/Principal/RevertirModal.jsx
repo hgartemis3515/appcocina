@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import moment from "moment-timezone";
-import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaBan, FaExclamationTriangle } from "react-icons/fa";
+import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaBan, FaExclamationTriangle, FaUserSlash, FaUserClock, FaDesktop, FaTruck } from "react-icons/fa";
 import { apiGet, apiPut } from "../../config/apiClient";
+import { MOTIVOS_RAPIDOS_COCINA } from "../../utils/motivosRapidosCocina";
 import {
   esPlatoReversibleKds,
   todosPlatosActivosReversiblesKds,
@@ -82,9 +83,10 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   };
 
   // Ejecutar reversión después de confirmar motivo
-  const ejecutarReversion = async () => {
-    if (!motivo.trim()) {
-      alert("Debe ingresar un motivo para la reversión");
+  const ejecutarReversion = async (motivoTexto) => {
+    const motivoFinal = String(motivoTexto ?? motivo).trim();
+    if (!motivoFinal) {
+      alert("Debe elegir un motivo para la reversión");
       return;
     }
     
@@ -93,11 +95,11 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
     
     try {
       if (revertirType === 'plato') {
-        await revertirPlatoIndividual(revertirData);
+        await revertirPlatoIndividual(revertirData, motivoFinal);
       } else if (revertirType === 'seleccionados') {
-        await revertirPlatosSeleccionados();
+        await revertirPlatosSeleccionados(motivoFinal);
       } else if (revertirType === 'todo') {
-        await revertirComandaCompleta(revertirData);
+        await revertirComandaCompleta(revertirData, motivoFinal);
       }
     } catch (error) {
       console.error("Error en reversión:", error);
@@ -109,12 +111,12 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   };
 
   // Revertir un plato individual - CON AUDITORÍA
-  const revertirPlatoIndividual = async (data) => {
+  const revertirPlatoIndividual = async (data, motivoTexto) => {
     const { comandaId, platoId, platoNombre } = data;
     
     await apiPut(
       `/api/comanda/${comandaId}/plato/${platoId}/estado`,
-      { nuevoEstado: ESTADO_DESTINO_REVERTIR_KDS, motivo: motivo.trim() }
+      { nuevoEstado: ESTADO_DESTINO_REVERTIR_KDS, motivo: motivoTexto }
     );
 
     setToastMsg(`✅ "${platoNombre}" revertido a pedido`);
@@ -133,14 +135,14 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   };
 
   // Revertir múltiples platos seleccionados - CON AUDITORÍA
-  const revertirPlatosSeleccionados = async () => {
+  const revertirPlatosSeleccionados = async (motivoTexto) => {
     const promesas = [];
     platosSeleccionados.forEach(key => {
       const [comandaId, platoId] = key.split("::");
       promesas.push(
         apiPut(
           `/api/comanda/${comandaId}/plato/${platoId}/estado`,
-          { nuevoEstado: ESTADO_DESTINO_REVERTIR_KDS, motivo: motivo.trim() }
+          { nuevoEstado: ESTADO_DESTINO_REVERTIR_KDS, motivo: motivoTexto }
         )
       );
     });
@@ -154,7 +156,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   };
 
   // Revertir comanda completa - CON AUDITORÍA
-  const revertirComandaCompleta = async (data) => {
+  const revertirComandaCompleta = async (data, motivoTexto) => {
     const { comandaId } = data;
     const comanda = comandasFinalizadas.find(c => c._id === comandaId);
     
@@ -169,7 +171,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
       const platoIdUnico = plato._id?.toString() || plato.plato?._id;
       await apiPut(
         `/api/comanda/${comandaId}/plato/${platoIdUnico}/estado`,
-        { nuevoEstado: ESTADO_DESTINO_REVERTIR_KDS, motivo: motivo.trim() }
+        { nuevoEstado: ESTADO_DESTINO_REVERTIR_KDS, motivo: motivoTexto }
       );
     }
     
@@ -469,33 +471,36 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
               <span className="text-xs text-yellow-400">⚠️ Esta acción quedará registrada en auditoría.</span>
             </p>
             
-            <div className="mb-4">
-              <label className={`block text-sm font-semibold ${textModal} mb-2`}>
-                Motivo de la reversión <span className="text-red-400">*</span>
-              </label>
-              <textarea
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Ej: Error en la preparación, Cliente solicitó cambio..."
-                className={`w-full p-3 rounded-lg ${inputBg} ${textModal} border ${borderModal} focus:border-orange-500 focus:outline-none resize-none`}
-                rows={3}
-                autoFocus
-              />
+            <p className={`text-sm font-semibold ${textModal} mb-2`}>
+              Elige un motivo. Al pulsar se revierte y queda en auditoría.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {MOTIVOS_RAPIDOS_COCINA.map((m) => {
+                const Icon = m.id === 'cliente_no_desea' ? FaUserSlash
+                  : m.id === 'equivocacion_mozo' ? FaUserClock
+                  : m.id === 'error_sistema' ? FaDesktop
+                  : FaTruck;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => ejecutarReversion(m.label)}
+                    className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold min-h-[88px] ${buttonBg} ${textModal} hover:border-orange-400 disabled:opacity-50`}
+                  >
+                    <Icon className="text-lg text-orange-500" />
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
-            
-            <div className="flex gap-3 justify-end">
+            <div className="flex justify-end">
               <button
                 onClick={() => setShowConfirmModal(false)}
+                disabled={loading}
                 className={`px-4 py-2 ${buttonBg} text-white font-semibold rounded-lg`}
               >
-                Cancelar
-              </button>
-              <button
-                onClick={ejecutarReversion}
-                disabled={!motivo.trim() || loading}
-                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-semibold rounded-lg flex items-center gap-2"
-              >
-                {loading ? 'Procesando...' : 'Confirmar Reversión'}
+                {loading ? 'Procesando...' : 'Cancelar'}
               </button>
             </div>
           </div>

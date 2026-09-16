@@ -409,7 +409,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-white truncate">Comandas y Pagos Adelantados</h1>
-              <p className="text-gray-400 text-xs">Aprobar comandas, reportar incidencias</p>
+              <p className="text-gray-400 text-xs">Cobrar comandas, reportar incidencias</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <KpiChip
@@ -517,7 +517,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           <div className="flex flex-wrap gap-2 items-center">
             {[
               { key: 'pendientes', label: 'Pendientes', icon: FaClock },
-              { key: 'aprobados', label: 'Aprobados', icon: FaCheck },
+              { key: 'aprobados', label: 'Pagados', icon: FaCheck },
               { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
               { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
               { key: 'todos', label: 'Todos', icon: FaFilter },
@@ -912,7 +912,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             transition-colors font-medium text-sm"
                         >
                           <FaCheck />
-                          {aprobarLoading[ticket._id] ? 'Aprobando...' : 'Aprobar'}
+                          {aprobarLoading[ticket._id] ? 'Cobrando...' : 'Cobrar'}
                         </button>
                         )}
                         {ticketPuedeForzarPago(ticket) && !ticket.boucher && (

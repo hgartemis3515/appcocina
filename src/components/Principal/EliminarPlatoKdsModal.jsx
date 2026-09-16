@@ -1,26 +1,33 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaTrash } from "react-icons/fa";
+import { FaTrash, FaUserSlash, FaUserClock, FaDesktop, FaTruck } from "react-icons/fa";
+import { MOTIVOS_RAPIDOS_COCINA } from "../../utils/motivosRapidosCocina";
+
+const ICONS = {
+  cliente_no_desea: FaUserSlash,
+  equivocacion_mozo: FaUserClock,
+  error_sistema: FaDesktop,
+  error_entrega: FaTruck,
+};
 
 /**
- * Modal KDS: motivo + Eliminar, igual que el tacho de comandas.html.
+ * Modal KDS: 4 motivos rápidos. Al pulsar uno se usa como motivo y se elimina.
  */
 const EliminarPlatoKdsModal = ({
   open,
   nightMode = true,
   titulo = 'Eliminar plato',
   platos = [],
-  motivo,
-  onMotivoChange,
   loading = false,
   onCancel,
   onConfirm,
 }) => {
-  const motivoOk = String(motivo || '').trim().length >= 2;
   const textMain = nightMode ? 'text-white' : 'text-gray-900';
   const textSecondary = nightMode ? 'text-gray-400' : 'text-gray-600';
   const bgCard = nightMode ? 'bg-gray-800' : 'bg-white';
-  const bgInput = nightMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500';
+  const btnIdle = nightMode
+    ? 'bg-gray-700 border-gray-600 text-white hover:border-red-400 hover:bg-red-950/40'
+    : 'bg-white border-gray-300 text-gray-800 hover:border-red-400 hover:bg-red-50';
 
   return (
     <AnimatePresence>
@@ -47,7 +54,7 @@ const EliminarPlatoKdsModal = ({
               </div>
               <h2 className={`text-lg font-bold ${textMain} mb-2`}>{titulo}</h2>
               <p className={`text-sm ${textSecondary} mb-4`}>
-                Esta acción quedará registrada en auditoría.
+                Elige un motivo. Al pulsar se elimina y queda en auditoría.
               </p>
               {platos.length > 0 && (
                 <ul className={`text-left text-sm mb-4 p-3 rounded-lg ${nightMode ? 'bg-red-950/40 text-red-100' : 'bg-red-50 text-red-900'}`}>
@@ -56,38 +63,32 @@ const EliminarPlatoKdsModal = ({
                   ))}
                 </ul>
               )}
-              <textarea
-                value={motivo}
-                onChange={(e) => onMotivoChange(e.target.value)}
-                placeholder="Motivo de eliminación (requerido)..."
-                maxLength={300}
-                rows={3}
-                className={`w-full p-3 rounded-lg border text-sm resize-none ${bgInput}`}
-              />
-              <p className={`text-xs ${textSecondary} mt-1 text-left`}>
-                Mínimo 2 caracteres ({String(motivo || '').trim().length}/300)
-              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {MOTIVOS_RAPIDOS_COCINA.map((m) => {
+                  const Icon = ICONS[m.id] || FaTrash;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => onConfirm(m.label)}
+                      className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold min-h-[88px] ${btnIdle} disabled:opacity-50`}
+                    >
+                      <Icon className="text-lg text-red-500" />
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className={`px-4 py-3 flex justify-end gap-2 ${nightMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+            <div className={`px-4 py-3 flex justify-end ${nightMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
               <button
                 type="button"
                 onClick={onCancel}
                 disabled={loading}
                 className={`px-4 py-2 rounded-lg text-sm font-medium ${nightMode ? 'border border-gray-600 text-gray-300 hover:border-gray-400' : 'border border-gray-300 text-gray-700 hover:border-gray-500'}`}
               >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={onConfirm}
-                disabled={!motivoOk || loading}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                  motivoOk && !loading
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {loading ? 'Eliminando...' : titulo}
+                {loading ? 'Eliminando...' : 'Cancelar'}
               </button>
             </div>
           </motion.div>
