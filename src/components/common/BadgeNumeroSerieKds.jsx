@@ -14,10 +14,16 @@ export default function BadgeNumeroSerieKds({ comanda, compacto = false, style }
   }
   return (
     <span
-      className={`inline-flex items-center font-black tabular-nums leading-none tracking-normal text-white ${
+      className={`inline-flex items-center font-black tabular-nums leading-none tracking-normal ${
         compacto ? 'text-sm px-0.5' : 'text-base px-1 py-0.5'
       }`}
-      style={{ fontFamily: 'Arial, sans-serif', letterSpacing: 0 }}
+      style={{
+        fontFamily: 'Arial, sans-serif',
+        letterSpacing: 0,
+        backgroundColor: '#facc15',
+        color: '#111827',
+        borderRadius: 6,
+      }}
       title={`Número de serie ${serie}`}
     >
       N/S {serie}

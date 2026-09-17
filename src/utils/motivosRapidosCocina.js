@@ -5,3 +5,11 @@ export const MOTIVOS_RAPIDOS_COCINA = [
   { id: 'error_sistema', label: 'Error sistema' },
   { id: 'error_entrega', label: 'Error de entrega' },
 ];
+
+/** Chip rápido + texto opcional. Si solo hay texto, se usa ese. */
+export function combinarMotivoRapido(label, extra) {
+  const l = String(label || '').trim();
+  const e = String(extra || '').trim();
+  if (l && e) return `${l}: ${e}`;
+  return l || e;
+}

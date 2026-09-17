@@ -4133,6 +4133,7 @@ const ComandaStyle = ({
       alert(r.error);
       return;
     }
+    setEliminarPlatoMotivo('');
     setShowEliminarPlatoModal(true);
   }, [platosChecked, platoStates, comandas, hasPermission]);
 

@@ -6,6 +6,8 @@ const {
   HEADER_TARJETA_LETRAS_DEFAULT,
   ocultarPrepHeaderTarjeta,
   estiloDatoHeaderTarjetaKds,
+  estiloNumeroSerieHeaderTarjetaKds,
+  ESTILO_SERIE_KDS,
   colorRelojHeaderTarjeta,
 } = require('./estiloHeaderTarjetaKds');
 
@@ -77,6 +79,15 @@ describe('estiloHeaderTarjetaKds', () => {
     expect(st.color).toBe(HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaColor);
     expect(st.backgroundColor).toBe(HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFondo);
     expect(st.border).toBe(`2px solid ${HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaContorno}`);
+  });
+
+  test('N/S de la tarjeta usa fondo amarillo y letras negras', () => {
+    const st = estiloNumeroSerieHeaderTarjetaKds({
+      headerTarjetaColor: '#ffffff',
+      headerTarjetaFondo: '#111827',
+    });
+    expect(st.backgroundColor).toBe(ESTILO_SERIE_KDS.fondo);
+    expect(st.color).toBe(ESTILO_SERIE_KDS.color);
   });
 
   test('reloj usa amarillo/rojo de alerta y si no el color de letra', () => {

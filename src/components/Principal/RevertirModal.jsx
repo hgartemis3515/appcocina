@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import moment from "moment-timezone";
 import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaBan, FaExclamationTriangle, FaUserSlash, FaUserClock, FaDesktop, FaTruck } from "react-icons/fa";
 import { apiGet, apiPut } from "../../config/apiClient";
-import { MOTIVOS_RAPIDOS_COCINA } from "../../utils/motivosRapidosCocina";
+import { MOTIVOS_RAPIDOS_COCINA, combinarMotivoRapido } from "../../utils/motivosRapidosCocina";
 import {
   esPlatoReversibleKds,
   todosPlatosActivosReversiblesKds,
@@ -472,9 +472,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
             </p>
             
             <p className={`text-sm font-semibold ${textModal} mb-2`}>
-              Elige un motivo. Al pulsar se revierte y queda en auditoría.
+              Elige un motivo. El texto extra es opcional; al pulsar se revierte y queda en auditoría.
             </p>
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-3">
               {MOTIVOS_RAPIDOS_COCINA.map((m) => {
                 const Icon = m.id === 'cliente_no_desea' ? FaUserSlash
                   : m.id === 'equivocacion_mozo' ? FaUserClock
@@ -485,7 +485,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                     key={m.id}
                     type="button"
                     disabled={loading}
-                    onClick={() => ejecutarReversion(m.label)}
+                    onClick={() => ejecutarReversion(combinarMotivoRapido(m.label, motivo))}
                     className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold min-h-[88px] ${buttonBg} ${textModal} hover:border-orange-400 disabled:opacity-50`}
                   >
                     <Icon className="text-lg text-orange-500" />
@@ -494,13 +494,29 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                 );
               })}
             </div>
-            <div className="flex justify-end">
+            <textarea
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              disabled={loading}
+              rows={2}
+              placeholder="Motivo extra (opcional)"
+              className={`w-full rounded-lg px-3 py-2 text-sm resize-none border mb-4 ${inputBg} ${textModal} ${borderModal}`}
+            />
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowConfirmModal(false)}
                 disabled={loading}
                 className={`px-4 py-2 ${buttonBg} text-white font-semibold rounded-lg`}
               >
                 {loading ? 'Procesando...' : 'Cancelar'}
+              </button>
+              <button
+                type="button"
+                disabled={loading || String(motivo || '').trim().length < 2}
+                onClick={() => ejecutarReversion(motivo)}
+                className="px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg disabled:opacity-40"
+              >
+                Revertir
               </button>
             </div>
           </div>

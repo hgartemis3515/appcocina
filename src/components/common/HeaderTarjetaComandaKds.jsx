@@ -3,6 +3,7 @@ import { FaClock } from 'react-icons/fa';
 import BadgeNumeroSerieKds from './BadgeNumeroSerieKds';
 import {
   estiloDatoHeaderTarjetaKds,
+  estiloNumeroSerieHeaderTarjetaKds,
   colorRelojHeaderTarjeta,
   ocultarPrepHeaderTarjeta,
   tamanoLetraHeaderTarjetaKds,
@@ -79,7 +80,8 @@ export default function HeaderTarjetaComandaKds({
     ? <Chip style={estiloDato} title={prepTitle || prepText}>{prepText}</Chip>
     : null;
   const reserva = <BadgeReservaKds comanda={comanda} config={config} />;
-  const serie = <BadgeNumeroSerieKds comanda={comanda} style={estiloDato} />;
+  const estiloSerie = estiloNumeroSerieHeaderTarjetaKds(config);
+  const serie = <BadgeNumeroSerieKds comanda={comanda} style={estiloSerie} />;
   const wrap = estilo === 'clasico' ? 'flex flex-wrap items-center gap-1.5' : 'flex flex-wrap items-center gap-1';
 
   if (estilo === 'clasico') {

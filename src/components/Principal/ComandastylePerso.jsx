@@ -3674,6 +3674,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       alert(r.error);
       return;
     }
+    setEliminarPlatoMotivo('');
     setShowEliminarPlatoModal(true);
   }, [platosChecked, platoStates, comandas, hasPermission]);
 

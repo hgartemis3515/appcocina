@@ -83,6 +83,19 @@ export function colorRelojHeaderTarjeta(minutosActuales, alertYellowMinutes, ale
     : HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaColor;
 }
 
+/** Recuadro fijo del número de serie (N/S) en la tarjeta KDS. */
+export const ESTILO_SERIE_KDS = {
+  fondo: '#facc15',
+  color: '#111827',
+};
+
+export function estiloNumeroSerieHeaderTarjetaKds(config = {}) {
+  return estiloDatoHeaderTarjetaKds(config, {
+    fondoOverride: ESTILO_SERIE_KDS.fondo,
+    colorOverride: ESTILO_SERIE_KDS.color,
+  });
+}
+
 /** Recuadro de cada dato del encabezado (orden, #comanda, mesa, reloj, mozo, Prep, N/S). */
 export function estiloDatoHeaderTarjetaKds(config = {}, opts = {}) {
   const fuente = ORDEN_COLA_FUENTES.find((f) => f.id === config.headerTarjetaFuente)
