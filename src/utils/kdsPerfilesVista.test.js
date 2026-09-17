@@ -108,6 +108,7 @@ describe('kdsPerfilesVista', () => {
     expect(snap.colorReservaKds).toBe('#7DD3FC');
     expect(snap.colorReservaCuadro).toBe('#000000');
     expect(snap.ocultarCohetePrioridadKds).toBe(false);
+    expect(snap.camuflarEliminarPlatoEpa).toBe(false);
     expect(snap.nightMode).toBeUndefined();
   });
 

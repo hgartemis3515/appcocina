@@ -12,6 +12,9 @@ import {
   comandaIdDesdePlatosSeleccionados,
   haySeleccionEliminarPlatoKds,
   resolverEliminarPlatosKds,
+  etiquetaBotonEliminarKds,
+  clasesBotonEliminarKds,
+  camuflarEliminarPlatoEpa,
 } from './kdsAnularPlatos';
 
 describe('kdsAnularPlatos', () => {
@@ -123,5 +126,20 @@ describe('kdsAnularPlatos', () => {
     expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [unica], { eliminarPlatos: true, eliminarComanda: false }).ok).toBe(false);
     expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [unica], { eliminarPlatos: false, eliminarComanda: true }).ok).toBe(true);
     expect(resolverAccionEliminarKds(new Map(), new Map([[`${id}-0`, 'seleccionado']]), [unica], { eliminarPlatos: false, eliminarComanda: true }).label).toBe('Eliminar comanda');
+  });
+});
+
+describe('camuflar Eliminar plato como EPA', () => {
+  test('sin flag mantiene el texto y el estilo rojo', () => {
+    expect(etiquetaBotonEliminarKds({ label: 'Eliminar plato' }, {})).toBe('Eliminar plato');
+    expect(etiquetaBotonEliminarKds({ label: 'Eliminar comanda' }, { camuflarEliminarPlatoEpa: false })).toBe('Eliminar comanda');
+    expect(clasesBotonEliminarKds({})).toContain('bg-red-600');
+  });
+
+  test('con flag muestra EPA en gris', () => {
+    expect(camuflarEliminarPlatoEpa({ camuflarEliminarPlatoEpa: true })).toBe(true);
+    expect(etiquetaBotonEliminarKds({ label: 'Eliminar plato' }, { camuflarEliminarPlatoEpa: true })).toBe('EPA');
+    expect(etiquetaBotonEliminarKds({ label: 'Eliminar comanda' }, { camuflarEliminarPlatoEpa: true })).toBe('EPA');
+    expect(clasesBotonEliminarKds({ camuflarEliminarPlatoEpa: true })).toContain('bg-gray-500');
   });
 });

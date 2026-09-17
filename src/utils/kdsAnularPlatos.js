@@ -99,6 +99,25 @@ export function resolverAccionEliminarKds(platosChecked, platoStates, comandas, 
   return { ...r, ok: true, tipo, label: 'Eliminar plato' };
 }
 
+export const LABEL_EPA_CAMUFLAJE = 'EPA';
+
+/** Personalizar → Vista y alertas: el botón rojo se ve EPA en gris. */
+export function camuflarEliminarPlatoEpa(config) {
+  return config?.camuflarEliminarPlatoEpa === true;
+}
+
+export function etiquetaBotonEliminarKds(accion, config) {
+  if (camuflarEliminarPlatoEpa(config)) return LABEL_EPA_CAMUFLAJE;
+  return accion?.label || 'Eliminar plato';
+}
+
+export function clasesBotonEliminarKds(config) {
+  if (camuflarEliminarPlatoEpa(config)) {
+    return 'px-4 py-2 bg-gray-500 hover:bg-gray-400 text-gray-200 font-semibold rounded-lg text-sm shadow-md flex items-center gap-1';
+  }
+  return 'px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-sm shadow-lg ring-2 ring-red-300 flex items-center gap-1';
+}
+
 function platoDeClave(comandas, parsed) {
   if (!parsed) return null;
   const comanda = (comandas || []).find((c) => String(c._id) === String(parsed.comandaId));

@@ -307,6 +307,7 @@ export const DEFAULT_KDS_CONFIG = {
   colorReservaCronometro: '#111827',
   colorReservaCronometroFondo: '#fb923c',
   ocultarCohetePrioridadKds: false,
+  camuflarEliminarPlatoEpa: false,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
   // Campos legacy (v7.3/7.4) — conservados para no romper localStorage; NO alteran el grid fijo 300×500

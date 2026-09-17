@@ -64,7 +64,7 @@ import {
   platoRetenidoFueraDeCocina,
   instanteInicioCocinaComanda
 } from "../../utils/kdsFilters";
-import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds } from "../../utils/kdsAnularPlatos";
+import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds, etiquetaBotonEliminarKds, clasesBotonEliminarKds, camuflarEliminarPlatoEpa } from "../../utils/kdsAnularPlatos";
 import { contarPlatosReversiblesKds } from "../../utils/kdsRevertirPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma, aplicarTomaPlatoEnComandas, aplicarLiberacionPlatoEnComandas } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
@@ -3801,6 +3801,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA),
   });
   const showBtnEliminarPlato = accionEliminarKds.ok;
+  const epaEliminarPlato = camuflarEliminarPlatoEpa(kdsVistaConfig);
   const platosResumenEliminar = showEliminarPlatoModal
     ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
         cantidad: item.cantidad,
@@ -4339,15 +4340,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   <motion.button
                     key="eliminar-plato-kds"
                     onClick={abrirModalEliminarPlato}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-sm shadow-lg ring-2 ring-red-300 flex items-center gap-1"
+                    className={clasesBotonEliminarKds(kdsVistaConfig)}
+                    title={epaEliminarPlato ? 'Eliminar plato' : (accionEliminarKds.label || 'Eliminar plato')}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <FaTrash className="text-sm" />
-                    {accionEliminarKds.label || 'Eliminar plato'}
+                    {!epaEliminarPlato && <FaTrash className="text-sm" />}
+                    {etiquetaBotonEliminarKds(accionEliminarKds, kdsVistaConfig)}
                   </motion.button>
                 )}
                 </AnimatePresence>

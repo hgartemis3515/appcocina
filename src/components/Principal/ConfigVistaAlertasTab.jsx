@@ -802,6 +802,31 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </span>
             </label>
           </fieldset>
+          <fieldset className="space-y-2 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Botón Eliminar plato</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Cambia solo el texto y el color del botón de la barra. La función de eliminar no cambia.
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.camuflarEliminarPlatoEpa === true}
+                onChange={(e) => updateConfig({ camuflarEliminarPlatoEpa: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-gray-400"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Camuflar como EPA</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>
+                  El botón rojo «Eliminar plato» se muestra como <span className="font-semibold text-gray-400">EPA</span> en gris.
+                </span>
+              </span>
+            </label>
+            {config.camuflarEliminarPlatoEpa === true && (
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-500 text-gray-200">
+                EPA
+              </span>
+            )}
+          </fieldset>
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Letras del nombre del plato</legend>
             <p className={`${textSecondary} text-xs`}>
