@@ -52,6 +52,9 @@ import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, col
 import { comandaKdsEstiloCompacto } from "../../utils/kdsComandaEstilo";
 import HeaderTarjetaComandaKds from "../common/HeaderTarjetaComandaKds";
 import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
+import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
+import useTiposPlatoReglas from "../../hooks/useTiposPlatoReglas";
+import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
 import { colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { 
@@ -5046,6 +5049,7 @@ const SicarComandaCard = ({
     colorOverride: colorLetraMozo,
   });
   const compactoKds = comandaKdsEstiloCompacto(comanda);
+  const reglasTipo = useTiposPlatoReglas();
   const estiloHeader = resolverEstiloHeaderTarjetaComanda(kdsMozoConfig, { forzarCompacto: compactoKds });
   const padHeader = paddingHeaderTarjetaKds(estiloHeader);
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
@@ -5270,6 +5274,11 @@ const SicarComandaCard = ({
       totalPlatos: platosConNombre.length
     };
   }, [comanda.platos, comanda.platosFiltrados, hayBusquedaActiva, platosVisiblesBusqueda]);
+
+  const etiquetasPrep = React.useMemo(
+    () => etiquetasTipoPreparacionKds(platosPreparacion, reglasTipo),
+    [platosPreparacion, reglasTipo]
+  );
 
   // Filtrar platos por estado según columna (mantener para compatibilidad)
   const platosFiltrados = comanda.platos?.filter(p => {
@@ -5550,6 +5559,7 @@ const SicarComandaCard = ({
                   {platosPreparacion.length}/{totalPlatos}
                 </span>
                 <CronometroAtrasoReservaKds comanda={comanda} config={kdsMozoConfig} />
+                <EtiquetasTipoKds etiquetas={etiquetasPrep} />
               </div>
               <div className="px-2 py-2 space-y-1">
                 {platosPreparacion.flatMap((plato, index) => {

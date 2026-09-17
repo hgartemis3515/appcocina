@@ -5,6 +5,7 @@
  * contadorGuarnicionesCocina → lo mismo en el panel de guarniciones de ese tipo.
  * particionHorizontalCocina → mitad de abajo para principales de ese tipo.
  * particionHorizontalGuarnicionesCocina → misma partición en el panel de guarniciones.
+ * mostrarNombreTipoEnKds → badge con el nombre del tipo a la derecha de EN PREPARACIÓN.
  */
 import { itemOcultaCronometroCocina } from './platoFlagsCocina';
 
@@ -65,6 +66,15 @@ export function slugsTipoDeGrupo(item) {
   return [...out];
 }
 
+const HEX_RE = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+
+export function parseHexColorKds(raw, fallback = '') {
+  const s = String(raw || '').trim();
+  if (!HEX_RE.test(s)) return fallback;
+  if (s.length === 4) return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`.toLowerCase();
+  return s.toLowerCase();
+}
+
 export function parseReglasTiposMenu(list) {
   const soloContador = new Set();
   const contadorGuarnicion = new Set();
@@ -72,6 +82,7 @@ export function parseReglasTiposMenu(list) {
   const particionGuarnicion = new Set();
   const particionNombres = [];
   const particionGuarnicionNombres = [];
+  const etiquetaKds = new Map();
   const arr = Array.isArray(list) ? list : [];
   for (const t of arr) {
     const slug = String(t?.slug || '').toLowerCase().trim();
@@ -87,8 +98,15 @@ export function parseReglasTiposMenu(list) {
       particionGuarnicion.add(slug);
       if (nom && !particionGuarnicionNombres.includes(nom)) particionGuarnicionNombres.push(nom);
     }
+    if (t.mostrarNombreTipoEnKds === true) {
+      etiquetaKds.set(slug, {
+        nombre: nom || slug,
+        colorFondo: parseHexColorKds(t.colorFondoKds, parseHexColorKds(t.color, '#ffd60a') || '#ffd60a'),
+        colorLetra: parseHexColorKds(t.colorLetraKds, '#000000'),
+      });
+    }
   }
-  return { soloContador, contadorGuarnicion, particion, particionGuarnicion, particionNombres, particionGuarnicionNombres };
+  return { soloContador, contadorGuarnicion, particion, particionGuarnicion, particionNombres, particionGuarnicionNombres, etiquetaKds };
 }
 
 export function anotarReglasTipoEnItems(items, reglas, opts = {}) {
@@ -145,4 +163,41 @@ export function itemAplicaReglaContador(plato, reglas, paraGuarniciones = false)
     ? (reglas?.contadorGuarnicion || new Set())
     : (reglas?.soloContador || new Set());
   return slugs.some((s) => set.has(s));
+}
+
+function colorEtiquetaDesdePlato(plato) {
+  const linea = plato && typeof plato === 'object' ? plato : {};
+  const cat = linea.plato && typeof linea.plato === 'object' && !Array.isArray(linea.plato)
+    ? linea.plato
+    : {};
+  return {
+    fondo: parseHexColorKds(linea.kdsEtiquetaColorFondo, parseHexColorKds(cat.kdsEtiquetaColorFondo, '')),
+    letra: parseHexColorKds(linea.kdsEtiquetaColorLetra, parseHexColorKds(cat.kdsEtiquetaColorLetra, '')),
+  };
+}
+
+/** Badges de tipo (regla mostrarNombreTipoEnKds) para platos en EN PREPARACIÓN. */
+export function etiquetasTipoPreparacionKds(platos, reglas) {
+  const mapa = reglas?.etiquetaKds;
+  if (!mapa || typeof mapa.get !== 'function' || mapa.size === 0) return [];
+  const vistos = new Set();
+  const out = [];
+  for (const plato of platos || []) {
+    if (!plato || plato.eliminado || plato.anulado) continue;
+    const slugs = slugsTipoDeGrupo(plato);
+    const override = colorEtiquetaDesdePlato(plato);
+    for (const slug of slugs) {
+      if (vistos.has(slug)) continue;
+      const meta = mapa.get(slug);
+      if (!meta) continue;
+      vistos.add(slug);
+      out.push({
+        slug,
+        nombre: meta.nombre,
+        colorFondo: override.fondo || meta.colorFondo,
+        colorLetra: override.letra || meta.colorLetra,
+      });
+    }
+  }
+  return out;
 }

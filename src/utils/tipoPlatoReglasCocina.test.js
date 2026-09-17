@@ -6,6 +6,7 @@ import {
   partirItemsHorizontales,
   partirBloquesHorizontales,
   itemAplicaReglaContador,
+  etiquetasTipoPreparacionKds,
 } from './tipoPlatoReglasCocina';
 
 describe('slugsTipoDePlato', () => {
@@ -173,5 +174,49 @@ describe('itemAplicaReglaContador', () => {
   test('guarniciones usan contadorGuarnicion, no el de principales', () => {
     expect(itemAplicaReglaContador({ tipoPedido: 'plato-carta' }, reglas, true)).toBe(false);
     expect(itemAplicaReglaContador({ tipoPedido: 'platos-cena' }, reglas, true)).toBe(true);
+  });
+});
+
+describe('etiquetasTipoPreparacionKds', () => {
+  const reglas = parseReglasTiposMenu([
+    {
+      slug: 'platos-desayuno',
+      nombreCorto: 'DESAYUNO',
+      mostrarNombreTipoEnKds: true,
+      colorFondoKds: '#ffd60a',
+      colorLetraKds: '#000000',
+    },
+    { slug: 'plato-carta', nombreCorto: 'CARTA', mostrarNombreTipoEnKds: false },
+  ]);
+
+  test('no arma badge si la regla está apagada', () => {
+    expect(etiquetasTipoPreparacionKds(
+      [{ tipoPedido: 'plato-carta', estado: 'pedido' }],
+      reglas,
+    )).toEqual([]);
+  });
+
+  test('muestra el nombre del tipo a la derecha de preparación', () => {
+    expect(etiquetasTipoPreparacionKds(
+      [{ tipoPedido: 'platos-desayuno', estado: 'pedido' }],
+      reglas,
+    )).toEqual([{
+      slug: 'platos-desayuno',
+      nombre: 'DESAYUNO',
+      colorFondo: '#ffd60a',
+      colorLetra: '#000000',
+    }]);
+  });
+
+  test('el color del plato pisa el del tipo', () => {
+    const badges = etiquetasTipoPreparacionKds([
+      {
+        tipoPedido: 'platos-desayuno',
+        kdsEtiquetaColorFondo: '#ff0000',
+        kdsEtiquetaColorLetra: '#ffffff',
+      },
+    ], reglas);
+    expect(badges[0].colorFondo).toBe('#ff0000');
+    expect(badges[0].colorLetra).toBe('#ffffff');
   });
 });

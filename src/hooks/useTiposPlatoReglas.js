@@ -9,6 +9,7 @@ const VACIO = {
   particionGuarnicion: new Set(),
   particionNombres: [],
   particionGuarnicionNombres: [],
+  etiquetaKds: new Map(),
 };
 const EVT_SOCKET = 'tipos-plato-reglas-actualizadas';
 const EVT_STATE = 'tipos-plato-reglas-state';
