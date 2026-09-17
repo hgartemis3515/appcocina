@@ -114,6 +114,24 @@ function CheckSel({ checked, onToggle }) {
   );
 }
 
+function CheckResaltoFila({ checked, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      className={`mt-1.5 w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
+        checked
+          ? 'bg-emerald-500 border-emerald-300 text-white text-[10px] font-bold'
+          : 'border-gray-500 bg-gray-800 hover:border-emerald-400'
+      }`}
+      title={checked ? 'Quitar resalte verde' : 'Resaltar fila en verde'}
+      aria-pressed={checked}
+    >
+      {checked ? '✓' : ''}
+    </button>
+  );
+}
+
 function FilaTicketAvanzado({
   ticket,
   indent = false,
@@ -131,6 +149,8 @@ function FilaTicketAvanzado({
   seleccionado = false,
   onToggleSeleccion,
   ocultarGuarniciones = false,
+  resaltado = false,
+  onToggleResalto,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -142,7 +162,11 @@ function FilaTicketAvanzado({
   const { neto, montoDesc } = totalesVistaTicket(ticket);
   return (
     <tr
-      className={`border-t border-gray-800 hover:bg-gray-800/60 align-top ${indent ? 'bg-gray-950/40' : ''} ${seleccionado ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+      className={`border-t align-top ${seleccionActiva ? 'cursor-pointer' : ''} ${
+        resaltado
+          ? 'border-emerald-400/40 bg-emerald-600/50 hover:bg-emerald-600/60'
+          : `border-gray-800 hover:bg-gray-800/60 ${indent ? 'bg-gray-950/40' : ''} ${seleccionado ? 'bg-rose-900/30' : ''}`
+      }`}
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
     >
       {seleccionActiva && (
@@ -152,6 +176,7 @@ function FilaTicketAvanzado({
       )}
       <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
         {indent ? '' : formatDateTime(ticket.createdAt)}
+        <CheckResaltoFila checked={resaltado} onToggle={() => onToggleResalto?.(ticket._id)} />
       </td>
       <td className={`px-3 py-2 min-w-[240px] max-w-[320px] ${indent ? 'pl-8' : ''}`}>
         <div className="flex items-start justify-between gap-2">
@@ -275,6 +300,18 @@ export default function TicketsAprobacionTable({
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
+  const [filasVerdes, setFilasVerdes] = useState(() => new Set());
+  const filaVerde = (id) => filasVerdes.has(String(id));
+  const toggleFilaVerde = (id) => {
+    if (id == null) return;
+    const key = String(id);
+    setFilasVerdes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
   const totalVentas = useMemo(() => totalVentasFilasTabla(filas), [filas]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
@@ -407,6 +444,8 @@ export default function TicketsAprobacionTable({
                     key={fila.id}
                     ticket={ticket}
                     seleccionado={idSet.has(String(ticket?._id))}
+                    resaltado={filaVerde(ticket?._id)}
+                    onToggleResalto={toggleFilaVerde}
                     {...propsFila}
                   />
                 );
@@ -421,7 +460,11 @@ export default function TicketsAprobacionTable({
               return (
                 <React.Fragment key={fila.id}>
                   <tr
-                    className={`border-t border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] align-top ${grupoSel ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+                    className={`border-t align-top ${seleccionActiva ? 'cursor-pointer' : ''} ${
+                      filaVerde(fila.id)
+                        ? 'border-emerald-400/40 bg-emerald-600/50 hover:bg-emerald-600/60'
+                        : `border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] ${grupoSel ? 'bg-rose-900/30' : ''}`
+                    }`}
                     onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
                   >
                     {seleccionActiva && (
@@ -431,6 +474,7 @@ export default function TicketsAprobacionTable({
                     )}
                     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
                       {formatDateTime(first.createdAt)}
+                      <CheckResaltoFila checked={filaVerde(fila.id)} onToggle={() => toggleFilaVerde(fila.id)} />
                     </td>
                     <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
                       <div className="flex items-start justify-between gap-2">
@@ -506,6 +550,8 @@ export default function TicketsAprobacionTable({
                       ticket={ticket}
                       indent
                       seleccionado={idSet.has(String(ticket._id))}
+                      resaltado={filaVerde(ticket._id)}
+                      onToggleResalto={toggleFilaVerde}
                       {...propsFila}
                     />
                   ))}
