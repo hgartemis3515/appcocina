@@ -122,24 +122,11 @@ function CheckSel({ checked, onToggle }) {
   );
 }
 
-<<<<<<< HEAD
-function CheckResaltoFila({ checked, onToggle }) {
-=======
 function CheckVerdeFila({ checked, onToggle }) {
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onToggle(); }}
-<<<<<<< HEAD
-      className={`mt-1.5 w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
-        checked
-          ? 'bg-emerald-500 border-emerald-300 text-white text-[10px] font-bold'
-          : 'border-gray-500 bg-gray-800 hover:border-emerald-400'
-      }`}
-      title={checked ? 'Quitar resalte verde' : 'Resaltar fila en verde'}
-      aria-pressed={checked}
-=======
       className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
         checked
           ? 'bg-emerald-600 border-emerald-400 text-white text-[10px] font-bold'
@@ -148,29 +135,23 @@ function CheckVerdeFila({ checked, onToggle }) {
       title={checked ? 'Quitar resalte verde' : 'Resaltar fila en verde'}
       aria-pressed={checked}
       aria-label="Resaltar fila"
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
     >
       {checked ? '✓' : ''}
     </button>
   );
 }
 
-<<<<<<< HEAD
-=======
 function CeldaHorarioConCheck({ fecha, resaltadoVerde, onToggleResalte, ocultarHorario = false }) {
   return (
     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
-      {ocultarHorario ? null : (
-        <div className="flex flex-col items-start gap-1.5">
-          <span>{formatDateTime(fecha)}</span>
-          <CheckVerdeFila checked={resaltadoVerde} onToggle={onToggleResalte} />
-        </div>
-      )}
+      <div className="flex flex-col items-start gap-1.5">
+        {ocultarHorario ? null : <span>{formatDateTime(fecha)}</span>}
+        <CheckVerdeFila checked={resaltadoVerde} onToggle={onToggleResalte} />
+      </div>
     </td>
   );
 }
 
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
 function FilaTicketAvanzado({
   ticket,
   indent = false,
@@ -188,13 +169,8 @@ function FilaTicketAvanzado({
   seleccionado = false,
   onToggleSeleccion,
   ocultarGuarniciones = false,
-<<<<<<< HEAD
-  resaltado = false,
-  onToggleResalto,
-=======
   resaltadoVerde = false,
   onToggleResalteVerde,
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -206,20 +182,12 @@ function FilaTicketAvanzado({
   const { neto, montoDesc } = totalesVistaTicket(ticket);
   return (
     <tr
-<<<<<<< HEAD
-      className={`border-t align-top ${seleccionActiva ? 'cursor-pointer' : ''} ${
-        resaltado
-          ? 'border-emerald-400/40 bg-emerald-600/50 hover:bg-emerald-600/60'
-          : `border-gray-800 hover:bg-gray-800/60 ${indent ? 'bg-gray-950/40' : ''} ${seleccionado ? 'bg-rose-900/30' : ''}`
-      }`}
-=======
       className={clasesFilaTicketAvanzado({
         indent,
         seleccionado,
         resaltadoVerde,
         seleccionActiva,
       })}
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
     >
       {seleccionActiva && (
@@ -227,19 +195,12 @@ function FilaTicketAvanzado({
           <CheckSel checked={seleccionado} onToggle={() => onToggleSeleccion?.(ticket)} />
         </td>
       )}
-<<<<<<< HEAD
-      <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
-        {indent ? '' : formatDateTime(ticket.createdAt)}
-        <CheckResaltoFila checked={resaltado} onToggle={() => onToggleResalto?.(ticket._id)} />
-      </td>
-=======
       <CeldaHorarioConCheck
         fecha={ticket.createdAt}
         resaltadoVerde={resaltadoVerde}
         onToggleResalte={() => onToggleResalteVerde?.(claveFilaTicketResalte(ticket))}
         ocultarHorario={indent}
       />
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
       <td className={`px-3 py-2 min-w-[240px] max-w-[320px] ${indent ? 'pl-8' : ''}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -362,22 +323,7 @@ export default function TicketsAprobacionTable({
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
-<<<<<<< HEAD
-  const [filasVerdes, setFilasVerdes] = useState(() => new Set());
-  const filaVerde = (id) => filasVerdes.has(String(id));
-  const toggleFilaVerde = (id) => {
-    if (id == null) return;
-    const key = String(id);
-    setFilasVerdes((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-=======
   const [filasVerde, setFilasVerde] = useState(() => loadFilasTicketVerde());
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
   const totalVentas = useMemo(() => totalVentasFilasTabla(filas), [filas]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
@@ -520,12 +466,7 @@ export default function TicketsAprobacionTable({
                     key={fila.id}
                     ticket={ticket}
                     seleccionado={idSet.has(String(ticket?._id))}
-<<<<<<< HEAD
-                    resaltado={filaVerde(ticket?._id)}
-                    onToggleResalto={toggleFilaVerde}
-=======
                     resaltadoVerde={filaTicketResaltadaVerde(filasVerde, clave)}
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
                     {...propsFila}
                   />
                 );
@@ -541,20 +482,12 @@ export default function TicketsAprobacionTable({
               return (
                 <React.Fragment key={fila.id}>
                   <tr
-<<<<<<< HEAD
-                    className={`border-t align-top ${seleccionActiva ? 'cursor-pointer' : ''} ${
-                      filaVerde(fila.id)
-                        ? 'border-emerald-400/40 bg-emerald-600/50 hover:bg-emerald-600/60'
-                        : `border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] ${grupoSel ? 'bg-rose-900/30' : ''}`
-                    }`}
-=======
                     className={clasesFilaTicketAvanzado({
                       seleccionado: grupoSel,
                       resaltadoVerde: grupoVerde,
                       seleccionActiva,
                       esGrupo: true,
                     })}
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
                     onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
                   >
                     {seleccionActiva && (
@@ -562,18 +495,11 @@ export default function TicketsAprobacionTable({
                         <CheckSel checked={grupoSel} onToggle={() => onToggleSeleccion?.(fila.tickets)} />
                       </td>
                     )}
-<<<<<<< HEAD
-                    <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
-                      {formatDateTime(first.createdAt)}
-                      <CheckResaltoFila checked={filaVerde(fila.id)} onToggle={() => toggleFilaVerde(fila.id)} />
-                    </td>
-=======
                     <CeldaHorarioConCheck
                       fecha={first.createdAt}
                       resaltadoVerde={grupoVerde}
                       onToggleResalte={() => toggleResalteVerde(fila.id)}
                     />
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
                     <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
                       <div className="flex items-start justify-between gap-2">
                         <button
@@ -648,12 +574,7 @@ export default function TicketsAprobacionTable({
                       ticket={ticket}
                       indent
                       seleccionado={idSet.has(String(ticket._id))}
-<<<<<<< HEAD
-                      resaltado={filaVerde(ticket._id)}
-                      onToggleResalto={toggleFilaVerde}
-=======
                       resaltadoVerde={filaTicketResaltadaVerde(filasVerde, claveFilaTicketResalte(ticket))}
->>>>>>> 6fb8277e42e1b10269fab8ab1c8844317344daac
                       {...propsFila}
                     />
                   ))}
