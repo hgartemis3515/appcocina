@@ -41,7 +41,11 @@ const FETCH_DEBOUNCE_MS = 400;
 const ZONA = 'America/Lima';
 
 /** Fecha operativa del restaurante (misma lógica que KDS y backend). */
-const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
+const getFechaOperativa = () => {
+  const m = moment().tz(ZONA);
+  if (m.hour() < 4) m.subtract(1, 'day');
+  return m.format('YYYY-MM-DD');
+};
 
 /** Normaliza tipo devuelto por API (COMANDA/ADELANTADO/PAGO_PARCIAL) al formato de la UI. */
 const normalizeTicket = (ticket) => {

@@ -21,7 +21,13 @@ function normalizeTicketsTablaPrefs(parsed) {
   };
 }
 
-export const getFechaOperativa = () => moment().tz(ZONA).format('YYYY-MM-DD');
+const HORA_INICIO_CICLO = 4;
+
+export const getFechaOperativa = (now = new Date()) => {
+  const m = moment.tz(now, ZONA);
+  if (m.hour() < HORA_INICIO_CICLO) m.subtract(1, 'day');
+  return m.format('YYYY-MM-DD');
+};
 
 export function rangoFechasDefault() {
   const hasta = getFechaOperativa();
@@ -344,11 +350,12 @@ export function limaHM(d) {
 }
 
 export function limaDayStart(ymd) {
-  return moment.tz(ymd, 'YYYY-MM-DD', ZONA).startOf('day').toDate();
+  return moment.tz(ymd, 'YYYY-MM-DD', ZONA).hour(HORA_INICIO_CICLO).minute(0).second(0).millisecond(0).toDate();
 }
 
 export function limaDayEnd(ymd) {
-  return moment.tz(ymd, 'YYYY-MM-DD', ZONA).endOf('day').toDate();
+  return moment.tz(ymd, 'YYYY-MM-DD', ZONA).hour(HORA_INICIO_CICLO).minute(0).second(0).millisecond(0)
+    .add(1, 'day').subtract(1, 'millisecond').toDate();
 }
 
 export function rangoFechasDePeriodo(periodo, customDesde, customHasta) {
@@ -395,10 +402,10 @@ export function matchFechaRangoTicket(createdAt, {
     return t >= corte;
   }
 
-  const ymd = moment.tz(createdAt, ZONA).format('YYYY-MM-DD');
+  const ymd = getFechaOperativa(createdAt);
   if (key === 'hoy') return ymd === getFechaOperativa();
   if (key === 'ayer') {
-    const ayer = moment.tz(ZONA).subtract(1, 'day').format('YYYY-MM-DD');
+    const ayer = moment.tz(getFechaOperativa(), 'YYYY-MM-DD', ZONA).subtract(1, 'day').format('YYYY-MM-DD');
     return ymd === ayer;
   }
   if (desde && ymd < desde) return false;
@@ -408,7 +415,7 @@ export function matchFechaRangoTicket(createdAt, {
 
 /**
  * Rango que usa /api/aprobacion/desglose-ventas (igual que cierre/reportes).
- * DIA = 00:00 → primer cierre; NOCHE = primer cierre → 23:59.
+ * DIA = 04:00 → primer cierre; NOCHE = primer cierre → 04:00.
  */
 export function rangoConsultaDesglose(periodo, {
   primerCierreHoyAt = null,
@@ -421,14 +428,14 @@ export function rangoConsultaDesglose(periodo, {
   const corteOk = corte && Number.isFinite(corte.getTime());
   if (key === 'dia' && corteOk) {
     return {
-      fechaInicio: moment.tz(hoy, 'YYYY-MM-DD', ZONA).startOf('day').toISOString(),
+      fechaInicio: limaDayStart(hoy).toISOString(),
       fechaFin: corte.toISOString(),
     };
   }
   if (key === 'noche' && corteOk) {
     return {
       fechaInicio: corte.toISOString(),
-      fechaFin: moment.tz(hoy, 'YYYY-MM-DD', ZONA).endOf('day').toISOString(),
+      fechaFin: limaDayEnd(hoy).toISOString(),
     };
   }
   const r = rangoFechasDePeriodo(periodo, fechaDesde, fechaHasta);
@@ -438,10 +445,10 @@ export function rangoConsultaDesglose(periodo, {
 export function etiquetaPeriodoTickets(periodo, primerCierreHoyAt) {
   const key = String(periodo || '').toLowerCase();
   if (key === 'dia' && primerCierreHoyAt) {
-    return `Día · ${getFechaOperativa()} 00:00–${limaHM(primerCierreHoyAt)}`;
+    return `Día · ${getFechaOperativa()} 04:00–${limaHM(primerCierreHoyAt)}`;
   }
   if (key === 'noche' && primerCierreHoyAt) {
-    return `Noche · ${limaHM(primerCierreHoyAt)}–23:59`;
+    return `Noche · ${limaHM(primerCierreHoyAt)}–04:00`;
   }
   return '';
 }

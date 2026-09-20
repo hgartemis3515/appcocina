@@ -83,11 +83,14 @@ describe('estadoEntregaComandaTicket', () => {
 });
 
 describe('rangoConsultaDesglose', () => {
-  test('DIA usa 00:00 Lima hasta el primer cierre', () => {
-    const corte = '2026-09-06T23:00:00.000Z';
+  test('DIA usa 04:00 Lima hasta el primer cierre', () => {
+    const { limaDayStart } = require('./ticketAprobacionUi');
+    const hoy = require('./ticketAprobacionUi').getFechaOperativa();
+    const corte = new Date(limaDayStart(hoy).getTime() + 10 * 60 * 60 * 1000).toISOString();
     const r = rangoConsultaDesglose('dia', { primerCierreHoyAt: corte });
     expect(new Date(r.fechaFin).toISOString()).toBe(new Date(corte).toISOString());
     expect(new Date(r.fechaInicio).getTime()).toBeLessThan(new Date(r.fechaFin).getTime());
+    expect(new Date(r.fechaInicio).toISOString()).toBe(limaDayStart(hoy).toISOString());
   });
 
   test('hoy usa YYYY-MM-DD como reportes', () => {
