@@ -119,3 +119,34 @@ export function estiloMozoNombreKds(config = {}, opts = {}) {
   }
   return estilo;
 }
+
+/**
+ * Estilo del nombre en tickets / PPA.
+ * Con configVista (Personalizar tabla, vista Básico) siempre aplica tamaño,
+ * letra y fondo; el color de perfil del mozo gana si existe.
+ * Sin configVista el recuadro solo aparece con perfil o color forzado.
+ */
+export function estiloBadgeNombreMozo({
+  configVista,
+  colorPerfil,
+  colorLetra,
+  configCocina = {},
+} = {}) {
+  const fondo = resolverFondoNombreMozo({
+    colorPerfil,
+    configCocina,
+    configVista,
+  });
+  const letraOk = hexValidoOrdenCola(colorLetra);
+  if (configVista) {
+    return estiloMozoNombreKds(configVista, {
+      ...(fondo ? { fondoOverride: fondo } : {}),
+      ...(letraOk ? { colorOverride: colorLetra } : {}),
+    });
+  }
+  if (!fondo && !letraOk) return null;
+  return estiloMozoNombreKds({}, {
+    fondoOverride: fondo,
+    colorOverride: colorLetra,
+  });
+}

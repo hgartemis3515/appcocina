@@ -790,7 +790,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         </div>
                         <div className="flex items-center gap-1 text-gray-400 text-xs">
                           <FaUser className="text-gray-500" />
-                          <BadgeNombreMozo ticket={ticket} />
+                          <BadgeNombreMozo ticket={ticket} configVista={tablaPrefs} />
                         </div>
                       </div>
                       <div className="text-gray-500 text-[10px] mt-1">

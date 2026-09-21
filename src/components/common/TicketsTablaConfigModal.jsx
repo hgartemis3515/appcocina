@@ -7,6 +7,11 @@ import {
   TICKETS_TABLA_TEXTO_TAMANO_MIN,
   TICKETS_TABLA_TEXTO_TAMANO_MAX,
 } from '../../utils/estiloTicketsTabla';
+import {
+  estiloMozoNombreKds,
+  MOZO_NOMBRE_TAMANO_MIN,
+  MOZO_NOMBRE_TAMANO_MAX,
+} from '../../utils/estiloMozoNombreKds';
 
 function ToggleRow({ id, label, hint, checked, onChange }) {
   return (
@@ -76,6 +81,7 @@ function ColorField({ label, value, fallback, onChange, allowEmpty }) {
 
 export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
   const tam = Number(prefs.textoTamano) || TICKETS_TABLA_VISUAL_DEFAULT.textoTamano;
+  const tamMozo = Number(prefs.mozoNombreTamano) || TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreTamano;
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -107,7 +113,7 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
         </div>
 
         <p className="text-gray-400 text-xs mb-4">
-          Guarniciones: Básico, Avanzado y Mozos. Colores PARA LLEVAR y letras: vista Básico. Se guarda en este dispositivo.
+          Guarniciones: Básico, Avanzado y Mozos. Colores PARA LLEVAR, letras y nombre del mozo: vista Básico. Se guarda en este dispositivo.
         </p>
 
         <div className="space-y-4">
@@ -143,7 +149,7 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
               </button>
             </div>
             <p className="text-gray-500 text-[11px] mb-2 leading-snug">
-              Pinta platos, total y cliente. El recuadro de comanda / ticket / mesa / mozo / fecha no cambia.
+              Pinta platos, total y cliente. Comanda, ticket, mesa y fecha no cambian. El nombre del mozo se configura abajo.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <ColorField
@@ -202,6 +208,57 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
                 className="w-full accent-amber-500"
               />
             </label>
+          </section>
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Nombre del mozo (Básico)</p>
+              <button
+                type="button"
+                className="text-[10px] text-amber-400 hover:text-amber-300"
+                onClick={() => onChange({
+                  mozoNombreColor: TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreColor,
+                  mozoNombreFondo: TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreFondo,
+                  mozoNombreTamano: TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreTamano,
+                })}
+              >
+                Restablecer
+              </button>
+            </div>
+            <p className="text-gray-500 text-[11px] mb-2 leading-snug">
+              Color de fondo, color de letra y tamaño del recuadro del mozo en los tickets. Si el mozo tiene color de perfil en Usuarios, ese fondo gana.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ColorField
+                label="Color de letra"
+                value={prefs.mozoNombreColor}
+                fallback={TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreColor}
+                onChange={(v) => onChange({ mozoNombreColor: v })}
+              />
+              <ColorField
+                label="Color de fondo"
+                value={prefs.mozoNombreFondo}
+                fallback={TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreFondo}
+                allowEmpty
+                onChange={(v) => onChange({ mozoNombreFondo: v })}
+              />
+            </div>
+            <label className="block mt-3">
+              <span className="block text-gray-300 text-xs font-semibold mb-1">
+                Tamaño del nombre ({tamMozo}px)
+              </span>
+              <input
+                type="range"
+                min={MOZO_NOMBRE_TAMANO_MIN}
+                max={MOZO_NOMBRE_TAMANO_MAX}
+                value={tamMozo}
+                onChange={(e) => onChange({ mozoNombreTamano: Number(e.target.value) })}
+                className="w-full accent-amber-500"
+              />
+            </label>
+            <div className="mt-3 p-2 rounded-lg bg-gray-900/70 border border-gray-700">
+              <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Vista previa</p>
+              <span style={estiloMozoNombreKds(prefs)}>👤 Juan Pérez</span>
+            </div>
           </section>
         </div>
 
