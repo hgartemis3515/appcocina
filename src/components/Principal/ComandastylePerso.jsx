@@ -55,7 +55,8 @@ import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
 import useTiposPlatoReglas from "../../hooks/useTiposPlatoReglas";
 import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
-import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
+import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, esEstiloAprovechadorKds } from "../../utils/estiloHeaderTarjetaKds";
+import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
 import { colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { 
   aplicarFiltrosAComandas, 
@@ -1026,7 +1027,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         // Comanda acaba de pasar a 'recoger' - mostrar toast y sonido
         setToastMessage({
           type: 'success',
-          message: `✅ Comanda #${comandaParaVerificar.comandaNumber || ''} → Mozos recogerán`,
+          message: `✅ Comanda #${numeroComandaVisible(comandaParaVerificar) || ''} → Mozos recogerán`,
           duration: 4000
         });
         
@@ -2157,7 +2158,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             // Toast notification
             setToastMessage({
               type: 'success',
-              message: `✅ Comanda #${comanda.comandaNumber} lista para recoger`,
+              message: `✅ Comanda #${numeroComandaVisible(comanda)} lista para recoger`,
               duration: 3000
             });
             
@@ -2172,10 +2173,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             }
             
             // Otros errores: mostrar toast de error
-            console.error(`❌ AUTO-TRIGGER: Error al auto-completar comanda #${comanda.comandaNumber}:`, error);
+            console.error(`❌ AUTO-TRIGGER: Error al auto-completar comanda #${numeroComandaVisible(comanda)}:`, error);
             setToastMessage({
               type: 'error',
-              message: `⚠️ Error al completar comanda #${comanda.comandaNumber}`,
+              message: `⚠️ Error al completar comanda #${numeroComandaVisible(comanda)}`,
               duration: 3000
             });
           }
@@ -3171,7 +3172,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     // Mostrar confirmación
     const comandaPrincipal = comandasParaFinalizar[0];
     const textoConfirmacion = comandasParaFinalizar.length === 1
-      ? `¿Finalizar Orden #${comandaPrincipal.comandaNumber}? Todos los platos se marcarán como listos para recoger.`
+      ? `¿Finalizar Orden #${numeroComandaVisible(comandaPrincipal)}? Todos los platos se marcarán como listos para recoger.`
       : `¿Finalizar ${comandasParaFinalizar.length} comandas? Todos los platos se marcarán como listos para recoger.`;
 
     if (!window.confirm(textoConfirmacion)) {
@@ -3249,7 +3250,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
       // Toast de éxito
       const mensaje = comandasParaFinalizar.length === 1
-        ? `✅ Comanda #${comandaPrincipal.comandaNumber} lista para recoger`
+        ? `✅ Comanda #${numeroComandaVisible(comandaPrincipal)} lista para recoger`
         : `✅ ${comandasParaFinalizar.length} comandas listas para recoger`;
       
       setToastMessage({
@@ -3441,7 +3442,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     if (!comanda) return;
     
     // Confirmar antes de finalizar
-    const confirmMessage = `¿Finalizar Orden #${comanda.comandaNumber}? Todos los platos se marcarán como listos para recoger.`;
+    const confirmMessage = `¿Finalizar Orden #${numeroComandaVisible(comanda)}? Todos los platos se marcarán como listos para recoger.`;
     if (!window.confirm(confirmMessage)) return;
     
     console.log(`[FinalizarComanda] Finalizando comanda ${comandaId}`);
@@ -3513,8 +3514,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       setToastMessage({ 
         type: 'success', 
         message: tienePrioridad 
-          ? `✅ #${comanda.comandaNumber} prioridad cancelada` 
-          : `✅ #${comanda.comandaNumber} priorizada`
+          ? `✅ #${numeroComandaVisible(comanda)} prioridad cancelada` 
+          : `✅ #${numeroComandaVisible(comanda)} priorizada`
       });
     } catch (err) {
       console.error('Error al priorizar:', err);
@@ -3640,7 +3641,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     }
 
     const confirmar = window.confirm(
-      `¿Está seguro de anular TODA la comanda #${comanda.comandaNumber}?\n` +
+      `¿Está seguro de anular TODA la comanda #${numeroComandaVisible(comanda)}?\n` +
       `Esto anulará todos los platos y la comanda pasará a estado CANCELADO.`
     );
     if (!confirmar) return;
@@ -3935,21 +3936,19 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           <>
             {/* Grid configurable: cuadrados altos 300x500px - CSS Grid pixel-perfect */}
             <motion.div 
-              className="flex-1 min-h-0 overflow-y-auto p-4"
+              className={`flex-1 min-h-0 overflow-y-auto ${esEstiloAprovechadorKds(kdsVistaConfig) ? 'p-0' : 'p-4'}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
               <div
-                className="grid gap-5"
+                className={`grid ${esEstiloAprovechadorKds(kdsVistaConfig) ? '' : 'gap-5'}`}
                 style={{
                   display: 'grid',
-                  // Tamaño fijo 300px: al bajar el zoom del navegador caben más comandas
-                  // sin alterar el tamaño intrínseco de cada tarjeta.
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
-                  gridAutoRows: '520px',
-                  gap: '20px',
-                  justifyContent: 'center',
+                  gridAutoRows: esEstiloAprovechadorKds(kdsVistaConfig) ? '500px' : '520px',
+                  gap: esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
+                  justifyContent: esEstiloAprovechadorKds(kdsVistaConfig) ? 'start' : 'center',
                   alignContent: 'start'
                 }}
               >
@@ -4255,7 +4254,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     } else if (!comandaPrincipal.procesandoPor?.cocineroId) {
                       // Comanda no tomada → "Tomar Comanda"
                       buttonConfig = {
-                        label: `Tomar Comanda #${comandaPrincipal.comandaNumber}`,
+                        label: `Tomar Comanda #${numeroComandaVisible(comandaPrincipal)}`,
                         color: 'bg-blue-600 hover:bg-blue-700',
                         action: () => handleTomarComanda(comandaPrincipal._id),
                         visible: true
@@ -4265,7 +4264,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                       if (comandaState === 'dejar') {
                         // Estado "dejar" (1er click): contorno rojo → botón "Dejar Comanda"
                         buttonConfig = {
-                          label: `Dejar Comanda #${comandaPrincipal.comandaNumber}`,
+                          label: `Dejar Comanda #${numeroComandaVisible(comandaPrincipal)}`,
                           color: 'bg-red-500 hover:bg-red-600',
                           action: () => handleDejarComanda(comandaPrincipal._id),
                           visible: true
@@ -4273,7 +4272,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                       } else if (comandaState === 'finalizar') {
                         // Estado "finalizar" (2do click): contorno verde → botón "Finalizar"
                         buttonConfig = {
-                          label: `Finalizar #${comandaPrincipal.comandaNumber}`,
+                          label: `Finalizar #${numeroComandaVisible(comandaPrincipal)}`,
                           color: 'bg-green-600 hover:bg-green-700',
                           action: () => handleFinalizarComandaCard(comandaPrincipal._id),
                           visible: true
@@ -4806,7 +4805,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 <h2 className={`text-xl font-bold ${textMain}`}>Dejar Comanda</h2>
                 {comanda && (
                   <span className={`ml-auto text-sm font-semibold ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    #{comanda.comandaNumber}
+                    #{numeroComandaVisible(comanda)}
                   </span>
                 )}
               </div>
@@ -5288,7 +5287,7 @@ const SicarComandaCard = ({
     const tieneNombre = nombre && nombre.trim().length > 0;
     
     if (!tieneNombre) {
-      console.warn(`⚠️ Plato sin nombre filtrado en comanda #${comanda.comandaNumber}`);
+      console.warn(`⚠️ Plato sin nombre filtrado en comanda #${numeroComandaVisible(comanda)}`);
       return false;
     }
     
@@ -5360,16 +5359,19 @@ const SicarComandaCard = ({
     backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
   }
 
+  const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
+
   return (
     <motion.div 
+      id={`kds-comanda-${comandaId}`}
       layoutId={`order-${comandaId}`}
       className={`${headerReserva ? '' : `${bgColor} ${borderColor}`} flex flex-col relative cursor-pointer`}
       style={{
         fontFamily: 'Arial, sans-serif',
         width: '300px',
         height: '500px',
-        borderRadius: '12px',
-        boxShadow: shadowStyle,
+        borderRadius: estiloAprovechador ? 0 : '12px',
+        boxShadow: estiloAprovechador ? 'none' : shadowStyle,
         border: borderStyle,
         background: backgroundStyle,
         ...(!backgroundStyle && headerReserva ? { backgroundColor: headerReserva.hex } : {})
@@ -5381,7 +5383,7 @@ const SicarComandaCard = ({
         y: 0
       }}
       exit={{ opacity: 0, scale: 0.8, y: -50 }}
-      whileHover={{ scale: 1.03, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
+      whileHover={estiloAprovechador ? undefined : { scale: 1.03, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
       transition={{ 
         type: "spring", 
         stiffness: 300, 
@@ -5479,17 +5481,6 @@ const SicarComandaCard = ({
                 Listos {platosListos.length}
               </motion.span>
             )}
-            {minutosActuales >= alertRedMinutes && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="px-1.5 py-0.5 bg-red-600 rounded text-xs font-bold"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-              >
-                ¡Urgente!
-              </motion.span>
-            )}
             {comanda.prioridadOrden > 0 && kdsMozoConfig.ocultarCohetePrioridadKds !== true && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -5566,7 +5557,7 @@ const SicarComandaCard = ({
                   const platoObj = plato.plato || plato;
                   const platoIndex = resolverIndicePlato(comanda, plato);
                   if (platoIndex < 0) {
-                    console.warn(`[KDS Perso] No se pudo resolver índice del plato en comanda #${comanda.comandaNumber}`);
+                    console.warn(`[KDS Perso] No se pudo resolver índice del plato en comanda #${numeroComandaVisible(comanda)}`);
                     return [];
                   }
                   const cantidad = comanda.cantidades?.[platoIndex] || 1;

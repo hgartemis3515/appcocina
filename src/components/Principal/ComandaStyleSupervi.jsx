@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaUserPlus, FaArrowLeft, FaUserCheck, FaSpinner, FaHandPaper, FaCheck } from 'react-icons/fa';
+import { FaArrowLeft, FaUserCheck, FaSpinner, FaHandPaper, FaCheck } from 'react-icons/fa';
 
 import ComandaStyle from './comandastyle';
 import AsignarCocineroModal from './AsignarCocineroModal';
@@ -42,7 +42,6 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
   
   // Estado para toast notifications
   const [toastLocal, setToastLocal] = useState(null);
-  const [modalManualAbierto, setModalManualAbierto] = useState(false);
   
   // Estados para modal de "Tomar" (interceptado)
   const [modalTomarAbierto, setModalTomarAbierto] = useState(false);
@@ -124,11 +123,6 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
       return () => clearTimeout(timer);
     }
   }, [toastLocal]);
-
-  // Handler para abrir modal manual (botón "Asignar" existente)
-  const handleOpenManualModal = useCallback(() => {
-    setModalManualAbierto(true);
-  }, []);
 
   // ============================================
   // INTERCEPTADORES DE ACCIONES DEL SUPERVISOR
@@ -433,25 +427,6 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
 
   return (
     <div className="relative min-h-screen">
-      {/* Badge indicador de Vista Supervisor */}
-      <div className="fixed top-20 right-4 z-40">
-        <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 bg-purple-600 rounded-lg text-white text-sm font-semibold shadow-lg">
-            <FaUserPlus className="inline mr-1" />
-            Vista Supervisor
-          </div>
-          
-          {/* Botón "Asignar" manual */}
-          <button
-            onClick={handleOpenManualModal}
-            className="px-3 py-1.5 bg-purple-800 hover:bg-purple-700 rounded-lg text-white text-sm font-medium shadow-lg"
-            title="Asignar cocinero manualmente"
-          >
-            Asignar
-          </button>
-        </div>
-      </div>
-
       {/* Renderizar ComandaStyle con interceptores */}
       <ComandaStyle
         key={resetKey}
@@ -571,10 +546,9 @@ const ComandaStyleSupervi = ({ onGoToMenu, initialOptions }) => {
 
       {/* Modal de asignación de cocinero (existente - manual) */}
       <AsignarCocineroModal
-        isOpen={modalAbierto || modalManualAbierto}
+        isOpen={modalAbierto}
         onClose={() => {
           cerrarModal();
-          setModalManualAbierto(false);
         }}
         cocineros={cocineros}
         loading={loadingCocineros}

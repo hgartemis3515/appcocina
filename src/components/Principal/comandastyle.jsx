@@ -2,7 +2,7 @@
 // PLAN REVERTIR v5.5: 1. Refina botón/menú. 2. Lista platos reversibles. 3. Handler plato granular. 4. Modal checkboxes. 5. Socket/UI update. 6. Toast confirm.
 // VISTA GENERAL KDS: Muestra todas las comandas del día sin filtros de zonas/cocinero
 // v7.1: Integración con ConfigContext para configuración centralizada y multi-cocinero
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +37,17 @@ import PpaSidebar from "./PpaSidebar";
 import ReservaSidebar from "./ReservaSidebar";
 import KdsTopBar from "./KdsTopBar";
 import HistorialModal from "./HistorialModal";
+import SosModoModal from "./SosModoModal";
+import SosTablaSidebar from "./SosTablaSidebar";
+import useSosCocineras from "../../hooks/useSosCocineras";
+import {
+  agruparPlatosSosTabla,
+  guardarSosTablaLocal,
+  leerSosTablaLocal,
+  paginaDeComanda,
+} from "../../utils/sosTablaKds";
+import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
+import { esEstiloAprovechadorKds } from "../../utils/estiloHeaderTarjetaKds";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
 import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden } from "../../utils/ordenColaCocinero";
 import { extraerResolucionSolicitudOrden } from "../../utils/solicitudOrdenKds";
@@ -110,7 +121,7 @@ const ComandaStyle = ({
   onSupervisorFinalizarPlato = null,
   onSupervisorFinalizarComanda = null,
   // SALIO: Interceptor para entregar plato del pass (recoger → salio)
-  onSupervisorEntregarPlato = null
+  onSupervisorEntregarPlato = null,
 }) => {
   // Hook de autenticación - el rol viene del contexto, no de localStorage
   const {
@@ -185,6 +196,12 @@ const ComandaStyle = ({
   const [fechaActual, setFechaActual] = useState(moment().tz("America/Lima"));
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+  const [sosTablaOn, setSosTablaOn] = useState(() => (isSupervisorView ? leerSosTablaLocal() : false));
+  const [sosModalOpen, setSosModalOpen] = useState(false);
+  const [sosHighlightId, setSosHighlightId] = useState(null);
+  const [sosHighlightPlatoIndex, setSosHighlightPlatoIndex] = useState(null);
+  const [pendingScroll, setPendingScroll] = useState(null);
+  const sosCocineras = useSosCocineras({ canToggle: isSupervisorView, enabled: isSupervisorView });
   const [showSearch, setShowSearch] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [showEntregadoConfirm, setShowEntregadoConfirm] = useState(false);
@@ -642,7 +659,7 @@ const ComandaStyle = ({
         // Comanda acaba de pasar a 'recoger' - mostrar toast y sonido
         setToastMessage({
           type: 'success',
-          message: `✅ Comanda #${comandaParaVerificar.comandaNumber || ''} → Mozos recogerán`,
+          message: `✅ Comanda #${numeroComandaVisible(comandaParaVerificar) || ''} → Mozos recogerán`,
           duration: 4000
         });
         
@@ -1890,6 +1907,64 @@ const ComandaStyle = ({
     (currentPage + 1) * COMANDAS_POR_PAGINA
   );
 
+  const gruposSosTabla = useMemo(() => {
+    if (!isSupervisorView || !sosTablaOn) return [];
+    return agruparPlatosSosTabla(todasComandas, {
+      habilitadoEnKds: usarNombreCocinaEnTablaKds,
+      platosDeComanda: hayFiltroActivo
+        ? (c) => getPlatosVisibles(c) || []
+        : undefined,
+    });
+  }, [isSupervisorView, sosTablaOn, todasComandas, usarNombreCocinaEnTablaKds, hayFiltroActivo, getPlatosVisibles]);
+
+  const irAGrupoSos = useCallback((grupo) => {
+    if (!grupo?.comandaIdMasAntigua) return;
+    const id = String(grupo.comandaIdMasAntigua);
+    const page = paginaDeComanda(todasComandas, id, COMANDAS_POR_PAGINA);
+    setSosHighlightId(id);
+    setSosHighlightPlatoIndex(grupo.platoIndexMasAntigua);
+    if (page !== currentPage) setCurrentPage(page);
+    setPendingScroll({ id, platoIndex: grupo.platoIndexMasAntigua });
+  }, [todasComandas, COMANDAS_POR_PAGINA, currentPage]);
+
+  useEffect(() => {
+    if (!pendingScroll?.id) return undefined;
+    const { id, platoIndex } = pendingScroll;
+    const t = window.setTimeout(() => {
+      const card = document.getElementById(`kds-comanda-${id}`);
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const platoEl = document.getElementById(`kds-plato-${id}-${platoIndex}`);
+      const scroller = platoEl?.closest('[data-kds-scroll-platos]');
+      if (platoEl && scroller) {
+        const top = platoEl.getBoundingClientRect().top
+          - scroller.getBoundingClientRect().top
+          + scroller.scrollTop;
+        scroller.scrollTo({ top: Math.max(0, top - 8), behavior: 'smooth' });
+      }
+      setPendingScroll(null);
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [pendingScroll, currentPage, comandasPagina]);
+
+  useEffect(() => {
+    if (!sosHighlightId) return undefined;
+    const t = window.setTimeout(() => {
+      setSosHighlightId(null);
+      setSosHighlightPlatoIndex(null);
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [sosHighlightId]);
+
+  const aplicarSosModal = useCallback(async ({ tabla, cocineras }) => {
+    setSosTablaOn(!!tabla);
+    guardarSosTablaLocal(!!tabla);
+    if (!!cocineras !== !!sosCocineras.activo) {
+      const ok = await sosCocineras.aplicarCocineras(!!cocineras);
+      if (!ok) return;
+    }
+    setSosModalOpen(false);
+  }, [sosCocineras]);
+
   // Toggle selección de comanda - Solo permite UNA comanda seleccionada a la vez
   // v7.4.3: Si seleccionas una comanda distinta, se desmarca la anterior
   const toggleSelectOrder = (comandaId) => {
@@ -2119,7 +2194,7 @@ const ComandaStyle = ({
             // Toast notification
             setToastMessage({
               type: 'success',
-              message: `✅ Comanda #${comanda.comandaNumber} lista para recoger`,
+              message: `✅ Comanda #${numeroComandaVisible(comanda)} lista para recoger`,
               duration: 3000
             });
             
@@ -2134,10 +2209,10 @@ const ComandaStyle = ({
             }
             
             // Otros errores: mostrar toast de error
-            console.error(`❌ AUTO-TRIGGER: Error al auto-completar comanda #${comanda.comandaNumber}:`, error);
+            console.error(`❌ AUTO-TRIGGER: Error al auto-completar comanda #${numeroComandaVisible(comanda)}:`, error);
             setToastMessage({
               type: 'error',
-              message: `⚠️ Error al completar comanda #${comanda.comandaNumber}`,
+              message: `⚠️ Error al completar comanda #${numeroComandaVisible(comanda)}`,
               duration: 3000
             });
           }
@@ -3591,7 +3666,7 @@ const ComandaStyle = ({
     // Mostrar confirmación
     const comandaPrincipal = comandasParaFinalizar[0];
     const textoConfirmacion = comandasParaFinalizar.length === 1
-      ? `¿Finalizar Orden #${comandaPrincipal.comandaNumber}? Todos los platos se marcarán como listos para recoger.`
+      ? `¿Finalizar Orden #${numeroComandaVisible(comandaPrincipal)}? Todos los platos se marcarán como listos para recoger.`
       : `¿Finalizar ${comandasParaFinalizar.length} comandas? Todos los platos se marcarán como listos para recoger.`;
 
     if (!window.confirm(textoConfirmacion)) {
@@ -3669,7 +3744,7 @@ const ComandaStyle = ({
 
       // Toast de éxito
       const mensaje = comandasParaFinalizar.length === 1
-        ? `✅ Comanda #${comandaPrincipal.comandaNumber} lista para recoger`
+        ? `✅ Comanda #${numeroComandaVisible(comandaPrincipal)} lista para recoger`
         : `✅ ${comandasParaFinalizar.length} comandas listas para recoger`;
       
       setToastMessage({
@@ -3900,7 +3975,7 @@ const ComandaStyle = ({
     if (!comanda) return;
     
     // Confirmar antes de finalizar
-    const confirmMessage = `¿Finalizar Orden #${comanda.comandaNumber}? Todos los platos se marcarán como listos para recoger.`;
+    const confirmMessage = `¿Finalizar Orden #${numeroComandaVisible(comanda)}? Todos los platos se marcarán como listos para recoger.`;
     if (!window.confirm(confirmMessage)) return;
     
     console.log(`[FinalizarComanda] Finalizando comanda ${comandaId}`);
@@ -3972,8 +4047,8 @@ const ComandaStyle = ({
       setToastMessage({ 
         type: 'success', 
         message: tienePrioridad 
-          ? `✅ #${comanda.comandaNumber} prioridad cancelada` 
-          : `✅ #${comanda.comandaNumber} priorizada`
+          ? `✅ #${numeroComandaVisible(comanda)} prioridad cancelada` 
+          : `✅ #${numeroComandaVisible(comanda)} priorizada`
       });
     } catch (err) {
       console.error('Error al priorizar:', err);
@@ -4099,7 +4174,7 @@ const ComandaStyle = ({
     }
     
     const confirmar = window.confirm(
-      `¿Está seguro de anular TODA la comanda #${comanda.comandaNumber}?\n` +
+      `¿Está seguro de anular TODA la comanda #${numeroComandaVisible(comanda)}?\n` +
       `Esto anulará todos los platos y la comanda pasará a estado CANCELADO.`
     );
     if (!confirmar) return;
@@ -4303,6 +4378,8 @@ const ComandaStyle = ({
           setPpaSidebarOpen(false);
           setReservaSidebarOpen(prev => !prev);
         }}
+        onOpenSos={isSupervisorView ? () => setSosModalOpen(true) : undefined}
+        sosActivo={isSupervisorView && (sosTablaOn || sosCocineras.activo)}
       />
 
       {/* Barra de búsqueda (opcional, se puede ocultar) */}
@@ -4322,9 +4399,10 @@ const ComandaStyle = ({
       {/* Grid principal estilo SICAR - Configurable, mejor espaciado */}
       {/* Padding inferior para la barra sticky */}
       <div
-        className="flex-1 min-h-0 overflow-hidden p-3 flex flex-col pb-24"
+        className="flex-1 min-h-0 overflow-hidden p-3 flex pb-24"
         style={{ backgroundColor: fondoConjunto }}
       >
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {todasComandas.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className={`text-center ${textSecondary}`}>
@@ -4338,21 +4416,19 @@ const ComandaStyle = ({
           <>
             {/* Grid configurable: cuadrados altos 300x500px - CSS Grid pixel-perfect */}
             <motion.div 
-              className="flex-1 min-h-0 overflow-y-auto p-4"
+              className={`flex-1 min-h-0 overflow-y-auto ${esEstiloAprovechadorKds(config) ? 'p-0' : 'p-4'}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
               <div
-                className="grid gap-5"
+                className={`grid ${esEstiloAprovechadorKds(config) ? '' : 'gap-5'}`}
                 style={{
                   display: 'grid',
-                  // Tamaño fijo 300px: al bajar el zoom del navegador caben más comandas
-                  // sin alterar el tamaño intrínseco de cada tarjeta.
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
-                  gridAutoRows: '520px',
-                  gap: '20px',
-                  justifyContent: 'center',
+                  gridAutoRows: esEstiloAprovechadorKds(config) ? '500px' : '520px',
+                  gap: esEstiloAprovechadorKds(config) ? 0 : '20px',
+                  justifyContent: esEstiloAprovechadorKds(config) ? 'start' : 'center',
                   alignContent: 'start'
                 }}
               >
@@ -4370,6 +4446,8 @@ const ComandaStyle = ({
                 return (
                   <SicarComandaCard
                     key={comanda._id}
+                    sosResaltada={String(sosHighlightId) === String(comanda._id)}
+                    sosPlatoIndex={String(sosHighlightId) === String(comanda._id) ? sosHighlightPlatoIndex : null}
                     comanda={comanda}
                     tiempo={tiempo}
                     tiempoFormateado={tiempoFormateado}
@@ -4690,14 +4768,14 @@ const ComandaStyle = ({
                       // v7.5: Supervisor puede dejar/finalizar comandas de otros
                       if (comandaState === 'dejar') {
                         buttonConfig = {
-                          label: `Dejar Comanda #${comandaPrincipal.comandaNumber}`,
+                          label: `Dejar Comanda #${numeroComandaVisible(comandaPrincipal)}`,
                           color: 'bg-red-500 hover:bg-red-600',
                           action: () => handleDejarComanda(comandaPrincipal._id),
                           visible: true
                         };
                       } else if (comandaState === 'finalizar') {
                         buttonConfig = {
-                          label: `Finalizar #${comandaPrincipal.comandaNumber}`,
+                          label: `Finalizar #${numeroComandaVisible(comandaPrincipal)}`,
                           color: 'bg-green-600 hover:bg-green-700',
                           action: () => handleFinalizarComandaCard(comandaPrincipal._id),
                           visible: true
@@ -4713,7 +4791,7 @@ const ComandaStyle = ({
                     } else if (!comandaPrincipal.procesandoPor?.cocineroId) {
                       // Comanda no tomada → "Tomar Comanda"
                       buttonConfig = {
-                        label: `Tomar Comanda #${comandaPrincipal.comandaNumber}`,
+                        label: `Tomar Comanda #${numeroComandaVisible(comandaPrincipal)}`,
                         color: 'bg-blue-600 hover:bg-blue-700',
                         action: () => handleTomarComanda(comandaPrincipal._id),
                         visible: true
@@ -4723,7 +4801,7 @@ const ComandaStyle = ({
                       if (comandaState === 'dejar') {
                         // Estado "dejar" (1er click): contorno rojo → botón "Dejar Comanda"
                         buttonConfig = {
-                          label: `Dejar Comanda #${comandaPrincipal.comandaNumber}`,
+                          label: `Dejar Comanda #${numeroComandaVisible(comandaPrincipal)}`,
                           color: 'bg-red-500 hover:bg-red-600',
                           action: () => handleDejarComanda(comandaPrincipal._id),
                           visible: true
@@ -4731,7 +4809,7 @@ const ComandaStyle = ({
                       } else if (comandaState === 'finalizar') {
                         // Estado "finalizar" (2do click): contorno verde → botón "Finalizar"
                         buttonConfig = {
-                          label: `Finalizar #${comandaPrincipal.comandaNumber}`,
+                          label: `Finalizar #${numeroComandaVisible(comandaPrincipal)}`,
                           color: 'bg-green-600 hover:bg-green-700',
                           action: () => handleFinalizarComandaCard(comandaPrincipal._id),
                           visible: true
@@ -4915,6 +4993,19 @@ const ComandaStyle = ({
             </div>
           </>
         )}
+        </div>
+        {isSupervisorView && sosTablaOn && (
+          <SosTablaSidebar
+            grupos={gruposSosTabla}
+            nightMode={nightMode}
+            highlightComandaId={sosHighlightId}
+            onSelectGrupo={irAGrupoSos}
+            onCerrar={() => {
+              setSosTablaOn(false);
+              guardarSosTablaLocal(false);
+            }}
+          />
+        )}
       </div>
 
       {/* Modales */}
@@ -4949,6 +5040,22 @@ const ComandaStyle = ({
           getToken={getToken}
           socket={cocinaSocket}
           onClose={() => setShowHistorial(false)}
+        />
+      )}
+
+      {isSupervisorView && (
+        <SosModoModal
+          open={sosModalOpen}
+          nightMode={nightMode}
+          tablaOn={sosTablaOn}
+          cocinerasOn={sosCocineras.activo}
+          saving={sosCocineras.saving}
+          error={sosCocineras.error}
+          onClose={() => {
+            sosCocineras.setError(null);
+            setSosModalOpen(false);
+          }}
+          onAplicar={aplicarSosModal}
         />
       )}
 
@@ -5246,7 +5353,7 @@ const ComandaStyle = ({
                 <h2 className={`text-xl font-bold ${textMain}`}>Dejar Comanda</h2>
                 {comanda && (
                   <span className={`ml-auto text-sm font-semibold ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    #{comanda.comandaNumber}
+                    #{numeroComandaVisible(comanda)}
                   </span>
                 )}
               </div>
@@ -5505,12 +5612,13 @@ const SicarComandaCard = ({
   mapaColaCocineros = null,
   // PLAN NOMBRE_PLATO_COCINA: flag de configuración para nombre de cocina en KDS
   usarNombreCocinaEnTablaKds = false,
-  // PLAN GUARNICIONES_SEPARADAS v1.1.1: flag + tiempos para partir tarjetas
   permitirGuarnicionesSeparadas = false,
   agrupacionOn = false,
   tiemposGuarnicion = null,
   deshabilitarOrdenSecuencialGuarniciones = true,
   juntarGuarnicionesVisualKds = true,
+  sosResaltada = false,
+  sosPlatoIndex = null,
 }) => {
   const { config: kdsMozoConfig } = useConfig();
   const cocinaCfg = useConfiguracionCocina();
@@ -5765,7 +5873,7 @@ const SicarComandaCard = ({
     const tieneNombre = nombre && nombre.trim().length > 0;
     
     if (!tieneNombre) {
-      console.warn(`⚠️ Plato sin nombre filtrado en comanda #${comanda.comandaNumber}`);
+      console.warn(`⚠️ Plato sin nombre filtrado en comanda #${numeroComandaVisible(comanda)}`);
       return false;
     }
     
@@ -5853,16 +5961,19 @@ const SicarComandaCard = ({
     backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
   }
 
+  const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
+
   return (
     <motion.div 
+      id={`kds-comanda-${comandaId}`}
       layoutId={`order-${comandaId}`}
-      className={`${headerReserva ? '' : `${bgColor} ${borderColor}`} flex flex-col relative cursor-pointer`}
+      className={`${headerReserva ? '' : `${bgColor} ${borderColor}`} flex flex-col relative cursor-pointer ${sosResaltada ? 'ring-4 ring-yellow-400 z-10' : ''}`}
       style={{
         fontFamily: 'Arial, sans-serif',
         width: '300px',
         height: '500px',
-        borderRadius: '12px',
-        boxShadow: shadowStyle,
+        borderRadius: estiloAprovechador ? 0 : '12px',
+        boxShadow: estiloAprovechador ? 'none' : shadowStyle,
         border: borderStyle,
         background: backgroundStyle,
         ...(!backgroundStyle && headerReserva ? { backgroundColor: headerReserva.hex } : {})
@@ -5874,7 +5985,7 @@ const SicarComandaCard = ({
         y: 0
       }}
       exit={{ opacity: 0, scale: 0.8, y: -50 }}
-      whileHover={{ scale: 1.03, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
+      whileHover={estiloAprovechador ? undefined : { scale: 1.03, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
       transition={{ 
         type: "spring", 
         stiffness: 300, 
@@ -5972,17 +6083,6 @@ const SicarComandaCard = ({
                 Listos {platosListos.length}
               </motion.span>
             )}
-            {minutosActuales >= alertRedMinutes && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="px-1.5 py-0.5 bg-red-600 rounded text-xs font-bold"
-                style={{ fontFamily: 'Arial, sans-serif' }}
-              >
-                ¡Urgente!
-              </motion.span>
-            )}
             {comanda.prioridadOrden > 0 && kdsMozoConfig.ocultarCohetePrioridadKds !== true && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -6009,6 +6109,7 @@ const SicarComandaCard = ({
 
       {/* Lista de platos vertical */}
       <div
+        data-kds-scroll-platos=""
         className={`flex-1 overflow-y-auto ${headerReserva ? '' : bgPlatos}`}
         style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
       >
@@ -6060,7 +6161,7 @@ const SicarComandaCard = ({
                   // 🔥 FIX buscador: no usar indexOf sobre copias { ...plato, _puntuacion }
                   const platoIndex = resolverIndicePlato(comanda, plato);
                   if (platoIndex < 0) {
-                    console.warn(`[KDS] No se pudo resolver índice del plato en comanda #${comanda.comandaNumber}`);
+                    console.warn(`[KDS] No se pudo resolver índice del plato en comanda #${numeroComandaVisible(comanda)}`);
                     return [];
                   }
                   const cantidad = comanda.cantidades?.[platoIndex] || 1;
@@ -6146,6 +6247,8 @@ const SicarComandaCard = ({
                     return (
                       <PlatoPreparacion
                         key={platoKey}
+                        domId={`kds-plato-${comandaId}-${platoIndex}`}
+                        marcadoSos={sosPlatoIndex != null && Number(sosPlatoIndex) === Number(platoIndex)}
                         plato={plato}
                         comandaId={comandaId}
                         platoId={platoId}
@@ -6264,6 +6367,7 @@ const SicarComandaCard = ({
                     
                     return (
                       <motion.div
+                        id={`kds-plato-${comandaId}-${platoIndex}`}
                         key={`listo-${platoIdUnico}-${platoIndex}`}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -6276,6 +6380,10 @@ const SicarComandaCard = ({
                           togglePlatoCheck(comandaId, platoIndex);
                         }}
                         className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 cursor-pointer border-2 ${
+                          sosPlatoIndex != null && Number(sosPlatoIndex) === Number(platoIndex)
+                            ? 'ring-2 ring-yellow-300'
+                            : ''
+                        } ${
                           seleccionadoEntregar
                             ? 'bg-red-600/40 border-red-500 text-white'
                             : nightMode ? 'bg-green-900/30 border-transparent text-green-300' : 'bg-green-100 border-transparent text-green-800'

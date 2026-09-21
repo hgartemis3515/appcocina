@@ -54,6 +54,8 @@ const PlatoPreparacion = ({
   estadoAlerta = null,              // null | 'alerta' | 'critica' (tiempo)
   etiquetaPrioridad = null,         // texto VIP/refire para mostrar como badge
   forzarVisibleTablaKds = false,    // omite ocultarComplementosEnTablaKds en esta fila
+  domId = null,
+  marcadoSos = false,
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -263,6 +265,7 @@ const PlatoPreparacion = ({
 
   return (
     <motion.div
+      id={domId || undefined}
       role="button"
       tabIndex={0}
       onClick={handleClick}
@@ -273,7 +276,7 @@ const PlatoPreparacion = ({
           onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
         }
       }}
-      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-lg flex items-start gap-2 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''}`}
+      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-lg flex items-start gap-2 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''} ${marcadoSos ? 'ring-2 ring-yellow-300' : ''}`}
       style={{ fontFamily: 'Arial, sans-serif', fontSize: compact ? '13px' : '18px' }}
       title={isEliminado ? 'Plato eliminado' : estadoVisual === 'dejar' ? '🔄 Cambiar plato' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
       variants={containerVariants}

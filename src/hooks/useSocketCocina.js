@@ -636,6 +636,13 @@ const useSocketCocina = ({
       }
     });
 
+    socket.on('sos-cocineras', (data) => {
+      ultimoPingRef.current = Date.now();
+      window.dispatchEvent(new CustomEvent('sos-cocineras', {
+        detail: { activo: !!(data && data.activo), by: data?.by, at: data?.at },
+      }));
+    });
+
     socket.on('tipos-plato-reglas-actualizadas', (data) => {
       ultimoPingRef.current = Date.now();
       window.dispatchEvent(new CustomEvent('tipos-plato-reglas-actualizadas', { detail: data || {} }));

@@ -33,10 +33,16 @@ const ALTURA_POR_COMPLEMENTO_PX = 18;
 const ALTURA_POR_NOTA_PX = 16;
 const PADDING_INFERIOR_PX = 20;
 
-/** Script embebido: espera layout + imágenes antes de abrir el diálogo de impresión. */
+/** Script embebido: imprime sin robar el foco y cierra la ventana al terminar. */
 const THERMAL_PRINT_SCRIPT = `<script>
 (function(){
-  function printTicket(){try{window.focus();window.print();}catch(e){}}
+  function cerrarVentana(){
+    setTimeout(function(){ try { window.close(); } catch(e) {} }, 400);
+  }
+  function printTicket(){
+    try { window.onafterprint = cerrarVentana; } catch(e) {}
+    try { window.print(); } catch(e) {}
+  }
   function schedulePrint(){
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){setTimeout(printTicket,100);});

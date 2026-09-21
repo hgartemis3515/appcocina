@@ -65,6 +65,8 @@ const KdsTopBar = ({
   onTogglePpa,
   onToggleReserva,
   onShowReservadas,
+  onOpenSos,
+  sosActivo = false,
 }) => {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef(null);
@@ -131,14 +133,14 @@ const KdsTopBar = ({
 
   return (
     <header
-      className={`${bgHeader} ${textMain} border-b-2 ${borderMain} flex items-center justify-between px-3 xs:px-4 sm:px-6 flex-shrink-0 z-50 relative shadow-lg`}
+      className={`${bgHeader} ${textMain} border-b-2 ${borderMain} flex items-center gap-2 px-3 xs:px-4 sm:px-6 flex-shrink-0 z-50 relative shadow-lg`}
       style={{
         minHeight: "56px",
         paddingTop: "env(safe-area-inset-top)",
       }}
     >
       {/* === IZQUIERDA: hora + fecha + badge vista === */}
-      <div className="flex items-center gap-2 xs:gap-3 min-w-0">
+      <div className="flex items-center gap-2 xs:gap-3 flex-shrink-0 min-w-0">
         <div className="flex flex-col items-start leading-tight">
           <span
             className={`text-lg sm:text-2xl font-bold ${textMain}`}
@@ -161,18 +163,18 @@ const KdsTopBar = ({
         </div>
       </div>
 
-      {/* === CENTRO: título solo en lg+ (evita choque en móvil) === */}
-      <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2 pointer-events-none">
+      {/* === CENTRO: título en flujo (truncate, sin absolute) === */}
+      <div className="hidden lg:flex flex-1 min-w-0 justify-center px-2">
         <h1
-          className="text-xl xl:text-2xl font-bold tracking-wide"
+          className="text-xl xl:text-2xl font-bold tracking-wide truncate max-w-full"
           style={{ fontFamily: "Arial, sans-serif", letterSpacing: "1px" }}
         >
-          COCINA SAN BENITO
+          SAN BENITO
         </h1>
       </div>
 
       {/* === DERECHA: métricas + acciones === */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
         {/* Contador pendientes (compacto) */}
         <div className="flex items-center gap-1.5 flex-shrink-0" title="Comandas pendientes">
           <span
@@ -229,6 +231,18 @@ const KdsTopBar = ({
           <FaHistory />
           <span className="hidden sm:inline">Historial</span>
         </button>
+
+        {typeof onOpenSos === "function" && (
+          <button
+            onClick={onOpenSos}
+            className={`inline-flex items-center justify-center rounded text-white text-xs font-black tracking-[0.2em] transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[52px] px-3 py-2 bg-red-600 hover:bg-red-500 active:bg-red-800 ${sosActivo ? "ring-2 ring-red-300 animate-pulse" : ""}`}
+            title="SOS — resumen de platos y modo cantidades"
+            aria-label="SOS — resumen de platos y modo cantidades"
+            aria-pressed={sosActivo}
+          >
+            SOS
+          </button>
+        )}
 
         {/* PPA: siempre visible en la barra primaria (badge solo si hay pendientes) */}
         <button
