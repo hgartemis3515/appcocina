@@ -22,6 +22,11 @@ export const HEADER_TARJETA_ESTILOS = [
     label: 'Clásico (2 columnas)',
     desc: 'Orden y mesa en columnas, mozo y Prep en otra fila. Más alto.',
   },
+  {
+    id: 'aprovechador',
+    label: 'Aprovechador',
+    desc: 'Las comandas van en cuadros pegados, sin hueco entre tarjetas. El encabezado sigue en una fila.',
+  },
 ];
 
 export const HEADER_TARJETA_DEFAULT = 'compacto';
@@ -51,9 +56,15 @@ export function resolverHeaderTarjetaEstilo(config) {
 }
 
 /** Platos con kdsEstiloCompacto fuerzan la fila única aunque el perfil sea clásico. */
+export function esEstiloAprovechadorKds(config) {
+  return resolverHeaderTarjetaEstilo(config) === 'aprovechador';
+}
+
 export function resolverEstiloHeaderTarjetaComanda(config, { forzarCompacto } = {}) {
   if (forzarCompacto) return 'compacto';
-  return resolverHeaderTarjetaEstilo(config);
+  const id = resolverHeaderTarjetaEstilo(config);
+  if (id === 'aprovechador') return 'compacto';
+  return id;
 }
 
 export function paddingHeaderTarjetaKds(estilo) {

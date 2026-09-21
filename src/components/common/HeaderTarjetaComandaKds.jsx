@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaClock } from 'react-icons/fa';
+import { FaClock, FaExclamationTriangle } from 'react-icons/fa';
 import BadgeNumeroSerieKds from './BadgeNumeroSerieKds';
 import {
   estiloDatoHeaderTarjetaKds,
@@ -10,6 +10,7 @@ import {
 } from '../../utils/estiloHeaderTarjetaKds';
 import { hexValidoOrdenCola } from '../../utils/estiloNumeroOrdenKds';
 import BadgeReservaKds from './BadgeReservaKds';
+import { numeroComandaVisible } from '../../utils/numeroComandaVisible';
 
 function Chip({ style, title, children }) {
   if (children == null || children === '') return null;
@@ -50,7 +51,7 @@ export default function HeaderTarjetaComandaKds({
   prepTitle,
   children,
 }) {
-  const nComanda = comanda?.comandaNumber || 'N/A';
+  const nComanda = numeroComandaVisible(comanda) ?? 'N/A';
   const tam = tamanoLetraHeaderTarjetaKds(config);
   const estiloDato = estiloDatoHeaderTarjetaKds(config);
   const fondoMozo = hexValidoOrdenCola(estiloMozo?.backgroundColor) ? estiloMozo.backgroundColor : null;
@@ -83,21 +84,44 @@ export default function HeaderTarjetaComandaKds({
   const estiloSerie = estiloNumeroSerieHeaderTarjetaKds(config);
   const serie = <BadgeNumeroSerieKds comanda={comanda} style={estiloSerie} />;
   const wrap = estilo === 'clasico' ? 'flex flex-wrap items-center gap-1.5' : 'flex flex-wrap items-center gap-1';
+  const umbralAmarillo = 10;
+  const umbralRojo = Number(alertRedMinutes) || 0;
+  const esUrgente = umbralRojo > 0 && minutosActuales >= umbralRojo;
+  const esAtencion = !esUrgente && umbralAmarillo > 0 && minutosActuales >= umbralAmarillo;
+  const numero = (
+    <div className="w-full flex items-center justify-center gap-1 leading-none" title="Número de comanda">
+      <span
+        style={{
+          ...estiloDato,
+          fontSize: `${Math.round(tam * 2)}px`,
+          fontWeight: 800,
+          lineHeight: 1,
+          display: 'inline-block',
+        }}
+      >
+        #{nComanda}
+      </span>
+      {(esAtencion || esUrgente) && (
+        <FaExclamationTriangle
+          className={`shrink-0 ${esUrgente ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}
+          style={{ fontSize: `${Math.max(14, Math.round(tam * 1.15))}px` }}
+          title={esUrgente ? 'Urgente' : 'Atención'}
+          aria-label={esUrgente ? 'Urgente' : 'Atención'}
+        />
+      )}
+    </div>
+  );
 
   if (estilo === 'clasico') {
     return (
-      <>
-        <div className={`${wrap} justify-between mb-2`}>
-          <div className={wrap}>
-            <Chip style={estiloDato} title="Número de comanda">Orden #{nComanda}</Chip>
-            <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
-          </div>
-          <div className={wrap}>
-            <Chip style={estiloDato}>{nombreMesa}</Chip>
-            {reloj}
-          </div>
+      <div className="w-full">
+        {numero}
+        <div className={`${wrap} justify-between mt-1`}>
+          <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
+          <Chip style={estiloDato}>{nombreMesa}</Chip>
+          {reloj}
         </div>
-        <div className={`${wrap} justify-between`}>
+        <div className={`${wrap} justify-between mt-1`}>
           <Chip style={estiloMozoChip} title={nombreMozo}>👤 {nombreMozo}</Chip>
           <div className={wrap}>
             {serie}
@@ -106,22 +130,20 @@ export default function HeaderTarjetaComandaKds({
             {children}
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   if (estilo === 'dosFilas') {
     return (
-      <div className="leading-none space-y-1">
-        <div className={`${wrap} justify-between`}>
-          <Chip style={estiloDato} title="Orden en el tablero / comanda">
-            {cardNumber}
-            <span style={{ opacity: 0.85, fontWeight: 600 }}>· #{nComanda}</span>
-          </Chip>
+      <div className="leading-none w-full">
+        {numero}
+        <div className={`${wrap} justify-between mt-1`}>
+          <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
           <Chip style={estiloDato}>{nombreMesa}</Chip>
           {reloj}
         </div>
-        <div className={`${wrap} justify-between`}>
+        <div className={`${wrap} justify-between mt-1`}>
           <Chip style={estiloMozoChip} title={nombreMozo}>👤 {nombreMozo}</Chip>
           <div className={wrap}>
             {serie}
@@ -135,18 +157,20 @@ export default function HeaderTarjetaComandaKds({
   }
 
   return (
-    <div className={wrap}>
-      <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
-      <Chip style={estiloDato} title="Número de comanda">#{nComanda}</Chip>
-      <Chip style={estiloDato}>{nombreMesa}</Chip>
-      {reloj}
-      <Chip style={{ ...estiloMozoChip, maxWidth: '7rem', overflow: 'hidden' }} title={nombreMozo}>
-        <span className="truncate">👤 {nombreMozo}</span>
-      </Chip>
-      {serie}
-      {prep}
-      {reserva}
-      {children}
+    <div className="w-full">
+      {numero}
+      <div className={`${wrap} justify-center mt-0.5`}>
+        <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
+        <Chip style={estiloDato}>{nombreMesa}</Chip>
+        {reloj}
+        <Chip style={{ ...estiloMozoChip, maxWidth: '7rem', overflow: 'hidden' }} title={nombreMozo}>
+          <span className="truncate">👤 {nombreMozo}</span>
+        </Chip>
+        {serie}
+        {prep}
+        {reserva}
+        {children}
+      </div>
     </div>
   );
 }

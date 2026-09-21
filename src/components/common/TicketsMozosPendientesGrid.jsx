@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaUser, FaCheck, FaSyncAlt, FaEye, FaPrint } from 'react-icons/fa';
+import { FaUser, FaCheck, FaSyncAlt, FaEye, FaPrint, FaMoneyBill } from 'react-icons/fa';
 import { AccionesTicket } from './TicketsAprobacionTable';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
 import BadgeNombreMozo from './BadgeNombreMozo';
@@ -9,7 +9,7 @@ import {
   ticketParaDetalleGrupo,
 } from '../../utils/ticketSort';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
-import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar } from '../../utils/ticketAprobacionUi';
+import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar, ticketsForzablesDeGrupo } from '../../utils/ticketAprobacionUi';
 import { totalesVistaTicket, resumenKpisTickets } from '../../utils/ticketTotales';
 
 function BadgeEstadoComanda({ meta }) {
@@ -291,6 +291,17 @@ function CuadroMozo({
                         >
                           <FaPrint className="text-[10px]" />
                         </button>
+                        {ticketsForzablesDeGrupo(fila.tickets).length > 0 && onForzarPago && (
+                          <button
+                            type="button"
+                            disabled={fila.tickets.some((t) => forzarPagoLoading[t._id])}
+                            onClick={() => onForzarPago(ticketParaDetalleGrupo(fila.tickets))}
+                            className="inline-flex items-center justify-center p-1 rounded border border-amber-500 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
+                            title="Forzar pago del grupo"
+                          >
+                            <FaMoneyBill className="text-[10px]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-2 py-0.5 text-right text-amber-300 font-bold text-xs whitespace-nowrap">
@@ -412,7 +423,10 @@ export default function TicketsMozosPendientesGrid({
                   aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                   reportarLoading={!!reportarLoading[detalleTicket._id]}
                   rechazarLoading={!!rechazarLoading[detalleTicket._id]}
-                  forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
+                  forzarPagoLoading={(detalleTicket._esGrupoComandas
+                    ? (detalleTicket._grupoTickets || [])
+                    : [detalleTicket]
+                  ).some((t) => !!forzarPagoLoading[t?._id])}
                 />
               </div>
             ) : null

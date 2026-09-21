@@ -339,6 +339,10 @@ export function ticketPuedeForzarPago(ticket) {
   return esTicketComanda(ticket) || esPagoParcial(ticket);
 }
 
+export function ticketsForzablesDeGrupo(tickets) {
+  return (tickets || []).filter((t) => ticketPuedeForzarPago(t) && !t.boucher);
+}
+
 export function limaHM(d) {
   if (!d) return '';
   return new Date(d).toLocaleTimeString('es-PE', {

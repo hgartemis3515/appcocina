@@ -18,17 +18,19 @@ import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
-import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero } from '../../utils/ticketSort';
+import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo } from '../../utils/ticketSort';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge,
   getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
   loadTicketsTablaPrefs, saveTicketsTablaPrefs,
   nombreClienteTicket, dniClienteTicket,
-  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
+  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago,
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
   estadoEntregaComandaTicket,
+  estadoEntregaTickets,
+  ticketTieneExtraLlevar,
   rangoConsultaDesglose,
   ticketEsParaLlevar,
 } from '../../utils/ticketAprobacionUi';
@@ -106,7 +108,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     turnosLimaYMD: hoyOp,
     _turnosAutoNocheHecho: false,
   });
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, quitarDuplicadoItem, forzarPagoItem, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, quitarDuplicadoItem, forzarPagoItem, forzarPagoGrupo, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
     fechaDesde,
     fechaHasta,
     incluirHistorial: true,
@@ -120,6 +122,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
   const [modoVista, setModoVista] = useState(loadModoVistaTickets);
+  const [gruposAbiertosBasico, setGruposAbiertosBasico] = useState(() => new Set());
   const [tablaPrefs, setTablaPrefs] = useState(loadTicketsTablaPrefs);
   const estilosTxtTabla = useMemo(() => estilosTextoTicketsTabla(tablaPrefs), [tablaPrefs]);
   const [showTablaConfig, setShowTablaConfig] = useState(false);
@@ -325,17 +328,47 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
+  const abrirForzarPago = (ticket) => {
+    if (!ticket) return;
+    if (ticket._esGrupoComandas) {
+      const cobro = ticketParaCobroGrupo(ticket._grupoTickets);
+      if (!cobro) {
+        alert('Ninguna comanda del grupo se puede forzar.');
+        return;
+      }
+      setTicketForzarPago(cobro);
+      return;
+    }
+    setTicketForzarPago(ticket);
+  };
+
   const handleForzarPago = async (pago) => {
     const ticket = ticketForzarPago;
     if (!ticket) return;
-    setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: true }));
+    const idsGrupo = ticket._esGrupoComandas
+      ? (ticket._grupoTickets || []).map((t) => t._id).filter(Boolean)
+      : null;
+    const loadingIds = idsGrupo?.length ? idsGrupo : [ticket._id];
+    setForzarPagoLoading((prev) => {
+      const next = { ...prev };
+      loadingIds.forEach((id) => { next[id] = true; });
+      return next;
+    });
     try {
-      await forzarPagoItem(ticket._id, pago, user?._id || user?.id, user?.name || 'Cocina');
+      if (idsGrupo && idsGrupo.length > 1) {
+        await forzarPagoGrupo(idsGrupo, pago, user?._id || user?.id, user?.name || 'Cocina');
+      } else {
+        await forzarPagoItem(ticket._id, pago, user?._id || user?.id, user?.name || 'Cocina');
+      }
       setTicketForzarPago(null);
     } catch (err) {
       alert('Error al forzar pago: ' + (err.userMessage || err.message));
     } finally {
-      setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: false }));
+      setForzarPagoLoading((prev) => {
+        const next = { ...prev };
+        loadingIds.forEach((id) => { next[id] = false; });
+        return next;
+      });
     }
   };
 
@@ -377,6 +410,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     return sortTickets(porMozo, sortBy, sortDir);
   }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro]);
 
+  const filasBasico = useMemo(
+    () => groupTicketsComoComandasHtml(itemsFiltrados),
+    [itemsFiltrados],
+  );
+
   const handleSortChange = (field, dir) => {
     setSortBy(field);
     setSortDir(dir);
@@ -391,6 +429,311 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
   // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mapa de tickets pendientes por mesa
   const ticketsPendientesPorMesa = countTicketsPendientesByMesa(items);
+
+  const renderTarjetaBasica = (ticket) => {
+                const badge = tipoBadge(ticket.tipo);
+                const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
+                const isPagoParcial = ticket.tipo === 'pago_parcial';
+                const comandaLabel = getComandaDisplayLabel(ticket);
+                const cantidadComandasTicket = getCantidadComandas(ticket);
+                // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mostrar si quedan más tickets
+                // pendientes de esta misma mesa para que cocina sepa que no debe liberar aún.
+                const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
+                const mesaId = String(ticket.mesa?._id || ticket.mesa || '');
+                const ticketsPendientesMismaMesa = ticketsPendientesPorMesa.get(mesaId) || 0;
+                const quedanMasTickets = ticketsPendientesMismaMesa > 1;
+                const platosVis = platosTicketVisibles(ticket);
+                const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
+                const estadoComanda = estadoEntregaComandaTicket(ticket);
+                const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
+                const esParaLlevar = ticketEsParaLlevar(ticket);
+                const estiloCuerpoPL = esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined;
+                const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-gray-700';
+                return (
+                  <motion.div
+                    key={ticket._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    onClick={() => { if (modoEliminar) toggleSeleccionTickets(ticket); }}
+                    className={`bg-gray-800 rounded-xl border overflow-hidden shadow-lg ${
+                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-gray-700'
+                    } ${modoEliminar ? 'cursor-pointer' : ''}`}
+                  >
+                    {/* Header del card */}
+                    <div className={`p-3 ${
+                      ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-600/20 border-b border-yellow-500/30' :
+                      ticket.estado === 'aprobado' ? 'bg-green-600/20 border-b border-green-500/30' :
+                      ticket.estado === 'reportado' ? 'bg-red-600/20 border-b border-red-500/30' :
+                      'bg-violet-600/20 border-b border-violet-500/30'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-yellow-300 text-sm font-mono font-bold flex items-center gap-2">
+                          {modoEliminar && (
+                            <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${
+                              selEliminar ? 'bg-rose-600 border-rose-400 text-white' : 'border-gray-500 bg-gray-900'
+                            }`}>{selEliminar ? '✓' : ''}</span>
+                          )}
+                          Comanda: {comandaLabel}
+                          {ticket.ticketNumber != null && (
+                            <span className="text-amber-200/90 font-normal ml-1">
+                              · Ticket #{ticket.ticketNumber}
+                            </span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
+                            {badge.label}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoComanda.bg}`}>
+                            {estadoComanda.label}
+                          </span>
+                        </div>
+                      </div>
+                      {cantidadComandasTicket > 1 && (
+                        <div className="text-yellow-400/80 text-[11px] font-medium mt-0.5">
+                          {cantidadComandasTicket} comandas agrupadas · {comandaLabel}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 mt-1">
+                        <div className="flex items-center gap-1 text-gray-300 text-xs">
+                          <FaUtensils className="text-gray-400" />
+                          <span>Mesa {ticket.numMesa || '?'}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <FaUser className="text-gray-500" />
+                          <BadgeNombreMozo ticket={ticket} configVista={tablaPrefs} />
+                        </div>
+                      </div>
+                      <div className="text-gray-500 text-[10px] mt-1">
+                        {formatDate(ticket.createdAt)} {formatTime(ticket.createdAt)}
+                        {ticket.observaciones && (
+                          <span className="block text-gray-400 mt-0.5 truncate" title={ticket.observaciones}>
+                            Obs: {ticket.observaciones}
+                          </span>
+                        )}
+                      </div>
+                      {/* BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): aviso de tickets pendientes de la misma mesa */}
+                      {infoMismaComanda && (
+                        <div className="mt-1 px-2 py-1 bg-amber-600/25 border border-amber-500/40 rounded text-[10px] text-amber-200 font-medium">
+                          {infoMismaComanda.indice != null
+                            ? `Ticket ${infoMismaComanda.indice} de ${infoMismaComanda.total} de la misma comanda ${infoMismaComanda.comandaLabel}`
+                            : `${infoMismaComanda.total} tickets de la misma comanda ${infoMismaComanda.comandaLabel} — apruebe cada envío por separado`}
+                        </div>
+                      )}
+                      {isPagoParcial && !infoMismaComanda && (
+                        <div className="mt-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300">
+                          Pago parcial — {platosVis.length} plato{platosVis.length !== 1 ? 's' : ''} en este envío
+                        </div>
+                      )}
+                      {quedanMasTickets && ticket.estado === 'pendiente_aprobacion' && (
+                        <div className="mt-1 px-2 py-1 bg-yellow-600/20 border border-yellow-500/30 rounded text-[10px] text-yellow-400">
+                          Esta mesa tiene {ticketsPendientesMismaMesa} ticket{ticketsPendientesMismaMesa > 1 ? 's' : ''} pendiente{ticketsPendientesMismaMesa > 1 ? 's' : ''} — apruebe todos para liberar la mesa
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={estiloCuerpoPL}>
+                    {/* Platos */}
+                    <div className={`p-3 max-h-48 overflow-y-auto border-b ${bordeSeccion}`}>
+                      {platosVis.map((plato, i) => (
+                        <PlatoTicketItem
+                          key={plato.platoLineaId || plato._id || i}
+                          plato={plato}
+                          size="sm"
+                          ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+                          estiloNombre={estilosTxtTabla.platos}
+                          estiloMeta={estilosTxtTabla.platosMeta}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Total & Pago */}
+                    <div className={`p-3 border-b ${bordeSeccion}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <FaMoneyBill className="text-green-400" />
+                          <span className="text-white font-bold" style={estilosTxtTabla.total}>{formatCurrency(neto)}</span>
+                        </div>
+                        <div className="text-gray-500 text-xs flex items-center gap-2">
+                          {ticket.voucherId && <span style={estilosTxtTabla.resto}>V: {ticket.voucherId}</span>}
+                          <span className="uppercase" style={estilosTxtTabla.resto}>{ticket.moneda || 'Soles'}</span>
+                          <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''} style={ticket.estado === 'pendiente_aprobacion' ? undefined : estilosTxtTabla.resto}>
+                            · {labelPagoTicket(ticket)}
+                          </span>
+                        </div>
+                      </div>
+                      {montoDesc > 0 && (
+                        <div className="mt-1.5 space-y-0.5 text-xs">
+                          <div className="flex justify-between text-gray-400" style={estilosTxtTabla.resto}>
+                            <span>Subtotal</span>
+                            <span>{formatCurrency(bruto)}</span>
+                          </div>
+                          <div className="text-red-400">
+                            Descuento: -{formatCurrency(montoDesc)}
+                            {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
+                            {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
+                          </div>
+                          <div className="flex justify-between text-white font-semibold" style={estilosTxtTabla.total}>
+                            <span>TOTAL</span>
+                            <span>{formatCurrency(neto)}</span>
+                          </div>
+                        </div>
+                      )}
+                      {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&
+                        (ticket.montoRecibido != null || ticket.vuelto != null) && (
+                        <div className="mt-2 flex items-center justify-between text-xs bg-gray-900/50 rounded px-2 py-1.5">
+                          <span className="text-gray-400" style={estilosTxtTabla.resto}>
+                            Recibido: <span className="text-gray-200 font-medium">{formatCurrency(ticket.montoRecibido)}</span>
+                          </span>
+                          <span className="text-green-400 font-bold">
+                            Vuelto: {formatCurrency(ticket.vuelto)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cliente */}
+                    {(nombreClienteTicket(ticket) || dniClienteTicket(ticket)) && (
+                      <div className={`px-3 py-1 border-b ${bordeSeccion} text-xs text-gray-400`} style={estilosTxtTabla.resto}>
+                        <FaUser className="inline mr-1" />
+                        {nombreClienteTicket(ticket) || 'Cliente'}
+                        {dniClienteTicket(ticket) && (
+                          <span className="ml-2" style={estilosTxtTabla.resto}>DNI: {dniClienteTicket(ticket)}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Acciones según estado del ticket */}
+                    {ticket.estado === 'pendiente_aprobacion' && (
+                      <div className="p-3 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleImprimir(ticket)}
+                          className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
+                            text-white py-2 rounded-lg transition-colors font-medium text-sm"
+                        >
+                          <FaPrint className="text-xs" />
+                          Imprimir
+                        </button>
+                        {ticketPuedeAprobarse(ticket) && (
+                        <button
+                          onClick={() => handleAprobar(ticket)}
+                          disabled={aprobarLoading[ticket._id]}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500
+                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                            transition-colors font-medium text-sm"
+                        >
+                          <FaCheck />
+                          {aprobarLoading[ticket._id] ? 'Cobrando...' : 'Cobrar'}
+                        </button>
+                        )}
+                        {ticketPuedeForzarPago(ticket) && !ticket.boucher && (
+                        <button
+                          onClick={() => abrirForzarPago(ticket)}
+                          disabled={forzarPagoLoading[ticket._id]}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500
+                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                            transition-colors font-medium text-sm"
+                        >
+                          <FaMoneyBill className="text-xs" />
+                          Forzar pago
+                        </button>
+                        )}
+                        {isComanda && !ticketEsAltaSinPago(ticket) ? (
+                          <button
+                            onClick={() => {
+                              setShowReportarModal(ticket._id);
+                              setReportarMotivo(prev => ({ ...prev, [ticket._id]: '' }));
+                            }}
+                            disabled={reportarLoading[ticket._id]}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
+                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                              transition-colors font-medium text-sm"
+                          >
+                            <FaExclamationTriangle className="text-xs" />
+                            Reportar
+                          </button>
+                        ) : !isComanda ? (
+                          <button
+                            onClick={() => {
+                              setShowRechazarModal(ticket._id);
+                              setRechazarLoading(prev => ({ ...prev, [ticket._id + '_motivo']: '' }));
+                            }}
+                            disabled={rechazarLoading[ticket._id]}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
+                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
+                              transition-colors font-medium text-sm"
+                          >
+                            <FaTimes className="text-xs" />
+                            Rechazar
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* Aprobados: imprimir */}
+                    {ticket.estado === 'aprobado' && (
+                      <div className="p-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleImprimir(ticket)}
+                          className="w-full flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
+                            text-white py-2 rounded-lg transition-colors text-sm font-medium"
+                        >
+                          <FaPrint className="text-xs" />
+                          Imprimir
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Info de reporte */}
+                    {ticket.estado === 'reportado' && ticket.motivoReporte && (
+                      <div className="p-3 bg-red-900/20">
+                        <p className="text-red-400 text-xs">
+                          <strong>Motivo:</strong> {ticket.motivoReporte}
+                        </p>
+                        {ticket.reportadoPorNombre && (
+                          <p className="text-gray-500 text-[10px] mt-1">
+                            Reportado por: {ticket.reportadoPorNombre}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Info de rechazo (PPA) */}
+                    {ticket.estado === 'rechazado' && ticket.motivoRechazo && (
+                      <div className="p-3 bg-red-900/20">
+                        <p className="text-red-400 text-xs">
+                          <strong>Motivo:</strong> {ticket.motivoRechazo}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Info de aprobación */}
+                    {ticket.estado === 'aprobado' && ticket.aprobadoPorNombre && (
+                      <div className="p-2 bg-green-900/20">
+                        <p className="text-green-400 text-xs">
+                          Aprobado por: {ticket.aprobadoPorNombre} — {formatTime(ticket.fechaAprobacion)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Imprimir para rechazados u otros estados no pendientes */}
+                    {(ticket.estado === 'rechazado') && (
+                      <div className="p-2">
+                        <button
+                          onClick={() => handleImprimir(ticket)}
+                          className="w-full flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-600
+                            text-white py-1.5 rounded-lg transition-colors text-sm"
+                        >
+                          <FaPrint className="text-xs" />
+                          Reimprimir
+                        </button>
+                      </div>
+                    )}
+                    </div>
+                  </motion.div>
+                );
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black">
@@ -659,7 +1002,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setShowRechazarModal(ticket._id);
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
-            onForzarPago={(ticket) => setTicketForzarPago(ticket)}
+            onForzarPago={abrirForzarPago}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
@@ -691,7 +1034,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               setShowRechazarModal(ticket._id);
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
             }}
-            onForzarPago={(ticket) => setTicketForzarPago(ticket)}
+            onForzarPago={abrirForzarPago}
             seleccionActiva={modoEliminar}
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
@@ -718,309 +1061,171 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <AnimatePresence>
-              {itemsFiltrados.map((ticket) => {
-                const badge = tipoBadge(ticket.tipo);
-                const isComanda = ticket.tipo === 'comanda_completa' || String(ticket.tipo || '').toUpperCase() === 'COMANDA';
-                const isPagoParcial = ticket.tipo === 'pago_parcial';
-                const comandaLabel = getComandaDisplayLabel(ticket);
-                const cantidadComandasTicket = getCantidadComandas(ticket);
-                // BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): mostrar si quedan más tickets
-                // pendientes de esta misma mesa para que cocina sepa que no debe liberar aún.
-                const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
-                const mesaId = String(ticket.mesa?._id || ticket.mesa || '');
-                const ticketsPendientesMismaMesa = ticketsPendientesPorMesa.get(mesaId) || 0;
-                const quedanMasTickets = ticketsPendientesMismaMesa > 1;
-                const platosVis = platosTicketVisibles(ticket);
-                const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
-                const estadoComanda = estadoEntregaComandaTicket(ticket);
-                const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
-                const esParaLlevar = ticketEsParaLlevar(ticket);
-                const estiloCuerpoPL = esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined;
-                const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-gray-700';
-                return (
-                  <motion.div
-                    key={ticket._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    onClick={() => { if (modoEliminar) toggleSeleccionTickets(ticket); }}
-                    className={`bg-gray-800 rounded-xl border overflow-hidden shadow-lg ${
-                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-gray-700'
-                    } ${modoEliminar ? 'cursor-pointer' : ''}`}
-                  >
-                    {/* Header del card */}
-                    <div className={`p-3 ${
-                      ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-600/20 border-b border-yellow-500/30' :
-                      ticket.estado === 'aprobado' ? 'bg-green-600/20 border-b border-green-500/30' :
-                      ticket.estado === 'reportado' ? 'bg-red-600/20 border-b border-red-500/30' :
-                      'bg-violet-600/20 border-b border-violet-500/30'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-yellow-300 text-sm font-mono font-bold flex items-center gap-2">
-                          {modoEliminar && (
-                            <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${
-                              selEliminar ? 'bg-rose-600 border-rose-400 text-white' : 'border-gray-500 bg-gray-900'
-                            }`}>{selEliminar ? '✓' : ''}</span>
-                          )}
-                          Comanda: {comandaLabel}
-                          {ticket.ticketNumber != null && (
-                            <span className="text-amber-200/90 font-normal ml-1">
-                              · Ticket #{ticket.ticketNumber}
+              {filasBasico.map((fila) => {
+                if (fila.tipo === 'grupo') {
+                  const abierto = gruposAbiertosBasico.has(fila.id);
+                  const grupoTicket = ticketParaDetalleGrupo(fila.tickets);
+                  const platosGrupo = platosTicketVisibles(grupoTicket);
+                  const { bruto, neto, montoDesc } = totalesVistaTicket(grupoTicket);
+                  const estadoGrupo = estadoEntregaTickets(fila.tickets);
+                  const primero = fila.tickets[0];
+                  const grupoSel = modoEliminar && fila.tickets.every((t) => idsEliminar.includes(String(t._id)));
+                  const extraLlevar = fila.tickets.some(ticketTieneExtraLlevar);
+                  const estiloGrupo = fila.tickets.some(ticketEsParaLlevar)
+                    ? estiloCuerpoParaLlevarTickets(tablaPrefs)
+                    : undefined;
+                  const forzablesGrupo = ticketsForzablesDeGrupo(fila.tickets);
+                  const cargandoGrupo = fila.tickets.some((t) => forzarPagoLoading[t._id]);
+                  return (
+                    <motion.div
+                      key={fila.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      onClick={() => { if (modoEliminar) toggleSeleccionTickets(fila.tickets); }}
+                      className={`bg-gray-800 rounded-xl border overflow-hidden shadow-lg ${
+                        grupoSel ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-amber-500/50'
+                      } ${modoEliminar ? 'cursor-pointer' : ''}`}
+                    >
+                      <div className="p-3 bg-amber-600/20 border-b border-amber-500/40">
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setGruposAbiertosBasico((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(fila.id)) next.delete(fila.id);
+                                else next.add(fila.id);
+                                return next;
+                              });
+                            }}
+                            className="text-left text-amber-200 text-sm font-mono font-bold"
+                          >
+                            <span className="inline-block w-3 text-[10px]">{abierto ? '▼' : '▶'}</span>
+                            {' '}GRUPO {fila.label || ''}
+                            {extraLlevar ? (
+                              <span className="ml-1.5 inline-flex align-middle text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                EXTRA LLEVAR
+                              </span>
+                            ) : null}
+                          </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {abierto && forzablesGrupo.length > 0 && (
+                              <button
+                                type="button"
+                                disabled={cargandoGrupo}
+                                onClick={(e) => { e.stopPropagation(); abrirForzarPago(grupoTicket); }}
+                                className="text-[11px] px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white font-semibold"
+                              >
+                                {cargandoGrupo ? 'Cobrando…' : 'Forzar pago'}
+                              </button>
+                            )}
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
+                              {estadoGrupo.label}
                             </span>
+                          </div>
+                        </div>
+                        <div className="text-amber-200/80 text-[11px] font-medium mt-0.5">
+                          {modoEliminar && (
+                            <span className={`mr-2 inline-flex w-5 h-5 rounded border items-center justify-center text-[10px] font-bold ${
+                              grupoSel ? 'bg-rose-600 border-rose-400 text-white' : 'border-gray-500 bg-gray-900'
+                            }`}>{grupoSel ? '✓' : ''}</span>
                           )}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
-                            {badge.label}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoComanda.bg}`}>
-                            {estadoComanda.label}
-                          </span>
+                          {fila.tickets.length} comandas agrupadas
+                          {fila.clienteNombre ? ` · ${fila.clienteNombre}` : ''}
                         </div>
-                      </div>
-                      {cantidadComandasTicket > 1 && (
-                        <div className="text-yellow-400/80 text-[11px] font-medium mt-0.5">
-                          {cantidadComandasTicket} comandas agrupadas · {comandaLabel}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-3 mt-1">
-                        <div className="flex items-center gap-1 text-gray-300 text-xs">
-                          <FaUtensils className="text-gray-400" />
-                          <span>Mesa {ticket.numMesa || '?'}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-gray-400 text-xs">
-                          <FaUser className="text-gray-500" />
-                          <BadgeNombreMozo ticket={ticket} configVista={tablaPrefs} />
-                        </div>
-                      </div>
-                      <div className="text-gray-500 text-[10px] mt-1">
-                        {formatDate(ticket.createdAt)} {formatTime(ticket.createdAt)}
-                        {ticket.observaciones && (
-                          <span className="block text-gray-400 mt-0.5 truncate" title={ticket.observaciones}>
-                            Obs: {ticket.observaciones}
-                          </span>
-                        )}
-                      </div>
-                      {/* BUG_PAGOS_PARCIALES_APROBACION_COCINA (Fase 6): aviso de tickets pendientes de la misma mesa */}
-                      {infoMismaComanda && (
-                        <div className="mt-1 px-2 py-1 bg-amber-600/25 border border-amber-500/40 rounded text-[10px] text-amber-200 font-medium">
-                          {infoMismaComanda.indice != null
-                            ? `Ticket ${infoMismaComanda.indice} de ${infoMismaComanda.total} de la misma comanda ${infoMismaComanda.comandaLabel}`
-                            : `${infoMismaComanda.total} tickets de la misma comanda ${infoMismaComanda.comandaLabel} — apruebe cada envío por separado`}
-                        </div>
-                      )}
-                      {isPagoParcial && !infoMismaComanda && (
-                        <div className="mt-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300">
-                          Pago parcial — {platosVis.length} plato{platosVis.length !== 1 ? 's' : ''} en este envío
-                        </div>
-                      )}
-                      {quedanMasTickets && ticket.estado === 'pendiente_aprobacion' && (
-                        <div className="mt-1 px-2 py-1 bg-yellow-600/20 border border-yellow-500/30 rounded text-[10px] text-yellow-400">
-                          Esta mesa tiene {ticketsPendientesMismaMesa} ticket{ticketsPendientesMismaMesa > 1 ? 's' : ''} pendiente{ticketsPendientesMismaMesa > 1 ? 's' : ''} — apruebe todos para liberar la mesa
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={estiloCuerpoPL}>
-                    {/* Platos */}
-                    <div className={`p-3 max-h-48 overflow-y-auto border-b ${bordeSeccion}`}>
-                      {platosVis.map((plato, i) => (
-                        <PlatoTicketItem
-                          key={plato.platoLineaId || plato._id || i}
-                          plato={plato}
-                          size="sm"
-                          ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
-                          estiloNombre={estilosTxtTabla.platos}
-                          estiloMeta={estilosTxtTabla.platosMeta}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Total & Pago */}
-                    <div className={`p-3 border-b ${bordeSeccion}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          <FaMoneyBill className="text-green-400" />
-                          <span className="text-white font-bold" style={estilosTxtTabla.total}>{formatCurrency(neto)}</span>
-                        </div>
-                        <div className="text-gray-500 text-xs flex items-center gap-2">
-                          {ticket.voucherId && <span style={estilosTxtTabla.resto}>V: {ticket.voucherId}</span>}
-                          <span className="uppercase" style={estilosTxtTabla.resto}>{ticket.moneda || 'Soles'}</span>
-                          <span className={ticket.estado === 'pendiente_aprobacion' ? 'text-yellow-400 font-medium' : ''} style={ticket.estado === 'pendiente_aprobacion' ? undefined : estilosTxtTabla.resto}>
-                            · {labelPagoTicket(ticket)}
-                          </span>
-                        </div>
-                      </div>
-                      {montoDesc > 0 && (
-                        <div className="mt-1.5 space-y-0.5 text-xs">
-                          <div className="flex justify-between text-gray-400" style={estilosTxtTabla.resto}>
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(bruto)}</span>
+                        <div className="flex items-center gap-3 mt-1">
+                          <div className="flex items-center gap-1 text-gray-300 text-xs">
+                            <FaUtensils className="text-gray-400" />
+                            <span>Mesa {fila.mesa || primero.numMesa || '?'}</span>
                           </div>
-                          <div className="text-red-400">
-                            Descuento: -{formatCurrency(montoDesc)}
-                            {ticket.descuentos?.[0]?.motivo ? ` · ${ticket.descuentos[0].motivo}` : ''}
-                            {ticket.descuentos?.[0]?.porcentaje ? ` (${Number(ticket.descuentos[0].porcentaje)}%)` : ''}
+                          <div className="flex items-center gap-1 text-gray-400 text-xs">
+                            <FaUser className="text-gray-500" />
+                            <BadgeNombreMozo ticket={primero} configVista={tablaPrefs} />
                           </div>
-                          <div className="flex justify-between text-white font-semibold" style={estilosTxtTabla.total}>
-                            <span>TOTAL</span>
-                            <span>{formatCurrency(neto)}</span>
+                        </div>
+                      </div>
+                      {abierto ? (
+                        <div className="p-2 space-y-3 bg-black/25" onClick={(e) => e.stopPropagation()}>
+                          {fila.tickets.map((ticket) => renderTarjetaBasica(ticket))}
+                        </div>
+                      ) : (
+                        <div style={estiloGrupo}>
+                          <div className="p-3 max-h-48 overflow-y-auto border-b border-amber-500/20">
+                            {platosGrupo.map((plato, i) => (
+                              <PlatoTicketItem
+                                key={plato.platoLineaId || plato._id || i}
+                                plato={plato}
+                                size="sm"
+                                ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+                                estiloNombre={estilosTxtTabla.platos}
+                                estiloMeta={estilosTxtTabla.platosMeta}
+                              />
+                            ))}
+                          </div>
+                          <div className="p-3 border-b border-amber-500/20">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1">
+                                <FaMoneyBill className="text-green-400" />
+                                <span className="text-white font-bold" style={estilosTxtTabla.total}>{formatCurrency(neto)}</span>
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium border bg-amber-500/15 text-amber-200 border-amber-500/40">
+                                Grupo
+                              </span>
+                            </div>
+                            {montoDesc > 0 && (
+                              <div className="mt-1.5 space-y-0.5 text-xs">
+                                <div className="flex justify-between text-gray-400">
+                                  <span>Subtotal</span>
+                                  <span>{formatCurrency(bruto)}</span>
+                                </div>
+                                <div className="text-red-400">Descuento: -{formatCurrency(montoDesc)}</div>
+                                <div className="flex justify-between text-white font-semibold">
+                                  <span>TOTAL</span>
+                                  <span>{formatCurrency(neto)}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                            {forzablesGrupo.length > 0 && (
+                              <button
+                                type="button"
+                                disabled={cargandoGrupo}
+                                onClick={() => abrirForzarPago(grupoTicket)}
+                                className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white py-2 rounded-lg font-medium text-sm"
+                              >
+                                <FaMoneyBill className="text-xs" />
+                                {cargandoGrupo ? 'Cobrando…' : 'Forzar pago'}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleImprimir(grupoTicket)}
+                              className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500 text-white py-2 rounded-lg font-medium text-sm"
+                            >
+                              <FaPrint className="text-xs" />
+                              Imprimir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setGruposAbiertosBasico((prev) => {
+                                const next = new Set(prev);
+                                next.add(fila.id);
+                                return next;
+                              })}
+                              className="flex-1 flex items-center justify-center gap-1 bg-amber-700 hover:bg-amber-600 text-white py-2 rounded-lg font-medium text-sm"
+                            >
+                              Ver {fila.tickets.length} comandas
+                            </button>
                           </div>
                         </div>
                       )}
-                      {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&
-                        (ticket.montoRecibido != null || ticket.vuelto != null) && (
-                        <div className="mt-2 flex items-center justify-between text-xs bg-gray-900/50 rounded px-2 py-1.5">
-                          <span className="text-gray-400" style={estilosTxtTabla.resto}>
-                            Recibido: <span className="text-gray-200 font-medium">{formatCurrency(ticket.montoRecibido)}</span>
-                          </span>
-                          <span className="text-green-400 font-bold">
-                            Vuelto: {formatCurrency(ticket.vuelto)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Cliente */}
-                    {(nombreClienteTicket(ticket) || dniClienteTicket(ticket)) && (
-                      <div className={`px-3 py-1 border-b ${bordeSeccion} text-xs text-gray-400`} style={estilosTxtTabla.resto}>
-                        <FaUser className="inline mr-1" />
-                        {nombreClienteTicket(ticket) || 'Cliente'}
-                        {dniClienteTicket(ticket) && (
-                          <span className="ml-2" style={estilosTxtTabla.resto}>DNI: {dniClienteTicket(ticket)}</span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Acciones según estado del ticket */}
-                    {ticket.estado === 'pendiente_aprobacion' && (
-                      <div className="p-3 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleImprimir(ticket)}
-                          className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
-                            text-white py-2 rounded-lg transition-colors font-medium text-sm"
-                        >
-                          <FaPrint className="text-xs" />
-                          Imprimir
-                        </button>
-                        {ticketPuedeAprobarse(ticket) && (
-                        <button
-                          onClick={() => handleAprobar(ticket)}
-                          disabled={aprobarLoading[ticket._id]}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500
-                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                            transition-colors font-medium text-sm"
-                        >
-                          <FaCheck />
-                          {aprobarLoading[ticket._id] ? 'Cobrando...' : 'Cobrar'}
-                        </button>
-                        )}
-                        {ticketPuedeForzarPago(ticket) && !ticket.boucher && (
-                        <button
-                          onClick={() => setTicketForzarPago(ticket)}
-                          disabled={forzarPagoLoading[ticket._id]}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500
-                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                            transition-colors font-medium text-sm"
-                        >
-                          <FaMoneyBill className="text-xs" />
-                          Forzar pago
-                        </button>
-                        )}
-                        {isComanda && !ticketEsAltaSinPago(ticket) ? (
-                          <button
-                            onClick={() => {
-                              setShowReportarModal(ticket._id);
-                              setReportarMotivo(prev => ({ ...prev, [ticket._id]: '' }));
-                            }}
-                            disabled={reportarLoading[ticket._id]}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
-                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                              transition-colors font-medium text-sm"
-                          >
-                            <FaExclamationTriangle className="text-xs" />
-                            Reportar
-                          </button>
-                        ) : !isComanda ? (
-                          <button
-                            onClick={() => {
-                              setShowRechazarModal(ticket._id);
-                              setRechazarLoading(prev => ({ ...prev, [ticket._id + '_motivo']: '' }));
-                            }}
-                            disabled={rechazarLoading[ticket._id]}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
-                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                              transition-colors font-medium text-sm"
-                          >
-                            <FaTimes className="text-xs" />
-                            Rechazar
-                          </button>
-                        ) : null}
-                      </div>
-                    )}
-
-                    {/* Aprobados: imprimir */}
-                    {ticket.estado === 'aprobado' && (
-                      <div className="p-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleImprimir(ticket)}
-                          className="w-full flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
-                            text-white py-2 rounded-lg transition-colors text-sm font-medium"
-                        >
-                          <FaPrint className="text-xs" />
-                          Imprimir
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Info de reporte */}
-                    {ticket.estado === 'reportado' && ticket.motivoReporte && (
-                      <div className="p-3 bg-red-900/20">
-                        <p className="text-red-400 text-xs">
-                          <strong>Motivo:</strong> {ticket.motivoReporte}
-                        </p>
-                        {ticket.reportadoPorNombre && (
-                          <p className="text-gray-500 text-[10px] mt-1">
-                            Reportado por: {ticket.reportadoPorNombre}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Info de rechazo (PPA) */}
-                    {ticket.estado === 'rechazado' && ticket.motivoRechazo && (
-                      <div className="p-3 bg-red-900/20">
-                        <p className="text-red-400 text-xs">
-                          <strong>Motivo:</strong> {ticket.motivoRechazo}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Info de aprobación */}
-                    {ticket.estado === 'aprobado' && ticket.aprobadoPorNombre && (
-                      <div className="p-2 bg-green-900/20">
-                        <p className="text-green-400 text-xs">
-                          Aprobado por: {ticket.aprobadoPorNombre} — {formatTime(ticket.fechaAprobacion)}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Imprimir para rechazados u otros estados no pendientes */}
-                    {(ticket.estado === 'rechazado') && (
-                      <div className="p-2">
-                        <button
-                          onClick={() => handleImprimir(ticket)}
-                          className="w-full flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-600
-                            text-white py-1.5 rounded-lg transition-colors text-sm"
-                        >
-                          <FaPrint className="text-xs" />
-                          Reimprimir
-                        </button>
-                      </div>
-                    )}
-                    </div>
-                  </motion.div>
-                );
+                    </motion.div>
+                  );
+                }
+                return renderTarjetaBasica(fila.tickets[0]);
               })}
             </AnimatePresence>
           </div>

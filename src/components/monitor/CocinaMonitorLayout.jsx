@@ -56,6 +56,7 @@ import { contarGuarnicionesPorNombre, claveNombreComplemento } from '../../utils
 import ContadorGuarnicionesBar from './ContadorGuarnicionesBar';
 import useTiposPlatoReglas from '../../hooks/useTiposPlatoReglas';
 import useFullscreen from '../../hooks/useFullscreen';
+import useSosCocineras from '../../hooks/useSosCocineras';
 import {
   anotarReglasTipoEnItems,
   partirItemsHorizontales,
@@ -342,6 +343,7 @@ const CocinaMonitorLayout = ({
   const tick = useCocinaMonitorTimer();
   useHubChromeZoom();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
+  const { activo: sosCocinerasActivo } = useSosCocineras({ enabled: true });
   const reloj = useMemo(
     () => moment().tz('America/Lima').format('HH:mm:ss'),
     [tick]
@@ -1186,12 +1188,20 @@ const CocinaMonitorLayout = ({
 
   const reglasTipo = useTiposPlatoReglas();
   const platosConReglasTipo = useMemo(
-    () => anotarReglasTipoEnItems(platosParaVista, reglasTipo),
-    [platosParaVista, reglasTipo],
+    () => {
+      const items = anotarReglasTipoEnItems(platosParaVista, reglasTipo);
+      if (!sosCocinerasActivo) return items;
+      return items.map((it) => (it.soloContadorEnCocina ? it : { ...it, soloContadorEnCocina: true }));
+    },
+    [platosParaVista, reglasTipo, sosCocinerasActivo],
   );
   const guarnicionesConReglasTipo = useMemo(
-    () => anotarReglasTipoEnItems(guarnicionesPanel, reglasTipo, { paraGuarniciones: true }),
-    [guarnicionesPanel, reglasTipo],
+    () => {
+      const items = anotarReglasTipoEnItems(guarnicionesPanel, reglasTipo, { paraGuarniciones: true });
+      if (!sosCocinerasActivo) return items;
+      return items.map((it) => (it.soloContadorEnCocina ? it : { ...it, soloContadorEnCocina: true }));
+    },
+    [guarnicionesPanel, reglasTipo, sosCocinerasActivo],
   );
 
   const notasPlatos = useMemo(() => {

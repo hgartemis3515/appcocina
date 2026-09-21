@@ -3,6 +3,8 @@ import { FaMoneyBill } from 'react-icons/fa';
 import { formatCurrency } from '../../utils/ticketAprobacionUi';
 import { totalesVistaTicket } from '../../utils/ticketTotales';
 
+const MOTIVOS_FORZAR = ['Cliente quiere pagar', 'Mozo ya cobro'];
+
 function parseMonto(str) {
   if (str == null || str === '') return 0;
   const n = parseFloat(String(str).replace(',', '.').replace(/[^0-9.]/g, ''));
@@ -13,10 +15,12 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
   const { bruto, neto, montoDesc } = useMemo(() => totalesVistaTicket(ticket), [ticket]);
   const total = neto;
   const [metodo, setMetodo] = useState('efectivo');
+  const [motivo, setMotivo] = useState('');
   const [montoRecibidoStr, setMontoRecibidoStr] = useState(() => (total > 0 ? total.toFixed(2) : ''));
 
   useEffect(() => {
     setMetodo('efectivo');
+    setMotivo('');
     setMontoRecibidoStr(total > 0 ? total.toFixed(2) : '');
   }, [ticket?._id, total]);
 
@@ -29,10 +33,10 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
   const confirmar = () => {
     if (metodo === 'efectivo') {
       if (!efectivoOk) return;
-      onConfirm({ metodoPago: metodo, montoRecibido: recibido, vuelto });
+      onConfirm({ metodoPago: metodo, montoRecibido: recibido, vuelto, motivo: motivo.trim() || null });
       return;
     }
-    onConfirm({ metodoPago: metodo, montoRecibido: null, vuelto: null });
+    onConfirm({ metodoPago: metodo, montoRecibido: null, vuelto: null, motivo: motivo.trim() || null });
   };
 
   return (
@@ -43,7 +47,9 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
           Forzar pago
         </div>
         <p className="text-sm text-gray-300 mb-2">
-          Mesa {ticket.numMesa || '?'}. Se registra el cobro como pago adelantado. El mozo libera la mesa cuando entregue.
+          {ticket._esGrupoComandas
+            ? `Grupo de ${ticket._grupoTickets?.length || 0} comandas · Mesa ${ticket.numMesa || '?'}. Se cobra el total del grupo como pago adelantado. El mozo libera la mesa cuando entregue.`
+            : `Mesa ${ticket.numMesa || '?'}. Se registra el cobro como pago adelantado. El mozo libera la mesa cuando entregue.`}
         </p>
         {montoDesc > 0 && (
           <div className="text-xs space-y-0.5 mb-2">
@@ -90,6 +96,31 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
             )}
           </div>
         )}
+        <label className="block text-xs text-gray-400 mb-1">Motivo para forzar pago (opcional)</label>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {MOTIVOS_FORZAR.map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setMotivo(label)}
+              className={`px-2 py-2 rounded-md text-xs font-semibold border ${
+                motivo === label
+                  ? 'bg-amber-600 border-amber-400 text-white'
+                  : 'bg-gray-900 border-gray-600 text-gray-200 hover:border-amber-500'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          maxLength={200}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="O escribe un motivo"
+          className="w-full bg-gray-900 border border-gray-600 rounded-md px-2 py-2 text-sm text-white mb-3"
+        />
         <div className="flex gap-2">
           <button
             type="button"

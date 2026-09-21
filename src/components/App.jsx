@@ -17,6 +17,7 @@ import ProtectedRoute from './common/ProtectedRoute';
 import PantallaBloqueoOverlay from './common/PantallaBloqueoOverlay';
 import { FaSpinner } from 'react-icons/fa';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
+import useConfiguracionCocina from '../hooks/useConfiguracionCocina';
 
 /**
  * Router interno de la App de Cocina
@@ -29,7 +30,8 @@ import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
 const AppRouter = () => {
   const [currentView, setCurrentView] = useState('LOADING');
   const [cocinaOptions, setCocinaOptions] = useState(null);
-  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor } = useAuth();
+  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor, getToken } = useAuth();
+  const { ocultarTablasKdsMenosSupervisor } = useConfiguracionCocina(getToken);
 
   // Determinar la vista inicial basada en el estado de autenticación
   useEffect(() => {
@@ -129,23 +131,34 @@ const AppRouter = () => {
 
   // Función de navegación centralizada
   const navigateTo = useCallback((view, options = null) => {
-    console.log('🔄 Navegando a:', view, options ? 'con opciones' : '');
+    let dest = view;
+    if (ocultarTablasKdsMenosSupervisor && (dest === 'COCINA' || dest === 'COCINA_PERSONALIZADA')) {
+      dest = 'COCINA_SUPERVISOR';
+    }
+    console.log('🔄 Navegando a:', dest, options ? 'con opciones' : '');
     
     // Guardar última vista para restaurar en refresh
     if (['COCINA', 'COCINA_PERSONALIZADA', 'COCINA_SUPERVISOR',
          'VER_COCINA_COMPLETO', 'VER_COCINA_PERSONALIZADO',
-         'DESPLEGAR_MONITORES', 'DISTRIBUIR_COCINA_MONITORES'].includes(view)) {
+         'DESPLEGAR_MONITORES', 'DISTRIBUIR_COCINA_MONITORES'].includes(dest)) {
       // No persistir si está en modo fijo (TVs no deben volver al monitor al refrescar)
       if (!cocinaOptions?.modoFijo) {
-        localStorage.setItem('cocinaLastView', view);
+        localStorage.setItem('cocinaLastView', dest);
       }
     } else {
       localStorage.removeItem('cocinaLastView');
     }
 
     setCocinaOptions(options);
-    setCurrentView(view);
-  }, []);
+    setCurrentView(dest);
+  }, [ocultarTablasKdsMenosSupervisor, cocinaOptions?.modoFijo]);
+
+  useEffect(() => {
+    if (!ocultarTablasKdsMenosSupervisor) return;
+    if (currentView === 'COCINA' || currentView === 'COCINA_PERSONALIZADA') {
+      setCurrentView('COCINA_SUPERVISOR');
+    }
+  }, [ocultarTablasKdsMenosSupervisor, currentView]);
 
   // Función para volver al menú desde cocina
   const goToMenu = useCallback(() => {

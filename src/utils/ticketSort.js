@@ -1,6 +1,7 @@
 import { getComandasNumbersFromTicket, getComandaIdsFromTicket } from './ticketComandaDisplay';
 import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
 import { totalesVistaTicket } from './ticketTotales';
+import { ticketsForzablesDeGrupo } from './ticketAprobacionUi';
 import { colorPerfilDeTicket, colorLetraDeTicket } from './estiloMozoNombreKds';
 
 export const TICKET_SORT_OPTIONS = [
@@ -246,6 +247,14 @@ export function ticketParaDetalleGrupo(tickets) {
     totalSinDescuento: Number(bruto.toFixed(2)),
     montoDescuento: Number(montoDesc.toFixed(2)),
   };
+}
+
+/** Ticket (o grupo sintético) listo para el modal de forzar pago. */
+export function ticketParaCobroGrupo(tickets) {
+  const forzables = ticketsForzablesDeGrupo(tickets);
+  if (forzables.length === 0) return null;
+  if (forzables.length === 1) return forzables[0];
+  return ticketParaDetalleGrupo(forzables);
 }
 
 /**

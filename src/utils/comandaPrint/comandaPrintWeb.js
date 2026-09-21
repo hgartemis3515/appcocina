@@ -188,6 +188,30 @@ function idsComandaDeGrupo(ticket, ticketsGrupo = []) {
  * @param {Array<number|string>|null} [opts.comandasNumbersOverride] - Override comandasNumbers on the datos
  * @returns {Promise<true|null>} true on success, null on error
  */
+/**
+ * Ventana propia (no una pestaña de la tabla). El diálogo de impresión
+ * no bloquea la tabla, y la ventana se cierra sola al terminar.
+ */
+export function abrirVentanaImpresion(existente) {
+  if (existente && !existente.closed) return existente;
+  const popupW = EPSON_TM_M30II_RECEIPT.contentWidthPx + 48;
+  const printWin = window.open(
+    '',
+    'gambusinasTicketPrint',
+    `popup=yes,width=${popupW},height=700,left=24,top=24,scrollbars=yes`
+  );
+  if (!printWin) return null;
+  try {
+    printWin.document.open();
+    printWin.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Imprimiendo</title></head><body style="font-family:sans-serif;padding:16px">Preparando ticket…</body></html>');
+    printWin.document.close();
+  } catch {
+    /* la ventana ya acepta el HTML final */
+  }
+  try { window.focus(); } catch { /* seguir en la tabla */ }
+  return printWin;
+}
+
 export async function imprimirComandaWeb(opts = {}) {
   try {
     const fetchJson = opts.fetchJson || defaultFetchJson;
@@ -211,6 +235,7 @@ export async function imprimirComandaWeb(opts = {}) {
     }
     if (!datos) {
       console.error('[comandaPrintWeb] No datos provided and no comandaId to fetch');
+      try { opts.printWin?.close(); } catch { /* sin ventana */ }
       return null;
     }
 
@@ -254,22 +279,24 @@ export async function imprimirComandaWeb(opts = {}) {
       omitirGuarniciones: opts.omitirGuarniciones === true,
     });
 
-    // 7. Open print window (Epson TM-m30II Receipt — 80mm / 226px)
-    const popupW = EPSON_TM_M30II_RECEIPT.contentWidthPx + 48;
-    const printWin = window.open('', '_blank', `width=${popupW},height=700,scrollbars=yes`);
+    // 7. Ventana aparte, abierta en el clic si ya viene en opts.
+    const printWin = abrirVentanaImpresion(opts.printWin);
     if (!printWin) {
       console.error('[comandaPrintWeb] Could not open print window (popup blocked?)');
       alert('No se pudo abrir la ventana de impresión. Permite ventanas emergentes para este sitio.');
       return null;
     }
 
+    printWin.document.open();
     printWin.document.write(html);
     printWin.document.close();
+    try { window.focus(); } catch { /* la tabla sigue al frente */ }
 
     // La impresión la dispara el script embebido en el HTML (tras layout + imágenes).
     return true;
   } catch (err) {
     console.error('[comandaPrintWeb] Error printing comanda:', err);
+    try { opts.printWin?.close(); } catch { /* sin ventana */ }
     return null;
   }
 }
@@ -431,6 +458,11 @@ function mapearTicketADatos(ticket) {
  * @returns {Promise<true|null>}
  */
 export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
+  const printWin = abrirVentanaImpresion(opts.printWin);
+  if (!printWin) {
+    alert('No se pudo abrir la ventana de impresión. Permite ventanas emergentes para este sitio.');
+    return null;
+  }
   const datosFromTicket = mapearTicketADatos(ticket);
   const ticketId = ticket._id || ticket.ticketId || null;
   const tieneSnapshot = Array.isArray(ticket.platos) && ticket.platos.length > 0;
@@ -441,6 +473,7 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
 
   const printOpts = {
     ...opts,
+    printWin,
     ticketEstado: ticket.estado,
     comandasNumbersOverride: ticket.comandasNumbers || opts.comandasNumbersOverride || null,
   };

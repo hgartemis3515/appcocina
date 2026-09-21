@@ -17,10 +17,11 @@ describe('estiloHeaderTarjetaKds', () => {
     expect(resolverHeaderTarjetaEstilo({ headerTarjetaEstilo: 'nope' })).toBe('compacto');
   });
 
-  test('acepta los tres estilos', () => {
+  test('acepta los estilos de tarjeta', () => {
     expect(resolverHeaderTarjetaEstilo({ headerTarjetaEstilo: 'clasico' })).toBe('clasico');
     expect(resolverHeaderTarjetaEstilo({ headerTarjetaEstilo: 'dosFilas' })).toBe('dosFilas');
     expect(resolverHeaderTarjetaEstilo({ headerTarjetaEstilo: 'compacto' })).toBe('compacto');
+    expect(resolverHeaderTarjetaEstilo({ headerTarjetaEstilo: 'aprovechador' })).toBe('aprovechador');
   });
 
   test('clasico usa más padding', () => {
@@ -37,6 +38,7 @@ describe('estiloHeaderTarjetaKds', () => {
       { headerTarjetaEstilo: 'clasico' },
       { forzarCompacto: false }
     )).toBe('clasico');
+    expect(resolverEstiloHeaderTarjetaComanda({ headerTarjetaEstilo: 'aprovechador' })).toBe('compacto');
   });
 
   test('oculta Prep solo si el flag está activo', () => {

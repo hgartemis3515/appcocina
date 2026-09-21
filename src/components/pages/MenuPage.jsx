@@ -27,6 +27,7 @@ import { getServerBaseUrl } from '../../config/apiConfig';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
 import ChatFabCocina from '../Chat/ChatFabCocina';
 import useFullscreen from '../../hooks/useFullscreen';
+import useConfiguracionCocina from '../../hooks/useConfiguracionCocina';
 
 /**
  * MenuPage - Menú principal del App de Cocina
@@ -37,8 +38,9 @@ import useFullscreen from '../../hooks/useFullscreen';
  * - Vista Personalizada (COCINA_PERSONALIZADA): Filtrada por Zonas KDS - usa ComandastylePerso.jsx
  */
 const MenuPage = ({ onNavigate }) => {
-  const { user, logout, cocineroConfig, configLoading, getZonasActivas, hasPermission } = useAuth();
+  const { user, logout, cocineroConfig, configLoading, getZonasActivas, hasPermission, getToken } = useAuth();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
+  const { ocultarTablasKdsMenosSupervisor } = useConfiguracionCocina(getToken);
   const [showViewSelector, setShowViewSelector] = useState(false);
   const [showCocinaViewSelector, setShowCocinaViewSelector] = useState(false);
 
@@ -131,18 +133,36 @@ const MenuPage = ({ onNavigate }) => {
       badge: 'Supervisor',
       disabled: false
     }] : [])
-  ];
+  ].filter((option) => {
+    if (!ocultarTablasKdsMenosSupervisor) return true;
+    return option.id === 'supervisor';
+  });
 
   // Opciones principales del menú
   const mainOptions = [
     {
       id: 'cocina',
       title: 'Ver Comandas',
-      subtitle: 'Tablero KDS en tiempo real',
+      subtitle: ocultarTablasKdsMenosSupervisor || esSupervisorOAdmin
+        ? 'Vista Supervisor · un toque'
+        : 'Tablero KDS en tiempo real',
       icon: FaUtensils,
       color: 'from-green-500 to-emerald-600',
       shadowColor: 'shadow-green-500/30',
-      action: () => setShowViewSelector(true),
+      action: () => {
+        if (ocultarTablasKdsMenosSupervisor || esSupervisorOAdmin) {
+          onNavigate('COCINA_SUPERVISOR');
+        } else if (tieneConfiguracion) {
+          onNavigate('COCINA_PERSONALIZADA');
+        } else {
+          onNavigate('COCINA');
+        }
+      },
+      onContextMenu: (e) => {
+        if (ocultarTablasKdsMenosSupervisor) return;
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        setShowViewSelector(true);
+      },
       enabled: true,
     },
     {
@@ -193,7 +213,10 @@ const MenuPage = ({ onNavigate }) => {
       icon: FaCog,
       color: 'from-blue-500 to-indigo-600',
       shadowColor: 'shadow-blue-500/30',
-      action: () => onNavigate('COCINA', { openConfig: true }),
+      action: () => onNavigate(
+        ocultarTablasKdsMenosSupervisor ? 'COCINA_SUPERVISOR' : 'COCINA',
+        { openConfig: true }
+      ),
       enabled: true,
     },
   ];
@@ -354,6 +377,7 @@ const MenuPage = ({ onNavigate }) => {
                   <motion.button
                     key={option.id}
                     onClick={option.action}
+                    onContextMenu={option.onContextMenu}
                     disabled={!option.enabled}
                     whileHover={{ scale: option.enabled ? 1.02 : 1 }}
                     whileTap={{ scale: option.enabled ? 0.98 : 1 }}
@@ -434,7 +458,7 @@ const MenuPage = ({ onNavigate }) => {
 
       {/* Modal de selección de vista */}
       <AnimatePresence>
-        {showViewSelector && (
+        {showViewSelector && viewOptions.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

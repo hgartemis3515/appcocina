@@ -471,6 +471,12 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                           <span className="flex justify-between gap-2"><span>👤 Ana</span><span>{config.headerTarjetaOcultarPrep === true ? '' : 'Prep 2/3'}</span></span>
                         </span>
                       )}
+                      {estilo.id === 'aprovechador' && (
+                        <span className="text-[10px] flex">
+                          <span className="border border-current px-1">#12</span>
+                          <span className="border border-current border-l-0 px-1">#13</span>
+                        </span>
+                      )}
                     </span>
                   </span>
                 </label>
@@ -480,7 +486,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Letras del encabezado</legend>
             <p className={`${textSecondary} text-xs`}>
-              Aplica a orden, número de comanda, mesa, reloj, mozo, N/S y Prep en los tres estilos de tarjeta. Se guarda con Guardar y en el perfil.
+              Aplica a orden, número de comanda, mesa, reloj, mozo, N/S y Prep. Se guarda con Guardar y en el perfil.
             </p>
             <label className="flex items-start gap-3 cursor-pointer">
               <input

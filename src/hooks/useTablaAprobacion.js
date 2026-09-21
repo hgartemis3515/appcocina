@@ -549,6 +549,7 @@ export default function useTablaAprobacion({
         metodoPago,
         montoRecibido: pago.montoRecibido,
         vuelto: pago.vuelto,
+        motivo: pago.motivo || null,
         usuarioId,
         usuarioNombre,
       });
@@ -575,6 +576,57 @@ export default function useTablaAprobacion({
       throw err;
     } finally {
       approvingRef.current.delete(id);
+    }
+  }, []);
+
+  const forzarPagoGrupo = useCallback(async (ticketIds, pagoOrMetodo, usuarioId, usuarioNombre) => {
+    const ids = [...new Set((ticketIds || []).map((id) => String(id || '')).filter(Boolean))];
+    if (!ids.length) throw new Error('El grupo no tiene comandas para cobrar');
+    if (ids.some((id) => approvingRef.current.has(id))) {
+      return { success: true, skipped: true };
+    }
+    const pago = (pagoOrMetodo && typeof pagoOrMetodo === 'object')
+      ? pagoOrMetodo
+      : { metodoPago: pagoOrMetodo };
+    const metodoPago = pago.metodoPago || 'efectivo';
+    ids.forEach((id) => approvingRef.current.add(id));
+    try {
+      const data = await apiPut('/api/aprobacion/grupo/forzar-pago', {
+        ticketIds: ids,
+        metodoPago,
+        montoRecibido: pago.montoRecibido,
+        vuelto: pago.vuelto,
+        motivo: pago.motivo || null,
+        usuarioId,
+        usuarioNombre,
+      });
+      if (data?.success) {
+        const byId = new Map();
+        for (const item of data?.resultado?.resultados || []) {
+          const t = item?.ticket;
+          if (t?._id) byId.set(String(t._id), t);
+        }
+        setItems((prev) => prev.map((t) => {
+          const upd = byId.get(String(t._id));
+          if (!upd) return t;
+          return {
+            ...t,
+            ...upd,
+            estado: 'aprobado',
+            pagoForzado: true,
+            metodoPago,
+            montoRecibido: upd.montoRecibido ?? pago.montoRecibido ?? t.montoRecibido,
+            vuelto: upd.vuelto ?? t.vuelto,
+          };
+        }));
+        return data;
+      }
+      throw new Error(data?.error || data?.message || 'Error al forzar pago del grupo');
+    } catch (err) {
+      console.error('Error al forzar pago del grupo:', err.message);
+      throw err;
+    } finally {
+      ids.forEach((id) => approvingRef.current.delete(id));
     }
   }, []);
 
@@ -630,6 +682,7 @@ export default function useTablaAprobacion({
     rechazarItem,
     quitarDuplicadoItem,
     forzarPagoItem,
+    forzarPagoGrupo,
     imprimirComanda,
     cantidadPendientes,
     cantidadComandas,

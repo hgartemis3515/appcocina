@@ -8,7 +8,7 @@ import BadgeNombreMozo from './BadgeNombreMozo';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
   nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
-  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago,
+  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago,
   estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
@@ -39,7 +39,11 @@ export function AccionesTicket({
   const esComandaOParcial = isComanda || esPagoParcial(ticket);
   const pendiente = ticket.estado === 'pendiente_aprobacion';
   const puedeAprobar = ticketPuedeAprobarse(ticket);
-  const puedeForzar = ticketPuedeForzarPago(ticket) && !ticket.boucher;
+  const forzablesGrupo = ticket?._esGrupoComandas
+    ? ticketsForzablesDeGrupo(ticket._grupoTickets)
+    : [];
+  const puedeForzar = forzablesGrupo.length > 0
+    || (!ticket?._esGrupoComandas && ticketPuedeForzarPago(ticket) && !ticket.boucher);
   const puedeReportar = esComandaOParcial && pendiente && !ticketEsAltaSinPago(ticket);
   const btnPad = compact
     ? 'p-1.5 w-8 h-8'
@@ -56,9 +60,9 @@ export function AccionesTicket({
       >
         <FaPrint className={iconCls} />
       </button>
-      {pendiente && (
+      {(pendiente || puedeForzar) && (
         <>
-          {puedeAprobar && (
+          {pendiente && puedeAprobar && (
             <button
               type="button"
               onClick={() => onAprobar(ticket)}
@@ -75,7 +79,7 @@ export function AccionesTicket({
               onClick={() => onForzarPago(ticket)}
               disabled={forzarPagoLoading}
               className={`${btnPad} inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white`}
-              title="Forzar pago"
+              title={ticket?._esGrupoComandas ? 'Forzar pago del grupo' : 'Forzar pago'}
             >
               <FaMoneyBill className={iconCls} />
             </button>
@@ -399,7 +403,10 @@ export default function TicketsAprobacionTable({
                 aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                 reportarLoading={!!reportarLoading[detalleTicket._id]}
                 rechazarLoading={!!rechazarLoading[detalleTicket._id]}
-                forzarPagoLoading={!!forzarPagoLoading[detalleTicket._id]}
+                forzarPagoLoading={(detalleTicket._esGrupoComandas
+                  ? (detalleTicket._grupoTickets || [])
+                  : [detalleTicket]
+                ).some((t) => !!forzarPagoLoading[t?._id])}
               />
             </div>
           }
@@ -558,14 +565,27 @@ export default function TicketsAprobacionTable({
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onImprimir(grupoTicket); }}
-                        className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-white"
-                        title="Imprimir grupo de comandas"
-                      >
-                        <FaPrint className="text-lg" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onImprimir(grupoTicket); }}
+                          className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+                          title="Imprimir grupo de comandas"
+                        >
+                          <FaPrint className="text-lg" />
+                        </button>
+                        {ticketsForzablesDeGrupo(fila.tickets).length > 0 && onForzarPago && (
+                          <button
+                            type="button"
+                            disabled={fila.tickets.some((t) => forzarPagoLoading[t._id])}
+                            onClick={(e) => { e.stopPropagation(); onForzarPago(grupoTicket); }}
+                            className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
+                            title="Forzar pago del grupo"
+                          >
+                            <FaMoneyBill className="text-lg" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {expandido && fila.tickets.map((ticket) => (
