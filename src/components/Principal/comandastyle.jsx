@@ -200,6 +200,7 @@ const ComandaStyle = ({
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [sosHighlightId, setSosHighlightId] = useState(null);
   const [sosHighlightPlatoIndex, setSosHighlightPlatoIndex] = useState(null);
+  const [sosHighlightTick, setSosHighlightTick] = useState(0);
   const [pendingScroll, setPendingScroll] = useState(null);
   const sosCocineras = useSosCocineras({ canToggle: isSupervisorView, enabled: isSupervisorView });
   const [showSearch, setShowSearch] = useState(false);
@@ -1923,6 +1924,7 @@ const ComandaStyle = ({
     const page = paginaDeComanda(todasComandas, id, COMANDAS_POR_PAGINA);
     setSosHighlightId(id);
     setSosHighlightPlatoIndex(grupo.platoIndexMasAntigua);
+    setSosHighlightTick((n) => n + 1);
     if (page !== currentPage) setCurrentPage(page);
     setPendingScroll({ id, platoIndex: grupo.platoIndexMasAntigua });
   }, [todasComandas, COMANDAS_POR_PAGINA, currentPage]);
@@ -1951,9 +1953,9 @@ const ComandaStyle = ({
     const t = window.setTimeout(() => {
       setSosHighlightId(null);
       setSosHighlightPlatoIndex(null);
-    }, 2500);
+    }, 3000);
     return () => window.clearTimeout(t);
-  }, [sosHighlightId]);
+  }, [sosHighlightId, sosHighlightPlatoIndex, sosHighlightTick]);
 
   const aplicarSosModal = useCallback(async ({ tabla, cocineras }) => {
     setSosTablaOn(!!tabla);
@@ -6381,7 +6383,7 @@ const SicarComandaCard = ({
                         }}
                         className={`font-semibold leading-tight px-2 py-1 rounded transition-all duration-200 flex items-center gap-2 cursor-pointer border-2 ${
                           sosPlatoIndex != null && Number(sosPlatoIndex) === Number(platoIndex)
-                            ? 'ring-2 ring-yellow-300'
+                            ? 'kds-sos-blink'
                             : ''
                         } ${
                           seleccionadoEntregar

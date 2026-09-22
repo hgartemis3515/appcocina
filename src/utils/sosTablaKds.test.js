@@ -86,6 +86,25 @@ describe('sosTablaKds', () => {
     expect(grupos[0].clave).toBe('LOMO');
   });
 
+  test('ordena por llegada: el más antiguo arriba aunque tenga menos unidades', () => {
+    const comandas = [
+      {
+        _id: 'nuevo',
+        createdAt: '2026-09-21T12:00:00.000Z',
+        platos: [{ nombre: 'Chancho', tiempos: { pedido: '2026-09-21T12:00:00.000Z' } }],
+        cantidades: [5],
+      },
+      {
+        _id: 'viejo',
+        createdAt: '2026-09-21T08:00:00.000Z',
+        platos: [{ nombre: 'Arroz', tiempos: { pedido: '2026-09-21T08:00:00.000Z' } }],
+        cantidades: [1],
+      },
+    ];
+    const grupos = agruparPlatosSosTabla(comandas);
+    expect(grupos.map((g) => g.clave)).toEqual(['ARROZ', 'CHANCHO']);
+  });
+
   test('no cuenta salio, entregado ni pendiente: no salen en la tarjeta', () => {
     const comandas = [{
       _id: 'c1',

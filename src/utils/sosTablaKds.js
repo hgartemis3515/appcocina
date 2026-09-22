@@ -78,6 +78,7 @@ export function paginaDeComanda(comandas, comandaId, porPagina) {
 
 /**
  * Agrupa platos visibles del tablero KDS por nombre de cocina.
+ * Orden: llegada (el más antiguo arriba, el más nuevo abajo).
  * @returns {{ clave, nombre, cantidad, tsMin, comandaIdMasAntigua, platoIndexMasAntigua }[]}
  */
 export function agruparPlatosSosTabla(comandas, opts = {}) {
@@ -119,7 +120,6 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
   }
 
   return [...groups.values()].sort((a, b) => {
-    if (b.cantidad !== a.cantidad) return b.cantidad - a.cantidad;
     if (a.tsMin !== b.tsMin) return a.tsMin - b.tsMin;
     return a.nombre.localeCompare(b.nombre, 'es');
   });

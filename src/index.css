@@ -281,3 +281,23 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/* SOS TABLA: parpadeo rojo del plato al que se salta (3 s lo controla el estado) */
+@keyframes kds-sos-blink {
+  0%, 100% {
+    outline-color: transparent;
+    background-color: rgba(220, 38, 38, 0.12);
+  }
+  50% {
+    outline-color: #ef4444;
+    background-color: rgba(220, 38, 38, 0.78);
+  }
+}
+
+.kds-sos-blink {
+  position: relative;
+  z-index: 3;
+  outline: 3px solid transparent;
+  outline-offset: -3px;
+  animation: kds-sos-blink 0.5s steps(1, end) infinite;
+}
