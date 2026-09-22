@@ -640,6 +640,10 @@ export default function useTablaAprobacion({
       await imprimirComandaDesdeTicket(ticket, {
         serverOrigin: getServerBaseUrl(),
         omitirGuarniciones,
+        ticketCocina: extra.ticketCocina === true,
+        filtrarComandaNumero: extra.filtrarComandaNumero,
+        filtrarComandaId: extra.filtrarComandaId,
+        revisionTicket: extra.revisionTicket,
         fetchJson: async (url) => {
           const u = String(url);
           const qIdx = u.indexOf('?');

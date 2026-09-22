@@ -84,7 +84,7 @@ export function resolveLogoUrl(logo, serverOrigin) {
  * Optimizado para Epson TM-m30II Receipt (Windows): @page con alto explícito en mm
  * (nunca "auto"), ancho 226px y script de impresión tras el layout.
  */
-export function envolverHtmlBoucherTicket(html, { fontSizeBase, lineHeightBase, pageHeightPx }) {
+export function envolverHtmlBoucherTicket(html, { fontSizeBase, lineHeightBase, pageHeightPx, title = 'COMANDA' }) {
   const w = PUNTOS_ANCHO;
   const h = Math.ceil(pageHeightPx || ALTURA_BASE_PX);
   const heightMm = Math.max(
@@ -94,7 +94,7 @@ export function envolverHtmlBoucherTicket(html, { fontSizeBase, lineHeightBase, 
   const pageSize = `${BOUCHER_PAPER_MM}mm ${heightMm}mm`;
   const bodyHeight = `${h}px`;
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=${w}, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>COMANDA</title>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=${w}, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>${title}</title>
 <style>
 @page{size:${pageSize};margin:0;}
 *{box-sizing:border-box;}

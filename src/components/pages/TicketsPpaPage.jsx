@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
-import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
+import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda, getComandasNumbersFromTicket, getComandaIdsFromTicket } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
@@ -39,6 +39,7 @@ import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket } from '..
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
+import { letraRevisionTicket } from '../../utils/comandaPrint/ticketCocinaHtml';
 
 // Cuenta cuántos tickets pendientes hay por mesa (para avisar a cocina que aún faltan)
 const countTicketsPendientesByMesa = (items) => {
@@ -51,6 +52,52 @@ const countTicketsPendientesByMesa = (items) => {
   }
   return map;
 };
+
+function opcionesComandasTicketCocina(tickets) {
+  const seen = new Map();
+  for (const t of tickets || []) {
+    const nums = getComandasNumbersFromTicket(t);
+    const ids = getComandaIdsFromTicket(t);
+    const mesa = t.numMesa ?? t.mesa?.nummesa ?? '';
+    const mozo = t.nombreMozo || t.mozoNombre || t.mozo?.name || '';
+    const docs = Array.isArray(t.comandas) ? t.comandas : [];
+    if (nums.length) {
+      nums.forEach((n) => {
+        const key = `n:${n}`;
+        if (seen.has(key)) return;
+        const doc = docs.find((c) => Number(c?.numeroComandaDia ?? c?.comandaNumber) === n);
+        const rawId = doc?._id || doc?.id || ids[0] || null;
+        const rev = Number(doc?.revisionTicket) || 0;
+        seen.set(key, {
+          key,
+          ticket: t,
+          numero: n,
+          comandaId: rawId ? String(rawId) : null,
+          revisionTicket: rev,
+          mesa,
+          mozo,
+          label: `#${n}${letraRevisionTicket(rev)}`,
+        });
+      });
+      continue;
+    }
+    ids.forEach((id) => {
+      const key = `id:${id}`;
+      if (seen.has(key)) return;
+      seen.set(key, {
+        key,
+        ticket: t,
+        numero: null,
+        comandaId: id,
+        revisionTicket: 0,
+        mesa,
+        mozo,
+        label: getComandaDisplayLabel(t) || 'Comanda',
+      });
+    });
+  }
+  return [...seen.values()].sort((a, b) => Number(a.numero || 0) - Number(b.numero || 0));
+}
 
 function VistaModoToggle({ modo, onChange }) {
   const opts = [
@@ -126,6 +173,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [tablaPrefs, setTablaPrefs] = useState(loadTicketsTablaPrefs);
   const estilosTxtTabla = useMemo(() => estilosTextoTicketsTabla(tablaPrefs), [tablaPrefs]);
   const [showTablaConfig, setShowTablaConfig] = useState(false);
+  const [showModalTicketCocina, setShowModalTicketCocina] = useState(false);
+  const [busquedaTicketCocina, setBusquedaTicketCocina] = useState('');
+  const [imprimiendoTicketCocina, setImprimiendoTicketCocina] = useState(false);
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
   const [filtroMozo, setFiltroMozo] = useState(null);
@@ -414,6 +464,46 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     () => groupTicketsComoComandasHtml(itemsFiltrados),
     [itemsFiltrados],
   );
+
+  const opcionesTicketCocina = useMemo(
+    () => opcionesComandasTicketCocina(itemsFiltrados),
+    [itemsFiltrados],
+  );
+
+  const opcionesTicketCocinaFiltradas = useMemo(() => {
+    const q = busquedaTicketCocina.trim().toLowerCase();
+    if (!q) return opcionesTicketCocina;
+    return opcionesTicketCocina.filter((o) =>
+      `${o.label} ${o.mesa} ${o.mozo}`.toLowerCase().includes(q)
+    );
+  }, [opcionesTicketCocina, busquedaTicketCocina]);
+
+  const abrirSelectorTicketCocina = () => {
+    if (!opcionesTicketCocina.length) {
+      alert('No hay comandas en la vista actual para imprimir.');
+      return;
+    }
+    setBusquedaTicketCocina('');
+    setShowModalTicketCocina(true);
+  };
+
+  const handleImprimirTicketCocina = async (opcion) => {
+    if (!opcion?.ticket) return;
+    setImprimiendoTicketCocina(true);
+    try {
+      await imprimirComanda(opcion.ticket, {
+        ticketCocina: true,
+        filtrarComandaNumero: opcion.numero,
+        filtrarComandaId: opcion.comandaId,
+        revisionTicket: opcion.revisionTicket,
+      });
+      setShowModalTicketCocina(false);
+    } catch (err) {
+      alert('Error al imprimir ticket de cocina: ' + (err.userMessage || err.message));
+    } finally {
+      setImprimiendoTicketCocina(false);
+    }
+  };
 
   const handleSortChange = (field, dir) => {
     setSortBy(field);
@@ -789,6 +879,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
+            <button
+              type="button"
+              onClick={abrirSelectorTicketCocina}
+              className="relative p-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-amber-500/50 transition-colors"
+              title="Imprimir ticket de cocina"
+            >
+              <FaPrint className="text-sm" />
+              <span className="absolute -bottom-0.5 -right-0.5 text-[11px] leading-none" aria-hidden>🍳</span>
+            </button>
             <VistaModoToggle modo={modoVista} onChange={handleModoVista} />
             <button
               type="button"
@@ -1389,6 +1488,63 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   {eliminandoLote ? 'Quitando...' : 'Eliminar'}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showModalTicketCocina && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            onClick={() => !imprimiendoTicketCocina && setShowModalTicketCocina(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-gray-800 rounded-xl p-5 max-w-md w-full border border-gray-600 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 className="text-white font-bold text-lg mb-1">Ticket de cocina 🍳</h4>
+              <p className="text-gray-400 text-xs mb-3">Elige la comanda a imprimir (cuadrados para marcar platos).</p>
+              <input
+                type="search"
+                value={busquedaTicketCocina}
+                onChange={(e) => setBusquedaTicketCocina(e.target.value)}
+                placeholder="Buscar #, mesa o mozo"
+                className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:border-violet-500 focus:outline-none mb-3"
+              />
+              <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
+                {opcionesTicketCocinaFiltradas.length === 0 && (
+                  <p className="text-gray-500 text-sm py-4 text-center">Sin coincidencias.</p>
+                )}
+                {opcionesTicketCocinaFiltradas.map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    disabled={imprimiendoTicketCocina}
+                    onClick={() => handleImprimirTicketCocina(o)}
+                    className="w-full text-left px-3 py-2.5 rounded-lg bg-gray-700/80 hover:bg-violet-700 text-white text-sm flex items-center justify-between gap-2 disabled:opacity-50"
+                  >
+                    <span className="font-bold tabular-nums">{o.label}</span>
+                    <span className="text-xs text-gray-300 truncate">
+                      Mesa {o.mesa || '—'} · {o.mozo || '—'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalTicketCocina(false)}
+                disabled={imprimiendoTicketCocina}
+                className="mt-4 w-full py-2.5 bg-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-600"
+              >
+                {imprimiendoTicketCocina ? 'Imprimiendo...' : 'Cerrar'}
+              </button>
             </motion.div>
           </motion.div>
         )}

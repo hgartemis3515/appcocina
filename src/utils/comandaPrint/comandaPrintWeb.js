@@ -15,6 +15,7 @@ import {
   formatComandasNumbersLabel,
   EPSON_TM_M30II_RECEIPT,
 } from './comandaHtml.js';
+import { generarHtmlTicketCocina, filtrarDatosTicketCocina } from './ticketCocinaHtml.js';
 import { getComandaIdsFromTicket } from '../ticketComandaDisplay';
 
 /**
@@ -255,12 +256,30 @@ export async function imprimirComandaWeb(opts = {}) {
     }
 
     // 4. Apply comandaNumeroDisplay
+    const letreroPrevio = datos.comandaNumeroDisplay;
     datos = aplicarComandaNumeroDisplay(datos);
 
     // 5. Merge comandasNumbersOverride if provided
     if (opts.comandasNumbersOverride) {
       datos = { ...datos, comandasNumbers: opts.comandasNumbersOverride };
       datos = aplicarComandaNumeroDisplay(datos);
+    }
+
+    if (letreroPrevio && /[a-zA-Z]/.test(String(letreroPrevio))) {
+      datos = { ...datos, comandaNumeroDisplay: letreroPrevio };
+    }
+
+    if (opts.ticketCocina === true) {
+      datos = filtrarDatosTicketCocina(datos, {
+        filtrarComandaNumero: opts.filtrarComandaNumero,
+        filtrarComandaId: opts.filtrarComandaId,
+        revisionTicket: opts.revisionTicket,
+      });
+      if (!(datos.productos || []).length) {
+        try { opts.printWin?.close(); } catch { /* sin ventana */ }
+        alert('No hay platos para imprimir en esa comanda.');
+        return null;
+      }
     }
 
     if (monedaViva?.igvPorcentaje != null) {
@@ -272,12 +291,15 @@ export async function imprimirComandaWeb(opts = {}) {
     }
 
     // 6. Generate full HTML
-    const { html, heightPx } = generarHtmlComanda({
-      datos,
-      plantilla,
-      serverOrigin,
-      omitirGuarniciones: opts.omitirGuarniciones === true,
-    });
+    const generated = opts.ticketCocina === true
+      ? generarHtmlTicketCocina({ datos })
+      : generarHtmlComanda({
+        datos,
+        plantilla,
+        serverOrigin,
+        omitirGuarniciones: opts.omitirGuarniciones === true,
+      });
+    const { html } = generated;
 
     // 7. Ventana aparte, abierta en el clic si ya viene en opts.
     const printWin = abrirVentanaImpresion(opts.printWin);
