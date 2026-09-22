@@ -2,15 +2,14 @@ import React from 'react';
 import useConfiguracionCocina from '../../hooks/useConfiguracionCocina';
 import { getMozoNombre } from '../../utils/ticketSort';
 import {
-  estiloMozoNombreKds,
-  resolverFondoNombreMozo,
+  estiloBadgeNombreMozo,
   colorPerfilDeTicket,
   colorLetraDeTicket,
 } from '../../utils/estiloMozoNombreKds';
 
 /**
- * Recuadro de color solo si el mozo eligió color de perfil o se fuerza uno único.
- * La letra usa colorLetraPerfil de Usuarios si existe.
+ * Recuadro de color: perfil del mozo, color forzado, o config de Personalizar tabla
+ * (vista Básico: fondo, letra y tamaño).
  */
 export default function BadgeNombreMozo({
   nombre,
@@ -19,26 +18,25 @@ export default function BadgeNombreMozo({
   ticket,
   prefix = '',
   className = '',
+  configVista,
 }) {
   const cocina = useConfiguracionCocina();
   const perfil = colorPerfil || (ticket ? colorPerfilDeTicket(ticket) : null);
   const letra = colorLetra || (ticket ? colorLetraDeTicket(ticket) : null);
   const texto = nombre || (ticket ? getMozoNombre(ticket) : '');
-  const fondo = resolverFondoNombreMozo({
+  const estilo = estiloBadgeNombreMozo({
+    configVista,
     colorPerfil: perfil,
+    colorLetra: letra,
     configCocina: cocina,
   });
-  if (!fondo && !letra) {
+  if (!estilo) {
     return (
       <span className={className}>
         {prefix}{texto}
       </span>
     );
   }
-  const estilo = estiloMozoNombreKds({}, {
-    fondoOverride: fondo,
-    colorOverride: letra,
-  });
   return (
     <span className={className} style={estilo}>
       {prefix}{texto}

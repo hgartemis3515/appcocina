@@ -1,5 +1,6 @@
 const {
   estiloMozoNombreKds,
+  estiloBadgeNombreMozo,
   resolverFondoNombreMozo,
   colorPerfilDeComanda,
   colorLetraDeComanda,
@@ -100,6 +101,38 @@ describe('resolverFondoNombreMozo', () => {
   test('fondo de vista vacío no fuerza recuadro', () => {
     const st = estiloMozoNombreKds({ mozoNombreFondo: '' });
     expect(st.backgroundColor).toBeUndefined();
+  });
+});
+
+describe('estiloBadgeNombreMozo', () => {
+  test('sin configVista ni perfil no pinta recuadro', () => {
+    expect(estiloBadgeNombreMozo({})).toBeNull();
+  });
+
+  test('con Personalizar tabla aplica fondo, letra y tamaño', () => {
+    const st = estiloBadgeNombreMozo({
+      configVista: {
+        mozoNombreColor: '#fde68a',
+        mozoNombreFondo: '#7c3aed',
+        mozoNombreTamano: 18,
+      },
+    });
+    expect(st.color).toBe('#fde68a');
+    expect(st.backgroundColor).toBe('#7c3aed');
+    expect(st.fontSize).toBe('18px');
+  });
+
+  test('el color de perfil del mozo gana al fondo de la tabla', () => {
+    const st = estiloBadgeNombreMozo({
+      colorPerfil: '#047857',
+      configVista: {
+        mozoNombreColor: '#ffffff',
+        mozoNombreFondo: '#1e3a8a',
+        mozoNombreTamano: 14,
+      },
+    });
+    expect(st.backgroundColor).toBe('#047857');
+    expect(st.fontSize).toBe('14px');
   });
 });
 

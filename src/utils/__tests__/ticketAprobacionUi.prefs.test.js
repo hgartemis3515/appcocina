@@ -34,6 +34,8 @@ describe('tickets tabla prefs', () => {
     expect(loaded.ocultarGuarniciones).toBe(true);
     expect(loaded.paraLlevarFondo).toBe(TICKETS_TABLA_VISUAL_DEFAULT.paraLlevarFondo);
     expect(loaded.textoFondo).toBe('');
+    expect(loaded.mozoNombreFondo).toBe(TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreFondo);
+    expect(loaded.mozoNombreTamano).toBe(TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreTamano);
   });
 
   test('JSON inválido vuelve a defaults', () => {
@@ -55,6 +57,18 @@ describe('tickets tabla prefs', () => {
     expect(saved.textoTamano).toBe(18);
     expect(saved.textoFondo).toBe('#1e1b4b');
     expect(loadTicketsTablaPrefs().textoPlatosColor).toBe('#fde68a');
+  });
+
+  test('persiste color y tamaño del nombre del mozo', () => {
+    const saved = saveTicketsTablaPrefs({
+      mozoNombreColor: '#facc15',
+      mozoNombreFondo: '#1d4ed8',
+      mozoNombreTamano: 16,
+    });
+    expect(saved.mozoNombreColor).toBe('#facc15');
+    expect(saved.mozoNombreFondo).toBe('#1d4ed8');
+    expect(saved.mozoNombreTamano).toBe(16);
+    expect(loadTicketsTablaPrefs().mozoNombreTamano).toBe(16);
   });
 });
 

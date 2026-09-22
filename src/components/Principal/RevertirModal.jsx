@@ -1,12 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import moment from "moment-timezone";
 import { FaTimes, FaUndo, FaCheckSquare, FaSquare, FaTrash, FaBan, FaExclamationTriangle, FaUserSlash, FaUserClock, FaDesktop, FaTruck } from "react-icons/fa";
 import { apiGet, apiPut } from "../../config/apiClient";
 import { MOTIVOS_RAPIDOS_COCINA, combinarMotivoRapido } from "../../utils/motivosRapidosCocina";
+import BadgeNombreMozo from "../common/BadgeNombreMozo";
+import { getFechaOperativa } from "../../utils/ticketAprobacionUi";
+import {
+  colorPerfilDeComanda,
+  colorLetraDeComanda,
+} from "../../utils/estiloMozoNombreKds";
 import {
   esPlatoReversibleKds,
   todosPlatosActivosReversiblesKds,
   filtrarComandasReversiblesKds,
+  filtrarComandasHoyOperativo,
+  ymdsCalendarioDiaOperativo,
+  listarMozosRevertir,
+  listarMesasRevertir,
+  filtrarComandasRevertirVista,
+  nombreMozoComandaRevertir,
+  numeroMesaComandaRevertir,
+  ESTILO_NOMBRE_PLATO_REVERTIR,
   ESTADO_DESTINO_REVERTIR_KDS,
 } from "../../utils/kdsRevertirPlatos";
 
@@ -17,10 +31,26 @@ function listaComandasDesdeApi(raw) {
   return [];
 }
 
+function NombrePlatoRevertir({ cantidad, nombre }) {
+  return (
+    <span style={ESTILO_NOMBRE_PLATO_REVERTIR}>
+      {cantidad}x {nombre || "Sin nombre"}
+    </span>
+  );
+}
+
 async function fetchComandasReversibles() {
-  const fechaActual = moment().tz('America/Lima').format('YYYY-MM-DD');
-  const data = await apiGet(`/api/comanda/cocina/${fechaActual}`, { incluirEntregadas: 1 });
-  return filtrarComandasReversiblesKds(listaComandasDesdeApi(data));
+  const fechas = ymdsCalendarioDiaOperativo();
+  const listas = await Promise.all(
+    fechas.map((f) => apiGet(`/api/comanda/cocina/${f}`, { incluirEntregadas: 1 }))
+  );
+  const byId = new Map();
+  for (const raw of listas) {
+    for (const c of listaComandasDesdeApi(raw)) {
+      if (c?._id) byId.set(String(c._id), c);
+    }
+  }
+  return filtrarComandasReversiblesKds(filtrarComandasHoyOperativo([...byId.values()]));
 }
 
 const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
@@ -42,6 +72,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
   const [motivo, setMotivo] = useState("");
   const [revertirType, setRevertirType] = useState(null); // 'plato' | 'seleccionados' | 'todo'
   const [revertirData, setRevertirData] = useState(null); // datos para revertir
+  const [filtroMozo, setFiltroMozo] = useState("");
+  const [filtroMesa, setFiltroMesa] = useState("");
+  const etiquetaHoy = getFechaOperativa();
 
   useEffect(() => {
     const obtenerComandasConPlatosReversibles = async () => {
@@ -59,6 +92,20 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
 
     obtenerComandasConPlatosReversibles();
   }, []);
+
+  const mozosFiltro = useMemo(() => listarMozosRevertir(comandasFinalizadas), [comandasFinalizadas]);
+  const mesasFiltro = useMemo(() => listarMesasRevertir(comandasFinalizadas), [comandasFinalizadas]);
+  const comandasVisibles = useMemo(
+    () => filtrarComandasRevertirVista(comandasFinalizadas, { mozo: filtroMozo, mesa: filtroMesa }),
+    [comandasFinalizadas, filtroMozo, filtroMesa]
+  );
+
+  useEffect(() => {
+    if (filtroMozo && !mozosFiltro.includes(filtroMozo)) setFiltroMozo("");
+  }, [filtroMozo, mozosFiltro]);
+  useEffect(() => {
+    if (filtroMesa && !mesasFiltro.includes(filtroMesa)) setFiltroMesa("");
+  }, [filtroMesa, mesasFiltro]);
 
   const togglePlatoSeleccion = (comandaId, platoId) => {
     // FIX: revertir multi-plato similar - Usar delimitador único "::" para evitar colisiones
@@ -218,6 +265,8 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
             <p className={`text-sm ${textTertiary}`}>
               <strong>📌 Se pueden revertir platos en RECOGER, SALIÓ o ENTREGADO (vuelven a pedido)</strong>
               <br />
+              Solo comandas de <strong>Hoy</strong> ({etiquetaHoy}, ciclo 04:00–04:00).
+              <br />
               <span className="text-red-400">🚫 Los platos ANULADOS por mozos NO se pueden revertir desde cocina.</span>
               <br />
               Todas las reversiones quedan registradas en auditoría con el motivo.
@@ -247,18 +296,65 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
             </div>
           )}
 
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className={`block text-sm font-semibold mb-1 ${textModal}`}>Mozo</span>
+              <select
+                value={filtroMozo}
+                onChange={(e) => setFiltroMozo(e.target.value)}
+                className={`w-full ${inputBg} ${textModal} p-2 rounded-lg border ${borderModal}`}
+              >
+                <option value="">Todos los mozos</option>
+                {mozosFiltro.map((mozo) => (
+                  <option key={mozo} value={mozo}>{mozo}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className={`block text-sm font-semibold mb-1 ${textModal}`}>Mesa</span>
+              <select
+                value={filtroMesa}
+                onChange={(e) => setFiltroMesa(e.target.value)}
+                className={`w-full ${inputBg} ${textModal} p-2 rounded-lg border ${borderModal}`}
+              >
+                <option value="">Todas las mesas</option>
+                {mesasFiltro.map((mesa) => (
+                  <option key={mesa} value={mesa}>Mesa {mesa}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {(filtroMozo || filtroMesa) && (
+            <div className="mb-3 flex items-center gap-2">
+              <span className={`text-xs ${textSecondary}`}>
+                Mostrando {comandasVisibles.length} de {comandasFinalizadas.length} comandas de hoy
+              </span>
+              <button
+                type="button"
+                onClick={() => { setFiltroMozo(""); setFiltroMesa(""); }}
+                className={`text-xs px-3 py-1 rounded ${inputBg} ${textModal}`}
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+
           {cargando ? (
             <div className={`text-center ${textSecondary} py-8`}>
               <p className="text-xl">Cargando platos...</p>
             </div>
-          ) : comandasFinalizadas.length === 0 ? (
+          ) : comandasVisibles.length === 0 ? (
             <div className={`text-center ${textSecondary} py-8`}>
               <p className="text-xl">No hay platos para revertir</p>
-              <p className="text-sm mt-2">Se muestran platos en recoger, salió o entregado (no pagados ni anulados)</p>
+              <p className="text-sm mt-2">
+                {comandasFinalizadas.length === 0
+                  ? 'Solo se muestran comandas de hoy (recoger, salió o entregado; no pagados ni anulados)'
+                  : 'Ninguna comanda coincide con el mozo o la mesa seleccionados'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {comandasFinalizadas.map((comanda) => {
+              {comandasVisibles.map((comanda) => {
                 // Clasificar platos correctamente
                 const platosActivos = (comanda.platos || []).filter(p => 
                   p.eliminado !== true && p.anulado !== true
@@ -289,8 +385,14 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                             </span>
                           )}
                         </div>
-                        <div className={`text-sm ${textTertiary} mt-1`}>
-                          Mesa {comanda.mesas?.nummesa || "N/A"} | {comanda.mozoNombre || comanda.mozos?.name || "Sin mozo"}
+                        <div className={`text-sm ${textTertiary} mt-1 flex items-center gap-2 flex-wrap`}>
+                          <span>Mesa {numeroMesaComandaRevertir(comanda) || "N/A"}</span>
+                          <span>|</span>
+                          <BadgeNombreMozo
+                            nombre={nombreMozoComandaRevertir(comanda) || "Sin mozo"}
+                            colorPerfil={colorPerfilDeComanda(comanda)}
+                            colorLetra={colorLetraDeComanda(comanda)}
+                          />
                         </div>
                         <div className={`text-xs ${textSecondary} mt-1`}>
                           Estado: <span className={`font-medium ${esComandaActiva ? 'text-yellow-300' : 'text-blue-300'}`}>{comanda.status || "N/A"}</span> | {formatearFecha(comanda.updatedAt || comanda.createdAt)}
@@ -339,9 +441,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                                   ) : (
                                     <span className="text-xl opacity-30"><FaSquare /></span>
                                   )}
-                                  <span className={reversible ? 'font-medium' : ''}>
-                                    {cantidad}x {plato.nombre || "Sin nombre"}
-                                  </span>
+                                  <NombrePlatoRevertir cantidad={cantidad} nombre={plato.nombre} />
                                   {(p.tipoServicio === 'para_llevar' || p.tipoServicio === 'extra_llevar') && (
                                     <span
                                       className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold"
@@ -394,7 +494,7 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                             return (
                               <li key={`elim-${idx}`} className="flex items-center gap-2 py-1 px-2 rounded bg-gray-700/30 line-through opacity-50">
                                 <FaTrash className="text-gray-500 text-xs" />
-                                {cantidad}x {plato.nombre || "Sin nombre"}
+                                <NombrePlatoRevertir cantidad={cantidad} nombre={plato.nombre} />
                                 <span className="text-xs text-gray-500">(eliminado)</span>
                               </li>
                             );
@@ -422,7 +522,9 @@ const RevertirModal = ({ onClose, onRevertir, nightMode = true }) => {
                             return (
                               <li key={`anulado-${idx}`} className="flex items-center gap-2 py-2 px-2 rounded bg-red-900/20 border border-red-500/20">
                                 <FaBan className="text-red-500 text-sm" />
-                                <span className="line-through text-red-400/80">{cantidad}x {plato.nombre || "Sin nombre"}</span>
+                                <span className="line-through opacity-80">
+                                  <NombrePlatoRevertir cantidad={cantidad} nombre={plato.nombre} />
+                                </span>
                                 <span className="text-xs px-2 py-0.5 rounded bg-red-600/40 text-red-300 font-semibold">
                                   ANULADO
                                 </span>

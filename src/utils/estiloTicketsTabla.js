@@ -1,5 +1,10 @@
 import { hexValidoOrdenCola } from './estiloNumeroOrdenKds';
 import { COLOR_PARA_LLEVAR, COLOR_PARA_LLEVAR_BORDE } from './estiloParaLlevarKds';
+import {
+  MOZO_NOMBRE_DEFAULT,
+  MOZO_NOMBRE_TAMANO_MIN,
+  MOZO_NOMBRE_TAMANO_MAX,
+} from './estiloMozoNombreKds';
 
 export const TICKETS_TABLA_TEXTO_TAMANO_MIN = 10;
 export const TICKETS_TABLA_TEXTO_TAMANO_MAX = 22;
@@ -12,6 +17,9 @@ export const TICKETS_TABLA_VISUAL_DEFAULT = {
   textoRestoColor: '#9ca3af',
   textoTamano: 14,
   textoFondo: '',
+  mozoNombreColor: MOZO_NOMBRE_DEFAULT.mozoNombreColor,
+  mozoNombreFondo: MOZO_NOMBRE_DEFAULT.mozoNombreFondo,
+  mozoNombreTamano: MOZO_NOMBRE_DEFAULT.mozoNombreTamano,
 };
 
 function clampInt(n, min, max, fallback) {
@@ -29,6 +37,12 @@ function hexOrEmpty(value) {
   return hexValidoOrdenCola(value) ? value : '';
 }
 
+function hexFondoMozo(value, fallback) {
+  if (value == null) return fallback;
+  if (value === '' || value === 'transparent' || value === 'none') return '';
+  return hexValidoOrdenCola(value) ? value : fallback;
+}
+
 export function normalizeTicketsTablaVisual(parsed) {
   const d = TICKETS_TABLA_VISUAL_DEFAULT;
   return {
@@ -44,6 +58,14 @@ export function normalizeTicketsTablaVisual(parsed) {
       d.textoTamano
     ),
     textoFondo: hexOrEmpty(parsed?.textoFondo),
+    mozoNombreColor: hexOr(parsed?.mozoNombreColor, d.mozoNombreColor),
+    mozoNombreFondo: hexFondoMozo(parsed?.mozoNombreFondo, d.mozoNombreFondo),
+    mozoNombreTamano: clampInt(
+      parsed?.mozoNombreTamano,
+      MOZO_NOMBRE_TAMANO_MIN,
+      MOZO_NOMBRE_TAMANO_MAX,
+      d.mozoNombreTamano
+    ),
   };
 }
 
