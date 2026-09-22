@@ -200,7 +200,8 @@ const ComandaStyle = ({
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [sosHighlightId, setSosHighlightId] = useState(null);
   const [sosHighlightPlatoIndex, setSosHighlightPlatoIndex] = useState(null);
-  const [sosHighlightTick, setSosHighlightTick] = useState(0);
+  const sosMarkRef = useRef({ id: null, idx: null });
+  sosMarkRef.current = { id: sosHighlightId, idx: sosHighlightPlatoIndex };
   const [pendingScroll, setPendingScroll] = useState(null);
   const sosCocineras = useSosCocineras({ canToggle: isSupervisorView, enabled: isSupervisorView });
   const [showSearch, setShowSearch] = useState(false);
@@ -1924,7 +1925,6 @@ const ComandaStyle = ({
     const page = paginaDeComanda(todasComandas, id, COMANDAS_POR_PAGINA);
     setSosHighlightId(id);
     setSosHighlightPlatoIndex(grupo.platoIndexMasAntigua);
-    setSosHighlightTick((n) => n + 1);
     if (page !== currentPage) setCurrentPage(page);
     setPendingScroll({ id, platoIndex: grupo.platoIndexMasAntigua });
   }, [todasComandas, COMANDAS_POR_PAGINA, currentPage]);
@@ -1947,15 +1947,6 @@ const ComandaStyle = ({
     }, 120);
     return () => window.clearTimeout(t);
   }, [pendingScroll, currentPage, comandasPagina]);
-
-  useEffect(() => {
-    if (!sosHighlightId) return undefined;
-    const t = window.setTimeout(() => {
-      setSosHighlightId(null);
-      setSosHighlightPlatoIndex(null);
-    }, 3000);
-    return () => window.clearTimeout(t);
-  }, [sosHighlightId, sosHighlightPlatoIndex, sosHighlightTick]);
 
   const aplicarSosModal = useCallback(async ({ tabla, cocineras }) => {
     setSosTablaOn(!!tabla);
@@ -2004,6 +1995,12 @@ const ComandaStyle = ({
         && comp.procesandoPor.cocineroId.toString() !== userId?.toString();
       const permitirAjeno = isSupervisorView || entregarPlatoEnteroAbsoluto !== false;
       if (tomadoPorOtro && !permitirAjeno) return;
+      const markG = sosMarkRef.current;
+      if (markG.id != null && String(markG.id) === String(comandaId)
+        && (markG.idx == null || Number(markG.idx) === Number(platoIndex))) {
+        setSosHighlightId(null);
+        setSosHighlightPlatoIndex(null);
+      }
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
@@ -2031,6 +2028,12 @@ const ComandaStyle = ({
     // el plato para confirmar su salida del pass (recoger → salio).
     // Ciclo simple: normal ↔ entregando (rojo). No usa platosChecked.
     if (plato?.estado === 'recoger') {
+      const markR = sosMarkRef.current;
+      if (markR.id != null && String(markR.id) === String(comandaId)
+        && (markR.idx == null || Number(markR.idx) === Number(platoIndex))) {
+        setSosHighlightId(null);
+        setSosHighlightPlatoIndex(null);
+      }
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
@@ -2058,6 +2061,13 @@ const ComandaStyle = ({
     // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR:
     // Se permite marcar #2+ en verde. El botón contextual (izquierda) cambia a
     // "Solicitar Orden" cuando el lote incluye platos fuera de secuencia.
+
+    const mark = sosMarkRef.current;
+    if (mark.id != null && String(mark.id) === String(comandaId)
+      && (mark.idx == null || Number(mark.idx) === Number(platoIndex))) {
+      setSosHighlightId(null);
+      setSosHighlightPlatoIndex(null);
+    }
 
     setPlatoStates(prev => {
       const nuevo = new Map(prev);
@@ -5001,6 +5011,7 @@ const ComandaStyle = ({
             grupos={gruposSosTabla}
             nightMode={nightMode}
             highlightComandaId={sosHighlightId}
+            highlightPlatoIndex={sosHighlightPlatoIndex}
             onSelectGrupo={irAGrupoSos}
             onCerrar={() => {
               setSosTablaOn(false);

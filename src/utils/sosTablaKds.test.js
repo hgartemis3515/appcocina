@@ -124,6 +124,37 @@ describe('sosTablaKds', () => {
     expect(platoVisibleEnTablaKds({ estado: 'recoger' })).toBe(true);
   });
 
+  test('platos de comanda con prioridad van primero y aparte, con marca', () => {
+    const comandas = [
+      {
+        _id: 'vieja',
+        createdAt: '2026-09-21T08:00:00.000Z',
+        platos: [{ nombre: 'Arroz', tiempos: { pedido: '2026-09-21T08:00:00.000Z' } }],
+        cantidades: [1],
+      },
+      {
+        _id: 'prio',
+        prioridadOrden: 200,
+        createdAt: '2026-09-21T11:00:00.000Z',
+        platos: [{ nombre: 'Lomo', tiempos: { pedido: '2026-09-21T11:00:00.000Z' } }],
+        cantidades: [2],
+      },
+      {
+        _id: 'normal-lomo',
+        createdAt: '2026-09-21T09:00:00.000Z',
+        platos: [{ nombre: 'Lomo', tiempos: { pedido: '2026-09-21T09:00:00.000Z' } }],
+        cantidades: [1],
+      },
+    ];
+    const grupos = agruparPlatosSosTabla(comandas);
+    expect(grupos.map((g) => `${g.prioridad ? 'P' : 'N'}:${g.nombre}:${g.cantidad}`)).toEqual([
+      'P:Lomo:2',
+      'N:Arroz:1',
+      'N:Lomo:1',
+    ]);
+    expect(grupos[0].comandaIdMasAntigua).toBe('prio');
+  });
+
   test('paginaDeComanda respeta cols×rows', () => {
     const cmds = [{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }, { _id: 'd' }];
     expect(paginaDeComanda(cmds, 'c', 2)).toBe(1);

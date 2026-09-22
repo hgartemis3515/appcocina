@@ -4,6 +4,7 @@ const SosTablaSidebar = ({
   grupos = [],
   nightMode = true,
   highlightComandaId = null,
+  highlightPlatoIndex = null,
   onSelectGrupo,
   onCerrar,
 }) => {
@@ -43,7 +44,11 @@ const SosTablaSidebar = ({
           <p className={`${sub} text-sm p-4`}>No hay platos en el tablero</p>
         ) : (
           grupos.map((g) => {
-            const activo = highlightComandaId && String(g.comandaIdMasAntigua) === String(highlightComandaId);
+            const mismoPlato = highlightPlatoIndex == null
+              || Number(g.platoIndexMasAntigua) === Number(highlightPlatoIndex);
+            const activo = highlightComandaId
+              && String(g.comandaIdMasAntigua) === String(highlightComandaId)
+              && mismoPlato;
             return (
               <button
                 key={g.clave}
@@ -52,7 +57,7 @@ const SosTablaSidebar = ({
                 className={`w-full text-left px-3 py-3 border-b ${border} min-h-[56px] flex items-center gap-2 ${activo ? rowOn : rowIdle}`}
               >
                 <span className="flex-1 min-w-0 font-semibold leading-tight line-clamp-2">
-                  {g.nombre}
+                  {g.prioridad ? '🚀 ' : ''}{g.nombre}
                 </span>
                 <span className="flex-shrink-0 text-lg font-black tabular-nums">
                   ×{g.cantidad}

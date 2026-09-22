@@ -78,7 +78,7 @@ export function paginaDeComanda(comandas, comandaId, porPagina) {
 
 /**
  * Agrupa platos visibles del tablero KDS por nombre de cocina.
- * Orden: llegada (el más antiguo arriba, el más nuevo abajo).
+ * Orden: platos de comandas con prioridad primero (🚀), luego llegada.
  * @returns {{ clave, nombre, cantidad, tsMin, comandaIdMasAntigua, platoIndexMasAntigua }[]}
  */
 export function agruparPlatosSosTabla(comandas, opts = {}) {
@@ -95,7 +95,9 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const idx = resolverIndicePlato(comanda, plato);
       const platoIndex = Number.isInteger(idx) && idx >= 0 ? idx : i;
       const nombre = obtenerNombreDisplayCocina(plato, { habilitadoEnKds }) || 'Sin nombre';
-      const clave = claveNombreSos(nombre);
+      const prio = Number(comanda?.prioridadOrden) || 0;
+      const prioridad = prio > 0;
+      const clave = `${claveNombreSos(nombre)}${prioridad ? '|P' : ''}`;
       const cantidad = qtyLineaSos(comanda, platoIndex, plato);
       const ts = instantePedidoSos(plato, comanda);
       const prev = groups.get(clave);
@@ -104,6 +106,8 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
           clave,
           nombre,
           cantidad,
+          prioridad,
+          prioMax: prio,
           tsMin: ts,
           comandaIdMasAntigua: comandaId,
           platoIndexMasAntigua: platoIndex,
@@ -111,6 +115,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
         return;
       }
       prev.cantidad += cantidad;
+      if (prio > prev.prioMax) prev.prioMax = prio;
       if (ts < prev.tsMin) {
         prev.tsMin = ts;
         prev.comandaIdMasAntigua = comandaId;
@@ -120,6 +125,8 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
   }
 
   return [...groups.values()].sort((a, b) => {
+    if (a.prioridad !== b.prioridad) return a.prioridad ? -1 : 1;
+    if (a.prioridad && b.prioridad && a.prioMax !== b.prioMax) return b.prioMax - a.prioMax;
     if (a.tsMin !== b.tsMin) return a.tsMin - b.tsMin;
     return a.nombre.localeCompare(b.nombre, 'es');
   });

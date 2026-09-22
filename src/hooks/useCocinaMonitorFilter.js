@@ -158,6 +158,15 @@ function platoAsignadoACocinero(plato, cocineroIdFiltrado) {
 /**
  * Clave de grupo incluyendo cocinero cuando agruparPorCocinero está activo.
  */
+function maxPrioridadGrupo(grupo) {
+  let max = 0;
+  for (const p of grupo?.platos || []) {
+    const n = Number(p?.comanda?.prioridadOrden) || 0;
+    if (n > max) max = n;
+  }
+  return max;
+}
+
 function claveGrupoPlatoConCocinero(plato, nombre, agruparPorCocinero) {
   const base = claveGrupoPlato(plato, nombre);
   if (!agruparPorCocinero) return base;
@@ -222,7 +231,8 @@ const useCocinaMonitorFilter = (
     // 2) Agrupar por (cocinero +) nombre + complementos idénticos (+ observaciones)
     const gruposMap = new Map();
     for (const item of aplanados) {
-      const key = claveGrupoPlatoConCocinero(item.plato, item.nombre, agruparPorCocinero);
+      const marcaPrio = Number(item.comanda?.prioridadOrden) > 0 ? 'P' : '0';
+      const key = `${marcaPrio}::${claveGrupoPlatoConCocinero(item.plato, item.nombre, agruparPorCocinero)}`;
       const grupoId = grupoIdEstable(key);
       if (!gruposMap.has(key)) {
         gruposMap.set(key, {
@@ -266,6 +276,7 @@ const useCocinaMonitorFilter = (
           unidadIndex: u,
           lineaId,
           colorLinea,
+          prioridadOrden: Number(item.comanda?.prioridadOrden) || 0,
         });
       }
 
@@ -284,11 +295,27 @@ const useCocinaMonitorFilter = (
     // el grupo desaparece de la lista automáticamente.
     const gruposValidos = grupos.filter(g => g.platos.length > 0 && g.cantidadTotal > 0);
 
-    // 3) Ordenar grupos
+    for (const grupo of gruposValidos) {
+      grupo.timers.sort((a, b) => {
+        const pa = Number(a.prioridadOrden) || 0;
+        const pb = Number(b.prioridadOrden) || 0;
+        if ((pa > 0) !== (pb > 0)) return pa > 0 ? -1 : 1;
+        if (pa > 0 && pb > 0 && pa !== pb) return pb - pa;
+        const ta = a.tiempoInicio ? new Date(a.tiempoInicio).getTime() : 0;
+        const tb = b.tiempoInicio ? new Date(b.tiempoInicio).getTime() : 0;
+        return ta - tb;
+      });
+    }
+
+    // 3) Prioridad de comanda siempre arriba; después el criterio de la vista.
     const criterio = ordenamiento?.criterio || 'prioridad';
     const dir = ordenamiento?.direccion === 'asc' ? 1 : -1;
 
     gruposValidos.sort((a, b) => {
+      const pa = maxPrioridadGrupo(a);
+      const pb = maxPrioridadGrupo(b);
+      if ((pa > 0) !== (pb > 0)) return pa > 0 ? -1 : 1;
+      if (pa > 0 && pb > 0 && pa !== pb) return pb - pa;
       switch (criterio) {
         case 'tiempo': {
           const ta = a.tiempoInicio ? new Date(a.tiempoInicio).getTime() : 0;
