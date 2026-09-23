@@ -243,6 +243,15 @@ function isTipoPagoEfectivo(tipoPago) {
   return String(tipoPago || '').toLowerCase() === 'efectivo';
 }
 
+/** Pago forzado desde caja: "Efectivo (Caja)" en el ticket impreso. */
+function etiquetaTipoPagoImpresion(datos) {
+  const label = getLabelMetodoPago(datos?.tipoPago);
+  const forzado = datos?.pagoForzado === true || datos?.origen === 'forzado';
+  if (!forzado || String(label).toLowerCase() !== 'efectivo') return label;
+  if (/\(caja\)/i.test(label)) return label;
+  return `${label} (Caja)`;
+}
+
 function getLabelMoneda(moneda) {
   const m = String(moneda || '').toUpperCase();
   if (m === 'USD') return 'Dólares';
@@ -449,7 +458,7 @@ export function generarHtmlComanda({ datos, plantilla, serverOrigin, omitirGuarn
       html += meta(`${etiquetas.area}:`, escapeHtml(datos.area));
     }
     if (vis.tipoPago !== false && datos.tipoPago) {
-      html += meta(`${etiquetas.tipoPago}:`, escapeHtml(getLabelMetodoPago(datos.tipoPago)));
+      html += meta(`${etiquetas.tipoPago}:`, escapeHtml(etiquetaTipoPagoImpresion(datos)));
     }
     if (vis.moneda !== false && isTipoPagoEfectivo(datos.tipoPago) && datos.moneda) {
       html += meta(`${etiquetas.moneda}:`, escapeHtml(getLabelMoneda(datos.moneda)));

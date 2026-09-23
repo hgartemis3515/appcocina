@@ -104,6 +104,7 @@ export function mergeDatosImprimibles(lista) {
     montoDesc += Number(d.montoDescuento) || 0;
     if (d.tipoPago && d.tipoPago !== 'Pendiente') tipoPago = d.tipoPago;
   }
+  const pagoForzado = items.some((d) => d.pagoForzado === true || d.origen === 'forzado');
   const comandasNumbers = [...nums].sort((a, b) => a - b);
   const base = items[0];
   return {
@@ -117,7 +118,15 @@ export function mergeDatosImprimibles(lista) {
     montoDescuento: Number(montoDesc.toFixed(2)),
     totalSinDescuento: Number(subtotal.toFixed(2)),
     tipoPago,
+    pagoForzado,
   };
+}
+
+function conMarcaPagoCaja(datos, ticket) {
+  if (!datos || !ticket) return datos;
+  const forzado = ticket.pagoForzado === true || ticket.origen === 'forzado';
+  if (!forzado) return datos;
+  return { ...datos, pagoForzado: true };
 }
 
 async function fetchYFusionarComandas(ids, fetchJson) {
@@ -150,7 +159,7 @@ async function fetchYFusionarTicketsAprobacion(tickets, fetchJson) {
     if (!id) return mapearTicketADatos(t);
     try {
       const res = await fetchJson(`/api/aprobacion/${id}/ticket-imprimible`);
-      if (res?.success && res.datos) return res.datos;
+      if (res?.success && res.datos) return conMarcaPagoCaja(res.datos, t);
     } catch {
       /* snapshot local */
     }
@@ -450,6 +459,7 @@ function mapearTicketADatos(ticket) {
     area: ticket.area || ticket.mesa?.area?.nombre || '',
     moneda: ticket.moneda === 'USD' ? 'USD' : 'PEN',
     tipoPago: resolverTipoPagoImpresion(ticket),
+    pagoForzado: ticket.pagoForzado === true || ticket.origen === 'forzado',
     observaciones: ticket.observaciones || '',
     productos,
     subtotal: montoDescuento > 0 || haySnapshot ? bruto : totales.subtotal,
@@ -531,7 +541,7 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
         return imprimirComandaWeb({
           ...printOpts,
           comandaId: null,
-          datos: res.datos,
+          datos: conMarcaPagoCaja(res.datos, ticket),
         });
       }
     } catch {
@@ -568,7 +578,7 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
       return imprimirComandaWeb({
         ...printOpts,
         comandaId: null,
-        datos: res.datos,
+        datos: conMarcaPagoCaja(res.datos, ticket),
       });
     }
   } catch (err) {
