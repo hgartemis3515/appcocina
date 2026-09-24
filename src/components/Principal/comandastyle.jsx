@@ -42,6 +42,7 @@ import SosTablaSidebar from "./SosTablaSidebar";
 import useSosCocineras from "../../hooks/useSosCocineras";
 import {
   agruparPlatosSosTabla,
+  comandaTienePlatoEnTarjetaKds,
   guardarSosTablaLocal,
   leerSosTablaLocal,
   paginaDeComanda,
@@ -1651,23 +1652,10 @@ const ComandaStyle = ({
     const platosActivos = c.platos.filter(p => p.eliminado !== true && p.anulado !== true);
     if (platosActivos.length === 0) return false;
 
-    // REGLA: No mostrar comanda si TODOS los platos están en estado salio o entregado.
-    // PLAN_PLANTILLA_COMANDAS v2: 'pagado' ahora significa "cobrado y aprobado por cocina,
-    // pendiente de preparar". No se incluye en la lista de estados que ocultan la comanda.
-    const todosSalidosOEntregados = platosActivos.every(p => {
-      const e = (p.estado || '').toLowerCase();
-      return e === 'salio' || e === 'entregado';
-    });
-    if (todosSalidosOEntregados) return false;
-
-    // 🔥 PPA: No mostrar comandas donde TODOS los platos activos tienen pagoAdelantado.requerido=true
-    // y estadoTicket pendiente_aprobacion (retenidos hasta aprobación del TPA)
-    const platosVisiblesEnKDS = platosActivos.filter(p => {
-      if (platoRetenidoFueraDeCocina(p)) return false;
-      return true;
-    });
-    // Si después de filtrar platos retenidos no queda ningún plato visible, ocultar la comanda
-    if (platosVisiblesEnKDS.length === 0) return false;
+    // Solo si hay un plato que la tarjeta pinta (pedido, en_espera, recoger).
+    // Entregado/salió no se pintan. Pendiente de cobro tampoco: si eso es lo único
+    // que queda, la tarjeta salía vacía (caso grupo 2098).
+    if (!comandaTienePlatoEnTarjetaKds(c)) return false;
 
     // SALIO: Mantener tarjeta mientras haya platos en cocina (en_espera o recoger/PREPARADOS).
     // PLAN_PLANTILLA_COMANDAS v2: NO ocultar por status 'pagado' — tras aprobación de cocina,
