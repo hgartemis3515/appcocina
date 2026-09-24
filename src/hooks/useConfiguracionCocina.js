@@ -25,6 +25,7 @@ const DEFAULT = {
     ordenSinAutorizacionPlatos: [],
     primerToqueFinalizarAsignado: true,
     entregarPlatoEnteroAbsoluto: true,
+    cobroPorCantidad: true,
     forzarColorMozoUnico: false,
     colorMozoForzado: '#1e3a8a',
     ignorarFondoVistaMozo: false,
@@ -68,6 +69,7 @@ export async function fetchConfiguracionCocina(getToken) {
                 ordenSinAutorizacionPlatos: Array.isArray(cfg.ordenSinAutorizacionPlatos) ? cfg.ordenSinAutorizacionPlatos : [],
                 primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado !== false,
                 entregarPlatoEnteroAbsoluto: cfg.entregarPlatoEnteroAbsoluto !== false,
+                cobroPorCantidad: data?.configuracion?.cobroPorCantidad !== false,
                 forzarColorMozoUnico: cfg.forzarColorMozoUnico === true,
                 colorMozoForzado: (typeof cfg.colorMozoForzado === 'string'
                     && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cfg.colorMozoForzado))

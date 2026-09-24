@@ -21,6 +21,9 @@ import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo } from '../../utils/ticketSort';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
+import { indexarCobroPorCantidad, idsOcultosCobro } from '../../utils/cobroPorCantidadVista';
+import TotalCuentaCobro from '../common/TotalCuentaCobro';
+import { useConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge,
   getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
@@ -146,6 +149,7 @@ function KpiChip({ label, value, valueClass, ocultable = false, visible = true, 
 
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user } = useAuth();
+  const { cobroPorCantidad } = useConfiguracionCocina();
   const hoyOp = getFechaOperativa();
   const [filtroPeriodo, setFiltroPeriodo] = useState('hoy');
   const [fechaDesde, setFechaDesde] = useState(hoyOp);
@@ -453,13 +457,20 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     [itemsPorEstado]
   );
 
+  const vistaCobroPeriodo = useMemo(
+    () => (cobroPorCantidad ? indexarCobroPorCantidad(itemsEnPeriodo) : new Map()),
+    [cobroPorCantidad, itemsEnPeriodo]
+  );
+
   const itemsFiltrados = useMemo(() => {
     const porMozo = filterTicketsByMozo(itemsPorEstado, filtroMozo);
+    const ocultos = cobroPorCantidad ? idsOcultosCobro(vistaCobroPeriodo, porMozo) : new Set();
+    const visibles = ocultos.size ? porMozo.filter((t) => !ocultos.has(String(t._id))) : porMozo;
     if (filtro === 'todos') {
-      return sortTicketsPendientesPrimero(porMozo, sortBy, sortDir);
+      return sortTicketsPendientesPrimero(visibles, sortBy, sortDir);
     }
-    return sortTickets(porMozo, sortBy, sortDir);
-  }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro]);
+    return sortTickets(visibles, sortBy, sortDir);
+  }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro, cobroPorCantidad, vistaCobroPeriodo]);
 
   const filasBasico = useMemo(
     () => groupTicketsComoComandasHtml(itemsFiltrados),
@@ -647,7 +658,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
                           <FaMoneyBill className="text-green-400" />
-                          <span className="text-white font-bold" style={estilosTxtTabla.total}>{formatCurrency(neto)}</span>
+                          <TotalCuentaCobro vista={cobroPorCantidad ? (vistaCobroPeriodo.get(String(ticket._id)) || null) : null} neto={neto} montoDesc={montoDesc} />
                         </div>
                         <div className="text-gray-500 text-xs flex items-center gap-2">
                           {ticket.voucherId && <span style={estilosTxtTabla.resto}>V: {ticket.voucherId}</span>}
@@ -1122,6 +1133,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
             ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+            vistaPorTicket={cobroPorCantidad ? vistaCobroPeriodo : null}
           />
         ) : modoVista === 'mozos' ? (
           <TicketsMozosPendientesGrid
@@ -1281,7 +1293,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1">
                                 <FaMoneyBill className="text-green-400" />
-                                <span className="text-white font-bold" style={estilosTxtTabla.total}>{formatCurrency(neto)}</span>
+                                <TotalCuentaCobro vista={fila.tickets.map((t) => vistaCobroPeriodo.get(String(t._id))).find(Boolean) || null} neto={neto} montoDesc={montoDesc} />
                               </div>
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-medium border bg-amber-500/15 text-amber-200 border-amber-500/40">
                                 Grupo

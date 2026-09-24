@@ -6,6 +6,7 @@ import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla } from '../../utils/ticketSort';
 import BadgeNombreMozo from './BadgeNombreMozo';
 import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
+import TotalCuentaCobro from './TotalCuentaCobro';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
   nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
@@ -147,6 +148,7 @@ function FilaTicketAvanzado({
   seleccionado = false,
   onToggleSeleccion,
   ocultarGuarniciones = false,
+  vistaCobro = null,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -238,12 +240,9 @@ function FilaTicketAvanzado({
         </span>
       </td>
       <td className="px-3 py-2 text-right text-white font-bold whitespace-nowrap">
-        {formatCurrency(neto)}
-        {montoDesc > 0 && (
-          <div className="text-[10px] text-red-400 font-normal">-{formatCurrency(montoDesc)}</div>
-        )}
+        <TotalCuentaCobro vista={vistaCobro} neto={neto} montoDesc={montoDesc} />
         <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
-        {mostrarSaldoPend && (
+        {!vistaCobro && mostrarSaldoPend && (
           <div className="text-[10px] text-amber-300 font-semibold whitespace-nowrap">
             Pendiente: {formatCurrency(saldoPend)}
           </div>
@@ -301,6 +300,7 @@ export default function TicketsAprobacionTable({
   idsSeleccionados = [],
   onToggleSeleccion,
   ocultarGuarniciones = false,
+  vistaPorTicket = null,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
@@ -431,6 +431,7 @@ export default function TicketsAprobacionTable({
                 seleccionActiva,
                 onToggleSeleccion,
                 ocultarGuarniciones,
+                vistaCobro: (vistaPorTicket && fila.tickets.map((t) => vistaPorTicket.get(String(t?._id))).find(Boolean)) || null,
               };
               if (fila.tipo !== 'grupo') {
                 const ticket = fila.tickets[0];
@@ -513,10 +514,11 @@ export default function TicketsAprobacionTable({
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right text-amber-300 font-bold whitespace-nowrap">
-                      {formatCurrency(neto)}
-                      {montoDesc > 0 && (
-                        <div className="text-[10px] text-red-400 font-normal">-{formatCurrency(montoDesc)}</div>
-                      )}
+                      <TotalCuentaCobro
+                        vista={fila.tickets.map((t) => vistaPorTicket?.get(String(t?._id))).find(Boolean) || null}
+                        neto={neto}
+                        montoDesc={montoDesc}
+                      />
                       <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-400 uppercase">—</td>
