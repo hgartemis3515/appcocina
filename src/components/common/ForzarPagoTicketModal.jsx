@@ -44,7 +44,7 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
       <div className="bg-gray-800 border border-gray-600 rounded-xl p-4 w-full max-w-sm shadow-xl">
         <div className="flex items-center gap-2 text-white font-semibold mb-2">
           <FaMoneyBill className="text-amber-400" />
-          Forzar pago
+          Forzar cobro
         </div>
         <p className="text-sm text-gray-300 mb-2">
           {ticket._esGrupoComandas
@@ -96,7 +96,7 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
             )}
           </div>
         )}
-        <label className="block text-xs text-gray-400 mb-1">Motivo para forzar pago (opcional)</label>
+        <label className="block text-xs text-gray-400 mb-1">Motivo para forzar cobro (opcional)</label>
         <div className="grid grid-cols-2 gap-2 mb-2">
           {MOTIVOS_FORZAR.map((label) => (
             <button

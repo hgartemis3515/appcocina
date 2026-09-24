@@ -75,7 +75,7 @@ export function AccionesTicket({
               onClick={() => onForzarPago(ticket)}
               disabled={forzarPagoLoading}
               className={`${btnPad} inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white`}
-              title={ticket?._esGrupoComandas ? 'Forzar pago del grupo' : 'Forzar pago'}
+              title={ticket?._esGrupoComandas ? 'Forzar cobro del grupo' : 'Forzar cobro'}
             >
               <FaMoneyBill className={iconCls} />
             </button>
@@ -541,7 +541,7 @@ export default function TicketsAprobacionTable({
                             disabled={fila.tickets.some((t) => forzarPagoLoading[t._id])}
                             onClick={(e) => { e.stopPropagation(); onForzarPago(grupoTicket); }}
                             className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
-                            title="Forzar pago del grupo"
+                            title="Forzar cobro del grupo"
                           >
                             <FaMoneyBill className="text-lg" />
                           </button>

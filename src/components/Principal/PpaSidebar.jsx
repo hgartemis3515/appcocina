@@ -55,7 +55,7 @@ export default function PpaSidebar({ socket, onClose }) {
   const handleAprobar = async (ticket) => {
     const ticketId = ticket._id;
     if (!ticketPuedeAprobarse(ticket)) {
-      alert('Este ticket aún no tiene cobro. Use Forzar pago o espere la solicitud del mozo.');
+      alert('Este ticket aún no tiene cobro. Use Forzar cobro o espere la solicitud del mozo.');
       return;
     }
     if (aprobarLoading[ticketId]) return;
@@ -337,7 +337,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500
                       disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs py-1.5 rounded-lg
                       transition-colors font-medium"
-                    title="Forzar pago"
+                    title="Forzar cobro"
                   >
                     <FaMoneyBill className="text-[10px]" />
                     Forzar

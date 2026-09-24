@@ -277,7 +277,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
   const handleAprobar = async (ticket) => {
     if (!ticketPuedeAprobarse(ticket)) {
-      alert('Este ticket aún no tiene cobro. Use Forzar pago o espere la solicitud del mozo.');
+      alert('Este ticket aún no tiene cobro. Use Forzar cobro o espere la solicitud del mozo.');
       return;
     }
     if (aprobarLoading[ticket._id]) return;
@@ -738,7 +738,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             transition-colors font-medium text-sm"
                         >
                           <FaMoneyBill className="text-xs" />
-                          Forzar pago
+                          Forzar cobro
                         </button>
                         )}
                         {isComanda && !ticketEsAltaSinPago(ticket) ? (
@@ -971,7 +971,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           <div className="flex flex-wrap gap-2 items-center">
             {[
               { key: 'pendientes', label: 'Pendientes', icon: FaClock },
-              { key: 'aprobados', label: 'Pagados', icon: FaCheck },
+              { key: 'aprobados', label: 'Cobrados', icon: FaCheck },
               { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
               { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
               { key: 'todos', label: 'Todos', icon: FaFilter },
@@ -1098,7 +1098,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             emptyLabel={
               filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`
             }
             sortBy={sortBy}
             sortDir={sortDir}
@@ -1130,7 +1130,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             emptyLabel={
               filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`
             }
             mozoFilter={filtroMozo}
             mozosDisponibles={mozosDisponibles}
@@ -1166,7 +1166,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <p className="text-gray-400 text-lg">
               {filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`}
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`}
             </p>
           </div>
         ) : (
@@ -1231,7 +1231,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 onClick={(e) => { e.stopPropagation(); abrirForzarPago(grupoTicket); }}
                                 className="text-[11px] px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white font-semibold"
                               >
-                                {cargandoGrupo ? 'Cobrando…' : 'Forzar pago'}
+                                {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
                             <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
@@ -1316,7 +1316,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white py-2 rounded-lg font-medium text-sm"
                               >
                                 <FaMoneyBill className="text-xs" />
-                                {cargandoGrupo ? 'Cobrando…' : 'Forzar pago'}
+                                {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
                             <button
