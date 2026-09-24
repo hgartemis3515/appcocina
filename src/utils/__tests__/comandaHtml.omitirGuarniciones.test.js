@@ -42,3 +42,20 @@ describe('omitir guarniciones en impresión', () => {
     expect(html).toContain('Camote');
   });
 });
+
+describe('pago forzado en impresión', () => {
+  test('efectivo forzado imprime Pago: Efectivo (Caja)', () => {
+    const { html } = generarHtmlComanda({
+      datos: { tipoPago: 'Efectivo', pagoForzado: true, mesa: '2', productos: [] },
+    });
+    expect(html).toContain('Efectivo (Caja)');
+  });
+
+  test('efectivo normal no agrega Caja', () => {
+    const { html } = generarHtmlComanda({
+      datos: { tipoPago: 'efectivo', pagoForzado: false, mesa: '2', productos: [] },
+    });
+    expect(html).toContain('Efectivo');
+    expect(html).not.toContain('(Caja)');
+  });
+});

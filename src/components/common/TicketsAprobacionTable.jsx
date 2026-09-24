@@ -14,7 +14,7 @@ import {
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
-import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
+import { platosTicketVisibles, saldoPendienteTicket, totalesVistaTicket } from '../../utils/ticketTotales';
 import {
   claveFilaTicketResalte,
   loadFilasTicketVerde,
@@ -185,6 +185,9 @@ function FilaTicketAvanzado({
   const platosVis = platosTicketVisibles(ticket);
   const nPlatos = platosVis.length;
   const { neto, montoDesc } = totalesVistaTicket(ticket);
+  // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar (backend) — pagos parciales
+  const saldoPend = saldoPendienteTicket(ticket);
+  const mostrarSaldoPend = saldoPend != null && saldoPend > 0;
   return (
     <tr
       className={clasesFilaTicketAvanzado({
@@ -272,6 +275,11 @@ function FilaTicketAvanzado({
           <div className="text-[10px] text-red-400 font-normal">-{formatCurrency(montoDesc)}</div>
         )}
         <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
+        {mostrarSaldoPend && (
+          <div className="text-[10px] text-amber-300 font-semibold whitespace-nowrap">
+            Pendiente: {formatCurrency(saldoPend)}
+          </div>
+        )}
       </td>
       <td className="px-3 py-2 text-xs text-gray-400 uppercase">
         {labelPagoTicket(ticket)}
