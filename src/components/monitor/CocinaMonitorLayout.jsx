@@ -64,6 +64,7 @@ import {
   slugsTipoDePlato,
 } from '../../utils/tipoPlatoReglasCocina';
 import { platoJuntaGuarnicionesEntreVariantes } from '../../utils/platoFlagsCocina';
+import { agruparItemsVistaG } from '../../utils/vistaGGuarnicion';
 import { FaExpand, FaCompress } from 'react-icons/fa';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
@@ -397,6 +398,7 @@ const CocinaMonitorLayout = ({
   const [flagGuarnicionesGlobal, setFlagGuarnicionesGlobal] = useState(true);
   const [deshabilitarOrdenGuarniciones, setDeshabilitarOrdenGuarniciones] = useState(true);
   const [deshabilitarAgrupacionGuarniciones, setDeshabilitarAgrupacionGuarniciones] = useState(false);
+  const [vistaGGuarnicion, setVistaGGuarnicion] = useState(true);
   const [tiemposGuarnicion, setTiemposGuarnicion] = useState(null);
 
   useEffect(() => {
@@ -408,6 +410,7 @@ const CocinaMonitorLayout = ({
         setFlagGuarnicionesGlobal(cfg.permitirGuarnicionesSeparadas !== false);
         setDeshabilitarOrdenGuarniciones(cfg.deshabilitarOrdenSecuencialGuarniciones !== false);
         setDeshabilitarAgrupacionGuarniciones(cfg.deshabilitarAgrupacionGuarniciones === true);
+        setVistaGGuarnicion(cfg.vistaCocinaGuarnicionComoPlato !== false);
         if (cfg.tiemposGuarnicion) setTiemposGuarnicion(cfg.tiemposGuarnicion);
       } catch (e) {
         // defaults ya cargados
@@ -1016,6 +1019,81 @@ const CocinaMonitorLayout = ({
 
   const guarnicionesPanel = useMemo(() => {
     if (!splitActivo) return [];
+    if (vistaGGuarnicion) {
+      const filas = agruparItemsVistaG(itemsGuarnicionRaw, {
+        cantidadLinea: obtenerCantidadLinea,
+        nombrePlato: (plato) => obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato',
+        tiempoDeComp: tiempoInicioGuarnicion,
+      });
+      const grupos = filas.map((f) => {
+        const { comanda, plato, platoIndex, comp, comandaId } = f;
+        const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
+        const comandaNumero = comanda.numero || comanda.numeroMesa || null;
+        const ppG = comp?.procesandoPor;
+        const cidG = ppG?.cocineroId;
+        const cocinero = cidG
+          ? {
+              id: String(cidG),
+              alias: ppG.alias || ppG.nombre || 'Cocinero',
+              nombre: ppG.nombre || ppG.alias || '',
+              pronombre: String(ppG.pronombre || '').trim() || mapaPronombresCocinero.get(String(cidG)) || '',
+            }
+          : null;
+        const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
+        const lineaId = `${f.claveUnidad}:g`;
+        const notasGrupo = textosNotasDeGrupo({ platos: [{ plato, comanda, platoIndex }] });
+        const notasEnTarjeta = configVisual.notasJuntoAGuarniciones !== false;
+        const timers = f.tiempoInicio
+          ? [{
+              tiempoInicio: f.tiempoInicio,
+              cantidad: 1,
+              mesa: mesaNum,
+              comandaNumero,
+              comandaId,
+              platoIndex,
+              unidadIndex: f.unidadIndex,
+              lineaId,
+              colorLinea: colorLineaDesdeId(lineaId),
+            }]
+          : [];
+        return {
+          nombre: f.nombrePlato,
+          nombrePlato: f.nombrePlato,
+          cantidadTotal: 1,
+          platos: [{ plato, comanda, platoIndex, cocinero, cocineroPrincipal }],
+          tiempoInicio: f.tiempoInicio,
+          key: f.claveUnidad,
+          grupoId: grupoIdEstable(f.claveUnidad),
+          cocinero: modoCocineros ? cocinero : null,
+          cocineroPrincipal,
+          timers,
+          comps: f.comps,
+          esGuarnicion: true,
+          modoG: true,
+          cambiosG: f.cambiosG,
+          claveUnidad: f.claveUnidad,
+          slugsTipo: slugsTipoDePlato(plato),
+          tipoPedido: plato.tipoPedido || null,
+          comandaId,
+          platoIndex,
+          subtitulo: '',
+          nombrePadre: '',
+          juntaMerge: false,
+          pronombrePrincipal: pronombreReferenciaPrincipal(cocineroPrincipal, {
+            mapaCocineros: mapaPronombresCocinero,
+            mostrar: mostrarPronombreRef,
+          }),
+          hayNotaCuadro: notasGrupo.length > 0,
+          notasCuadro: notasEnTarjeta ? notasGrupo.join(' · ') : '',
+        };
+      });
+      grupos.sort((a, b) => {
+        const ta = a.tiempoInicio ? new Date(a.tiempoInicio).getTime() : 0;
+        const tb = b.tiempoInicio ? new Date(b.tiempoInicio).getTime() : 0;
+        return ta - tb;
+      });
+      return asignarNumeroGlobal(grupos);
+    }
     const items = itemsGuarnicionRaw;
     const gruposMap = new Map();
     for (const item of items) {
@@ -1164,7 +1242,7 @@ const CocinaMonitorLayout = ({
       return ta - tb;
     });
     return modoCocineros ? asignarNumeroGlobal(grupos) : grupos;
-  }, [splitActivo, itemsGuarnicionRaw, modoCocineros, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, configVisual.notasJuntoAGuarniciones]);
+  }, [splitActivo, itemsGuarnicionRaw, modoCocineros, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, configVisual.notasJuntoAGuarniciones, vistaGGuarnicion]);
 
   const mostrarPieNotas = configVisual.notasJuntoAGuarniciones === false
     && configVisual.mostrarTablaNotas !== false;
@@ -1279,6 +1357,30 @@ const CocinaMonitorLayout = ({
     [platosConReglasTipo, modoCocineros],
   );
 
+  const guarnicionesParaVista = useMemo(() => {
+    if (!vistaGGuarnicion) return guarnicionesConReglasTipo;
+    const mapa = new Map();
+    const tarjetas = modoCocineros
+      ? bloquesCocinero.flatMap((b) => b.tarjetas || [])
+      : platosConTimersNumerados;
+    for (const p of tarjetas) {
+      for (const t of p.timers || []) {
+        if (t.numeroGlobal == null || t.comandaId == null || t.platoIndex == null) continue;
+        mapa.set(`${t.comandaId}:${t.platoIndex}:${t.unidadIndex ?? 0}`, t.numeroGlobal);
+      }
+    }
+    return guarnicionesConReglasTipo.map((g) => {
+      if (!g.modoG || !g.claveUnidad) return g;
+      const n = mapa.has(g.claveUnidad) ? mapa.get(g.claveUnidad) : (g.timers?.[0]?.numeroGlobal ?? null);
+      if (n == null) return g;
+      return {
+        ...g,
+        numeroOrden: n,
+        timers: (g.timers || []).map((t) => ({ ...t, numeroGlobal: n })),
+      };
+    });
+  }, [vistaGGuarnicion, guarnicionesConReglasTipo, modoCocineros, bloquesCocinero, platosConTimersNumerados]);
+
   const hayParticionTipo = modoCocineros
     && platosConReglasTipo.some((i) => i.particionHorizontalCocina);
   const splitTipoItems = hayParticionTipo
@@ -1290,10 +1392,10 @@ const CocinaMonitorLayout = ({
   const etiquetaParticionTipo = (reglasTipo.particionNombres || []).join(' · ') || 'Tipo';
   const hayParticionGuarnicion = splitActivo
     && modoCocineros
-    && guarnicionesConReglasTipo.some((i) => i.particionHorizontalCocina);
+    && guarnicionesParaVista.some((i) => i.particionHorizontalCocina);
   const splitGuarnicionItems = hayParticionGuarnicion
-    ? partirItemsHorizontales(guarnicionesConReglasTipo)
-    : { normales: guarnicionesConReglasTipo, especiales: [], hayParticion: false };
+    ? partirItemsHorizontales(guarnicionesParaVista)
+    : { normales: guarnicionesParaVista, especiales: [], hayParticion: false };
   const etiquetaParticionGuarnicion = (reglasTipo.particionGuarnicionNombres || []).join(' · ') || etiquetaParticionTipo;
   const textoParticionTipo = String(configVisual.tituloParticionTipo || '').trim() || etiquetaParticionTipo;
   const textoParticionNormal = String(configVisual.tituloParticionNormal || '').trim() || 'Platos';
@@ -1951,7 +2053,7 @@ const CocinaMonitorLayout = ({
               overflow: hayParticionGuarnicion ? 'hidden' : 'auto',
               WebkitOverflowScrolling: hayParticionGuarnicion ? undefined : 'touch',
             }}>
-            {guarnicionesConReglasTipo.length === 0 ? (
+            {guarnicionesParaVista.length === 0 ? (
               <div style={{
                 margin: 'auto', textAlign: 'center', color: colorTextoSecundario,
                 fontSize: '14px', opacity: 0.7,
@@ -2003,7 +2105,7 @@ const CocinaMonitorLayout = ({
               </div>
             ) : (
               <GrillaGuarnicionesMonitor
-                items={guarnicionesConReglasTipo}
+                items={guarnicionesParaVista}
                 layoutColumnasGuarniciones={layoutColumnasGuarniciones}
                 gapGridGuarniciones={gapGridGuarniciones}
                 zoomLista={zoomLista}

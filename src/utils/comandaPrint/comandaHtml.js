@@ -1,3 +1,5 @@
+import { etiquetaMozosComandas } from '../numeroComandaMozo';
+
 /**
  * comandaHtml.js — Generador de HTML 80mm para Ticket de Comanda (NO comprobante fiscal)
  *
@@ -332,10 +334,11 @@ export function formatComandasNumbersLabel(comandasNumbers) {
     (comandasNumbers || [])
       .map((n) => (n != null && n !== '' ? Number(n) : NaN))
       .filter((n) => !Number.isNaN(n))
-  )].sort((a, b) => a - b);
+  )];
+  const orden = nums.length <= 1 ? nums : [Math.max(...nums), ...nums.filter((n) => n !== Math.max(...nums)).sort((a, b) => b - a)];
 
-  if (nums.length === 0) return '';
-  return nums.map((n) => `#${n}`).join('+');
+  if (orden.length === 0) return '';
+  return orden.map((n) => `#${n}`).join('+');
 }
 
 /**
@@ -727,7 +730,8 @@ export function mapComandasATicket(comandas, boucherOpcional, config = {}) {
     mesa: primera.mesaNumero || primera.mesas?.nummesa || primera.mesa?.nummesa
       || (typeof primera.mesa === 'object' ? primera.mesa?.nummesa : primera.mesa)
       || boucherOpcional?.numMesa || null,
-    mozo: primera.mozoNombre || primera.mozos?.name || primera.mozo
+    mozo: etiquetaMozosComandas(lista)
+      || primera.mozoNombre || primera.mozos?.name || primera.mozo
       || (typeof primera.mozo === 'object' ? primera.mozo?.name : primera.mozo)
       || boucherOpcional?.nombreMozo || null,
     area: primera.areaNombre || primera.mesas?.area?.nombre || primera.mesa?.area || null,

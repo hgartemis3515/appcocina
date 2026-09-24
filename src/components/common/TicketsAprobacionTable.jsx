@@ -5,6 +5,7 @@ import {
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla } from '../../utils/ticketSort';
 import BadgeNombreMozo from './BadgeNombreMozo';
+import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
   nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
@@ -543,7 +544,7 @@ export default function TicketsAprobacionTable({
                     </td>
                     <td className="px-3 py-2 min-w-[120px]">
                       <div className="truncate">
-                        <BadgeNombreMozo ticket={first} nombre={getMozoNombre(first)} />
+                        <BadgeNombreMozo nombre={etiquetaMozoDeTickets(fila.tickets) || getMozoNombre(first)} />
                       </div>
                     </td>
                     <td className="px-3 py-2">

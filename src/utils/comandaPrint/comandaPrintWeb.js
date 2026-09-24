@@ -16,6 +16,7 @@ import {
   EPSON_TM_M30II_RECEIPT,
 } from './comandaHtml.js';
 import { generarHtmlTicketCocina, filtrarDatosTicketCocina } from './ticketCocinaHtml.js';
+import { etiquetaMozoTicket } from '../numeroComandaMozo';
 import { getComandaIdsFromTicket } from '../ticketComandaDisplay';
 
 /**
@@ -444,7 +445,8 @@ function mapearTicketADatos(ticket) {
     mesa: ticket.numMesa || ticket.mesaNumero
       || (typeof ticket.mesa === 'object' ? ticket.mesa?.nummesa : ticket.mesa)
       || '?',
-    mozo: ticket.nombreMozo || ticket.mozoNombre
+    mozo: etiquetaMozoTicket(ticket)
+      || ticket.nombreMozo || ticket.mozoNombre
       || (typeof ticket.mozo === 'object' ? ticket.mozo?.name : ticket.mozo)
       || '—',
     area: ticket.area || ticket.mesa?.area?.nombre || '',

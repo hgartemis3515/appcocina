@@ -4,7 +4,8 @@ import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer
 import { escalaDetalle, MONITOR_TIPOGRAFIA, DURACION_ANIMACION, colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
-import GuarnicionListaLinea from './GuarnicionListaLinea';
+import GuarnicionListaLinea, { LineasCambioGuarnicion } from './GuarnicionListaLinea';
+import { tituloFilaVistaG } from '../../utils/vistaGGuarnicion';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
@@ -186,9 +187,13 @@ const CocineroPlatoCard = React.forwardRef(({
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
   const esGuarnicion = item.esGuarnicion === true;
-  const nombreVisible = esGuarnicion
-    ? nombre
-    : (obtenerNombreDisplayCocina(platos[0] || item, { forzar: true }) || nombre);
+  const modoG = esGuarnicion && item.modoG === true;
+  const numeroG = item.numeroOrden ?? timers[0]?.numeroGlobal;
+  const nombreVisible = modoG
+    ? tituloFilaVistaG(item.nombrePlato || nombre, numeroG)
+    : esGuarnicion
+      ? nombre
+      : (obtenerNombreDisplayCocina(platos[0] || item, { forzar: true }) || nombre);
   const textoPronombreRef = esGuarnicion
     ? (item.pronombrePrincipal !== undefined
       ? (item.pronombrePrincipal || '')
@@ -255,19 +260,22 @@ const CocineroPlatoCard = React.forwardRef(({
     && hayNotaCuadro;
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
-    const textoNombres = item.juntaMerge
-      ? `- ${labelConCantidadTotal(nombre, cantidadTotal, configVisual)}`
-      : (nombresListaGuarniciones(
-        item.comps,
-        platoConCantidadDeLinea(platos[0]),
-        platos[0]?.comanda,
-        platos[0]?.platoIndex,
-        configVisual,
-      ) || `- ${nombre}`);
+    const textoNombres = modoG
+      ? tituloFilaVistaG(item.nombrePlato || nombre, numeroG)
+      : item.juntaMerge
+        ? `- ${labelConCantidadTotal(nombre, cantidadTotal, configVisual)}`
+        : (nombresListaGuarniciones(
+          item.comps,
+          platoConCantidadDeLinea(platos[0]),
+          platos[0]?.comanda,
+          platos[0]?.platoIndex,
+          configVisual,
+        ) || `- ${nombre}`);
     return (
       <GuarnicionListaLinea
         texto={textoNombres}
-        textoPadre={item.subtitulo || ''}
+        textoPadre={modoG ? '' : (item.subtitulo || '')}
+        cambios={modoG ? item.cambiosG : null}
         textoCocinero={textoPronombreRef}
         textoNota={textoNotaCuadro}
         configVisual={configVisual}
@@ -541,14 +549,37 @@ const CocineroPlatoCard = React.forwardRef(({
         {hayExtraLlevar && (
           <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
         )}
-        {/* Badge cantidad - personalizable (default blanco) */}
-        <span style={estiloCantidadBadge(configVisual)}>
-          {textoCantidadBadge(cantidadTotal, configVisual)}
-        </span>
+        {!modoG && (
+          <span style={estiloCantidadBadge(configVisual)}>
+            {textoCantidadBadge(cantidadTotal, configVisual)}
+          </span>
+        )}
       </div>
 
+      {modoG ? (
+        <>
+          <LineasCambioGuarnicion
+            cambios={item.cambiosG}
+            fontSize={tamanioFuentePlato}
+            color={colorTextoPadre}
+          />
+          {textoPronombreRef ? (
+            <span
+              style={{
+                fontSize: `${estiloPron.fontSize}px`,
+                fontWeight: 700,
+                color: estiloPron.color,
+                fontFamily: estiloPron.fontFamily,
+              }}
+            >
+              {textoPronombreRef}
+            </span>
+          ) : null}
+        </>
+      ) : null}
+
       {/* Complementos / sabores / referencia (Bistec) C1 */}
-      {esGuarnicion && (item.subtitulo || textoPronombreRef) ? (
+      {!modoG && esGuarnicion && (item.subtitulo || textoPronombreRef) ? (
         <div
           style={{
             display: 'flex',

@@ -20,6 +20,7 @@ import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo } from '../../utils/ticketSort';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
+import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
 import {
   formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge,
   getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
@@ -1241,7 +1242,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           </div>
                           <div className="flex items-center gap-1 text-gray-400 text-xs">
                             <FaUser className="text-gray-500" />
-                            <BadgeNombreMozo ticket={primero} configVista={tablaPrefs} />
+                            <BadgeNombreMozo nombre={etiquetaMozoDeTickets(fila.tickets) || undefined} ticket={etiquetaMozoDeTickets(fila.tickets) ? null : primero} configVista={tablaPrefs} />
                           </div>
                         </div>
                       </div>

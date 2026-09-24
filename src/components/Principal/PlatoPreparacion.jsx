@@ -56,6 +56,7 @@ const PlatoPreparacion = ({
   forzarVisibleTablaKds = false,    // omite ocultarComplementosEnTablaKds en esta fila
   domId = null,
   marcadoSos = false,
+  fondoColaUno = false,
 }) => {
   // v7.2: Determinar si el plato está tomado por otro cocinero
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
@@ -234,6 +235,11 @@ const PlatoPreparacion = ({
 
   const getBackgroundClass = () => {
     if (isEliminado) return 'bg-red-500/15 text-red-500 border-red-500/30';
+    if (fondoColaUno && estadoVisual !== 'dejar' && estadoVisual !== 'seleccionado') {
+      return nightMode
+        ? 'bg-green-600/45 text-green-50 border-green-400'
+        : 'bg-green-500/35 text-green-900 border-green-600';
+    }
     switch (estadoVisual) {
       case 'seleccionado':
         return nightMode ? 'bg-green-500/30 text-green-400 border-green-500/50' : 'bg-green-500/20 text-green-700 border-green-500/50';

@@ -23,7 +23,59 @@ import { esComandaReserva } from './kdsFilters';
 export function comandaOmiteOrdenSecuencial(comanda) {
     if (!comanda) return false;
     if (comanda.omitirOrdenEntrega === true) return true;
-    return esComandaReserva(comanda);
+    if (esComandaReserva(comanda)) return true;
+    const et = comanda.etiquetasPrioridad || {};
+    if (et.vip || et.refire || et.tiempoLimitado) return true;
+    const prio = Number(comanda.prioridadOrden);
+    return Number.isFinite(prio) && prio > 0;
+}
+
+function listaNorma(arr) {
+    return (Array.isArray(arr) ? arr : [])
+        .map((s) => String(s || '').trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function categoriasDeLinea(plato) {
+    const cat = plato?.plato && typeof plato.plato === 'object' ? plato.plato : plato;
+    const out = [];
+    if (cat?.categoria) out.push(cat.categoria);
+    if (Array.isArray(cat?.categorias)) out.push(...cat.categorias);
+    return listaNorma(out);
+}
+
+function nombresDeLinea(plato) {
+    const cat = plato?.plato && typeof plato.plato === 'object' ? plato.plato : plato;
+    return listaNorma([
+        plato?.nombre,
+        cat?.nombre,
+        cat?.nombreCocina,
+        cat?.id,
+        plato?.platoId,
+    ]);
+}
+
+/** Categoría o plato marcado en configuración: no pide autorización de orden. */
+export function platoExentoDeAutorizacion(plato, exenciones) {
+    if (!plato || !exenciones) return false;
+    const cats = new Set(listaNorma(exenciones.categorias));
+    const platos = new Set(listaNorma(exenciones.platos));
+    if (cats.size === 0 && platos.size === 0) return false;
+    if (categoriasDeLinea(plato).some((c) => cats.has(c))) return true;
+    return nombresDeLinea(plato).some((n) => platos.has(n));
+}
+
+/** Las categorías listadas quedan al final, el resto conserva su orden. */
+export function ordenarPlatosCategoriasAlFinal(platos, categoriasAlFinal) {
+    const alFinal = new Set(listaNorma(categoriasAlFinal));
+    if (!alFinal.size || !Array.isArray(platos)) return platos || [];
+    const cabeza = [];
+    const cola = [];
+    for (const p of platos) {
+        if (categoriasDeLinea(p).some((c) => alFinal.has(c))) cola.push(p);
+        else cabeza.push(p);
+    }
+    return cabeza.concat(cola);
 }
 
 /**
@@ -175,7 +227,7 @@ export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) 
     for (const item of platosMarcados) {
         if (tieneOverride(item) || comandaOmiteOrdenSecuencial(item.comanda) || comandaOmiteOrdenSecuencial(
             (comandas || []).find((c) => String(c._id || c.id) === String(item.comandaId))
-        )) {
+        ) || platoExentoDeAutorizacion(item.plato, opts.exenciones)) {
             finalizables.push(item);
             continue;
         }

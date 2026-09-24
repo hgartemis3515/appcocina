@@ -23,7 +23,7 @@ describe('groupTicketsComoComandasHtml', () => {
     ];
     const filas = groupTicketsComoComandasHtml(tickets);
     expect(filas[0].tipo).toBe('grupo');
-    expect(filas[0].label).toBe('#81+#82');
+    expect(filas[0].label).toBe('#82+#81');
     expect(filas[0].tickets.map((t) => t._id)).toEqual(['a', 'c']);
     expect(filas[1].tipo).toBe('individual');
     expect(filas[1].tickets[0]._id).toBe('b');

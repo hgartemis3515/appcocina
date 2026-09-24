@@ -29,6 +29,13 @@ export function letraRevisionTicket(n) {
   return s;
 }
 
+function ordenarNumerosLetrero(nums) {
+  const list = [...nums].filter((n) => Number.isFinite(n));
+  if (list.length <= 1) return list;
+  const max = Math.max(...list);
+  return [max, ...list.filter((n) => n !== max).sort((a, b) => b - a)];
+}
+
 export function formatLetreroTicket(comandas) {
   const byN = new Map();
   for (const c of comandas || []) {
@@ -42,7 +49,7 @@ export function formatLetreroTicket(comandas) {
     const prev = byN.get(n);
     if (prev == null || rev > prev) byN.set(n, rev);
   }
-  const nums = [...byN.keys()].sort((a, b) => a - b);
+  const nums = ordenarNumerosLetrero([...byN.keys()]);
   if (!nums.length) return '';
   return nums.map((n) => `#${n}${letraRevisionTicket(byN.get(n))}`).join('+');
 }

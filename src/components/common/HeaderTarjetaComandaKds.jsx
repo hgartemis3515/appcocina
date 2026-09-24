@@ -11,6 +11,7 @@ import {
 import { hexValidoOrdenCola } from '../../utils/estiloNumeroOrdenKds';
 import BadgeReservaKds from './BadgeReservaKds';
 import { numeroComandaVisible } from '../../utils/numeroComandaVisible';
+import { etiquetaMozosComandas } from '../../utils/numeroComandaMozo';
 
 function Chip({ style, title, children }) {
   if (children == null || children === '') return null;
@@ -52,6 +53,19 @@ export default function HeaderTarjetaComandaKds({
   children,
 }) {
   const nComanda = numeroComandaVisible(comanda) ?? 'N/A';
+  const horaCreacion = (() => {
+    const raw = comanda?.createdAt;
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('es-PE', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'America/Lima',
+    });
+  })();
+  const mozoVisible = etiquetaMozosComandas([{ ...comanda, mozoNombre: nombreMozo }]) || nombreMozo;
   const tam = tamanoLetraHeaderTarjetaKds(config);
   const estiloDato = estiloDatoHeaderTarjetaKds(config);
   const fondoMozo = hexValidoOrdenCola(estiloMozo?.backgroundColor) ? estiloMozo.backgroundColor : null;
@@ -90,6 +104,20 @@ export default function HeaderTarjetaComandaKds({
   const esAtencion = !esUrgente && umbralAmarillo > 0 && minutosActuales >= umbralAmarillo;
   const numero = (
     <div className="w-full flex items-center justify-center gap-1 leading-none" title="Número de comanda">
+      {horaCreacion ? (
+        <span
+          style={{
+            ...estiloDato,
+            fontSize: `${Math.max(12, Math.round(tam * 0.85))}px`,
+            fontWeight: 700,
+            lineHeight: 1,
+            opacity: 0.9,
+          }}
+          title="Hora de creación"
+        >
+          {horaCreacion}
+        </span>
+      ) : null}
       <span
         style={{
           ...estiloDato,
@@ -122,7 +150,7 @@ export default function HeaderTarjetaComandaKds({
           {reloj}
         </div>
         <div className={`${wrap} justify-between mt-1`}>
-          <Chip style={estiloMozoChip} title={nombreMozo}>👤 {nombreMozo}</Chip>
+          <Chip style={estiloMozoChip} title={nombreMozo}>👤 {mozoVisible}</Chip>
           <div className={wrap}>
             {serie}
             {prep}
@@ -144,7 +172,7 @@ export default function HeaderTarjetaComandaKds({
           {reloj}
         </div>
         <div className={`${wrap} justify-between mt-1`}>
-          <Chip style={estiloMozoChip} title={nombreMozo}>👤 {nombreMozo}</Chip>
+          <Chip style={estiloMozoChip} title={nombreMozo}>👤 {mozoVisible}</Chip>
           <div className={wrap}>
             {serie}
             {prep}
@@ -164,7 +192,7 @@ export default function HeaderTarjetaComandaKds({
         <Chip style={estiloDato}>{nombreMesa}</Chip>
         {reloj}
         <Chip style={{ ...estiloMozoChip, maxWidth: '7rem', overflow: 'hidden' }} title={nombreMozo}>
-          <span className="truncate">👤 {nombreMozo}</span>
+          <span className="truncate">👤 {mozoVisible}</span>
         </Chip>
         {serie}
         {prep}

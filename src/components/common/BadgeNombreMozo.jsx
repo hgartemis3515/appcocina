@@ -1,6 +1,7 @@
 import React from 'react';
 import useConfiguracionCocina from '../../hooks/useConfiguracionCocina';
 import { getMozoNombre } from '../../utils/ticketSort';
+import { etiquetaMozoTicket } from '../../utils/numeroComandaMozo';
 import {
   estiloBadgeNombreMozo,
   colorPerfilDeTicket,
@@ -23,7 +24,7 @@ export default function BadgeNombreMozo({
   const cocina = useConfiguracionCocina();
   const perfil = colorPerfil || (ticket ? colorPerfilDeTicket(ticket) : null);
   const letra = colorLetra || (ticket ? colorLetraDeTicket(ticket) : null);
-  const texto = nombre || (ticket ? getMozoNombre(ticket) : '');
+  const texto = (ticket ? etiquetaMozoTicket(ticket) : '') || nombre || (ticket ? getMozoNombre(ticket) : '');
   const estilo = estiloBadgeNombreMozo({
     configVista,
     colorPerfil: perfil,

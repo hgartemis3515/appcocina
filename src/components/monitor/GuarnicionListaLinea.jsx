@@ -9,6 +9,23 @@ import { tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
  */
 const GAP = { unido: 0, compacto: 4, normal: 8, amplio: 14 };
 
+export function LineasCambioGuarnicion({ cambios, fontSize, color }) {
+  if (!Array.isArray(cambios) || cambios.length === 0) return null;
+  const fs = Math.max(12, Math.round((Number(fontSize) || 18) * 0.72));
+  return (
+    <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {cambios.map((c, i) => (
+        <div key={`${c.salio || ''}-${c.entro || ''}-${i}`} style={{ fontSize: `${fs}px`, color, lineHeight: 1.25 }}>
+          {c.salio ? <span style={{ textDecoration: 'line-through' }}>{c.salio}</span> : null}
+          {c.salio && c.entro ? ' → ' : null}
+          {!c.salio && c.entro ? '→ ' : null}
+          {c.entro || null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const GuarnicionListaLinea = ({
   texto,
   textoPadre = '',
@@ -25,6 +42,7 @@ const GuarnicionListaLinea = ({
   colorCronometro,
   tamanioCronometro,
   textoNota = '',
+  cambios = null,
   configVisual = {},
   conCuadro = false,
   colorCuadro,
@@ -118,6 +136,7 @@ const GuarnicionListaLinea = ({
           </span>
         )}
       </div>
+      <LineasCambioGuarnicion cambios={cambios} fontSize={tamanioFuente} color={colorPadre || colorTexto} />
       <NotaEnCuadroMonitor
         texto={textoNota}
         configVisual={configVisual}

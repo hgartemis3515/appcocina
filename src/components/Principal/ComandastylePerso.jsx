@@ -33,6 +33,7 @@ import DejarPlatoModal from "./DejarPlatoModal";
 import EliminarPlatoKdsModal from "./EliminarPlatoKdsModal";
 import TomarCocineroModal from "./TomarCocineroModal";
 import PlatoPreparacion from "./PlatoPreparacion";
+import { ordenarPlatosCategoriasAlFinal } from "../../utils/ordenColaCocinero";
 import PpaSidebar from "./PpaSidebar";
 import ReservaSidebar from "./ReservaSidebar";
 import KdsTopBar from "./KdsTopBar";
@@ -5266,13 +5267,14 @@ const SicarComandaCard = ({
       return p.anulado === true;
     });
 
+    const categoriasAlFinal = cocinaCfg.sosCategoriasAlFinal;
     return {
-      platosPreparacion: preparacion,
-      platosListos: listos,
+      platosPreparacion: ordenarPlatosCategoriasAlFinal(preparacion, categoriasAlFinal),
+      platosListos: ordenarPlatosCategoriasAlFinal(listos, categoriasAlFinal),
       platosAnulados: anulados,
       totalPlatos: platosConNombre.length
     };
-  }, [comanda.platos, comanda.platosFiltrados, hayBusquedaActiva, platosVisiblesBusqueda]);
+  }, [comanda.platos, comanda.platosFiltrados, hayBusquedaActiva, platosVisiblesBusqueda, cocinaCfg.sosCategoriasAlFinal]);
 
   const etiquetasPrep = React.useMemo(
     () => etiquetasTipoPreparacionKds(platosPreparacion, reglasTipo),
