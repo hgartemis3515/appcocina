@@ -9,6 +9,7 @@
  * Defaults: ambos true (si el backend no responde o no envía el bloque).
  */
 import { useState, useEffect } from 'react';
+import { getServerBaseUrl } from '../config/apiConfig';
 
 const DEFAULT = {
     obligarOrdenAsignacion: true,
@@ -40,8 +41,41 @@ const DEFAULT = {
 let cache = null; // cache en módulo (misma sesión)
 let inflight = null;
 
+const construirConfigDesdeBackend = (cfg) => ({
+    obligarOrdenAsignacion: cfg.obligarOrdenAsignacion !== false,
+    solicitudOrdenFueraDeCola: cfg.solicitudOrdenFueraDeCola !== false,
+    usarNombreCocinaEnTablaKds: cfg.usarNombreCocinaEnTablaKds !== false,
+    // PLAN GUARNICIONES_SEPARADAS v1.1
+    permitirGuarnicionesSeparadas: cfg.permitirGuarnicionesSeparadas !== false,
+    deshabilitarOrdenSecuencialGuarniciones: cfg.deshabilitarOrdenSecuencialGuarniciones !== false,
+    deshabilitarAgrupacionGuarniciones: cfg.deshabilitarAgrupacionGuarniciones === true,
+    vistaCocinaGuarnicionComoPlato: cfg.vistaCocinaGuarnicionComoPlato !== false,
+    sosCategoriasAlFinal: Array.isArray(cfg.sosCategoriasAlFinal) ? cfg.sosCategoriasAlFinal : [],
+    ordenSinAutorizacionCategorias: Array.isArray(cfg.ordenSinAutorizacionCategorias) ? cfg.ordenSinAutorizacionCategorias : [],
+    ordenSinAutorizacionPlatos: Array.isArray(cfg.ordenSinAutorizacionPlatos) ? cfg.ordenSinAutorizacionPlatos : [],
+    primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado !== false,
+    entregarPlatoEnteroAbsoluto: cfg.entregarPlatoEnteroAbsoluto !== false,
+    forzarColorMozoUnico: cfg.forzarColorMozoUnico === true,
+    colorMozoForzado: (typeof cfg.colorMozoForzado === 'string'
+        && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cfg.colorMozoForzado))
+        ? cfg.colorMozoForzado
+        : '#1e3a8a',
+    ignorarFondoVistaMozo: cfg.ignorarFondoVistaMozo === true,
+    ocultarAnularEnTablasKds: cfg.ocultarAnularEnTablasKds !== false,
+    ocultarTablasKdsMenosSupervisor: cfg.ocultarTablasKdsMenosSupervisor !== false,
+    tiemposGuarnicion: {
+        umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
+        umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,
+        tiemposDefault: {
+            rapido: cfg.tiemposGuarnicion?.tiemposDefault?.rapido ?? 180,
+            medio: cfg.tiemposGuarnicion?.tiemposDefault?.medio ?? 420,
+            lento: cfg.tiemposGuarnicion?.tiemposDefault?.lento ?? 900
+        }
+    }
+});
+
 export async function fetchConfiguracionCocina(getToken) {
-    if (cache) return cache;
+    if (cache && !cache._fallback) return cache;
     if (inflight) return inflight;
 
     inflight = (async () => {
@@ -50,53 +84,42 @@ export async function fetchConfiguracionCocina(getToken) {
             const token = typeof getToken === 'function' ? await getToken() : null;
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            const res = await fetch('/api/configuracion', { headers });
+            // FIX: usar URL absoluta del backend (getServerBaseUrl). Antes se usaba
+            // '/api/configuracion' relativa, que en dev apunta al puerto de la app
+            // (3001) y no al backend (3000): el fetch fallaba y se cacheaban los
+            // DEFAULT para toda la sesión (vistaG 'G' de guarniciones pegada).
+            const base = getServerBaseUrl();
+            const url = base ? `${base}/api/configuracion` : '/api/configuracion';
+            const res = await fetch(url, { headers });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             const cfg = data?.configuracion?.cocina || {};
-            cache = {
-                obligarOrdenAsignacion: cfg.obligarOrdenAsignacion !== false,
-                solicitudOrdenFueraDeCola: cfg.solicitudOrdenFueraDeCola !== false,
-                usarNombreCocinaEnTablaKds: cfg.usarNombreCocinaEnTablaKds !== false,
-                // PLAN GUARNICIONES_SEPARADAS v1.1
-                permitirGuarnicionesSeparadas: cfg.permitirGuarnicionesSeparadas !== false,
-                deshabilitarOrdenSecuencialGuarniciones: cfg.deshabilitarOrdenSecuencialGuarniciones !== false,
-                deshabilitarAgrupacionGuarniciones: cfg.deshabilitarAgrupacionGuarniciones === true,
-                vistaCocinaGuarnicionComoPlato: cfg.vistaCocinaGuarnicionComoPlato !== false,
-                sosCategoriasAlFinal: Array.isArray(cfg.sosCategoriasAlFinal) ? cfg.sosCategoriasAlFinal : [],
-                ordenSinAutorizacionCategorias: Array.isArray(cfg.ordenSinAutorizacionCategorias) ? cfg.ordenSinAutorizacionCategorias : [],
-                ordenSinAutorizacionPlatos: Array.isArray(cfg.ordenSinAutorizacionPlatos) ? cfg.ordenSinAutorizacionPlatos : [],
-                primerToqueFinalizarAsignado: cfg.primerToqueFinalizarAsignado !== false,
-                entregarPlatoEnteroAbsoluto: cfg.entregarPlatoEnteroAbsoluto !== false,
-                forzarColorMozoUnico: cfg.forzarColorMozoUnico === true,
-                colorMozoForzado: (typeof cfg.colorMozoForzado === 'string'
-                    && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cfg.colorMozoForzado))
-                    ? cfg.colorMozoForzado
-                    : '#1e3a8a',
-                ignorarFondoVistaMozo: cfg.ignorarFondoVistaMozo === true,
-                ocultarAnularEnTablasKds: cfg.ocultarAnularEnTablasKds !== false,
-                ocultarTablasKdsMenosSupervisor: cfg.ocultarTablasKdsMenosSupervisor !== false,
-                tiemposGuarnicion: {
-                    umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
-                    umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,
-                    tiemposDefault: {
-                        rapido: cfg.tiemposGuarnicion?.tiemposDefault?.rapido ?? 180,
-                        medio: cfg.tiemposGuarnicion?.tiemposDefault?.medio ?? 420,
-                        lento: cfg.tiemposGuarnicion?.tiemposDefault?.lento ?? 900
-                    }
-                }
-            };
+            cache = construirConfigDesdeBackend(cfg);
             return cache;
         } catch (e) {
             console.warn('[useConfiguracionCocina] uso default por error:', e.message);
-            cache = { ...DEFAULT };
-            return cache;
+            // No dejar el default (vista G encendida) pegado: el próximo intento
+            // con token vuelve a leer la configuración guardada.
+            cache = null;
+            return { ...DEFAULT, _fallback: true };
         } finally {
             inflight = null;
         }
     })();
 
     return inflight;
+}
+
+/**
+ * Reintenta la carga si el último fetch fue un fallback (backend caído/401).
+ * Si el backend ya respondió bien, no hay refetch (misma sesión = cache).
+ */
+export async function refrescarConfiguracionCocinaSiFallback(getToken) {
+    if (cache && cache._fallback) {
+        cache = null;
+        return fetchConfiguracionCocina(getToken);
+    }
+    return cache;
 }
 
 export function invalidarCacheConfiguracionCocina() {
@@ -117,6 +140,25 @@ export function useConfiguracionCocina(getToken) {
             }
         });
         return () => { alive = false; };
+    }, [getToken]);
+
+    // FIX: si el fetch inicial falló (fallback), reintentar cuando la pestaña
+    // recupere foco/visibilidad (ej. backend reiniciado, login recién hecho).
+    useEffect(() => {
+        let alive = true;
+        const reintentar = () => {
+            refrescarConfiguracionCocinaSiFallback(getToken).then((c) => {
+                if (c && alive) setConfig(c);
+            });
+        };
+        const onVisible = () => { if (document.visibilityState === 'visible') reintentar(); };
+        window.addEventListener('focus', reintentar);
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            alive = false;
+            window.removeEventListener('focus', reintentar);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [getToken]);
 
     return { ...config, loading };

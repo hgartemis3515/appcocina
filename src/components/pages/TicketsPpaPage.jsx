@@ -537,7 +537,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
                 // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar (backend) — pagos parciales
                 const saldoPend = saldoPendienteTicket(ticket);
-                const mostrarSaldoPend = isPagoParcial && saldoPend != null && saldoPend > 0;
+                const mostrarSaldoPend = saldoPend != null && saldoPend > 0;
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
                 const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
                 const esParaLlevar = ticketEsParaLlevar(ticket);
