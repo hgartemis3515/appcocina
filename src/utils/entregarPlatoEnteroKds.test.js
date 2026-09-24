@@ -2,7 +2,9 @@ const {
   PERMISO_ENTREGAR_PLATO_ENTERO_KDS,
   botonEntregarPlatoEnteroHabilitado,
   recolectarSeleccionEntregarEntero,
-  ejecutarEntregarPlatoEntero
+  ejecutarEntregarPlatoEntero,
+  puedeEntregarPlatoEnteroPorOrden,
+  partirEntregaEnteraPorOrden
 } = require('./entregarPlatoEnteroKds');
 
 describe('entregarPlatoEnteroKds', () => {
@@ -111,10 +113,8 @@ describe('entregarPlatoEnteroKds', () => {
     expect(out.exitosos).toBe(1);
   });
 
-  test('absoluto no recorta por cola FIFO', async () => {
-    const batchFinalizarPlatos = jest.fn().mockResolvedValue({
-      resultados: [{ status: 'fulfilled', value: { exito: true, comandaId: 'c1', platoId: 'p2', platoIndex: 1 } }]
-    });
+  test('absoluto también respeta el filtro de orden', async () => {
+    const batchFinalizarPlatos = jest.fn();
     const out = await ejecutarEntregarPlatoEntero({
       aFinalizar: [{ comandaId: 'c1', platoId: 'p2', platoIndex: 1 }],
       aEntregar: [],
@@ -125,12 +125,9 @@ describe('entregarPlatoEnteroKds', () => {
       entregarPlato: jest.fn(),
       absoluto: true
     });
-    expect(batchFinalizarPlatos).toHaveBeenCalledWith(
-      [expect.objectContaining({ platoId: 'p2' })],
-      { entregarEnteroAbsoluto: true }
-    );
-    expect(out.omitidos).toHaveLength(0);
-    expect(out.exitosos).toBe(1);
+    expect(batchFinalizarPlatos).not.toHaveBeenCalled();
+    expect(out.omitidos).toHaveLength(1);
+    expect(out.exitosos).toBe(0);
   });
 
   test('si finalizar se omite por cola, no entrega ese plato', async () => {
@@ -147,5 +144,49 @@ describe('entregarPlatoEnteroKds', () => {
     expect(entregarPlato).not.toHaveBeenCalled();
     expect(out.omitidos).toHaveLength(1);
     expect(out.exitosos).toBe(0);
+  });
+
+  test('puestos 1 y 2 de la tabla entregan cualquier plato; desde la 3 solo el prefijo', () => {
+    const cocinero = 'c1';
+    const plato = (id, ts) => ({
+      _id: id,
+      estado: 'pedido',
+      procesandoPor: { cocineroId: cocinero, timestamp: ts }
+    });
+    const comandas = [
+      { _id: 'a', numeroComandaMozo: 50, createdAt: '2026-01-01T10:00:00.000Z', platos: [plato('p1', 1)] },
+      { _id: 'b', numeroComandaMozo: 40, createdAt: '2026-01-01T10:01:00.000Z', platos: [plato('p2', 2)] },
+      { _id: 'c', numeroComandaMozo: 1, createdAt: '2026-01-01T10:02:00.000Z', platos: [plato('p3', 3)] }
+    ];
+    expect(puedeEntregarPlatoEnteroPorOrden({ comandaId: 'a', platoIndex: 0, plato: comandas[0].platos[0], comanda: comandas[0] }, comandas)).toBe(true);
+    expect(puedeEntregarPlatoEnteroPorOrden({ comandaId: 'b', platoIndex: 0, plato: comandas[1].platos[0], comanda: comandas[1] }, comandas)).toBe(true);
+    expect(puedeEntregarPlatoEnteroPorOrden({ comandaId: 'c', platoIndex: 0, plato: comandas[2].platos[0], comanda: comandas[2] }, comandas)).toBe(false);
+  });
+
+  test('prefijo 1+2 o 1..N se entrega sin autorización', () => {
+    const cocinero = 'c1';
+    const plato = (id, ts) => ({
+      _id: id,
+      estado: 'pedido',
+      procesandoPor: { cocineroId: cocinero, timestamp: ts }
+    });
+    const comandas = [
+      { _id: 'a', createdAt: '2026-01-01T10:00:00.000Z', platos: [plato('p1', 1)] },
+      { _id: 'b', createdAt: '2026-01-01T10:01:00.000Z', platos: [plato('p2', 2)] },
+      { _id: 'd', createdAt: '2026-01-01T10:02:00.000Z', platos: [plato('p3', 3)] }
+    ];
+    const items = [
+      { comandaId: 'a', platoIndex: 0, plato: comandas[0].platos[0] },
+      { comandaId: 'b', platoIndex: 0, plato: comandas[1].platos[0] },
+      { comandaId: 'd', platoIndex: 0, plato: comandas[2].platos[0] }
+    ];
+    const dos = partirEntregaEnteraPorOrden(items.slice(0, 2), comandas);
+    expect(dos.bloqueados).toHaveLength(0);
+    expect(dos.permitidos).toHaveLength(2);
+    const tres = partirEntregaEnteraPorOrden(items, comandas);
+    expect(tres.bloqueados).toHaveLength(0);
+    expect(tres.permitidos).toHaveLength(3);
+    const soloTercera = partirEntregaEnteraPorOrden([items[2]], comandas);
+    expect(soloTercera.bloqueados).toHaveLength(1);
   });
 });

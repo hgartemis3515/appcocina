@@ -303,7 +303,7 @@ function CuadroMozo({
                             disabled={fila.tickets.some((t) => forzarPagoLoading[t._id])}
                             onClick={() => onForzarPago(ticketParaDetalleGrupo(fila.tickets))}
                             className="inline-flex items-center justify-center p-1 rounded border border-amber-500 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
-                            title="Forzar pago del grupo"
+                            title="Forzar cobro del grupo"
                           >
                             <FaMoneyBill className="text-[10px]" />
                           </button>

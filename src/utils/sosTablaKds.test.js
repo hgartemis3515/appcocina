@@ -1,6 +1,7 @@
 import {
   agruparPlatosSosTabla,
   claveNombreSos,
+  comandaTienePlatoEnTarjetaKds,
   instantePedidoSos,
   paginaDeComanda,
   platoVisibleEnTablaKds,
@@ -182,5 +183,19 @@ describe('sosTablaKds', () => {
     const cmds = [{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }, { _id: 'd' }];
     expect(paginaDeComanda(cmds, 'c', 2)).toBe(1);
     expect(paginaDeComanda(cmds, 'a', 5)).toBe(0);
+  });
+
+  test('comanda solo con entregado y un pendiente no entra a la tarjeta', () => {
+    const vacia = {
+      platos: [
+        { estado: 'entregado' },
+        { estado: 'entregado' },
+        { estado: 'pendiente' },
+      ],
+    };
+    expect(comandaTienePlatoEnTarjetaKds(vacia)).toBe(false);
+    expect(comandaTienePlatoEnTarjetaKds({
+      platos: [{ estado: 'entregado' }, { estado: 'en_espera' }],
+    })).toBe(true);
   });
 });

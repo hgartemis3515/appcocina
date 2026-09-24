@@ -93,6 +93,21 @@ body {
   50% { box-shadow: 0 0 14px 3px rgba(239, 68, 68, 0.85); }
 }
 
+@keyframes kdsOrdenRojo {
+  0%, 100% {
+    color: #fff;
+    background-color: #000;
+  }
+  50% {
+    color: #ef4444;
+    background-color: #b91c1c;
+  }
+}
+
+.kds-orden-blink {
+  animation: kdsOrdenRojo 1s ease-in-out infinite;
+}
+
 /* Spinner para carga de perfil en panel Personalizar */
 @keyframes kdsconfigspin {
   to { transform: rotate(360deg); }

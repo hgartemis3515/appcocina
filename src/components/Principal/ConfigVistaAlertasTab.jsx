@@ -331,6 +331,20 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 <option value={ORDENAMIENTO.CREACION}>Por creación</option>
               </select>
             </label>
+            <label className="flex items-start gap-3 cursor-pointer col-span-2">
+              <input
+                type="checkbox"
+                checked={config.autoAgrandamientoTarjetasKds === true}
+                onChange={(e) => updateConfig({ autoAgrandamientoTarjetasKds: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-emerald-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Autoagrandamiento de tarjetas</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>
+                  Cada comanda se alarga según su lista de platos. El alto actual (500 px) es el máximo; con menos platos la tarjeta se reduce y no deja hueco vacío.
+                </span>
+              </span>
+            </label>
           </div>
           <fieldset className="mt-4 pt-3 border-t border-gray-600/40 space-y-3">
             <legend className={`${textModal} font-semibold`}>Fondo del conjunto de tarjetas</legend>

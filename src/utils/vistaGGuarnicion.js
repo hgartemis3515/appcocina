@@ -1,6 +1,6 @@
 /**
  * Ver Cocina, lista de complementos con "Cambiar a G guarnicion".
- * Una fila por unidad de plato. El cambio de preselección se empareja por nombre.
+ * Una fila por nombre de plato: G Plato (qtyG) → #orden(cant) por comanda de la tabla KDS.
  */
 import { esComplementoVariantePlato, nombreGuarnicionSolo } from './guarnicionesKds';
 
@@ -88,57 +88,119 @@ export function cambiosGuarnicionVista(plato) {
   return out;
 }
 
-export function tituloFilaVistaG(nombrePlato, numero) {
-  const base = `G ${String(nombrePlato || 'Plato').trim() || 'Plato'} x (1)`;
-  if (numero == null || numero === '') return base;
-  return `${base} --- ${numero}`;
+export function tituloFilaVistaG(nombrePlato, qtyGuarnicion = 1) {
+  const q = Number(qtyGuarnicion);
+  const n = Number.isFinite(q) && q > 0 ? Math.floor(q) : 1;
+  return `G ${String(nombrePlato || 'Plato').trim() || 'Plato'} (${n})`;
+}
+
+export function chipsOrdenDesdeMapa(porOrden) {
+  const entries = porOrden instanceof Map
+    ? [...porOrden.entries()]
+    : Object.entries(porOrden || {});
+  return entries
+    .map(([o, q]) => ({ orden: Number(o), cantidad: Number(q) }))
+    .filter((x) => Number.isFinite(x.orden) && x.orden >= 1 && Number.isFinite(x.cantidad) && x.cantidad > 0)
+    .sort((a, b) => a.orden - b.orden);
+}
+
+function mergeCambiosG(a, b) {
+  const out = Array.isArray(a) ? [...a] : [];
+  const seen = new Set(out.map((c) => `${c.salio}|${c.entro}`));
+  for (const c of b || []) {
+    const k = `${c.salio || ''}|${c.entro || ''}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(c);
+  }
+  return out;
+}
+
+function qtyGDeComp(comp) {
+  const n = Number(comp?.cantidad);
+  if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  return 1;
 }
 
 /**
- * Una fila por unidad del plato (cantidad de la línea), no por nombre de guarnición.
+ * Una fila por nombre de plato. Misma guarnición / plato en varias comandas se junta.
+ * chipsOrden: #ordenTabla(cantidad) por puesto en la tabla KDS.
  * items: salida de recolectarGuarnicionesMonitor.
  */
-export function agruparItemsVistaG(items, { cantidadLinea, nombrePlato, tiempoDeComp }) {
+export function agruparItemsVistaG(items, { cantidadLinea, nombrePlato, tiempoDeComp, indiceTabla }) {
   const por = new Map();
+  const lineasVistas = new Map();
+
   for (const item of items || []) {
     if (!item?.plato || !item?.comanda) continue;
     const comandaId = String(item.comanda._id || item.comanda.id || item.comanda.numero || '');
-    const key = `${comandaId}:${item.platoIndex}`;
-    if (!por.has(key)) {
-      por.set(key, { ...item, comandaId, comps: [] });
-    }
-    if (item.comp) por.get(key).comps.push(item.comp);
-  }
-  const filas = [];
-  for (const [key, g] of por) {
-    const nRaw = cantidadLinea(g.comanda, g.plato, g.platoIndex);
-    const n = Number.isFinite(nRaw) && nRaw > 0 ? Math.floor(nRaw) : 1;
-    const cambiosG = cambiosGuarnicionVista(g.plato);
-    const nombre = nombrePlato(g.plato) || 'Plato';
-    let tiempoInicio = null;
-    for (const comp of g.comps) {
-      const t = tiempoDeComp(comp);
-      if (!t) continue;
-      const ms = new Date(t).getTime();
-      if (!Number.isFinite(ms)) continue;
-      if (tiempoInicio == null || ms < new Date(tiempoInicio).getTime()) tiempoInicio = t;
-    }
-    for (let u = 0; u < n; u++) {
-      filas.push({
-        claveUnidad: `${key}:${u}`,
-        comandaId: g.comandaId,
-        platoIndex: g.platoIndex,
-        comanda: g.comanda,
-        plato: g.plato,
-        comp: g.comps[0] || null,
-        comps: g.comps,
-        unidadIndex: u,
+    const nombre = nombrePlato(item.plato) || 'Plato';
+    const clave = norm(nombre) || 'plato';
+    if (!por.has(clave)) {
+      por.set(clave, {
+        clave,
         nombrePlato: nombre,
-        cambiosG,
-        tiempoInicio,
-        modoG: true,
+        comandaId,
+        platoIndex: item.platoIndex,
+        comanda: item.comanda,
+        plato: item.plato,
+        comp: item.comp || null,
+        comps: [],
+        cambiosG: cambiosGuarnicionVista(item.plato),
+        tiempoInicio: null,
+        qtyGuarnicion: qtyGDeComp(item.comp),
+        porOrden: new Map(),
+        cantidadTotal: 0,
       });
+      lineasVistas.set(clave, new Set());
     }
+    const g = por.get(clave);
+    if (item.comp) g.comps.push(item.comp);
+    g.qtyGuarnicion = Math.max(g.qtyGuarnicion, qtyGDeComp(item.comp));
+    g.cambiosG = mergeCambiosG(g.cambiosG, cambiosGuarnicionVista(item.plato));
+    const t = tiempoDeComp && item.comp ? tiempoDeComp(item.comp) : null;
+    if (t) {
+      const ms = new Date(t).getTime();
+      if (Number.isFinite(ms) && (g.tiempoInicio == null || ms < new Date(g.tiempoInicio).getTime())) {
+        g.tiempoInicio = t;
+      }
+    }
+    const lineaKey = `${comandaId}:${item.platoIndex}`;
+    const vistas = lineasVistas.get(clave);
+    if (vistas.has(lineaKey)) continue;
+    vistas.add(lineaKey);
+    const nRaw = typeof cantidadLinea === 'function'
+      ? cantidadLinea(item.comanda, item.plato, item.platoIndex)
+      : 1;
+    const n = Number.isFinite(nRaw) && nRaw > 0 ? Math.floor(nRaw) : 1;
+    g.cantidadTotal += n;
+    const orden = indiceTabla && typeof indiceTabla.get === 'function'
+      ? indiceTabla.get(comandaId)
+      : null;
+    if (Number.isFinite(orden) && orden >= 1) {
+      g.porOrden.set(orden, (g.porOrden.get(orden) || 0) + n);
+    }
+  }
+
+  const filas = [];
+  for (const g of por.values()) {
+    filas.push({
+      claveUnidad: `g:${g.clave}`,
+      comandaId: g.comandaId,
+      platoIndex: g.platoIndex,
+      comanda: g.comanda,
+      plato: g.plato,
+      comp: g.comp,
+      comps: g.comps,
+      unidadIndex: 0,
+      nombrePlato: g.nombrePlato,
+      cambiosG: g.cambiosG,
+      tiempoInicio: g.tiempoInicio,
+      modoG: true,
+      qtyGuarnicion: g.qtyGuarnicion,
+      chipsOrden: chipsOrdenDesdeMapa(g.porOrden),
+      cantidadTotal: g.cantidadTotal,
+    });
   }
   return filas;
 }

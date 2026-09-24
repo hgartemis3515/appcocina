@@ -18,6 +18,10 @@ import TicketComandaDetalleModal from './TicketComandaDetalleModal';
 import { platosTicketVisibles, saldoPendienteTicket, totalesVistaTicket } from '../../utils/ticketTotales';
 import {
   clasesFilaTicketAvanzado,
+  loadFilasTicketVerde,
+  saveFilasTicketVerde,
+  filaTicketResaltadaVerde,
+  toggleFilaTicketVerde,
 } from '../../utils/filaTicketResalteVerde';
 
 function SortIcon({ active, dir }) {
@@ -59,7 +63,7 @@ export function AccionesTicket({
       </button>
       {(pendiente || puedeForzar) && (
         <>
-          {pendiente && puedeAprobar && (
+          {pendiente && puedeAprobar && onAprobar && (
             <button
               type="button"
               onClick={() => onAprobar(ticket)}
@@ -76,12 +80,12 @@ export function AccionesTicket({
               onClick={() => onForzarPago(ticket)}
               disabled={forzarPagoLoading}
               className={`${btnPad} inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white`}
-              title={ticket?._esGrupoComandas ? 'Forzar pago del grupo' : 'Forzar pago'}
+              title={ticket?._esGrupoComandas ? 'Forzar cobro del grupo' : 'Forzar cobro'}
             >
               <FaMoneyBill className={iconCls} />
             </button>
           )}
-          {puedeReportar ? (
+          {puedeReportar && onReportar ? (
             <button
               type="button"
               onClick={() => onReportar(ticket)}
@@ -91,7 +95,7 @@ export function AccionesTicket({
             >
               <FaExclamationTriangle className={iconCls} />
             </button>
-          ) : !esComandaOParcial && pendiente ? (
+          ) : !esComandaOParcial && pendiente && onRechazar ? (
             <button
               type="button"
               onClick={() => onRechazar(ticket)}
@@ -123,10 +127,23 @@ function CheckSel({ checked, onToggle }) {
   );
 }
 
-function CeldaHorario({ fecha, ocultarHorario = false }) {
+function CeldaHorario({ fecha, ocultarHorario = false, pintado = false, onTogglePintar }) {
   return (
     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
-      {ocultarHorario ? null : <span>{formatDateTime(fecha)}</span>}
+      {ocultarHorario ? null : <div>{formatDateTime(fecha)}</div>}
+      {typeof onTogglePintar === 'function' ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onTogglePintar(); }}
+          className={`mt-1 w-5 h-5 rounded border flex-shrink-0 ${
+            pintado
+              ? 'bg-emerald-500 border-emerald-200'
+              : 'border-gray-500 bg-gray-800 hover:border-emerald-400'
+          }`}
+          title={pintado ? 'Quitar pintura de la fila' : 'Pintar fila'}
+          aria-label={pintado ? 'Quitar pintura de la fila' : 'Pintar fila'}
+        />
+      ) : null}
     </td>
   );
 }
@@ -149,6 +166,8 @@ function FilaTicketAvanzado({
   onToggleSeleccion,
   ocultarGuarniciones = false,
   vistaCobro = null,
+  pintado = false,
+  onTogglePintar,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -167,6 +186,7 @@ function FilaTicketAvanzado({
         indent,
         seleccionado,
         seleccionActiva,
+        resaltadoVerde: pintado,
       })}
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
     >
@@ -178,6 +198,8 @@ function FilaTicketAvanzado({
       <CeldaHorario
         fecha={ticket.createdAt}
         ocultarHorario={indent}
+        pintado={pintado}
+        onTogglePintar={onTogglePintar}
       />
       <td className={`px-3 py-2 min-w-[240px] max-w-[320px] ${indent ? 'pl-8' : ''}`}>
         <div className="flex items-start justify-between gap-2">
@@ -304,6 +326,7 @@ export default function TicketsAprobacionTable({
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
+  const [filasPintadas, setFilasPintadas] = useState(() => loadFilasTicketVerde());
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
   const totalVentas = useMemo(() => totalVentasFilasTabla(filas), [filas]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
@@ -313,6 +336,14 @@ export default function TicketsAprobacionTable({
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePintarFila = (clave) => {
+    setFilasPintadas((prev) => {
+      const next = toggleFilaTicketVerde(prev, clave);
+      saveFilasTicketVerde(next);
       return next;
     });
   };
@@ -364,9 +395,9 @@ export default function TicketsAprobacionTable({
               <AccionesTicket
                 ticket={detalleTicket}
                 onImprimir={onImprimir}
-                onAprobar={(t) => { onAprobar(t); setDetalleTicket(null); }}
-                onReportar={(t) => { onReportar(t); }}
-                onRechazar={(t) => { onRechazar(t); }}
+                onAprobar={onAprobar ? (t) => { onAprobar(t); setDetalleTicket(null); } : undefined}
+                onReportar={onReportar}
+                onRechazar={onRechazar}
                 onForzarPago={(t) => { onForzarPago?.(t); setDetalleTicket(null); }}
                 aprobarLoading={!!aprobarLoading[detalleTicket._id]}
                 reportarLoading={!!reportarLoading[detalleTicket._id]}
@@ -435,11 +466,14 @@ export default function TicketsAprobacionTable({
               };
               if (fila.tipo !== 'grupo') {
                 const ticket = fila.tickets[0];
+                const clavePintar = String(ticket?._id || fila.id);
                 return (
                   <FilaTicketAvanzado
                     key={fila.id}
                     ticket={ticket}
                     seleccionado={idSet.has(String(ticket?._id))}
+                    pintado={filaTicketResaltadaVerde(filasPintadas, clavePintar)}
+                    onTogglePintar={() => togglePintarFila(clavePintar)}
                     {...propsFila}
                   />
                 );
@@ -451,6 +485,7 @@ export default function TicketsAprobacionTable({
               const first = fila.tickets[0];
               const estadoGrupo = estadoEntregaTickets(fila.tickets);
               const grupoSel = fila.tickets.length > 0 && fila.tickets.every((t) => idSet.has(String(t._id)));
+              const grupoPintado = filaTicketResaltadaVerde(filasPintadas, fila.id);
               return (
                 <React.Fragment key={fila.id}>
                   <tr
@@ -458,6 +493,7 @@ export default function TicketsAprobacionTable({
                       seleccionado: grupoSel,
                       seleccionActiva,
                       esGrupo: true,
+                      resaltadoVerde: grupoPintado,
                     })}
                     onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
                   >
@@ -468,6 +504,8 @@ export default function TicketsAprobacionTable({
                     )}
                     <CeldaHorario
                       fecha={first.createdAt}
+                      pintado={grupoPintado}
+                      onTogglePintar={() => togglePintarFila(fila.id)}
                     />
                     <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
                       <div className="flex items-start justify-between gap-2">
@@ -543,7 +581,7 @@ export default function TicketsAprobacionTable({
                             disabled={fila.tickets.some((t) => forzarPagoLoading[t._id])}
                             onClick={(e) => { e.stopPropagation(); onForzarPago(grupoTicket); }}
                             className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
-                            title="Forzar pago del grupo"
+                            title="Forzar cobro del grupo"
                           >
                             <FaMoneyBill className="text-lg" />
                           </button>
@@ -557,6 +595,8 @@ export default function TicketsAprobacionTable({
                       ticket={ticket}
                       indent
                       seleccionado={idSet.has(String(ticket._id))}
+                      pintado={filaTicketResaltadaVerde(filasPintadas, ticket._id)}
+                      onTogglePintar={() => togglePintarFila(ticket._id)}
                       {...propsFila}
                     />
                   ))}

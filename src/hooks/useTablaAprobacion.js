@@ -26,7 +26,8 @@
  * Además se aplica debounce a fetchItems para evitar la tormenta de peticiones HTTP
  * cuando llegan varios eventos de socket en ráfaga.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import moment from 'moment-timezone';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { apiGet, apiPut } from '../config/apiClient';
@@ -83,6 +84,9 @@ export default function useTablaAprobacion({
   fechaHasta,
   incluirHistorial = false,
 } = {}) {
+  const { user } = useAuth();
+  const rolGestionTickets = user?.rol;
+  const puedeGestionarTickets = rolGestionTickets === 'admin' || rolGestionTickets === 'supervisor' || rolGestionTickets === 'cajero';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -436,6 +440,9 @@ export default function useTablaAprobacion({
 
   // Aprobar item (comanda o PPA)
   const aprobarItem = useCallback(async (ticketId, tipo, usuarioId, usuarioNombre) => {
+    if (!puedeGestionarTickets) {
+      throw new Error('Solo caja, supervisor o administrador pueden aprobar tickets');
+    }
     const id = String(ticketId);
     if (approvingRef.current.has(id)) {
       return { success: true, skipped: true };
@@ -464,10 +471,13 @@ export default function useTablaAprobacion({
     } finally {
       approvingRef.current.delete(id);
     }
-  }, []);
+  }, [puedeGestionarTickets]);
 
   // Reportar item (comanda con motivo obligatorio)
   const reportarItem = useCallback(async (ticketId, motivo, usuarioId, usuarioNombre) => {
+    if (!puedeGestionarTickets) {
+      throw new Error('Solo caja, supervisor o administrador pueden reportar tickets');
+    }
     if (!motivo || motivo.trim().length < 3) {
       throw new Error('El motivo es obligatorio y debe tener al menos 3 caracteres.');
     }
@@ -486,10 +496,13 @@ export default function useTablaAprobacion({
       console.error('Error al reportar item:', err.message);
       throw err;
     }
-  }, []);
+  }, [puedeGestionarTickets]);
 
   // Rechazar item (PPA - backwards compatibility)
   const rechazarItem = useCallback(async (ticketId, motivo, usuarioId, usuarioNombre) => {
+    if (!puedeGestionarTickets) {
+      throw new Error('Solo caja, supervisor o administrador pueden rechazar tickets');
+    }
     if (!motivo || motivo.trim().length < 3) {
       throw new Error('El motivo es obligatorio y debe tener al menos 3 caracteres.');
     }
@@ -508,7 +521,7 @@ export default function useTablaAprobacion({
       console.error('Error al rechazar item:', err.message);
       throw err;
     }
-  }, []);
+  }, [puedeGestionarTickets]);
 
   const quitarDuplicadoItem = useCallback(async (ticket, motivo, usuarioId, usuarioNombre) => {
     const ticketId = ticket?._id || ticket;

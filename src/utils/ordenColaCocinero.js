@@ -1,4 +1,5 @@
 import { esComandaReserva } from './kdsFilters';
+import { comandaTienePlatoEnTarjetaKds } from './sosTablaKds';
 
 /**
  * ordenColaCocinero.js
@@ -18,7 +19,46 @@ import { esComandaReserva } from './kdsFilters';
  * - La cantidad viaja con la línea: marcar el #1 con ×N finaliza las N unidades.
  * - Al complementar con platos de otros cocineros, la regla aplica por cola de cada cocinero.
  * - Comandas de reserva no entran a la cola secuencial (no bloquean ni se bloquean).
+ * - Las 2 primeras comandas de la tabla KDS (cardNumber 1 y 2) nunca piden autorización.
  */
+
+function tsComandaTabla(c) {
+    const t = c?.createdAt ? new Date(c.createdAt).getTime() : 0;
+    return Number.isFinite(t) ? t : 0;
+}
+
+/** Mismo criterio que la tabla KDS: reservas, prioridad, luego createdAt ASC. */
+export function ordenarComandasTablaKds(comandas) {
+    return [...(Array.isArray(comandas) ? comandas : [])].sort((a, b) => {
+        const ra = esComandaReserva(a) ? 1 : 0;
+        const rb = esComandaReserva(b) ? 1 : 0;
+        if (ra !== rb) return rb - ra;
+        const prioA = Number(a?.prioridadOrden) || 0;
+        const prioB = Number(b?.prioridadOrden) || 0;
+        if (prioA !== prioB) return prioB - prioA;
+        return tsComandaTabla(a) - tsComandaTabla(b);
+    });
+}
+
+export function comandasVisiblesTablaKds(comandas) {
+    return (Array.isArray(comandas) ? comandas : []).filter((c) => c && comandaTienePlatoEnTarjetaKds(c));
+}
+
+/** Rank 1..N = cardNumber de la tabla KDS. */
+export function mapaIndiceTablaKds(comandas) {
+    const map = new Map();
+    ordenarComandasTablaKds(comandas).forEach((c, i) => {
+        const id = String(c?._id || c?.id || '');
+        if (id) map.set(id, i + 1);
+    });
+    return map;
+}
+
+export function esComandaTablaUnoODos(comanda, mapaIndice) {
+    if (!comanda || !mapaIndice || typeof mapaIndice.get !== 'function') return false;
+    const n = mapaIndice.get(String(comanda._id || comanda.id || ''));
+    return n === 1 || n === 2;
+}
 
 export function comandaOmiteOrdenSecuencial(comanda) {
     if (!comanda) return false;
@@ -212,6 +252,7 @@ export function esPrefijoContiguoDesdeUno(numero, numerosSeleccionadosSet) {
  */
 export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) {
     const mapa = calcularNumerosColaPorCocinero(comandas);
+    const mapaIndice = mapaIndiceTablaKds(comandasVisiblesTablaKds(comandas));
     const finalizables = [];
     const bloqueados = [];
     const tieneOverride = typeof opts.tieneOverride === 'function' ? opts.tieneOverride : () => false;
@@ -221,16 +262,18 @@ export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) 
     }
 
     // Agrupar selección por cocinero dueño de la cola (procesandoPor), no por quien pulsa.
-    const porCocinero = new Map(); // cocineroId -> [{ item, numero, key }]
+    const porCocinero = new Map(); // cocineroId -> [{ item, numero, key, exenta }]
     const sinCola = [];
 
     for (const item of platosMarcados) {
-        if (tieneOverride(item) || comandaOmiteOrdenSecuencial(item.comanda) || comandaOmiteOrdenSecuencial(
-            (comandas || []).find((c) => String(c._id || c.id) === String(item.comandaId))
-        ) || platoExentoDeAutorizacion(item.plato, opts.exenciones)) {
-            finalizables.push(item);
-            continue;
-        }
+        const comandaFila = item.comanda
+            || (comandas || []).find((c) => String(c._id || c.id) === String(item.comandaId));
+        const exenta = tieneOverride(item)
+            || comandaOmiteOrdenSecuencial(item.comanda)
+            || comandaOmiteOrdenSecuencial(comandaFila)
+            || esComandaTablaUnoODos(item.comanda, mapaIndice)
+            || esComandaTablaUnoODos(comandaFila, mapaIndice)
+            || platoExentoDeAutorizacion(item.plato, opts.exenciones);
         const key = `${item.comandaId}-${item.platoIndex}`;
         const numero = mapa.get(key);
         if (numero == null) {
@@ -243,7 +286,7 @@ export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) 
             '_sin_cocinero'
         );
         if (!porCocinero.has(cocineroId)) porCocinero.set(cocineroId, []);
-        porCocinero.get(cocineroId).push({ item, numero, key });
+        porCocinero.get(cocineroId).push({ item, numero, key, exenta });
     }
 
     // Sin número de cola: no aplicar bloqueo de secuencia
@@ -253,8 +296,8 @@ export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) 
 
     for (const entradas of porCocinero.values()) {
         const seleccionados = new Set(entradas.map((e) => e.numero));
-        for (const { item, numero } of entradas) {
-            if (esPrefijoContiguoDesdeUno(numero, seleccionados)) {
+        for (const { item, numero, exenta } of entradas) {
+            if (exenta || esPrefijoContiguoDesdeUno(numero, seleccionados)) {
                 finalizables.push({ ...item, numeroColaActual: numero });
             } else {
                 bloqueados.push({ ...item, numeroColaActual: numero });

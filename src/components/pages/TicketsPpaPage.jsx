@@ -149,6 +149,7 @@ function KpiChip({ label, value, valueClass, ocultable = false, visible = true, 
 
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user } = useAuth();
+  const puedeGestionarTickets = user?.rol === 'admin' || user?.rol === 'supervisor' || user?.rol === 'cajero';
   const { cobroPorCantidad } = useConfiguracionCocina();
   const hoyOp = getFechaOperativa();
   const [filtroPeriodo, setFiltroPeriodo] = useState('hoy');
@@ -281,7 +282,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
   const handleAprobar = async (ticket) => {
     if (!ticketPuedeAprobarse(ticket)) {
-      alert('Este ticket aún no tiene cobro. Use Forzar pago o espere la solicitud del mozo.');
+      alert('Este ticket aún no tiene cobro. Use Forzar cobro o espere la solicitud del mozo.');
       return;
     }
     if (aprobarLoading[ticket._id]) return;
@@ -548,7 +549,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
                 // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar (backend) — pagos parciales
                 const saldoPend = saldoPendienteTicket(ticket);
-                const mostrarSaldoPend = isPagoParcial && saldoPend != null && saldoPend > 0;
+                const mostrarSaldoPend = saldoPend != null && saldoPend > 0;
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
                 const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
                 const esParaLlevar = ticketEsParaLlevar(ticket);
@@ -728,7 +729,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <FaPrint className="text-xs" />
                           Imprimir
                         </button>
-                        {ticketPuedeAprobarse(ticket) && (
+                        {!puedeGestionarTickets && (
+                          <span className="flex-1 text-center text-xs font-semibold text-gray-300 bg-gray-700/80 py-2 rounded-lg">
+                            Solo lectura
+                          </span>
+                        )}
+                        {puedeGestionarTickets && ticketPuedeAprobarse(ticket) && (
                         <button
                           onClick={() => handleAprobar(ticket)}
                           disabled={aprobarLoading[ticket._id]}
@@ -740,7 +746,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           {aprobarLoading[ticket._id] ? 'Cobrando...' : 'Cobrar'}
                         </button>
                         )}
-                        {ticketPuedeForzarPago(ticket) && !ticket.boucher && (
+                        {puedeGestionarTickets && ticketPuedeForzarPago(ticket) && !ticket.boucher && (
                         <button
                           onClick={() => abrirForzarPago(ticket)}
                           disabled={forzarPagoLoading[ticket._id]}
@@ -749,10 +755,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             transition-colors font-medium text-sm"
                         >
                           <FaMoneyBill className="text-xs" />
-                          Forzar pago
+                          Forzar cobro
                         </button>
                         )}
-                        {isComanda && !ticketEsAltaSinPago(ticket) ? (
+                        {puedeGestionarTickets && isComanda && !ticketEsAltaSinPago(ticket) ? (
                           <button
                             onClick={() => {
                               setShowReportarModal(ticket._id);
@@ -766,7 +772,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <FaExclamationTriangle className="text-xs" />
                             Reportar
                           </button>
-                        ) : !isComanda ? (
+                        ) : puedeGestionarTickets && !isComanda ? (
                           <button
                             onClick={() => {
                               setShowRechazarModal(ticket._id);
@@ -982,7 +988,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           <div className="flex flex-wrap gap-2 items-center">
             {[
               { key: 'pendientes', label: 'Pendientes', icon: FaClock },
-              { key: 'aprobados', label: 'Pagados', icon: FaCheck },
+              { key: 'aprobados', label: 'Cobrados', icon: FaCheck },
               { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
               { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
               { key: 'todos', label: 'Todos', icon: FaFilter },
@@ -1109,22 +1115,22 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             emptyLabel={
               filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`
             }
             sortBy={sortBy}
             sortDir={sortDir}
             onSortChange={handleSortChange}
             onImprimir={handleImprimir}
-            onAprobar={handleAprobar}
-            onReportar={(ticket) => {
+            onAprobar={puedeGestionarTickets ? handleAprobar : undefined}
+            onReportar={puedeGestionarTickets ? (ticket) => {
               setShowReportarModal(ticket._id);
               setReportarMotivo((prev) => ({ ...prev, [ticket._id]: '' }));
-            }}
-            onRechazar={(ticket) => {
+            } : undefined}
+            onRechazar={puedeGestionarTickets ? (ticket) => {
               setShowRechazarModal(ticket._id);
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
-            }}
-            onForzarPago={abrirForzarPago}
+            } : undefined}
+            onForzarPago={puedeGestionarTickets ? abrirForzarPago : undefined}
             aprobarLoading={aprobarLoading}
             reportarLoading={reportarLoading}
             rechazarLoading={rechazarLoading}
@@ -1142,22 +1148,22 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             emptyLabel={
               filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`
             }
             mozoFilter={filtroMozo}
             mozosDisponibles={mozosDisponibles}
             onMozoFilterChange={setFiltroMozo}
             onImprimir={handleImprimir}
-            onAprobar={handleAprobar}
-            onReportar={(ticket) => {
+            onAprobar={puedeGestionarTickets ? handleAprobar : undefined}
+            onReportar={puedeGestionarTickets ? (ticket) => {
               setShowReportarModal(ticket._id);
               setReportarMotivo((prev) => ({ ...prev, [ticket._id]: '' }));
-            }}
-            onRechazar={(ticket) => {
+            } : undefined}
+            onRechazar={puedeGestionarTickets ? (ticket) => {
               setShowRechazarModal(ticket._id);
               setRechazarLoading((prev) => ({ ...prev, [ticket._id + '_motivo']: '' }));
-            }}
-            onForzarPago={abrirForzarPago}
+            } : undefined}
+            onForzarPago={puedeGestionarTickets ? abrirForzarPago : undefined}
             seleccionActiva={modoEliminar}
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
@@ -1178,7 +1184,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <p className="text-gray-400 text-lg">
               {filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'pendientes' ? 'pendientes' : filtro}`}
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`}
             </p>
           </div>
         ) : (
@@ -1243,7 +1249,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 onClick={(e) => { e.stopPropagation(); abrirForzarPago(grupoTicket); }}
                                 className="text-[11px] px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white font-semibold"
                               >
-                                {cargandoGrupo ? 'Cobrando…' : 'Forzar pago'}
+                                {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
                             <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
@@ -1328,7 +1334,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white py-2 rounded-lg font-medium text-sm"
                               >
                                 <FaMoneyBill className="text-xs" />
-                                {cargandoGrupo ? 'Cobrando…' : 'Forzar pago'}
+                                {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
                             <button

@@ -6,17 +6,10 @@ describe('siguienteEstadoToquePlato', () => {
     expect(siguienteEstadoToquePlato('procesando', { tomado: false })).toBe('seleccionado');
   });
 
-  test('asignado default: amarillo → verde → rojo', () => {
+  test('asignado: un toque selecciona y otro deselecciona', () => {
     const opts = { tomado: true };
     expect(siguienteEstadoToquePlato('procesando', opts)).toBe('seleccionado');
-    expect(siguienteEstadoToquePlato('seleccionado', opts)).toBe('dejar');
-    expect(siguienteEstadoToquePlato('dejar', opts)).toBe('procesando');
-  });
-
-  test('asignado invertido: amarillo → rojo → verde', () => {
-    const opts = { tomado: true, primerToqueFinalizar: false };
-    expect(siguienteEstadoToquePlato('procesando', opts)).toBe('dejar');
-    expect(siguienteEstadoToquePlato('dejar', opts)).toBe('seleccionado');
     expect(siguienteEstadoToquePlato('seleccionado', opts)).toBe('procesando');
+    expect(siguienteEstadoToquePlato('dejar', opts)).toBe('procesando');
   });
 });

@@ -6,6 +6,7 @@ import TemporizadorChips from './TemporizadorChips';
 import MesaChips from './MesaChips';
 import GuarnicionListaLinea, { LineasCambioGuarnicion } from './GuarnicionListaLinea';
 import { tituloFilaVistaG } from '../../utils/vistaGGuarnicion';
+import { ChipsOrdenCantidadRow } from './ChipOrdenCantidad';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
@@ -188,9 +189,9 @@ const CocineroPlatoCard = React.forwardRef(({
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
   const esGuarnicion = item.esGuarnicion === true;
   const modoG = esGuarnicion && item.modoG === true;
-  const numeroG = item.numeroOrden ?? timers[0]?.numeroGlobal;
+  const chipsOrden = Array.isArray(item.chipsOrden) ? item.chipsOrden : [];
   const nombreVisible = modoG
-    ? tituloFilaVistaG(item.nombrePlato || nombre, numeroG)
+    ? tituloFilaVistaG(item.nombrePlato || nombre, item.qtyGuarnicion)
     : esGuarnicion
       ? nombre
       : (obtenerNombreDisplayCocina(platos[0] || item, { forzar: true }) || nombre);
@@ -261,7 +262,7 @@ const CocineroPlatoCard = React.forwardRef(({
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = modoG
-      ? tituloFilaVistaG(item.nombrePlato || nombre, numeroG)
+      ? tituloFilaVistaG(item.nombrePlato || nombre, item.qtyGuarnicion)
       : item.juntaMerge
         ? `- ${labelConCantidadTotal(nombre, cantidadTotal, configVisual)}`
         : (nombresListaGuarniciones(
@@ -274,6 +275,7 @@ const CocineroPlatoCard = React.forwardRef(({
     return (
       <GuarnicionListaLinea
         texto={textoNombres}
+        chipsOrden={chipsOrden}
         textoPadre={modoG ? '' : (item.subtitulo || '')}
         cambios={modoG ? item.cambiosG : null}
         textoCocinero={textoPronombreRef}
@@ -543,6 +545,7 @@ const CocineroPlatoCard = React.forwardRef(({
         >
           {nombreVisible}
         </div>
+        <ChipsOrdenCantidadRow chips={chipsOrden} fontSize={Math.max(14, Math.round((tamanioFuentePlato || 38) * 0.45))} />
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
         )}

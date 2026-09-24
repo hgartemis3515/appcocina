@@ -36,6 +36,11 @@ export function platoVisibleEnTablaKds(plato) {
   return ESTADOS_EN_TARJETA.has(estado);
 }
 
+/** La tarjeta solo existe si hay algo que pintar. Entregado + un pendiente de cobro no entra. */
+export function comandaTienePlatoEnTarjetaKds(comanda) {
+  return (comanda?.platos || []).some((p) => platoVisibleEnTablaKds(p));
+}
+
 export function qtyLineaSos(comanda, platoIndex, plato) {
   const n = Number(comanda?.cantidades?.[platoIndex]);
   if (Number.isFinite(n) && n > 0) return Math.floor(n);

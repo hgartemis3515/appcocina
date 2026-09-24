@@ -66,7 +66,7 @@ export default function AutorizacionOrdenPad({ abierto, onCerrar, onConfirmar })
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90">
       <div className="w-[280px] rounded-2xl bg-zinc-950 border border-red-700 px-5 py-6 text-center">
         <div className="text-red-500 font-black tracking-widest text-sm">AUTORIZACION</div>
-        <p className="text-zinc-400 text-xs mt-2">3 dígitos para entregar fuera de orden</p>
+        <p className="text-zinc-400 text-xs mt-2">3 dígitos fijos o código de un solo uso</p>
         <div className="mt-4 flex justify-center gap-3 text-2xl tracking-[0.4em] text-white font-mono">
           {[0, 1, 2].map((i) => (
             <span key={i}>{pin[i] ? '•' : '–'}</span>
