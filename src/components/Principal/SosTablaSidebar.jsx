@@ -17,6 +17,9 @@ const SosTablaSidebar = ({
   const text = nightMode ? 'text-white' : 'text-gray-900';
   const sub = nightMode ? 'text-gray-400' : 'text-gray-600';
   const rowIdle = nightMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200';
+  const rowPrimero = nightMode
+    ? 'bg-green-600/45 text-green-50 hover:bg-green-600/55'
+    : 'bg-green-500/35 text-green-900 hover:bg-green-500/45';
   const rowOn = nightMode ? 'bg-red-950/80 ring-1 ring-red-500' : 'bg-red-100 ring-1 ring-red-400';
 
   return (
@@ -54,7 +57,7 @@ const SosTablaSidebar = ({
                 key={g.clave}
                 type="button"
                 onClick={() => onSelectGrupo(g)}
-                className={`w-full text-left px-3 py-3 border-b ${border} min-h-[56px] flex items-center gap-2 ${activo ? rowOn : rowIdle}`}
+                className={`w-full text-left px-3 py-3 border-b ${border} min-h-[56px] flex items-center gap-2 ${activo ? rowOn : g.primero ? rowPrimero : rowIdle}`}
               >
                 <span className="flex-1 min-w-0 font-semibold leading-tight line-clamp-2">
                   {g.prioridad ? '🚀 ' : ''}{g.nombre}

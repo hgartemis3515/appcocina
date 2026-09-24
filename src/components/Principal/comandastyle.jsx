@@ -1920,8 +1920,10 @@ const ComandaStyle = ({
       platosDeComanda: hayFiltroActivo
         ? (c) => getPlatosVisibles(c) || []
         : undefined,
+      esColaUno: (comandaId, platoIndex) =>
+        (mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null) === 1,
     });
-  }, [isSupervisorView, sosTablaOn, todasComandas, usarNombreCocinaEnTablaKds, hayFiltroActivo, getPlatosVisibles]);
+  }, [isSupervisorView, sosTablaOn, todasComandas, usarNombreCocinaEnTablaKds, hayFiltroActivo, getPlatosVisibles, mapaColaCocineros]);
 
   const irAGrupoSos = useCallback((grupo) => {
     if (!grupo?.comandaIdMasAntigua) return;

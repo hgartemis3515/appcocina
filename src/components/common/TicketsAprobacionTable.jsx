@@ -16,11 +16,6 @@ import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
 import { platosTicketVisibles, saldoPendienteTicket, totalesVistaTicket } from '../../utils/ticketTotales';
 import {
-  claveFilaTicketResalte,
-  loadFilasTicketVerde,
-  saveFilasTicketVerde,
-  filaTicketResaltadaVerde,
-  toggleFilaTicketVerde,
   clasesFilaTicketAvanzado,
 } from '../../utils/filaTicketResalteVerde';
 
@@ -127,32 +122,10 @@ function CheckSel({ checked, onToggle }) {
   );
 }
 
-function CheckVerdeFila({ checked, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onToggle(); }}
-      className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
-        checked
-          ? 'bg-emerald-600 border-emerald-400 text-white text-[10px] font-bold'
-          : 'border-gray-500 bg-gray-800 hover:border-emerald-500'
-      }`}
-      title={checked ? 'Quitar resalte verde' : 'Resaltar fila en verde'}
-      aria-pressed={checked}
-      aria-label="Resaltar fila"
-    >
-      {checked ? '✓' : ''}
-    </button>
-  );
-}
-
-function CeldaHorarioConCheck({ fecha, resaltadoVerde, onToggleResalte, ocultarHorario = false }) {
+function CeldaHorario({ fecha, ocultarHorario = false }) {
   return (
     <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
-      <div className="flex flex-col items-start gap-1.5">
-        {ocultarHorario ? null : <span>{formatDateTime(fecha)}</span>}
-        <CheckVerdeFila checked={resaltadoVerde} onToggle={onToggleResalte} />
-      </div>
+      {ocultarHorario ? null : <span>{formatDateTime(fecha)}</span>}
     </td>
   );
 }
@@ -174,8 +147,6 @@ function FilaTicketAvanzado({
   seleccionado = false,
   onToggleSeleccion,
   ocultarGuarniciones = false,
-  resaltadoVerde = false,
-  onToggleResalteVerde,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -193,7 +164,6 @@ function FilaTicketAvanzado({
       className={clasesFilaTicketAvanzado({
         indent,
         seleccionado,
-        resaltadoVerde,
         seleccionActiva,
       })}
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
@@ -203,10 +173,8 @@ function FilaTicketAvanzado({
           <CheckSel checked={seleccionado} onToggle={() => onToggleSeleccion?.(ticket)} />
         </td>
       )}
-      <CeldaHorarioConCheck
+      <CeldaHorario
         fecha={ticket.createdAt}
-        resaltadoVerde={resaltadoVerde}
-        onToggleResalte={() => onToggleResalteVerde?.(claveFilaTicketResalte(ticket))}
         ocultarHorario={indent}
       />
       <td className={`px-3 py-2 min-w-[240px] max-w-[320px] ${indent ? 'pl-8' : ''}`}>
@@ -336,18 +304,9 @@ export default function TicketsAprobacionTable({
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
-  const [filasVerde, setFilasVerde] = useState(() => loadFilasTicketVerde());
   const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
   const totalVentas = useMemo(() => totalVentasFilasTabla(filas), [filas]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
-
-  const toggleResalteVerde = (clave) => {
-    setFilasVerde((prev) => {
-      const next = toggleFilaTicketVerde(prev, clave);
-      saveFilasTicketVerde(next);
-      return next;
-    });
-  };
 
   const toggleGrupo = (id) => {
     setGruposAbiertos((prev) => {
@@ -472,17 +431,14 @@ export default function TicketsAprobacionTable({
                 seleccionActiva,
                 onToggleSeleccion,
                 ocultarGuarniciones,
-                onToggleResalteVerde: toggleResalteVerde,
               };
               if (fila.tipo !== 'grupo') {
                 const ticket = fila.tickets[0];
-                const clave = claveFilaTicketResalte(ticket);
                 return (
                   <FilaTicketAvanzado
                     key={fila.id}
                     ticket={ticket}
                     seleccionado={idSet.has(String(ticket?._id))}
-                    resaltadoVerde={filaTicketResaltadaVerde(filasVerde, clave)}
                     {...propsFila}
                   />
                 );
@@ -494,13 +450,11 @@ export default function TicketsAprobacionTable({
               const first = fila.tickets[0];
               const estadoGrupo = estadoEntregaTickets(fila.tickets);
               const grupoSel = fila.tickets.length > 0 && fila.tickets.every((t) => idSet.has(String(t._id)));
-              const grupoVerde = filaTicketResaltadaVerde(filasVerde, fila.id);
               return (
                 <React.Fragment key={fila.id}>
                   <tr
                     className={clasesFilaTicketAvanzado({
                       seleccionado: grupoSel,
-                      resaltadoVerde: grupoVerde,
                       seleccionActiva,
                       esGrupo: true,
                     })}
@@ -511,10 +465,8 @@ export default function TicketsAprobacionTable({
                         <CheckSel checked={grupoSel} onToggle={() => onToggleSeleccion?.(fila.tickets)} />
                       </td>
                     )}
-                    <CeldaHorarioConCheck
+                    <CeldaHorario
                       fecha={first.createdAt}
-                      resaltadoVerde={grupoVerde}
-                      onToggleResalte={() => toggleResalteVerde(fila.id)}
                     />
                     <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
                       <div className="flex items-start justify-between gap-2">
@@ -603,7 +555,6 @@ export default function TicketsAprobacionTable({
                       ticket={ticket}
                       indent
                       seleccionado={idSet.has(String(ticket._id))}
-                      resaltadoVerde={filaTicketResaltadaVerde(filasVerde, claveFilaTicketResalte(ticket))}
                       {...propsFila}
                     />
                   ))}

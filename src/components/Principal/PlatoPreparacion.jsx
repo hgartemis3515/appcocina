@@ -237,8 +237,8 @@ const PlatoPreparacion = ({
     if (isEliminado) return 'bg-red-500/15 text-red-500 border-red-500/30';
     if (fondoColaUno && estadoVisual !== 'dejar' && estadoVisual !== 'seleccionado') {
       return nightMode
-        ? 'bg-green-600/45 text-green-50 border-green-400'
-        : 'bg-green-500/35 text-green-900 border-green-600';
+        ? 'bg-yellow-400/30 text-yellow-200 border-yellow-400/50'
+        : 'bg-yellow-400/20 text-yellow-700 border-yellow-400/50';
     }
     switch (estadoVisual) {
       case 'seleccionado':

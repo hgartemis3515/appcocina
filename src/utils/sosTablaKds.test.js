@@ -155,6 +155,29 @@ describe('sosTablaKds', () => {
     expect(grupos[0].comandaIdMasAntigua).toBe('prio');
   });
 
+  test('marca primero solo el grupo que tiene un plato en cola 1', () => {
+    const comandas = [
+      {
+        _id: 'c1',
+        createdAt: '2026-09-21T10:00:00.000Z',
+        platos: [
+          { nombre: 'Lomo', tiempos: { pedido: '2026-09-21T10:00:00.000Z' } },
+          { nombre: 'Pollo', tiempos: { pedido: '2026-09-21T10:01:00.000Z' } },
+        ],
+      },
+      {
+        _id: 'c2',
+        createdAt: '2026-09-21T10:02:00.000Z',
+        platos: [{ nombre: 'Lomo', tiempos: { pedido: '2026-09-21T10:02:00.000Z' } }],
+      },
+    ];
+    const grupos = agruparPlatosSosTabla(comandas, {
+      esColaUno: (comandaId, platoIndex) => comandaId === 'c1' && platoIndex === 0,
+    });
+    expect(grupos.find((g) => g.clave === 'LOMO').primero).toBe(true);
+    expect(grupos.find((g) => g.clave === 'POLLO').primero).toBe(false);
+  });
+
   test('paginaDeComanda respeta cols×rows', () => {
     const cmds = [{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }, { _id: 'd' }];
     expect(paginaDeComanda(cmds, 'c', 2)).toBe(1);

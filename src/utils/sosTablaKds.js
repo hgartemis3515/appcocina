@@ -79,11 +79,12 @@ export function paginaDeComanda(comandas, comandaId, porPagina) {
 /**
  * Agrupa platos visibles del tablero KDS por nombre de cocina.
  * Orden: platos de comandas con prioridad primero (🚀), luego llegada.
- * @returns {{ clave, nombre, cantidad, tsMin, comandaIdMasAntigua, platoIndexMasAntigua }[]}
+ * @returns {{ clave, nombre, cantidad, primero, tsMin, comandaIdMasAntigua, platoIndexMasAntigua }[]}
  */
 export function agruparPlatosSosTabla(comandas, opts = {}) {
   const habilitadoEnKds = opts.habilitadoEnKds === true;
   const platosDeComanda = typeof opts.platosDeComanda === 'function' ? opts.platosDeComanda : null;
+  const esColaUno = typeof opts.esColaUno === 'function' ? opts.esColaUno : null;
   const groups = new Map();
 
   for (const comanda of comandas || []) {
@@ -100,6 +101,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const clave = `${claveNombreSos(nombre)}${prioridad ? '|P' : ''}`;
       const cantidad = qtyLineaSos(comanda, platoIndex, plato);
       const ts = instantePedidoSos(plato, comanda);
+      const colaUno = esColaUno ? esColaUno(comandaId, platoIndex) === true : false;
       const prev = groups.get(clave);
       if (!prev) {
         groups.set(clave, {
@@ -107,6 +109,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
           nombre,
           cantidad,
           prioridad,
+          primero: colaUno,
           prioMax: prio,
           tsMin: ts,
           comandaIdMasAntigua: comandaId,
@@ -114,6 +117,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
         });
         return;
       }
+      if (colaUno) prev.primero = true;
       prev.cantidad += cantidad;
       if (prio > prev.prioMax) prev.prioMax = prio;
       if (ts < prev.tsMin) {
