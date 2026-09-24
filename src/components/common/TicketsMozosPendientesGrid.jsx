@@ -10,7 +10,7 @@ import {
 } from '../../utils/ticketSort';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar, ticketsForzablesDeGrupo } from '../../utils/ticketAprobacionUi';
-import { totalesVistaTicket, resumenKpisTickets } from '../../utils/ticketTotales';
+import { totalesVistaTicket, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos } from '../../utils/ticketTotales';
 
 function BadgeEstadoComanda({ meta }) {
   const entregado = !!meta?.entregado;
@@ -82,6 +82,9 @@ function FilaTicket({
 }) {
   const badge = tipoBadge(ticket.tipo);
   const { neto } = totalesVistaTicket(ticket);
+  // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar (backend) — pagos parciales
+  const saldoPend = saldoPendienteTicket(ticket);
+  const mostrarSaldoPend = saldoPend != null && saldoPend > 0;
   const estadoComanda = estadoEntregaComandaTicket(ticket);
   return (
     <tr
@@ -137,6 +140,9 @@ function FilaTicket({
       </td>
       <td className="px-2 py-0.5 text-right text-white font-semibold text-xs whitespace-nowrap">
         {formatCurrency(neto)}
+        {mostrarSaldoPend && (
+          <div className="text-[9px] text-amber-300 font-semibold">Pend: {formatCurrency(saldoPend)}</div>
+        )}
       </td>
     </tr>
   );

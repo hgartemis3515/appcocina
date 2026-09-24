@@ -10,7 +10,7 @@ import useTablaAprobacion from '../../hooks/useTablaAprobacion';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
-import { platosTicketVisibles, totalesVistaTicket } from '../../utils/ticketTotales';
+import { platosTicketVisibles, totalesVistaTicket, saldoPendienteTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import { ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago } from '../../utils/ticketAprobacionUi';
@@ -199,6 +199,8 @@ export default function PpaSidebar({ socket, onClose }) {
             const infoMismaComanda = getInfoTicketMismaComanda(ticket, items);
             const platosVis = platosTicketVisibles(ticket);
             const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
+            // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar (backend) — pagos parciales
+            const saldoPend = saldoPendienteTicket(ticket);
             return (
               <motion.div
                 key={ticket._id}
@@ -296,6 +298,12 @@ export default function PpaSidebar({ socket, onClose }) {
                         <span>TOTAL</span>
                         <span>{formatCurrency(neto)}</span>
                       </div>
+                    </div>
+                  )}
+                  {saldoPend != null && saldoPend > 0 && (
+                    <div className="mt-2 flex items-center justify-between text-[11px] bg-amber-900/40 border border-amber-500/30 rounded px-2 py-1">
+                      <span className="text-amber-300/90 font-medium">Pendiente por cobrar</span>
+                      <span className="text-amber-200 font-bold">{formatCurrency(saldoPend)}</span>
                     </div>
                   )}
                 </div>

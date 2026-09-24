@@ -35,7 +35,7 @@ import {
   ticketEsParaLlevar,
 } from '../../utils/ticketAprobacionUi';
 import { estiloCuerpoParaLlevarTickets, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
-import { platosTicketVisibles, resumenKpisTickets, totalesVistaTicket } from '../../utils/ticketTotales';
+import { platosTicketVisibles, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet } from '../../config/apiClient';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -534,6 +534,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const quedanMasTickets = ticketsPendientesMismaMesa > 1;
                 const platosVis = platosTicketVisibles(ticket);
                 const { bruto, neto, montoDesc } = totalesVistaTicket(ticket);
+                // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar (backend) — pagos parciales
+                const saldoPend = saldoPendienteTicket(ticket);
+                const mostrarSaldoPend = isPagoParcial && saldoPend != null && saldoPend > 0;
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
                 const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
                 const esParaLlevar = ticketEsParaLlevar(ticket);
@@ -668,6 +671,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <span>TOTAL</span>
                             <span>{formatCurrency(neto)}</span>
                           </div>
+                        </div>
+                      )}
+                      {mostrarSaldoPend && (
+                        <div className="mt-2 flex items-center justify-between text-xs bg-amber-900/40 border border-amber-500/30 rounded px-2 py-1.5">
+                          <span className="text-amber-300/90 font-medium">
+                            Pendiente por cobrar (comanda)
+                          </span>
+                          <span className="text-amber-200 font-bold">{formatCurrency(saldoPend)}</span>
                         </div>
                       )}
                       {(ticket.metodoPago === 'efectivo' || String(ticket.tipoPago || '').toLowerCase() === 'efectivo') &&
@@ -1166,6 +1177,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   const grupoTicket = ticketParaDetalleGrupo(fila.tickets);
                   const platosGrupo = platosTicketVisibles(grupoTicket);
                   const { bruto, neto, montoDesc } = totalesVistaTicket(grupoTicket);
+                  // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar del grupo (únicos por comanda)
+                  const saldoPendGrupo = saldoPendienteTicketsUnicos(fila.tickets);
                   const estadoGrupo = estadoEntregaTickets(fila.tickets);
                   const primero = fila.tickets[0];
                   const grupoSel = modoEliminar && fila.tickets.every((t) => idsEliminar.includes(String(t._id)));
@@ -1273,6 +1286,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 Grupo
                               </span>
                             </div>
+                            {saldoPendGrupo != null && saldoPendGrupo > 0 && (
+                              <div className="mt-2 flex items-center justify-between text-xs bg-amber-900/40 border border-amber-500/30 rounded px-2 py-1.5">
+                                <span className="text-amber-300/90 font-medium">Pendiente por cobrar (comandas)</span>
+                                <span className="text-amber-200 font-bold">{formatCurrency(saldoPendGrupo)}</span>
+                              </div>
+                            )}
                             {montoDesc > 0 && (
                               <div className="mt-1.5 space-y-0.5 text-xs">
                                 <div className="flex justify-between text-gray-400">

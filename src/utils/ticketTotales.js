@@ -229,9 +229,63 @@ export function totalVentasObservadas(tickets = []) {
 }
 
 /**
+ * BUG_PAGO_PARCIAL_TABLA (Jose Gambu #2087):
+ * Saldo pendiente por cobrar de un ticket, calculado por el backend contra la
+ * comanda VIVA (comandas[].pendienteCobro). El ticket pago_parcial guarda solo
+ * lo cobrado en ese envío (p.ej. S/ 33 de 1 pollo); el saldo real de la comanda
+ * puede ser mayor (p.ej. 3 pollos + tamal = S/ 111).
+ * Devuelve null si el backend no adjuntó el saldo (dato desconocido).
+ */
+export function saldoPendienteTicket(ticket) {
+  const cmds = Array.isArray(ticket?.comandas) ? ticket.comandas : [];
+  let sum = 0;
+  let ok = false;
+  for (const c of cmds) {
+    if (!c || typeof c !== 'object') continue;
+    const n = Number(c.pendienteCobro);
+    if (!Number.isFinite(n)) continue;
+    ok = true;
+    sum += Math.max(0, n);
+  }
+  return ok ? round2(sum) : null;
+}
+
+/**
+ * Saldo pendiente único de un conjunto de tickets (p.ej. un grupo de comandas):
+ * una comanda puede tener varios tickets (comanda_completa + parciales) y todos
+ * llevan el MISMO pendienteCobro; se toma el máximo por comanda y se suma una vez.
+ * Devuelve null si ningún ticket trae el saldo.
+ */
+export function saldoPendienteTicketsUnicos(tickets = []) {
+  const porComanda = new Map();
+  let ok = false;
+  for (const t of tickets || []) {
+    if (!t || !Array.isArray(t.comandas)) continue;
+    for (const c of t.comandas) {
+      if (!c || typeof c !== 'object') continue;
+      const n = Number(c.pendienteCobro);
+      if (!Number.isFinite(n)) continue;
+      ok = true;
+      const id = String(c._id ?? c.id ?? c.comandaNumber ?? '');
+      const key = id || `idx:${porComanda.size}`;
+      const prev = porComanda.get(key);
+      const val = Math.max(0, n);
+      if (prev == null || val > prev) porComanda.set(key, val);
+    }
+  }
+  if (!ok) return null;
+  let sum = 0;
+  for (const v of porComanda.values()) sum += v;
+  return round2(sum);
+}
+
+/**
  * KPIs de la tabla de tickets:
  * Ventas pendientes / Ventas pagadas / Descuentos (solo si hay).
  * Solo el último ticket de cada comanda. Total venta = pendiente + pagadas.
+ * BUG_PAGO_PARCIAL_TABLA: si el backend adjunta comandas[].pendienteCobro (saldo
+ * vivo de la comanda), el KPI "pendiente" usa ese saldo REAL en vez del snapshot
+ * del ticket; así los KPIs cuadran con lo que ve el mozo (p.ej. 383, no 338).
  */
 export function resumenKpisTickets(tickets = []) {
   let pendiente = 0;
@@ -241,10 +295,19 @@ export function resumenKpisTickets(tickets = []) {
     const { neto, montoDesc } = resolverBrutoYNeto(t, sumaPlatosTicket(t));
     const est = String(t.estado || '').toLowerCase();
     if (est === 'pendiente_aprobacion') {
-      pendiente += neto;
+      const saldo = saldoPendienteTicket(t);
+      // Pago parcial aprobado cuyo saldo aún no está cobrado: su snapshot no es
+      // "dinero pendiente", el pendiente real es el saldo vivo de la comanda.
+      const saldoDominante = saldo != null && (t.tipo === 'pago_parcial' || saldo > neto);
+      pendiente += saldoDominante ? saldo : neto;
       if (montoDesc > 0) descuento += montoDesc;
     } else if (est === 'aprobado') {
+      // Cobrado + aprobado: cuenta su snapshot, pero si la comanda aún tiene saldo
+      // pendiente por cobrar (parcial aprobado con resto), ese resto se mantiene pendiente.
+      const saldo = saldoPendienteTicket(t);
+      const restoPendiente = saldo != null && saldo > 0 ? Math.max(0, saldo - neto) : 0;
       aprobados += neto;
+      pendiente += restoPendiente;
       if (montoDesc > 0) descuento += montoDesc;
     }
   }
