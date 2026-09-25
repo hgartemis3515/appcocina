@@ -137,7 +137,7 @@ export const tipoBadge = (tipo) => {
     return { label: 'PAGO PARCIAL', bg: 'bg-amber-500/30 text-amber-300 border-amber-500/40' };
   }
   if (t === 'pago_adelantado' || t === 'adelantado') {
-    return { label: 'ADELANTADO', bg: 'bg-violet-500/30 text-violet-300 border-violet-500/40' };
+    return { label: 'Adelanto', bg: 'bg-black text-white border border-white/30' };
   }
   return { label: tipo || 'OTRO', bg: 'bg-gray-500/30 text-gray-300 border-gray-500/40' };
 };

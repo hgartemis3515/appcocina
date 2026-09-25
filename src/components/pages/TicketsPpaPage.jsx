@@ -1090,7 +1090,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
       {/* Contenido con scroll independiente */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className={`${modoVista === 'mozos' ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-4 py-4`}>
+        <div className={`${modoVista === 'basico' ? 'max-w-none' : modoVista === 'mozos' ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-3 py-4`}>
         {modoVista === 'avanzado' ? (
           <TicketsAprobacionTable
             tickets={itemsFiltrados}
@@ -1170,7 +1170,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
             <AnimatePresence>
               {filasBasico.map((fila) => {
                 if (fila.tipo === 'grupo') {
@@ -1188,6 +1188,31 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     ? estiloCuerpoParaLlevarTickets(tablaPrefs)
                     : undefined;
                   const forzablesGrupo = ticketsForzablesDeGrupo(fila.tickets);
+                  const solicitudesGrupo = fila.tickets.filter((t) => {
+                    if (!ticketPuedeAprobarse(t)) return false;
+                    const tipo = String(t.tipo || '').toLowerCase();
+                    return tipo === 'pago_parcial' || tipo === 'pago_adelantado' || tipo === 'adelantado';
+                  });
+                  const botonesAdelanto = solicitudesGrupo.map((sol) => {
+                    const netoSol = totalesVistaTicket(sol).neto;
+                    const esParcial = String(sol.tipo || '').toLowerCase() === 'pago_parcial';
+                    return (
+                      <button
+                        key={sol._id}
+                        type="button"
+                        disabled={aprobarLoading[sol._id]}
+                        onClick={(e) => { e.stopPropagation(); handleAprobar(sol); }}
+                        className={`text-[11px] px-2 py-1 rounded-md font-semibold border inline-flex items-center justify-center gap-1 ${
+                          esParcial
+                            ? 'bg-amber-500/30 text-amber-200 border-amber-500/40 hover:bg-amber-500/50'
+                            : 'bg-black text-white border-white/40 hover:bg-neutral-900'
+                        }`}
+                      >
+                        <FaMoneyBill className="text-[10px]" />
+                        {aprobarLoading[sol._id] ? 'Cobrando…' : `Cobrar AD (${formatCurrency(netoSol)})`}
+                      </button>
+                    );
+                  });
                   const cargandoGrupo = fila.tickets.some((t) => forzarPagoLoading[t._id]);
                   return (
                     <motion.div
@@ -1234,6 +1259,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
+                            {abierto ? botonesAdelanto : null}
                             <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
                               {estadoGrupo.label}
                             </span>
@@ -1319,6 +1345,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
+                            {botonesAdelanto}
                             <button
                               type="button"
                               onClick={() => handleImprimir(grupoTicket)}

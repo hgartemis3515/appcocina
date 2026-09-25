@@ -188,6 +188,13 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
                 onChange={(v) => onChange({ textoRestoColor: v })}
               />
               <ColorField
+                label="Fondo del nombre del plato"
+                value={prefs.textoPlatosFondo}
+                fallback="#111827"
+                allowEmpty
+                onChange={(v) => onChange({ textoPlatosFondo: v })}
+              />
+              <ColorField
                 label="Fondo de las letras"
                 value={prefs.textoFondo}
                 fallback="#111827"
@@ -195,6 +202,21 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
                 onChange={(v) => onChange({ textoFondo: v })}
               />
             </div>
+            <label className="block mt-3">
+              <span className="block text-gray-300 text-xs font-semibold mb-1">Tipo de letra del nombre del plato</span>
+              <select
+                value={prefs.textoPlatosFuente || ''}
+                onChange={(e) => onChange({ textoPlatosFuente: e.target.value })}
+                className="w-full bg-gray-900 text-gray-200 p-2 rounded-lg border border-gray-600 text-sm"
+              >
+                <option value="">La misma del resto</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="Verdana, sans-serif">Verdana</option>
+                <option value="Georgia, serif">Georgia</option>
+                <option value="'Courier New', monospace">Courier</option>
+                <option value="Tahoma, sans-serif">Tahoma</option>
+              </select>
+            </label>
             <label className="block mt-3">
               <span className="block text-gray-300 text-xs font-semibold mb-1">
                 Tamaño de letras ({tam}px)

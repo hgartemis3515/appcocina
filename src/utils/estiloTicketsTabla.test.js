@@ -22,11 +22,14 @@ describe('estiloTicketsTabla', () => {
       textoRestoColor: '#e9d5ff',
       textoTamano: 16,
       textoFondo: '#1e1b4b',
+      textoPlatosFondo: '#000000',
+      textoPlatosFuente: 'Georgia, serif',
     });
     expect(st.platos.color).toBe('#fde68a');
     expect(st.platos.fontSize).toBe('16px');
-    expect(st.platos.backgroundColor).toBe('#1e1b4b');
-    expect(st.total.fontWeight).toBe(700);
+    expect(st.platos.fontFamily).toBe('Georgia, serif');
+    expect(st.platos.backgroundColor).toBe('#000000');
+    expect(st.total.backgroundColor).toBe('#1e1b4b');
     expect(st.resto.color).toBe('#e9d5ff');
   });
 

@@ -17,6 +17,8 @@ export const TICKETS_TABLA_VISUAL_DEFAULT = {
   textoRestoColor: '#9ca3af',
   textoTamano: 14,
   textoFondo: '',
+  textoPlatosFondo: '',
+  textoPlatosFuente: '',
   mozoNombreColor: MOZO_NOMBRE_DEFAULT.mozoNombreColor,
   mozoNombreFondo: MOZO_NOMBRE_DEFAULT.mozoNombreFondo,
   mozoNombreTamano: MOZO_NOMBRE_DEFAULT.mozoNombreTamano,
@@ -58,6 +60,8 @@ export function normalizeTicketsTablaVisual(parsed) {
       d.textoTamano
     ),
     textoFondo: hexOrEmpty(parsed?.textoFondo),
+    textoPlatosFondo: hexOrEmpty(parsed?.textoPlatosFondo),
+    textoPlatosFuente: typeof parsed?.textoPlatosFuente === 'string' ? parsed.textoPlatosFuente : '',
     mozoNombreColor: hexOr(parsed?.mozoNombreColor, d.mozoNombreColor),
     mozoNombreFondo: hexFondoMozo(parsed?.mozoNombreFondo, d.mozoNombreFondo),
     mozoNombreTamano: clampInt(
@@ -99,9 +103,11 @@ export function estiloCuerpoParaLlevarTickets(prefs = {}) {
 export function estilosTextoTicketsTabla(prefs = {}) {
   const v = normalizeTicketsTablaVisual(prefs);
   const meta = Math.max(TICKETS_TABLA_TEXTO_TAMANO_MIN, v.textoTamano - 2);
+  const fondoPlatos = v.textoPlatosFondo || v.textoFondo;
+  const fuentePlatos = v.textoPlatosFuente ? { fontFamily: v.textoPlatosFuente } : {};
   return {
-    platos: estiloLetra(v.textoPlatosColor, v.textoTamano, v.textoFondo),
-    platosMeta: estiloLetra(v.textoPlatosColor, meta, v.textoFondo),
+    platos: estiloLetra(v.textoPlatosColor, v.textoTamano, fondoPlatos, fuentePlatos),
+    platosMeta: estiloLetra(v.textoPlatosColor, meta, fondoPlatos, fuentePlatos),
     total: estiloLetra(v.textoTotalColor, v.textoTamano, v.textoFondo, { fontWeight: 700 }),
     resto: estiloLetra(v.textoRestoColor, meta, v.textoFondo),
   };
