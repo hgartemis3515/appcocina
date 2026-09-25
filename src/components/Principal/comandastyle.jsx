@@ -3359,7 +3359,9 @@ const ComandaStyle = ({
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
         type: 'warning',
-        message: 'Selecciona platos tomados para entregar enteros',
+        message: (aFinalizarRaw.length + aEntregarRaw.length) > 0
+          ? 'Fuera de orden. Incluye el #1 y los siguientes en secuencia. Las comandas 1 y 2 no piden autorización.'
+          : 'Selecciona platos tomados para entregar enteros',
         duration: 4000
       });
       return;

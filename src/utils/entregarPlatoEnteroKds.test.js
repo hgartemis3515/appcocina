@@ -31,7 +31,7 @@ describe('entregarPlatoEnteroKds', () => {
       ]
     }];
     const platoStates = new Map([
-      ['c1-0', 'seleccionado'],
+      ['c1-0', 'procesando'],
       ['c1-1', 'entregando']
     ]);
     const r = recolectarSeleccionEntregarEntero({ platoStates, comandas, userId: yo });
