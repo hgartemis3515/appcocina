@@ -60,6 +60,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'colorReservaCronometroFondo',
   'ocultarCohetePrioridadKds',
   'camuflarEliminarPlatoEpa',
+  'autoAgrandamientoTarjetasKds',
   'fondoConjuntoTarjetas',
   'fondoConjuntoTarjetasClaro',
   'alertYellowMinutes',

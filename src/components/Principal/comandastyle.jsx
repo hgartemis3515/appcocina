@@ -50,14 +50,15 @@ import {
 import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
 import { esEstiloAprovechadorKds } from "../../utils/estiloHeaderTarjetaKds";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
-import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden, ordenarPlatosCategoriasAlFinal } from "../../utils/ordenColaCocinero";
+import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden, ordenarPlatosCategoriasAlFinal, ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
 import AutorizacionOrdenPad from "../common/AutorizacionOrdenPad";
 import { extraerResolucionSolicitudOrden } from "../../utils/solicitudOrdenKds";
 import {
   PERMISO_ENTREGAR_PLATO_ENTERO_KDS,
   botonEntregarPlatoEnteroHabilitado,
   recolectarSeleccionEntregarEntero,
-  ejecutarEntregarPlatoEntero
+  ejecutarEntregarPlatoEntero,
+  partirEntregaEnteraPorOrden
 } from "../../utils/entregarPlatoEnteroKds";
 import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 import BotonPasarABackup from "./BotonPasarABackup";
@@ -107,6 +108,7 @@ import {
 } from "../../utils/guarnicionesKds";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
+import useDeseleccionPlatoKds from "../../hooks/useDeseleccionPlatoKds";
 
 const ComandaStyle = ({ 
   onGoToMenu, 
@@ -217,6 +219,7 @@ const ComandaStyle = ({
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
   // Estado para checkboxes de platos individuales: Map<`${comandaId}-${platoId}`, boolean>
   const [platosChecked, setPlatosChecked] = useState(new Map());
+  const deseleccionPlato = useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked);
   // Estado para tiempos formateados HH:MM:SS por comanda: Map<comandaId, string>
   const [tiemposComandas, setTiemposComandas] = useState(new Map());
   // Estado para prevenir double-submit en finalizar platos
@@ -1881,17 +1884,7 @@ const ComandaStyle = ({
   const totalComandas = enEspera.length;
 
   // PARRAFO 4 - REORDEN: Sort — reservas primero (siempre), luego prioridadOrden, luego createdAt
-  const todasComandas = [...enEspera].sort((a, b) => {
-    const ra = esComandaReserva(a) ? 1 : 0;
-    const rb = esComandaReserva(b) ? 1 : 0;
-    if (ra !== rb) return rb - ra;
-    const prioA = a.prioridadOrden || 0;
-    const prioB = b.prioridadOrden || 0;
-    if (prioA !== prioB) return prioB - prioA;
-    const tiempoA = a.createdAt ? moment(a.createdAt).valueOf() : 0;
-    const tiempoB = b.createdAt ? moment(b.createdAt).valueOf() : 0;
-    return tiempoA - tiempoB;
-  });
+  const todasComandas = ordenarComandasTablaKds(enEspera);
 
   // Paginación: basada en configuración de diseño (cols * rows)
   const COMANDAS_POR_PAGINA = (config.design?.cols || 5) * (config.design?.rows || 1);
@@ -2006,6 +1999,8 @@ const ComandaStyle = ({
           primerToqueFinalizar: primerToqueFinalizarAsignado
         });
         nuevo.set(key, nuevoEstado);
+        if (nuevoEstado === 'seleccionado') deseleccionPlato.programar(key);
+        else deseleccionPlato.cancelar(key);
         return nuevo;
       });
       return;
@@ -2032,6 +2027,8 @@ const ComandaStyle = ({
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
         nuevo.set(key, estadoActual === 'entregando' ? 'normal' : 'entregando');
+        if (estadoActual === 'entregando') deseleccionPlato.cancelar(key);
+        else deseleccionPlato.programar(key);
         return nuevo;
       });
       return;
@@ -2079,6 +2076,9 @@ const ComandaStyle = ({
       
       nuevo.set(key, nuevoEstado);
       
+      if (nuevoEstado === 'seleccionado') deseleccionPlato.programar(key);
+      else deseleccionPlato.cancelar(key);
+
       // SYNC: Sincronizar platoStates 'seleccionado' → platosChecked true (para batch)
       if (nuevoEstado === 'seleccionado') {
         setPlatosChecked(prev => {
@@ -2097,7 +2097,7 @@ const ComandaStyle = ({
       
       return nuevo;
     });
-  }, [comandas, userId, isSupervisorView, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto]);
+  }, [comandas, userId, isSupervisorView, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, deseleccionPlato]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -3368,8 +3368,16 @@ const ComandaStyle = ({
       isSupervisorView,
       permitirOtroCocinero: entregarPlatoEnteroAbsoluto !== false
     });
-    const aFinalizar = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
-    const aEntregar = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
+    const aFinalizarRaw = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
+    const aEntregarRaw = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
+    const ordenEntero = partirEntregaEnteraPorOrden(
+      [...aFinalizarRaw, ...aEntregarRaw],
+      comandas,
+      { tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato) }
+    );
+    const bloqueadosIds = new Set(ordenEntero.bloqueados.map((p) => `${p.comandaId}-${p.platoIndex}`));
+    const aFinalizar = aFinalizarRaw.filter((p) => !bloqueadosIds.has(`${p.comandaId}-${p.platoIndex}`));
+    const aEntregar = aEntregarRaw.filter((p) => !bloqueadosIds.has(`${p.comandaId}-${p.platoIndex}`));
     const guarniciones = recolectado.guarniciones;
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
@@ -4477,10 +4485,13 @@ const ComandaStyle = ({
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
-                  gridAutoRows: esEstiloAprovechadorKds(config) ? '500px' : '520px',
+                  gridAutoRows: config.autoAgrandamientoTarjetasKds === true
+                    ? 'auto'
+                    : (esEstiloAprovechadorKds(config) ? '500px' : '520px'),
                   gap: esEstiloAprovechadorKds(config) ? 0 : '20px',
                   justifyContent: esEstiloAprovechadorKds(config) ? 'start' : 'center',
-                  alignContent: 'start'
+                  alignContent: 'start',
+                  alignItems: 'start',
                 }}
               >
                 <AnimatePresence>
@@ -4685,6 +4696,7 @@ const ComandaStyle = ({
                   
                   return (
                     <div className="flex flex-col gap-0">
+                      {!(modo === 'FINALIZAR_PLATO' && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) && (
                       <motion.button
                         onClick={handleBotonContextual}
                         disabled={!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading}
@@ -4697,6 +4709,7 @@ const ComandaStyle = ({
                         {getIcon()}
                         <span>{isLoading ? 'Procesando...' : mensaje}</span>
                       </motion.button>
+                      )}
                       {subMensaje && hayPlatosSeleccionados && !isLoading && (
                         <span className="text-xs text-gray-400 mt-0.5 pl-1">{subMensaje}</span>
                       )}
@@ -4713,17 +4726,45 @@ const ComandaStyle = ({
                     if (e === 'seleccionado' || e === 'entregando') nSel += 1;
                   });
                   const loteBackup = recolectarSeleccionConSiguienteBackup({ platoStates, comandas }, asignacionBackupSnapshot);
+                  const seleccionEntera = recolectarSeleccionEntregarEntero({
+                    platoStates, comandas, userId, isSupervisorView,
+                    permitirOtroCocinero: absoluto
+                  });
+                  const ordenEntero = partirEntregaEnteraPorOrden(
+                    [...seleccionEntera.aFinalizar, ...seleccionEntera.aEntregar],
+                    comandas,
+                    { tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato) }
+                  );
+                  const pideAutorizacion = ordenEntero.bloqueados.length > 0
+                    && obligarOrdenAsignacion
+                    && solicitudOrdenFueraDeCola
+                    && !puedeOmitirOrden;
+                  const platosParaCambiar = obtenerPlatosSeleccionadosInfo().filter((p) =>
+                    p.estadoVisual === 'seleccionado' && p.procesandoPor?.cocineroId
+                  );
                   return (
                     <>
                     <BotonEntregarPlatoEntero
                       visible={hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)}
-                      enabled={botonEntregarPlatoEnteroHabilitado(modo, { absoluto, haySeleccion: nSel > 0 })}
+                      enabled={botonEntregarPlatoEnteroHabilitado(modo, { absoluto, haySeleccion: nSel > 0 }) || pideAutorizacion}
                       loading={isLoading}
                       nightMode={nightMode}
-                      onClick={handleEntregarPlatoEntero}
+                      onClick={pideAutorizacion
+                        ? () => handleSolicitarOrden(ordenEntero.bloqueados, ordenEntero.permitidos)
+                        : handleEntregarPlatoEntero}
                       count={nSel || platos?.length || 0}
                       absoluto={absoluto}
+                      autorizar={pideAutorizacion}
                     />
+                    {platosParaCambiar.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDejarPlatos(platosParaCambiar)}
+                        className="px-4 py-3 font-bold rounded-lg text-sm shadow-lg bg-amber-500 text-white hover:bg-amber-600"
+                      >
+                        {platosParaCambiar.length > 1 ? `Cambiar plato (${platosParaCambiar.length})` : 'Cambiar plato'}
+                      </button>
+                    )}
                     <SelectorCantidadEntregaKds
                       visible={cantidadEntrega.visible}
                       nombre={cantidadEntrega.nombre}
@@ -6022,6 +6063,7 @@ const SicarComandaCard = ({
   }
 
   const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
+  const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds === true;
 
   return (
     <motion.div 
@@ -6031,7 +6073,8 @@ const SicarComandaCard = ({
       style={{
         fontFamily: 'Arial, sans-serif',
         width: '300px',
-        height: '500px',
+        height: autoAgrandar ? 'auto' : '500px',
+        maxHeight: autoAgrandar ? '500px' : undefined,
         borderRadius: estiloAprovechador ? 0 : '12px',
         boxShadow: estiloAprovechador ? 'none' : shadowStyle,
         border: borderStyle,
@@ -6170,10 +6213,10 @@ const SicarComandaCard = ({
       {/* Lista de platos vertical */}
       <div
         data-kds-scroll-platos=""
-        className={`flex-1 overflow-y-auto ${headerReserva ? '' : bgPlatos}`}
+        className={`${autoAgrandar ? 'min-h-0 overflow-y-auto' : 'flex-1 overflow-y-auto'} ${headerReserva ? '' : bgPlatos}`}
         style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
       >
-        <div className="flex flex-col h-full">
+        <div className={`flex flex-col ${autoAgrandar ? '' : 'h-full'}`}>
           {/* Observaciones del mozo - se muestra solo si hay contenido */}
           {typeof comanda.observaciones === 'string' && comanda.observaciones.trim() !== '' && (
             <div
@@ -6191,6 +6234,20 @@ const SicarComandaCard = ({
               </div>
             </div>
           )}
+          {(() => {
+            const nombreCliente = String(comanda?.clienteNombreParaLlevar || '').trim();
+            const numTicket = comanda?.numeroTicketCliente;
+            if (!nombreCliente && (numTicket == null || numTicket === '')) return null;
+            const texto = nombreCliente ? `🎟️ Cliente: ${nombreCliente}` : `🎟️ Cliente: #${numTicket}`;
+            return (
+              <div
+                className={`flex-shrink-0 px-3 py-2 border-b ${nightMode ? 'bg-violet-900/40 border-violet-700 text-violet-100' : 'bg-violet-100 border-violet-300 text-violet-900'}`}
+                title="Ticket de cliente"
+              >
+                <div className="text-sm font-semibold leading-tight" style={{ fontFamily: 'Arial, sans-serif' }}>{texto}</div>
+              </div>
+            );
+          })()}
           {/* NUEVA SECCIÓN EN PREPARACIÓN - Arquitectura limpia, zero bubbling */}
           {platosPreparacion.length > 0 && (
             <div className="flex-shrink-0 cursor-default">

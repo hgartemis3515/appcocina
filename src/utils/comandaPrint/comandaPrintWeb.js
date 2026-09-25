@@ -13,7 +13,6 @@ import {
   generarHtmlComanda,
   aplicarComandaNumeroDisplay,
   formatComandasNumbersLabel,
-  EPSON_TM_M30II_RECEIPT,
 } from './comandaHtml.js';
 import { generarHtmlTicketCocina, filtrarDatosTicketCocina } from './ticketCocinaHtml.js';
 import { etiquetaMozoTicket } from '../numeroComandaMozo';
@@ -205,7 +204,7 @@ function idsComandaDeGrupo(ticket, ticketsGrupo = []) {
  */
 export function abrirVentanaImpresion(existente) {
   if (existente && !existente.closed) return existente;
-  const popupW = EPSON_TM_M30II_RECEIPT.contentWidthPx + 48;
+  const popupW = 368;
   const printWin = window.open(
     '',
     'gambusinasTicketPrint',

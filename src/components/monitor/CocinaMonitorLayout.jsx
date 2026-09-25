@@ -4,7 +4,7 @@ import moment from 'moment-timezone';
 import axios from 'axios';
 import { getServerBaseUrl } from '../../config/apiConfig';
 import { clampColumnas } from '../../config/monitorVisualConstants';
-import { esModoFijoUrl, numeroMonitorDesdeUrl, suscribirDisenoMonitor } from '../../utils/monitorDesignSync';
+import { esModoFijoUrl, numeroMonitorDesdeUrl, suscribirDisenoMonitor, leerDisenoMonitorLocal, guardarDisenoMonitorLocal, storageKeyDisenoMonitor } from '../../utils/monitorDesignSync';
 import { useHubChromeZoom } from '../../hooks/useHubChromeZoom';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
@@ -64,7 +64,8 @@ import {
   slugsTipoDePlato,
 } from '../../utils/tipoPlatoReglasCocina';
 import { platoJuntaGuarnicionesEntreVariantes } from '../../utils/platoFlagsCocina';
-import { agruparItemsVistaG } from '../../utils/vistaGGuarnicion';
+import { agruparItemsVistaG, chipsOrdenDesdeMapa } from '../../utils/vistaGGuarnicion';
+import { comandasVisiblesTablaKds, mapaIndiceTablaKds } from '../../utils/ordenColaCocinero';
 import { FaExpand, FaCompress } from 'react-icons/fa';
 
 const STORAGE_DESIGN_KEY = 'cocinaMonitorDesign';
@@ -353,8 +354,11 @@ const CocinaMonitorLayout = ({
   // Estado de configuración local (editable en barra superior).
   // Merge: defaults < config de la vista < config local guardada en localStorage.
   const [localDesign, setLocalDesign] = useState(() => {
-    if (esModoFijoUrl()) return snapshotConfigPerfil(DEFAULT_CONFIG);
     try {
+      if (esModoFijoUrl()) {
+        const cached = leerDisenoMonitorLocal(numeroMonitorDesdeUrl());
+        return snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...(cached || {}) });
+      }
       const saved = localStorage.getItem(STORAGE_DESIGN_KEY);
       const parsed = saved ? JSON.parse(saved) : {};
       return snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...(parsed && typeof parsed === 'object' ? parsed : {}) });
@@ -510,6 +514,19 @@ const CocinaMonitorLayout = ({
     };
   }, []);
 
+  const persistirDesignLocal = useCallback((completa) => {
+    try {
+      if (esModoFijoUrl()) {
+        const n = numeroMonitorDesdeUrl();
+        if (n) guardarDisenoMonitorLocal(n, completa);
+        return;
+      }
+      localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(completa));
+    } catch (err) {
+      console.warn('[CocinaMonitorLayout] Error guardando config local:', err.message);
+    }
+  }, []);
+
   const guardarConfigLocal = useCallback((nuevaConfig) => {
     const completa = snapshotConfigPerfil({
       ...DEFAULT_CONFIG,
@@ -517,12 +534,8 @@ const CocinaMonitorLayout = ({
       ...(nuevaConfig && typeof nuevaConfig === 'object' ? nuevaConfig : {}),
     });
     setLocalDesign(completa);
-    try {
-      localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(completa));
-    } catch (err) {
-      console.warn('[CocinaMonitorLayout] Error guardando config local:', err.message);
-    }
-  }, [configVistaProp]);
+    persistirDesignLocal(completa);
+  }, [configVistaProp, persistirDesignLocal]);
 
   const armarConfigPerfil = useCallback(
     () => snapshotConfigPerfil({
@@ -540,9 +553,9 @@ const CocinaMonitorLayout = ({
     });
     autoSaveSkipRef.current = true;
     setLocalDesign(completa);
-    try { localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(completa)); } catch { /* noop */ }
+    persistirDesignLocal(completa);
     return completa;
-  }, []);
+  }, [persistirDesignLocal]);
 
   // Guardar el diseño actual como perfil del cocinero activo en backend.
   // Flujo "Distribuir Cocina en monitores" → botón "Guardar Perfil".
@@ -1017,6 +1030,11 @@ const CocinaMonitorLayout = ({
     return [...map.values()].sort((a, b) => b.platos - a.platos || a.nombre.localeCompare(b.nombre, 'es'));
   }, [itemsGuarnicionRaw]);
 
+  const mapaIndiceTabla = useMemo(
+    () => mapaIndiceTablaKds(comandasVisiblesTablaKds(Array.isArray(comandas) ? comandas : [])),
+    [comandas]
+  );
+
   const guarnicionesPanel = useMemo(() => {
     if (!splitActivo) return [];
     if (vistaGGuarnicion) {
@@ -1024,6 +1042,7 @@ const CocinaMonitorLayout = ({
         cantidadLinea: obtenerCantidadLinea,
         nombrePlato: (plato) => obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato',
         tiempoDeComp: tiempoInicioGuarnicion,
+        indiceTabla: mapaIndiceTabla,
       });
       const grupos = filas.map((f) => {
         const { comanda, plato, platoIndex, comp, comandaId } = f;
@@ -1059,7 +1078,7 @@ const CocinaMonitorLayout = ({
         return {
           nombre: f.nombrePlato,
           nombrePlato: f.nombrePlato,
-          cantidadTotal: 1,
+          cantidadTotal: f.cantidadTotal || 1,
           platos: [{ plato, comanda, platoIndex, cocinero, cocineroPrincipal }],
           tiempoInicio: f.tiempoInicio,
           key: f.claveUnidad,
@@ -1071,6 +1090,8 @@ const CocinaMonitorLayout = ({
           esGuarnicion: true,
           modoG: true,
           cambiosG: f.cambiosG,
+          chipsOrden: f.chipsOrden || [],
+          qtyGuarnicion: f.qtyGuarnicion,
           claveUnidad: f.claveUnidad,
           slugsTipo: slugsTipoDePlato(plato),
           tipoPedido: plato.tipoPedido || null,
@@ -1122,9 +1143,12 @@ const CocinaMonitorLayout = ({
         : null;
       const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
       const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
-      const key = claveGrupoGuarnicionMonitor({
-        plato, comanda, platoIndex, comp, cid, agrupacionOn,
-      });
+      const claveNombre = claveNombreComplemento(nombreGuarnicionSolo(comp) || nombreG);
+      const key = juntaMerge
+        ? claveGrupoGuarnicionMonitor({
+          plato, comanda, platoIndex, comp, cid, agrupacionOn,
+        })
+        : `${cid}::gjoin::${claveNombre}`;
       if (!gruposMap.has(key)) {
         gruposMap.set(key, {
           nombre: nombreG,
@@ -1146,11 +1170,16 @@ const CocinaMonitorLayout = ({
           comandaId,
           platoIndex,
           juntaMerge,
+          porOrden: new Map(),
         });
       }
       const g = gruposMap.get(key);
       if (juntaMerge) g.cantidadTotal = Math.max(g.cantidadTotal, qty);
       else g.cantidadTotal += qty;
+      const ordenTabla = mapaIndiceTabla.get(comandaId);
+      if (Number.isFinite(ordenTabla) && ordenTabla >= 1) {
+        g.porOrden.set(ordenTabla, (g.porOrden.get(ordenTabla) || 0) + qty);
+      }
       g.comps.push(comp);
       g.platos.push({ plato, comanda, platoIndex, cocinero, cocineroPrincipal });
       if (nombrePadre) g.padresSet.add(nombrePadre);
@@ -1182,7 +1211,7 @@ const CocinaMonitorLayout = ({
     const grupos = Array.from(gruposMap.values()).map((g) => {
       const padres = Array.from(g.padresSet).filter(Boolean);
       const padreTxt = padres.join(' · ');
-      const { padresSet, mesaNum, comandaNumero, comandaId, platoIndex, comps, juntaMerge, ...rest } = g;
+      const { padresSet, mesaNum, comandaNumero, comandaId, platoIndex, comps, juntaMerge, porOrden, ...rest } = g;
       const firstItem = rest.platos?.[0];
       const platoRaw = firstItem?.plato;
       const idxLinea = firstItem?.platoIndex ?? platoIndex;
@@ -1234,6 +1263,7 @@ const CocinaMonitorLayout = ({
         }),
         hayNotaCuadro: notasGrupo.length > 0,
         notasCuadro: notasEnTarjeta ? notasGrupo.join(' · ') : '',
+        chipsOrden: chipsOrdenDesdeMapa(porOrden),
       };
     });
     grupos.sort((a, b) => {
@@ -1242,7 +1272,7 @@ const CocinaMonitorLayout = ({
       return ta - tb;
     });
     return modoCocineros ? asignarNumeroGlobal(grupos) : grupos;
-  }, [splitActivo, itemsGuarnicionRaw, modoCocineros, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, configVisual.notasJuntoAGuarniciones, vistaGGuarnicion]);
+  }, [splitActivo, itemsGuarnicionRaw, modoCocineros, agrupacionOn, modoRefPadre, ocultarCronometroG, mapaPronombresCocinero, mostrarPronombreRef, configVisual.notasJuntoAGuarniciones, vistaGGuarnicion, mapaIndiceTabla]);
 
   const mostrarPieNotas = configVisual.notasJuntoAGuarniciones === false
     && configVisual.mostrarTablaNotas !== false;
@@ -1711,7 +1741,14 @@ const CocinaMonitorLayout = ({
               localDesign={localDesign}
               onChange={guardarConfigLocal}
               onReset={() => {
-                localStorage.removeItem(STORAGE_DESIGN_KEY);
+                try {
+                  if (esModoFijoUrl()) {
+                    const n = numeroMonitorDesdeUrl();
+                    if (n) localStorage.removeItem(storageKeyDisenoMonitor(n));
+                  } else {
+                    localStorage.removeItem(STORAGE_DESIGN_KEY);
+                  }
+                } catch { /* noop */ }
                 setLocalDesign(snapshotConfigPerfil(DEFAULT_CONFIG));
                 setPerfilSelId(null);
               }}

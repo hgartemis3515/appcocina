@@ -2,6 +2,7 @@ import React from 'react';
 import { calcularSegundos, formatearCronometro } from '../../hooks/useCocinaMonitorTimer';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
+import { ChipsOrdenCantidadRow } from './ChipOrdenCantidad';
 
 /**
  * Línea de lista (cuadro OFF) para el panel derecho de Ver Cocina Completo.
@@ -28,6 +29,7 @@ export function LineasCambioGuarnicion({ cambios, fontSize, color }) {
 
 const GuarnicionListaLinea = ({
   texto,
+  chipsOrden = null,
   textoPadre = '',
   textoCocinero = '',
   fuenteFamilia,
@@ -91,6 +93,12 @@ const GuarnicionListaLinea = ({
           }}
         >
           {texto}
+          {chipsOrden?.length ? (
+            <>
+              {' '}
+              <ChipsOrdenCantidadRow chips={chipsOrden} fontSize={Math.max(12, Math.round((tamanioFuente || 18) * 0.72))} />
+            </>
+          ) : null}
           {textoPadre ? (
             <>
               {' '}

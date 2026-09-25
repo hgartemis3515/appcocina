@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaCheck, FaTimes, FaClock, FaUtensils, FaShoppingBag, FaUser, FaMoneyBill, FaPrint, FaExclamationTriangle } from 'react-icons/fa';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
+import { useAuth } from '../../contexts/AuthContext';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
@@ -38,6 +39,8 @@ const labelPagoTicket = (ticket) => {
 };
 
 export default function PpaSidebar({ socket, onClose }) {
+  const { user } = useAuth();
+  const puedeGestionarTickets = user?.rol === 'admin' || user?.rol === 'supervisor' || user?.rol === 'cajero';
   // PLAN_BUG_CONEXION_APROBACION_TICKETS_COCINA:
   // Reutilizar el socket del KDS (vía prop) para evitar una SEGUNDA conexión
   // /cocina simultánea que provocaba desconexiones y tormenta de eventos.
@@ -318,7 +321,10 @@ export default function PpaSidebar({ socket, onClose }) {
                   >
                     <FaPrint className="text-[10px]" />
                   </button>
-                  {ticketPuedeAprobarse(ticket) && (
+                  {!puedeGestionarTickets && (
+                    <span className="flex-1 text-center text-[10px] font-semibold text-gray-300 bg-gray-700/80 py-1.5 rounded-lg">Solo lectura</span>
+                  )}
+                  {puedeGestionarTickets && ticketPuedeAprobarse(ticket) && (
                   <button
                     onClick={() => handleAprobar(ticket)}
                     disabled={aprobarLoading[ticket._id]}
@@ -330,7 +336,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     {aprobarLoading[ticket._id] ? '...' : 'Cobrar'}
                   </button>
                   )}
-                  {ticketPuedeForzarPago(ticket) && !ticket.boucher && (
+                  {puedeGestionarTickets && ticketPuedeForzarPago(ticket) && !ticket.boucher && (
                   <button
                     onClick={() => setTicketForzarPago(ticket)}
                     disabled={forzarPagoLoading[ticket._id]}
@@ -343,7 +349,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     Forzar
                   </button>
                   )}
-                  {isComanda && !ticketEsAltaSinPago(ticket) ? (
+                  {puedeGestionarTickets && isComanda && !ticketEsAltaSinPago(ticket) ? (
                     <button
                       onClick={() => {
                         setShowReportarModal(ticket._id);
@@ -357,7 +363,7 @@ export default function PpaSidebar({ socket, onClose }) {
                     >
                       <FaExclamationTriangle className="text-[10px]" />
                     </button>
-                  ) : !isComanda ? (
+                  ) : puedeGestionarTickets && !isComanda ? (
                     <button
                       onClick={() => {
                         setShowRechazarModal(ticket._id);

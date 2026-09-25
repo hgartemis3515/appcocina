@@ -12,6 +12,32 @@ export function storageKeyDisenoMonitor(numero) {
   return `cocinaMonitorDesign:${Number(numero)}`;
 }
 
+/** Cache local de un monitor despegado. No usa `cocinaMonitorDesign` (consola). */
+export function leerDisenoMonitorLocal(numero) {
+  try {
+    const raw = localStorage.getItem(storageKeyDisenoMonitor(numero));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const cfg = parsed && typeof parsed === 'object' && parsed.config && typeof parsed.config === 'object'
+      ? parsed.config
+      : parsed;
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return null;
+    return Object.keys(cfg).length > 0 ? cfg : null;
+  } catch {
+    return null;
+  }
+}
+
+export function guardarDisenoMonitorLocal(numero, config) {
+  if (!numero || !config || typeof config !== 'object' || Array.isArray(config)) return;
+  try {
+    localStorage.setItem(
+      storageKeyDisenoMonitor(numero),
+      JSON.stringify({ ts: Date.now(), config })
+    );
+  } catch { /* noop */ }
+}
+
 export function numeroMonitorDesdeUrl() {
   try {
     const n = Number(new URLSearchParams(window.location.search).get('monitor'));

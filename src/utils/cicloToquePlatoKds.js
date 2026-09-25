@@ -2,15 +2,13 @@
  * Ciclo visual de toques en tablas KDS.
  *
  * Plato libre: normal → procesando (amarillo) → seleccionado (verde) → normal
- * Plato asignado/tomado (empieza en amarillo):
- *   default: procesando → seleccionado (verde) → dejar (rojo) → procesando
- *   primerToqueFinalizar false: procesando → dejar → seleccionado → procesando
+ * Plato asignado/tomado (en proceso): un toque selecciona, otro deselecciona.
+ * No hay segundo toque a rojo: cambiar plato es un botón de la barra.
  */
 
 export function siguienteEstadoToquePlato(estadoActual, opts = {}) {
   const actual = estadoActual || 'normal';
   const tomado = !!opts.tomado;
-  const primerToqueFinalizar = opts.primerToqueFinalizar !== false;
 
   if (!tomado) {
     if (actual === 'normal') return 'procesando';
@@ -18,9 +16,6 @@ export function siguienteEstadoToquePlato(estadoActual, opts = {}) {
     return 'normal';
   }
 
-  const primero = primerToqueFinalizar ? 'seleccionado' : 'dejar';
-  const segundo = primerToqueFinalizar ? 'dejar' : 'seleccionado';
-  if (actual === 'procesando' || actual === 'normal') return primero;
-  if (actual === primero) return segundo;
-  return 'procesando';
+  if (actual === 'seleccionado' || actual === 'dejar' || actual === 'entregando') return 'procesando';
+  return 'seleccionado';
 }

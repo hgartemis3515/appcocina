@@ -1,4 +1,4 @@
-const { cambiosGuarnicionVista, tituloFilaVistaG, agruparItemsVistaG } = require('./vistaGGuarnicion');
+const { cambiosGuarnicionVista, tituloFilaVistaG, agruparItemsVistaG, chipsOrdenDesdeMapa } = require('./vistaGGuarnicion');
 
 function plato({ pre = [], pedido = [] } = {}) {
   return {
@@ -56,27 +56,45 @@ describe('cambiosGuarnicionVista', () => {
 });
 
 describe('tituloFilaVistaG', () => {
-  test('arma G plato x (1) --- numero', () => {
-    expect(tituloFilaVistaG('Pollo a la leña', 4)).toBe('G Pollo a la leña x (1) --- 4');
+  test('arma G plato (qty)', () => {
+    expect(tituloFilaVistaG('Pollo a la leña', 1)).toBe('G Pollo a la leña (1)');
+    expect(tituloFilaVistaG('Pollo a la leña', 2)).toBe('G Pollo a la leña (2)');
+  });
+});
+
+describe('chipsOrdenDesdeMapa', () => {
+  test('ordena #1(2), #3(4)', () => {
+    expect(chipsOrdenDesdeMapa(new Map([[3, 4], [1, 2]]))).toEqual([
+      { orden: 1, cantidad: 2 },
+      { orden: 3, cantidad: 4 },
+    ]);
   });
 });
 
 describe('agruparItemsVistaG', () => {
-  test('cantidad 2 son dos filas con el mismo cambio', () => {
+  test('misma guarnición de varias comandas se junta con #orden(cant)', () => {
     const platoLinea = plato({ pre: ['Arroz'], pedido: ['Frijol'] });
-    const comanda = { _id: 'c1', cantidades: [2] };
+    const c1 = { _id: 'c1', cantidades: [2] };
+    const c3 = { _id: 'c3', cantidades: [4] };
     const filas = agruparItemsVistaG(
-      [{ comanda, plato: platoLinea, platoIndex: 0, comp: { opcion: 'Frijol', grupo: 'Guarnicion' } }],
+      [
+        { comanda: c1, plato: platoLinea, platoIndex: 0, comp: { opcion: 'Frijol', grupo: 'Guarnicion', cantidad: 1 } },
+        { comanda: c3, plato: platoLinea, platoIndex: 0, comp: { opcion: 'Frijol', grupo: 'Guarnicion', cantidad: 1 } },
+      ],
       {
-        cantidadLinea: () => 2,
+        cantidadLinea: (cmd) => (cmd._id === 'c1' ? 2 : 4),
         nombrePlato: () => 'Pollo a la leña',
         tiempoDeComp: () => null,
+        indiceTabla: new Map([['c1', 1], ['c3', 3]]),
       },
     );
-    expect(filas).toHaveLength(2);
-    expect(filas[0].claveUnidad).toBe('c1:0:0');
-    expect(filas[1].claveUnidad).toBe('c1:0:1');
+    expect(filas).toHaveLength(1);
+    expect(filas[0].nombrePlato).toBe('Pollo a la leña');
+    expect(filas[0].qtyGuarnicion).toBe(1);
+    expect(filas[0].chipsOrden).toEqual([
+      { orden: 1, cantidad: 2 },
+      { orden: 3, cantidad: 4 },
+    ]);
     expect(filas[0].cambiosG).toEqual([{ salio: 'Arroz', entro: 'Frijol' }]);
-    expect(filas[1].cambiosG).toEqual(filas[0].cambiosG);
   });
 });

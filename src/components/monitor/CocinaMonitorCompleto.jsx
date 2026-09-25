@@ -136,31 +136,6 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
     }
   }, [cocineroActivoId, loadingCocineros, cocineros, cocineroIdFijo]);
 
-  const configVisual = {
-    tamanioFuentePlato: 36,
-    tamanioFuenteDetalle: 20,
-    tamanioFuenteCronometro: 28,
-    tamanioFuenteCocinero: 28,
-    tiempoAmarillo: 5,
-    tiempoRojo: 20,
-    modoNocturno: true,
-    // Rediseño por cocinero
-    modoAgrupacion: 'bloques',        // 'bloques' (col-1) o 'tarjetas' (multi-col)
-    mostrarMesas: true,
-    modoTimers: 'completos',          // 'completos' o 'resumidos'
-    maxTimersVisibles: 6,
-    mostrarCabeceraCocinero: true,
-    colorPorCocinero: true,
-    mostrarCocineroTomado: true,
-    umbralCargaAlta: 8,
-    umbralSobrecarga: 12,
-    // Estilo referencia KDS
-    estiloTemporizador: 'vertical',
-    intensidadAlerta: 'normal',
-    mostrarEtiquetaPlato: false,
-    mostrarIconoCocinero: true,
-  };
-
   if (loading && comandas.length === 0) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -192,7 +167,6 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
     <>
       <CocinaMonitorLayout
         platosPendientes={platosPendientes}
-        configVisual={configVisual}
         nombreVista="Ver Cocina — Completo"
         modoFijo={modoFijo}
         onVolver={modoFijo ? null : onGoToMenu}

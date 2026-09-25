@@ -26,6 +26,7 @@ const DEFAULT = {
     ordenSinAutorizacionPlatos: [],
     primerToqueFinalizarAsignado: true,
     entregarPlatoEnteroAbsoluto: true,
+    cobroPorCantidad: true,
     forzarColorMozoUnico: false,
     colorMozoForzado: '#1e3a8a',
     ignorarFondoVistaMozo: false,
@@ -94,7 +95,10 @@ export async function fetchConfiguracionCocina(getToken) {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             const cfg = data?.configuracion?.cocina || {};
-            cache = construirConfigDesdeBackend(cfg);
+            cache = {
+                ...construirConfigDesdeBackend(cfg),
+                cobroPorCantidad: data?.configuracion?.cobroPorCantidad !== false,
+            };
             return cache;
         } catch (e) {
             console.warn('[useConfiguracionCocina] uso default por error:', e.message);

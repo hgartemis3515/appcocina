@@ -11,12 +11,15 @@ const BotonEntregarPlatoEntero = ({
   nightMode,
   onClick,
   count = 0,
-  absoluto = true
+  absoluto = true,
+  autorizar = false
 }) => {
   if (!visible) return null;
 
   const activo = enabled && !loading;
-  const label = count > 1 ? `Entregar plato entero (${count})` : 'Entregar plato entero';
+  const label = autorizar
+    ? (count > 1 ? `Autorizacion (${count})` : 'Autorizacion')
+    : (count > 1 ? `Entregar plato entero (${count})` : 'Entregar plato entero');
 
   return (
     <motion.button
@@ -28,7 +31,7 @@ const BotonEntregarPlatoEntero = ({
         : 'Finalizar y confirmar salida de cocina en un paso'}
       className={`px-4 py-3 font-bold rounded-lg text-sm shadow-lg flex items-center gap-2 max-w-[11rem] leading-tight text-left ${
         activo
-          ? 'bg-teal-700 text-white hover:bg-teal-800 cursor-pointer'
+          ? (autorizar ? 'bg-red-600 text-white hover:bg-red-700 cursor-pointer' : 'bg-teal-700 text-white hover:bg-teal-800 cursor-pointer')
           : nightMode
             ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
             : 'bg-gray-300 text-gray-400 cursor-not-allowed'
@@ -36,7 +39,7 @@ const BotonEntregarPlatoEntero = ({
       whileHover={activo ? { scale: 1.05 } : {}}
       whileTap={activo ? { scale: 0.95 } : {}}
     >
-      {loading ? '…' : '🚶'}
+      {loading ? '…' : (autorizar ? '📩' : '🚶')}
       <span>{loading ? 'Procesando...' : label}</span>
     </motion.button>
   );

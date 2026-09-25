@@ -33,7 +33,7 @@ import DejarPlatoModal from "./DejarPlatoModal";
 import EliminarPlatoKdsModal from "./EliminarPlatoKdsModal";
 import TomarCocineroModal from "./TomarCocineroModal";
 import PlatoPreparacion from "./PlatoPreparacion";
-import { ordenarPlatosCategoriasAlFinal } from "../../utils/ordenColaCocinero";
+import { ordenarPlatosCategoriasAlFinal, ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
 import PpaSidebar from "./PpaSidebar";
 import ReservaSidebar from "./ReservaSidebar";
 import KdsTopBar from "./KdsTopBar";
@@ -77,11 +77,13 @@ import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, e
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
 import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
+import useDeseleccionPlatoKds from "../../hooks/useDeseleccionPlatoKds";
 import {
   PERMISO_ENTREGAR_PLATO_ENTERO_KDS,
   botonEntregarPlatoEnteroHabilitado,
   recolectarSeleccionEntregarEntero,
-  ejecutarEntregarPlatoEntero
+  ejecutarEntregarPlatoEntero,
+  partirEntregaEnteraPorOrden
 } from "../../utils/entregarPlatoEnteroKds";
 import BotonEntregarPlatoEntero from "./BotonEntregarPlatoEntero";
 import BotonPasarABackup from "./BotonPasarABackup";
@@ -181,6 +183,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
   // Estado para checkboxes de platos individuales: Map<`${comandaId}-${platoId}`, boolean>
   const [platosChecked, setPlatosChecked] = useState(new Map());
+  const deseleccionPlato = useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked);
   // Estado para tiempos formateados HH:MM:SS por comanda: Map<comandaId, string>
   const [tiemposComandas, setTiemposComandas] = useState(new Map());
   // Estado para prevenir double-submit en finalizar platos
@@ -1917,17 +1920,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const totalComandas = enEspera.length;
 
   // PARRAFO 4 - REORDEN: Sort — reservas primero (siempre), luego prioridadOrden, luego createdAt
-  const todasComandas = [...enEspera].sort((a, b) => {
-    const ra = esComandaReserva(a) ? 1 : 0;
-    const rb = esComandaReserva(b) ? 1 : 0;
-    if (ra !== rb) return rb - ra;
-    const prioA = a.prioridadOrden || 0;
-    const prioB = b.prioridadOrden || 0;
-    if (prioA !== prioB) return prioB - prioA;
-    const tiempoA = a.createdAt ? moment(a.createdAt).valueOf() : 0;
-    const tiempoB = b.createdAt ? moment(b.createdAt).valueOf() : 0;
-    return tiempoA - tiempoB;
-  });
+  const todasComandas = ordenarComandasTablaKds(enEspera);
 
   // Paginación: basada en configuración de diseño (cols * rows)
   const COMANDAS_POR_PAGINA = (config.design?.cols || 5) * (config.design?.rows || 1);
@@ -1981,6 +1974,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           primerToqueFinalizar: primerToqueFinalizarAsignado
         });
         nuevo.set(key, nuevoEstado);
+        if (nuevoEstado === 'seleccionado') deseleccionPlato.programar(key);
+        else deseleccionPlato.cancelar(key);
         return nuevo;
       });
       return;
@@ -2034,6 +2029,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       }
       
       nuevo.set(key, nuevoEstado);
+
+      if (nuevoEstado === 'seleccionado') deseleccionPlato.programar(key);
+      else deseleccionPlato.cancelar(key);
       
       // SYNC: Sincronizar platoStates 'seleccionado' → platosChecked true (para batch)
       if (nuevoEstado === 'seleccionado') {
@@ -2053,7 +2051,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       return nuevo;
     });
-  }, [comandas, userId, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto]);
+  }, [comandas, userId, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, deseleccionPlato]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -2987,8 +2985,19 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       isSupervisorView: false,
       permitirOtroCocinero: entregarPlatoEnteroAbsoluto !== false
     });
-    const aFinalizar = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
-    const aEntregar = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
+    const aFinalizarRaw = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
+    const aEntregarRaw = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
+    const ordenEntero = partirEntregaEnteraPorOrden([...aFinalizarRaw, ...aEntregarRaw], comandas);
+    if (ordenEntero.bloqueados.length > 0) {
+      setToastMessage({
+        type: 'warning',
+        message: 'Fuera de orden. Incluye el #1 y los siguientes en secuencia (1, 2, 3…). Las comandas 1 y 2 del mozo no piden autorización.',
+        duration: 5000
+      });
+      return;
+    }
+    const aFinalizar = aFinalizarRaw;
+    const aEntregar = aEntregarRaw;
     const guarniciones = recolectado.guarniciones;
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
@@ -3934,10 +3943,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
-                  gridAutoRows: esEstiloAprovechadorKds(kdsVistaConfig) ? '500px' : '520px',
+                  gridAutoRows: kdsVistaConfig.autoAgrandamientoTarjetasKds === true
+                    ? 'auto'
+                    : (esEstiloAprovechadorKds(kdsVistaConfig) ? '500px' : '520px'),
                   gap: esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
                   justifyContent: esEstiloAprovechadorKds(kdsVistaConfig) ? 'start' : 'center',
-                  alignContent: 'start'
+                  alignContent: 'start',
+                  alignItems: 'start',
                 }}
               >
                 <AnimatePresence>
@@ -4108,6 +4120,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   
                   return (
                     <div className="flex flex-col gap-0">
+                      {!(modo === 'FINALIZAR_PLATO' && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) && (
                       <motion.button
                         onClick={handleBotonContextual}
                         disabled={!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading}
@@ -4120,6 +4133,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                         {getIcon()}
                         <span>{isLoading ? 'Procesando...' : mensaje}</span>
                       </motion.button>
+                      )}
                       {subMensaje && hayPlatosSeleccionados && !isLoading && (
                         <span className="text-xs text-gray-400 mt-0.5 pl-1">{subMensaje}</span>
                       )}
@@ -4147,6 +4161,21 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                       count={nSel || platos?.length || 0}
                       absoluto={absoluto}
                     />
+                    {(() => {
+                      const paraCambiar = obtenerPlatosSeleccionadosInfo().filter((p) =>
+                        p.estadoVisual === 'seleccionado' && p.procesandoPor?.cocineroId
+                      );
+                      if (!paraCambiar.length) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleDejarPlatos(paraCambiar)}
+                          className="px-4 py-3 font-bold rounded-lg text-sm shadow-lg bg-amber-500 text-white"
+                        >
+                          {paraCambiar.length > 1 ? `Cambiar plato (${paraCambiar.length})` : 'Cambiar plato'}
+                        </button>
+                      );
+                    })()}
                     <SelectorCantidadEntregaKds
                       visible={cantidadEntrega.visible}
                       nombre={cantidadEntrega.nombre}
@@ -5349,6 +5378,7 @@ const SicarComandaCard = ({
   }
 
   const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
+  const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds === true;
 
   return (
     <motion.div 
@@ -5358,7 +5388,8 @@ const SicarComandaCard = ({
       style={{
         fontFamily: 'Arial, sans-serif',
         width: '300px',
-        height: '500px',
+        height: autoAgrandar ? 'auto' : '500px',
+        maxHeight: autoAgrandar ? '500px' : undefined,
         borderRadius: estiloAprovechador ? 0 : '12px',
         boxShadow: estiloAprovechador ? 'none' : shadowStyle,
         border: borderStyle,
@@ -5496,10 +5527,10 @@ const SicarComandaCard = ({
 
       {/* Lista de platos vertical */}
       <div
-        className={`flex-1 overflow-y-auto ${headerReserva ? '' : bgPlatos}`}
+        className={`${autoAgrandar ? 'min-h-0 overflow-y-auto' : 'flex-1 overflow-y-auto'} ${headerReserva ? '' : bgPlatos}`}
         style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
       >
-        <div className="flex flex-col h-full">
+        <div className={`flex flex-col ${autoAgrandar ? '' : 'h-full'}`}>
           {/* Observaciones del mozo - se muestra solo si hay contenido */}
           {typeof comanda.observaciones === 'string' && comanda.observaciones.trim() !== '' && (
             <div
@@ -5517,6 +5548,20 @@ const SicarComandaCard = ({
               </div>
             </div>
           )}
+          {(() => {
+            const nombreCliente = String(comanda?.clienteNombreParaLlevar || '').trim();
+            const numTicket = comanda?.numeroTicketCliente;
+            if (!nombreCliente && (numTicket == null || numTicket === '')) return null;
+            const texto = nombreCliente ? `🎟️ Cliente: ${nombreCliente}` : `🎟️ Cliente: #${numTicket}`;
+            return (
+              <div
+                className={`flex-shrink-0 px-3 py-2 border-b ${nightMode ? 'bg-violet-900/40 border-violet-700 text-violet-100' : 'bg-violet-100 border-violet-300 text-violet-900'}`}
+                title="Ticket de cliente"
+              >
+                <div className="text-sm font-semibold leading-tight" style={{ fontFamily: 'Arial, sans-serif' }}>{texto}</div>
+              </div>
+            );
+          })()}
           {/* NUEVA SECCIÓN EN PREPARACIÓN - Arquitectura limpia, zero bubbling */}
           {platosPreparacion.length > 0 && (
             <div className="flex-shrink-0 cursor-default">
