@@ -262,7 +262,7 @@ const ComandaStyle = ({
     if (mostrarToast) {
       setToastMessage({
         type: 'success',
-        message: '✅ Orden autorizada por admin. Ya puede finalizar el plato.',
+        message: '✅ Orden autorizada. Ya puede entregar el plato entero.',
         duration: 4000
       });
     }
@@ -2670,7 +2670,6 @@ const ComandaStyle = ({
             },
           }
         );
-        // Las guarniciones siempre van a finalizables (no tienen orden de cola)
         finalizables.push(...guarnicionesAFinalizar);
         if (fueraDeOrden.length > 0) {
           return {
@@ -2681,12 +2680,19 @@ const ComandaStyle = ({
             subMensaje: 'Pedir autorización al admin (fuera de secuencia)'
           };
         }
-        // Todo finalizable (principales en orden + guarniciones)
+        const principalesOk = finalizables.filter((p) => !esTipoGuarnicionKds(p.tipo));
+        const yaAutorizados = principalesOk.length > 0 && principalesOk.every(
+          (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato)
+        );
         return {
           modo: 'FINALIZAR_PLATO',
-          platos: [...finalizables, ...guarnicionesAFinalizar.filter(g => !finalizables.includes(g))],
-          mensaje: `Finalizar ${platosAFinalizar.length} Plato${platosAFinalizar.length > 1 ? 's' : ''}`,
-          subMensaje: 'Marcar como listos para recoger'
+          platos: [...finalizables, ...guarnicionesAFinalizar.filter((g) => !finalizables.includes(g))],
+          mensaje: yaAutorizados
+            ? (principalesOk.length > 1 ? `Entregar plato entero (${principalesOk.length})` : 'Entregar plato entero')
+            : `Finalizar ${platosAFinalizar.length} Plato${platosAFinalizar.length > 1 ? 's' : ''}`,
+          subMensaje: yaAutorizados
+            ? 'Finalizar, salir de cocina y entregar'
+            : 'Marcar como listos para recoger'
         };
       }
 
@@ -3663,14 +3669,13 @@ const ComandaStyle = ({
       overridesSyncRef.current.add(`${p.comandaId}-${p.platoIndex}`);
       marcarOverrideLocal(p.comandaId, p.platoId || p.plato?._id, p.platoIndex, false);
     });
-    await batchFinalizarPlatos(lote);
     setPadAutorizacion(null);
     setToastMessage({
       type: 'success',
-      message: 'Autorización aceptada. El plato quedó listo para recoger.',
+      message: 'Autorización aceptada. Pulse Entregar plato entero.',
       duration: 4000,
     });
-  }, [padAutorizacion, getToken, marcarOverrideLocal, batchFinalizarPlatos]);
+  }, [padAutorizacion, getToken, marcarOverrideLocal]);
 
   /**
    * Handler unificado para el boton contextual de la barra inferior

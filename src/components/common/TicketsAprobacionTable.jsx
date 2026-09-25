@@ -127,9 +127,10 @@ function CheckSel({ checked, onToggle }) {
   );
 }
 
-function CeldaHorario({ fecha, ocultarHorario = false, pintado = false, onTogglePintar }) {
+function CeldaHorario({ fecha, ocultarHorario = false, pintado = false, onTogglePintar, tamano = 14 }) {
+  const px = Math.min(22, Math.max(12, Number(tamano) || 14));
   return (
-    <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-xs">
+    <td className="px-3 py-2 text-gray-300 whitespace-nowrap align-top" style={{ fontSize: `${px}px` }}>
       {ocultarHorario ? null : <div>{formatDateTime(fecha)}</div>}
       {typeof onTogglePintar === 'function' ? (
         <button
@@ -168,6 +169,7 @@ function FilaTicketAvanzado({
   vistaCobro = null,
   pintado = false,
   onTogglePintar,
+  tamanoFecha = 14,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -200,6 +202,7 @@ function FilaTicketAvanzado({
         ocultarHorario={indent}
         pintado={pintado}
         onTogglePintar={onTogglePintar}
+        tamano={tamanoFecha}
       />
       <td className={`px-3 py-2 min-w-[240px] max-w-[320px] ${indent ? 'pl-8' : ''}`}>
         <div className="flex items-start justify-between gap-2">
@@ -323,6 +326,7 @@ export default function TicketsAprobacionTable({
   onToggleSeleccion,
   ocultarGuarniciones = false,
   vistaPorTicket = null,
+  tamanoFecha = 14,
 }) {
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
@@ -462,6 +466,7 @@ export default function TicketsAprobacionTable({
                 seleccionActiva,
                 onToggleSeleccion,
                 ocultarGuarniciones,
+                tamanoFecha,
                 vistaCobro: (vistaPorTicket && fila.tickets.map((t) => vistaPorTicket.get(String(t?._id))).find(Boolean)) || null,
               };
               if (fila.tipo !== 'grupo') {
@@ -506,6 +511,7 @@ export default function TicketsAprobacionTable({
                       fecha={first.createdAt}
                       pintado={grupoPintado}
                       onTogglePintar={() => togglePintarFila(fila.id)}
+                      tamano={tamanoFecha}
                     />
                     <td className="px-3 py-2 min-w-[240px] max-w-[320px]">
                       <div className="flex items-start justify-between gap-2">

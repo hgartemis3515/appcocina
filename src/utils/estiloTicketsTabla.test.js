@@ -43,6 +43,7 @@ describe('estiloTicketsTabla', () => {
     expect(v.mozoNombreColor).toBe(TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreColor);
     expect(v.mozoNombreFondo).toBe(TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreFondo);
     expect(v.mozoNombreTamano).toBe(TICKETS_TABLA_VISUAL_DEFAULT.mozoNombreTamano);
+    expect(v.filtroTamano).toBe(14);
   });
 
   test('persiste tamaño y colores del nombre del mozo', () => {

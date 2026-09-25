@@ -230,6 +230,19 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
                 className="w-full accent-amber-500"
               />
             </label>
+            <label className="block mt-3">
+              <span className="block text-gray-300 text-xs font-semibold mb-1">
+                Tamaño de filtros y Fecha ({Number(prefs.filtroTamano) || TICKETS_TABLA_VISUAL_DEFAULT.filtroTamano}px)
+              </span>
+              <input
+                type="range"
+                min={12}
+                max={22}
+                value={Number(prefs.filtroTamano) || TICKETS_TABLA_VISUAL_DEFAULT.filtroTamano}
+                onChange={(e) => onChange({ filtroTamano: Number(e.target.value) })}
+                className="w-full accent-amber-500"
+              />
+            </label>
           </section>
           <section>
             <div className="flex items-center justify-between mb-2">

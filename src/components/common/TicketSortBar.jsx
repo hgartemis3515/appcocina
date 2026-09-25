@@ -107,7 +107,10 @@ export default function TicketSortBar({
   mozoFilter,
   mozosDisponibles = [],
   onMozoFilterChange,
+  letraPx = 14,
 }) {
+  const px = Math.min(22, Math.max(12, Number(letraPx) || 14));
+  const iconPx = Math.max(14, Math.round(px * 0.85));
   const handleClick = (key) => {
     if (sortBy === key) {
       onChange(key, sortDir === 'asc' ? 'desc' : 'asc');
@@ -117,40 +120,39 @@ export default function TicketSortBar({
   };
 
   const SortIcon = ({ active, dir }) => {
-    if (!active) return <FaSort className="text-[9px] opacity-50" />;
+    if (!active) return <FaSort size={iconPx} className="opacity-50" />;
     return dir === 'asc'
-      ? <FaSortUp className="text-[9px]" />
-      : <FaSortDown className="text-[9px]" />;
+      ? <FaSortUp size={iconPx} />
+      : <FaSortDown size={iconPx} />;
   };
 
   return (
-    <div className="flex items-center gap-1.5 flex-shrink-0">
-      <span className="text-gray-500 text-xs whitespace-nowrap hidden md:inline">Ordenar:</span>
-      <div className="flex items-center gap-1 flex-wrap justify-end">
-        <MozoFilterButton
-          mozoFilter={mozoFilter}
-          mozosDisponibles={mozosDisponibles}
-          onMozoFilterChange={onMozoFilterChange}
-        />
-        {TICKET_SORT_OPTIONS.map(({ key, label }) => {
-          const active = sortBy === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleClick(key)}
-              title={`Ordenar por ${label}${active ? ` (${sortDir === 'asc' ? 'ascendente' : 'descendente'})` : ''}`}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap
-                ${active
-                  ? 'bg-violet-600/80 text-white border border-violet-500/50'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'}`}
-            >
-              {label}
-              <SortIcon active={active} dir={sortDir} />
-            </button>
-          );
-        })}
-      </div>
+    <div className="flex flex-wrap items-center gap-2 min-w-0">
+      <span className="text-gray-500 whitespace-nowrap" style={{ fontSize: `${px}px` }}>Ordenar</span>
+      <MozoFilterButton
+        mozoFilter={mozoFilter}
+        mozosDisponibles={mozosDisponibles}
+        onMozoFilterChange={onMozoFilterChange}
+      />
+      {TICKET_SORT_OPTIONS.map(({ key, label }) => {
+        const active = sortBy === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => handleClick(key)}
+            title={`Ordenar por ${label}${active ? ` (${sortDir === 'asc' ? 'ascendente' : 'descendente'})` : ''}`}
+            style={{ fontSize: `${px}px` }}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold transition-colors border
+              ${active
+                ? 'bg-violet-600 text-white border-violet-400 shadow-sm'
+                : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600'}`}
+          >
+            {label}
+            <SortIcon active={active} dir={sortDir} />
+          </button>
+        );
+      })}
     </div>
   );
 }

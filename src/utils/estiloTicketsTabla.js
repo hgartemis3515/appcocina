@@ -22,6 +22,7 @@ export const TICKETS_TABLA_VISUAL_DEFAULT = {
   mozoNombreColor: MOZO_NOMBRE_DEFAULT.mozoNombreColor,
   mozoNombreFondo: MOZO_NOMBRE_DEFAULT.mozoNombreFondo,
   mozoNombreTamano: MOZO_NOMBRE_DEFAULT.mozoNombreTamano,
+  filtroTamano: 14,
 };
 
 function clampInt(n, min, max, fallback) {
@@ -70,6 +71,7 @@ export function normalizeTicketsTablaVisual(parsed) {
       MOZO_NOMBRE_TAMANO_MAX,
       d.mozoNombreTamano
     ),
+    filtroTamano: clampInt(parsed?.filtroTamano, 12, 22, d.filtroTamano),
   };
 }
 

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
   FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint, FaTrash, FaCog,
+  FaCalendarDay, FaHistory, FaCalendarWeek, FaLayerGroup, FaSlidersH, FaSun, FaMoon,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
@@ -178,6 +179,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [gruposAbiertosBasico, setGruposAbiertosBasico] = useState(() => new Set());
   const [tablaPrefs, setTablaPrefs] = useState(loadTicketsTablaPrefs);
   const estilosTxtTabla = useMemo(() => estilosTextoTicketsTabla(tablaPrefs), [tablaPrefs]);
+  const letraFiltro = Math.min(22, Math.max(12, Number(tablaPrefs.filtroTamano) || 14));
   const [showTablaConfig, setShowTablaConfig] = useState(false);
   const [showModalTicketCocina, setShowModalTicketCocina] = useState(false);
   const [busquedaTicketCocina, setBusquedaTicketCocina] = useState('');
@@ -982,9 +984,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         </div>
       )}
 
-      {/* Filtros de estado (siempre visibles) + fechas abajo (siempre visibles) */}
       <div className="flex-shrink-0 z-40 bg-gray-900/95 border-b border-gray-800">
-        <div className="max-w-7xl w-full mx-auto px-4 py-2 space-y-2">
+        <div className="max-w-7xl w-full mx-auto px-4 py-3 space-y-2">
           <div className="flex flex-wrap gap-2 items-center">
             {[
               { key: 'pendientes', label: 'Pendientes', icon: FaClock },
@@ -992,22 +993,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
               { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
               { key: 'todos', label: 'Todos', icon: FaFilter },
-            ].map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setFiltro(key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
-                  ${filtro === key
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
-              >
-                <Icon className="text-xs" />
-                {label}
-              </button>
-            ))}
-            <span className="hidden sm:inline w-px h-5 bg-gray-700 mx-0.5" />
-            {[
               { key: 'comandas', label: 'Comandas', icon: FaUtensils },
               { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
               { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
@@ -1016,82 +1001,105 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 key={key}
                 type="button"
                 onClick={() => setFiltro(key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
+                style={{ fontSize: `${letraFiltro}px` }}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-colors border
                   ${filtro === key
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
+                    ? 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-900/40'
+                    : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600'}`}
               >
-                <Icon className="text-xs" />
+                <Icon size={Math.max(16, letraFiltro)} />
                 {label}
               </button>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-          {showTurnoDiaNoche && ['dia', 'noche'].map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setPeriodo(id)}
-              className={`px-2 py-1 rounded-md text-xs border ${
-                filtroPeriodo === id
-                  ? 'bg-amber-600 text-white border-amber-500'
-                  : 'bg-gray-800 text-gray-400 hover:text-white border-gray-700'
-              }`}
-            >
-              {id === 'dia' ? 'DIA' : 'NOCHE'}
-            </button>
-          ))}
-          {PRESETS_PERIODO_TICKETS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setPeriodo(id)}
-              className={`px-2 py-1 rounded-md text-xs border ${
-                filtroPeriodo === id
-                  ? 'bg-violet-600 text-white border-violet-500'
-                  : 'bg-gray-800 text-gray-400 hover:text-white border-gray-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          {filtroPeriodo === 'custom' && (
-            <>
-          <label className="flex items-center gap-1 text-xs text-gray-500">
-            Desde
-            <input
-              type="date"
-              value={fechaDesde}
-              max={fechaHasta}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-200"
+            {showTurnoDiaNoche && ['dia', 'noche'].map((id) => {
+              const Icono = id === 'dia' ? FaSun : FaMoon;
+              const on = filtroPeriodo === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPeriodo(id)}
+                  style={{ fontSize: `${letraFiltro}px` }}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
+                    on
+                      ? 'bg-amber-600 text-white border-amber-400'
+                      : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                  }`}
+                >
+                  <Icono size={Math.max(16, letraFiltro)} />
+                  {id === 'dia' ? 'Día' : 'Noche'}
+                </button>
+              );
+            })}
+            {PRESETS_PERIODO_TICKETS.map(({ id, label }) => {
+              const iconos = {
+                hoy: FaCalendarDay,
+                ayer: FaHistory,
+                '7dias': FaCalendarWeek,
+                todos: FaLayerGroup,
+                custom: FaSlidersH,
+              };
+              const Icono = iconos[id] || FaCalendarDay;
+              const on = filtroPeriodo === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPeriodo(id)}
+                  style={{ fontSize: `${letraFiltro}px` }}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
+                    on
+                      ? 'bg-violet-600 text-white border-violet-400'
+                      : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                  }`}
+                >
+                  <Icono size={Math.max(16, letraFiltro)} />
+                  {label}
+                </button>
+              );
+            })}
+            {filtroPeriodo === 'custom' && (
+              <div className="inline-flex flex-wrap items-center gap-2 px-2 py-1.5 rounded-xl border border-violet-500/40 bg-gray-800/80">
+                <label className="inline-flex items-center gap-1.5 text-gray-300" style={{ fontSize: `${letraFiltro}px` }}>
+                  Desde
+                  <input
+                    type="date"
+                    value={fechaDesde}
+                    max={fechaHasta}
+                    onChange={(e) => setFechaDesde(e.target.value)}
+                    style={{ fontSize: `${letraFiltro}px` }}
+                    className="bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-gray-100"
+                  />
+                </label>
+                <label className="inline-flex items-center gap-1.5 text-gray-300" style={{ fontSize: `${letraFiltro}px` }}>
+                  Hasta
+                  <input
+                    type="date"
+                    value={fechaHasta}
+                    min={fechaDesde}
+                    max={getFechaOperativa()}
+                    onChange={(e) => setFechaHasta(e.target.value)}
+                    style={{ fontSize: `${letraFiltro}px` }}
+                    className="bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-gray-100"
+                  />
+                </label>
+              </div>
+            )}
+            <span className="text-gray-500 font-mono px-1" style={{ fontSize: `${Math.max(11, letraFiltro - 2)}px` }}>
+              {etiquetaPeriodoTickets(filtroPeriodo, primerCierreHoyAt)
+                || (filtroPeriodo === 'todos' ? 'Todas' : `${fechaDesde}${fechaDesde !== fechaHasta ? ` → ${fechaHasta}` : ''}`)}
+            </span>
+            <TicketSortBar
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onChange={handleSortChange}
+              mozoFilter={filtroMozo}
+              mozosDisponibles={mozosDisponibles}
+              onMozoFilterChange={setFiltroMozo}
+              letraPx={letraFiltro}
             />
-          </label>
-          <label className="flex items-center gap-1 text-xs text-gray-500">
-            Hasta
-            <input
-              type="date"
-              value={fechaHasta}
-              min={fechaDesde}
-              max={getFechaOperativa()}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-200"
-            />
-          </label>
-            </>
-          )}
-          <span className="text-[10px] text-gray-500 font-mono">
-            {etiquetaPeriodoTickets(filtroPeriodo, primerCierreHoyAt)
-              || (filtroPeriodo === 'todos' ? 'Todas' : `${fechaDesde}${fechaDesde !== fechaHasta ? ` → ${fechaHasta}` : ''}`)}
-          </span>
-          <TicketSortBar
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onChange={handleSortChange}
-            mozoFilter={filtroMozo}
-            mozosDisponibles={mozosDisponibles}
-            onMozoFilterChange={setFiltroMozo}
-          />
           </div>
         </div>
       </div>
@@ -1139,6 +1147,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
             ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+            tamanoFecha={letraFiltro}
             vistaPorTicket={cobroPorCantidad ? vistaCobroPeriodo : null}
           />
         ) : modoVista === 'mozos' ? (
