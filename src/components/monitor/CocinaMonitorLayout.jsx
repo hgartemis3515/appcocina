@@ -4,7 +4,7 @@ import moment from 'moment-timezone';
 import axios from 'axios';
 import { getServerBaseUrl } from '../../config/apiConfig';
 import { clampColumnas } from '../../config/monitorVisualConstants';
-import { esModoFijoUrl, numeroMonitorDesdeUrl, suscribirDisenoMonitor } from '../../utils/monitorDesignSync';
+import { esModoFijoUrl, numeroMonitorDesdeUrl, suscribirDisenoMonitor, leerDisenoMonitorLocal, guardarDisenoMonitorLocal, storageKeyDisenoMonitor } from '../../utils/monitorDesignSync';
 import { useHubChromeZoom } from '../../hooks/useHubChromeZoom';
 import PlatoMonitorRow from './PlatoMonitorRow';
 import CocineroPlatoCard from './CocineroPlatoCard';
@@ -354,8 +354,11 @@ const CocinaMonitorLayout = ({
   // Estado de configuración local (editable en barra superior).
   // Merge: defaults < config de la vista < config local guardada en localStorage.
   const [localDesign, setLocalDesign] = useState(() => {
-    if (esModoFijoUrl()) return snapshotConfigPerfil(DEFAULT_CONFIG);
     try {
+      if (esModoFijoUrl()) {
+        const cached = leerDisenoMonitorLocal(numeroMonitorDesdeUrl());
+        return snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...(cached || {}) });
+      }
       const saved = localStorage.getItem(STORAGE_DESIGN_KEY);
       const parsed = saved ? JSON.parse(saved) : {};
       return snapshotConfigPerfil({ ...DEFAULT_CONFIG, ...(parsed && typeof parsed === 'object' ? parsed : {}) });
@@ -511,6 +514,19 @@ const CocinaMonitorLayout = ({
     };
   }, []);
 
+  const persistirDesignLocal = useCallback((completa) => {
+    try {
+      if (esModoFijoUrl()) {
+        const n = numeroMonitorDesdeUrl();
+        if (n) guardarDisenoMonitorLocal(n, completa);
+        return;
+      }
+      localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(completa));
+    } catch (err) {
+      console.warn('[CocinaMonitorLayout] Error guardando config local:', err.message);
+    }
+  }, []);
+
   const guardarConfigLocal = useCallback((nuevaConfig) => {
     const completa = snapshotConfigPerfil({
       ...DEFAULT_CONFIG,
@@ -518,12 +534,8 @@ const CocinaMonitorLayout = ({
       ...(nuevaConfig && typeof nuevaConfig === 'object' ? nuevaConfig : {}),
     });
     setLocalDesign(completa);
-    try {
-      localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(completa));
-    } catch (err) {
-      console.warn('[CocinaMonitorLayout] Error guardando config local:', err.message);
-    }
-  }, [configVistaProp]);
+    persistirDesignLocal(completa);
+  }, [configVistaProp, persistirDesignLocal]);
 
   const armarConfigPerfil = useCallback(
     () => snapshotConfigPerfil({
@@ -541,9 +553,9 @@ const CocinaMonitorLayout = ({
     });
     autoSaveSkipRef.current = true;
     setLocalDesign(completa);
-    try { localStorage.setItem(STORAGE_DESIGN_KEY, JSON.stringify(completa)); } catch { /* noop */ }
+    persistirDesignLocal(completa);
     return completa;
-  }, []);
+  }, [persistirDesignLocal]);
 
   // Guardar el diseño actual como perfil del cocinero activo en backend.
   // Flujo "Distribuir Cocina en monitores" → botón "Guardar Perfil".
@@ -1729,7 +1741,14 @@ const CocinaMonitorLayout = ({
               localDesign={localDesign}
               onChange={guardarConfigLocal}
               onReset={() => {
-                localStorage.removeItem(STORAGE_DESIGN_KEY);
+                try {
+                  if (esModoFijoUrl()) {
+                    const n = numeroMonitorDesdeUrl();
+                    if (n) localStorage.removeItem(storageKeyDisenoMonitor(n));
+                  } else {
+                    localStorage.removeItem(STORAGE_DESIGN_KEY);
+                  }
+                } catch { /* noop */ }
                 setLocalDesign(snapshotConfigPerfil(DEFAULT_CONFIG));
                 setPerfilSelId(null);
               }}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { getServerBaseUrl } from '../../config/apiConfig';
@@ -73,19 +73,16 @@ const CocinaMonitorPersonalizado = ({ onGoToMenu, modoFijo = false, vistaIdInici
     vistaActiva?.ordenamiento || { criterio: 'prioridad', direccion: 'desc' }
   );
 
-  // Config visual de la vista (con defaults)
-  const configVisual = vistaActiva?.configVisual || {
-    tamanioFuentePlato: 36,
-    tamanioFuenteDetalle: 20,
-    tamanioFuenteCronometro: 28,
-    tiempoAmarillo: vistaActiva?.configCronometro?.tiempoAmarillo || 5,
-    tiempoRojo: vistaActiva?.configCronometro?.tiempoRojo || 20,
-    modoNocturno: true,
-  };
-
-  // Incluir umbrales cron dentro de configVisual para PlatoMonitorRow
-  configVisual.tiempoAmarillo = configVisual.tiempoAmarillo || 5;
-  configVisual.tiempoRojo = configVisual.tiempoRojo || 20;
+  const configVisual = useMemo(() => {
+    const base = (vistaActiva?.configVisual && typeof vistaActiva.configVisual === 'object')
+      ? vistaActiva.configVisual
+      : {};
+    return {
+      ...base,
+      tiempoAmarillo: base.tiempoAmarillo || vistaActiva?.configCronometro?.tiempoAmarillo || 5,
+      tiempoRojo: base.tiempoRojo || vistaActiva?.configCronometro?.tiempoRojo || 20,
+    };
+  }, [vistaActiva]);
 
   if (loadingVistas && vistasCocina.length === 0) {
     return (
