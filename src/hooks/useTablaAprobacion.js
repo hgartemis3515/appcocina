@@ -261,7 +261,6 @@ export default function useTablaAprobacion({
           ? { ...t, estado: 'aprobado', aprobadoPorNombre: data?.aprobadoPorNombre, fechaAprobacion: data?.fechaAprobacion || new Date().toISOString() }
           : t
       ));
-      fetchItemsDebounced();
     };
 
     const handleMesaReportada = () => {

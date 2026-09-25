@@ -2568,97 +2568,55 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
     const apiUrl = getApiUrl();
     
-    // Procesar en paralelo - SOLO API de platos, NO tocar comanda.status directamente
-    // Backend auto-cambiará comanda.status a 'recoger' cuando TODOS los platos estén en 'recoger'
-    const resultados = await Promise.allSettled(
-      platosParaProcesar.map(async ({ comandaId, platoId, platoIndex, cantidadEntregar }) => {
-        try {
-          const comanda = comandas.find(c => c._id === comandaId);
-          if (!comanda) {
-            console.error(`❌ [batchFinalizarPlatos] Comanda ${comandaId} no encontrada`);
-            return { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' };
-          }
-          
-          // Si tenemos platoIndex, usarlo; si no, buscar por platoId
-          let plato;
-          if (platoIndex !== undefined && comanda.platos?.[platoIndex]) {
-            plato = comanda.platos[platoIndex];
-          } else {
-            // 🔥 FIX: Buscar PRIORITARIAMENTE por _id del subdocumento (único)
-            plato = comanda.platos?.find(p => {
-              const pId = p._id?.toString() || p.plato?._id?.toString() || p.platoId?.toString();
-              return pId === platoId?.toString();
-            });
-          }
-          
-          if (!plato) {
-            console.error(`❌ [batchFinalizarPlatos] Plato ${platoId} no encontrado en comanda ${comandaId}`);
-            console.error(`   Platos disponibles:`, comanda.platos?.map(p => ({
-              _id: p._id?.toString(),
-              platoId: p.platoId,
-              estado: p.estado
-            })));
-            return { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' };
-          }
-          
-          // 🔥 FIX CRÍTICO: Priorizar SIEMPRE plato._id (subdocumento único)
-          // Esto es crucial cuando hay 2+ platos del mismo tipo con complementos diferentes
-          const platoIdFinal = plato._id?.toString() || plato.plato?._id?.toString() || platoId?.toString();
-          
-          if (!platoIdFinal) {
-            console.error(`❌ [batchFinalizarPlatos] No se pudo obtener ID del plato`);
-            return { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' };
-          }
-          
-          console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
-          
-          // REGLA COCINA: Solo cambiar a 'recoger', nunca 'entregado'
-          const token = typeof getToken === 'function' ? getToken() : null;
-          const body = { nuevoEstado: "recoger" };
-          if (opts.entregarEnteroAbsoluto) {
-            body.entregarEnteroAbsoluto = true;
-            if (userId) body.cocineroId = userId;
-          }
-          if (Number(cantidadEntregar) >= 1) body.cantidadEntregar = Number(cantidadEntregar);
-          const response = await axios.put(
-            `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
-            body,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          );
-          
-          console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
-          return { 
-            comandaId, 
-            platoId: platoIdFinal, 
-            platoIndex, 
-            exito: true,
-            nombre: plato.plato?.nombre || plato.nombre || 'Plato'
-          };
-        } catch (error) {
-          // 🔥 FIX: Log detallado y mensaje de error específico
-          const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
-          console.error(`❌ [batchFinalizarPlatos] Error finalizando plato ${platoId}:`);
-          console.error(`   Error: ${errorMsg}`);
-          console.error(`   Status: ${error.response?.status}`);
-          console.error(`   Data:`, error.response?.data);
-          
-          // Obtener nombre del plato para el mensaje de error
-          const comanda = comandas.find(c => c._id === comandaId);
-          const platoNombre = comanda?.platos?.[platoIndex]?.plato?.nombre || 
-                              comanda?.platos?.find(p => p._id?.toString() === platoId?.toString())?.plato?.nombre ||
-                              `Plato ${platoIndex !== undefined ? `#${platoIndex + 1}` : platoId}`;
-          
-          return { 
-            comandaId, 
-            platoId, 
-            platoIndex, 
-            exito: false, 
-            error: errorMsg,
-            nombre: platoNombre
-          };
-        }
-      })
-    );
+    const token = typeof getToken === 'function' ? getToken() : null;
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const lineas = [];
+    const locales = [];
+    for (const item of platosParaProcesar) {
+      const { comandaId, platoId, platoIndex, cantidadEntregar } = item;
+      const comanda = comandas.find(c => c._id === comandaId);
+      if (!comanda) {
+        locales.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' } });
+        continue;
+      }
+      let plato = platoIndex !== undefined && comanda.platos?.[platoIndex]
+        ? comanda.platos[platoIndex]
+        : comanda.platos?.find(p => (p._id?.toString() || p.plato?._id?.toString() || p.platoId?.toString()) === platoId?.toString());
+      if (!plato) {
+        locales.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' } });
+        continue;
+      }
+      const platoIdFinal = plato._id?.toString() || plato.plato?._id?.toString() || platoId?.toString();
+      if (!platoIdFinal) {
+        locales.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' } });
+        continue;
+      }
+      lineas.push({
+        comandaId,
+        platoId: platoIdFinal,
+        platoIndex,
+        nuevoEstado: 'recoger',
+        cantidadEntregar: Number(cantidadEntregar) >= 1 ? Number(cantidadEntregar) : undefined,
+        entregarEnteroAbsoluto: opts.entregarEnteroAbsoluto === true
+      });
+    }
+    let resultados = locales;
+    if (lineas.length > 0) {
+      try {
+        const { data } = await axios.put(
+          `${apiUrl}/platos/estado-lote`,
+          { lineas, cocineroId: userId, entregarEnteroAbsoluto: opts.entregarEnteroAbsoluto === true },
+          { headers }
+        );
+        resultados = resultados.concat((data?.resultados || []).map((value) => ({ status: 'fulfilled', value })));
+      } catch (error) {
+        const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
+        resultados = resultados.concat(lineas.map((linea) => ({
+          status: 'fulfilled',
+          value: { ...linea, exito: false, error: errorMsg }
+        })));
+      }
+    }
 
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
     const fallidos = resultados.length - exitosos;
@@ -2674,7 +2632,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     });
 
     return { exitosos, fallidos, resultados };
-  }, [comandas]);
+  }, [comandas, userId, getToken]);
 
   // Handler para finalizar platos marcados con checkboxes
   const handleFinalizarPlatosGlobal = useCallback(async () => {

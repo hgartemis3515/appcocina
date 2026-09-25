@@ -2279,96 +2279,67 @@ const ComandaStyle = ({
     const loteCola = ordenados.map((p) => `${p.comandaId}-${p.platoIndex}`);
 
     const resultados = [];
-    for (const { comandaId, platoId, platoIndex, cantidadEntregar } of ordenados) {
+    const token = typeof getToken === 'function' ? getToken() : null;
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const lineas = [];
+    for (const item of ordenados) {
+      const { comandaId, platoId, platoIndex, cantidadEntregar } = item;
+      const comanda = comandas.find(c => c._id === comandaId);
+      if (!comanda) {
+        resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' } });
+        continue;
+      }
+      let plato;
+      if (platoIndex !== undefined && comanda.platos?.[platoIndex]) {
+        plato = comanda.platos[platoIndex];
+      } else {
+        plato = comanda.platos?.find(p => {
+          const pId = p._id?.toString() || p.plato?._id?.toString() || p.platoId?.toString();
+          return pId === platoId?.toString();
+        });
+      }
+      if (!plato) {
+        resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' } });
+        continue;
+      }
+      const platoIdFinal = plato._id?.toString() || plato.plato?._id?.toString() || platoId?.toString();
+      if (!platoIdFinal) {
+        resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' } });
+        continue;
+      }
+      lineas.push({
+        comandaId,
+        platoId: platoIdFinal,
+        platoIndex,
+        nuevoEstado: 'recoger',
+        cantidadEntregar: Number(cantidadEntregar) >= 1 ? Number(cantidadEntregar) : undefined,
+        entregarEnteroAbsoluto: opts.entregarEnteroAbsoluto === true
+      });
+    }
+    if (lineas.length > 0) {
       try {
-          const comanda = comandas.find(c => c._id === comandaId);
-          if (!comanda) {
-            console.error(`❌ [batchFinalizarPlatos] Comanda ${comandaId} no encontrada`);
-            resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Comanda no encontrada' } });
-            continue;
-          }
-          
-          let plato;
-          if (platoIndex !== undefined && comanda.platos?.[platoIndex]) {
-            plato = comanda.platos[platoIndex];
-          } else {
-            plato = comanda.platos?.find(p => {
-              const pId = p._id?.toString() || p.plato?._id?.toString() || p.platoId?.toString();
-              return pId === platoId?.toString();
-            });
-          }
-          
-          if (!plato) {
-            console.error(`❌ [batchFinalizarPlatos] Plato ${platoId} no encontrado en comanda ${comandaId}`);
-            resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'Plato no encontrado' } });
-            continue;
-          }
-          
-          const platoIdFinal = plato._id?.toString() || plato.plato?._id?.toString() || platoId?.toString();
-          
-          if (!platoIdFinal) {
-            console.error(`❌ [batchFinalizarPlatos] No se pudo obtener ID del plato`);
-            resultados.push({ status: 'fulfilled', value: { comandaId, platoId, platoIndex, exito: false, error: 'ID de plato no disponible' } });
-            continue;
-          }
-          
-          console.log(`🔄 [batchFinalizarPlatos] Finalizando plato ${platoIdFinal} (subdocumento _id único)`);
-          
-          const token = typeof getToken === 'function' ? getToken() : null;
-          const body = { nuevoEstado: "recoger", cocineroId: userId, loteCola };
-          if (opts.entregarEnteroAbsoluto) body.entregarEnteroAbsoluto = true;
-          if (Number(cantidadEntregar) >= 1) body.cantidadEntregar = Number(cantidadEntregar);
-          await axios.put(
-            `${apiUrl}/${comandaId}/plato/${platoIdFinal}/estado`,
-            body,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          );
-          
-          console.log(`✅ [batchFinalizarPlatos] Plato ${platoIdFinal} actualizado exitosamente`);
-          resultados.push({
-            status: 'fulfilled',
-            value: {
-              comandaId,
-              platoId: platoIdFinal,
-              platoIndex,
-              exito: true,
-              nombre: plato.plato?.nombre || plato.nombre || 'Plato'
-            }
-          });
-        } catch (error) {
-          const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
-          console.error(`❌ [batchFinalizarPlatos] Error finalizando plato ${platoId}:`);
-          console.error(`   Error: ${errorMsg}`);
-          
-          // PLAN GUARNICIONES_SEPARADAS v1.1.1 §9.3.2: mostrar guarniciones pendientes
-          if (error.response?.status === 409 && errorMsg === 'FALTAN_GUARNICIONES') {
-            const pendientes = error.response?.data?.pendientes || [];
-            const lista = pendientes.map(p => `• ${p.opcion || p.grupo || 'guarnición'}`).join('\n');
-            if (window.GambusinasNotifications) {
-              window.GambusinasNotifications.toast(
-                `Falta(n) ${pendientes.length} guarnición(es) por finalizar:\n${lista}`,
-                'warning'
-              );
-            }
-          }
-          
-          const comanda = comandas.find(c => c._id === comandaId);
-          const platoNombre = comanda?.platos?.[platoIndex]?.plato?.nombre || 
-                              comanda?.platos?.find(p => p._id?.toString() === platoId?.toString())?.plato?.nombre ||
-                              `Plato ${platoIndex !== undefined ? `#${platoIndex + 1}` : platoId}`;
-          
-          resultados.push({
-            status: 'fulfilled',
-            value: {
-              comandaId,
-              platoId,
-              platoIndex,
-              exito: false,
-              error: errorMsg,
-              nombre: platoNombre
-            }
-          });
+        const { data } = await axios.put(
+          `${apiUrl}/platos/estado-lote`,
+          {
+            lineas,
+            cocineroId: userId,
+            entregarEnteroAbsoluto: opts.entregarEnteroAbsoluto === true,
+            loteCola
+          },
+          { headers }
+        );
+        for (const value of data?.resultados || []) {
+          resultados.push({ status: 'fulfilled', value });
         }
+      } catch (error) {
+        const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
+        lineas.forEach((linea) => {
+          resultados.push({
+            status: 'fulfilled',
+            value: { ...linea, exito: false, error: errorMsg }
+          });
+        });
+      }
     }
 
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.exito).length;
