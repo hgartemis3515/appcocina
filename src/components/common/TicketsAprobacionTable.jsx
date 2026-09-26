@@ -245,7 +245,7 @@ function FilaTicketAvanzado({
         </div>
       </td>
       <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
-        {indent ? '' : `Mesa ${ticket.numMesa || '?'}`}
+        {indent ? '' : (ticket.sinMesa ? 'Para llevar' : `Mesa ${ticket.numMesa || '?'}`)}
       </td>
       <td className="px-3 py-2 min-w-[120px]">
         {indent ? null : (
@@ -331,7 +331,10 @@ export default function TicketsAprobacionTable({
   const [detalleTicket, setDetalleTicket] = useState(null);
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set());
   const [filasPintadas, setFilasPintadas] = useState(() => loadFilasTicketVerde());
-  const filas = useMemo(() => groupTicketsComoComandasHtml(tickets), [tickets]);
+  const filas = useMemo(
+    () => groupTicketsComoComandasHtml(tickets, { sortBy, sortDir }),
+    [tickets, sortBy, sortDir]
+  );
   const totalVentas = useMemo(() => totalVentasFilasTabla(filas), [filas]);
   const idSet = useMemo(() => new Set((idsSeleccionados || []).map(String)), [idsSeleccionados]);
 
@@ -545,7 +548,7 @@ export default function TicketsAprobacionTable({
                       </div>
                     </td>
                     <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
-                      Mesa {fila.mesa || first.numMesa || '?'}
+                      Mesa {first.sinMesa ? 'Para llevar' : (fila.mesa || first.numMesa || '?')}
                     </td>
                     <td className="px-3 py-2 min-w-[120px]">
                       <div className="truncate">

@@ -278,13 +278,22 @@ export function ticketParaCobroGrupo(tickets) {
 }
 
 /**
- * Misma regla que comandas.html processGrouping:
+ * Misma regla que comandas.html processGrouping.
  * pedidoId (primario) o clienteId+mesa (histórico). Sin eso, fila individual.
  * Un solo ticket en el grupo se muestra como individual.
- * Orden: más antiguo → más nuevo.
+ * La fecha respeta sortDir: asc = más antiguo primero, desc = más nuevo primero.
  */
-export function groupTicketsComoComandasHtml(tickets) {
-  const sorted = sortTicketsMasAntiguoPrimero(tickets);
+export function groupTicketsComoComandasHtml(tickets, opts = {}) {
+  const sortBy = opts.sortBy || 'fecha';
+  const sortDir = opts.sortDir === 'asc' ? 'asc' : 'desc';
+  const dir = sortDir === 'asc' ? 1 : -1;
+  const cmp = (a, b) => {
+    const va = getSortValue(a, sortBy);
+    const vb = getSortValue(b, sortBy);
+    if (va !== vb) return (va - vb) * dir;
+    return (fechaCreacionComandaMs(a) - fechaCreacionComandaMs(b)) * dir;
+  };
+  const sorted = [...(tickets || [])].sort(cmp);
   const gruposPedido = new Map();
   const gruposCliente = new Map();
   const sueltos = [];
@@ -332,7 +341,7 @@ export function groupTicketsComoComandasHtml(tickets) {
 
   const filas = [];
   const volcarGrupo = (g) => {
-    g.tickets.sort((a, b) => fechaCreacionComandaMs(b) - fechaCreacionComandaMs(a));
+    g.tickets.sort(cmp);
     if (g.tickets.length > 1) {
       filas.push({
         tipo: 'grupo',
@@ -363,9 +372,16 @@ export function groupTicketsComoComandasHtml(tickets) {
   }
 
   return filas.sort((a, b) => {
-    const fa = Math.max(0, ...a.tickets.map(fechaCreacionComandaMs));
-    const fb = Math.max(0, ...b.tickets.map(fechaCreacionComandaMs));
-    return fb - fa;
+    const va = a.tickets.map((t) => getSortValue(t, sortBy));
+    const vb = b.tickets.map((t) => getSortValue(t, sortBy));
+    const fa = sortDir === 'asc' ? Math.min(...va) : Math.max(...va);
+    const fb = sortDir === 'asc' ? Math.min(...vb) : Math.max(...vb);
+    if (fa !== fb) return (fa - fb) * dir;
+    const ta = a.tickets.map(fechaCreacionComandaMs);
+    const tb = b.tickets.map(fechaCreacionComandaMs);
+    const da = sortDir === 'asc' ? Math.min(...ta) : Math.max(...ta);
+    const db = sortDir === 'asc' ? Math.min(...tb) : Math.max(...tb);
+    return (da - db) * dir;
   });
 }
 

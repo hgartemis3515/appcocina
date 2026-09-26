@@ -24,9 +24,20 @@ describe('groupTicketsComoComandasHtml', () => {
     const filas = groupTicketsComoComandasHtml(tickets);
     expect(filas[0].tipo).toBe('grupo');
     expect(filas[0].label).toBe('#82+#81');
-    expect(filas[0].tickets.map((t) => t._id)).toEqual(['a', 'c']);
+    expect(filas[0].tickets.map((t) => t._id)).toEqual(['c', 'a']);
     expect(filas[1].tipo).toBe('individual');
     expect(filas[1].tickets[0]._id).toBe('b');
+  });
+
+  test('fecha ascendente pone primero el más antiguo', () => {
+    const tickets = [
+      { _id: 'c', numMesa: 3, pedido: 'aaaaaaaaaaaaaaaaaaaaaaaa', comandasNumbers: [82], createdAt: '2026-09-02T12:10:00Z' },
+      { _id: 'a', numMesa: 3, pedido: 'aaaaaaaaaaaaaaaaaaaaaaaa', comandasNumbers: [81], createdAt: '2026-09-02T12:00:00Z' },
+      { _id: 'b', numMesa: 9, createdAt: '2026-09-02T11:00:00Z' },
+    ];
+    const filas = groupTicketsComoComandasHtml(tickets, { sortBy: 'fecha', sortDir: 'asc' });
+    expect(filas[0].tickets[0]._id).toBe('b');
+    expect(filas[1].tickets.map((t) => t._id)).toEqual(['a', 'c']);
   });
 
   test('fallback: mismo cliente + mesa', () => {
@@ -39,7 +50,7 @@ describe('groupTicketsComoComandasHtml', () => {
     const filas = groupTicketsComoComandasHtml(tickets);
     const grupo = filas.find((f) => f.tipo === 'grupo');
     const solo = filas.find((f) => f.tipo === 'individual');
-    expect(grupo.tickets.map((t) => t._id)).toEqual(['1', '2']);
+    expect(grupo.tickets.map((t) => t._id)).toEqual(['2', '1']);
     expect(solo.tickets[0]._id).toBe('3');
   });
 });

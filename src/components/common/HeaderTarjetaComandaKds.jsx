@@ -52,6 +52,7 @@ export default function HeaderTarjetaComandaKds({
   colorLetraMozo,
   prepText,
   prepTitle,
+  ignorarAlertaReloj = false,
   children,
 }) {
   const nComanda = numeroComandaVisible(comanda) ?? 'N/A';
@@ -88,12 +89,14 @@ export default function HeaderTarjetaComandaKds({
   });
   const estiloReloj = estiloDatoHeaderTarjetaKds(config, {
     tamanoOverride: tamReloj,
-    colorOverride: colorRelojHeaderTarjeta(
-      minutosActuales,
-      alertYellowMinutes,
-      alertRedMinutes,
-      config
-    ),
+    colorOverride: ignorarAlertaReloj
+      ? (hexValidoOrdenCola(config.headerTarjetaColor) ? config.headerTarjetaColor : '#ffffff')
+      : colorRelojHeaderTarjeta(
+        minutosActuales,
+        alertYellowMinutes,
+        alertRedMinutes,
+        config
+      ),
   });
   const ocultarPrep = ocultarPrepHeaderTarjeta(config);
   const prepVisible = !ocultarPrep && prepText;

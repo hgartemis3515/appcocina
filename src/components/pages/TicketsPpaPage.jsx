@@ -469,15 +469,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     const porMozo = filterTicketsByMozo(itemsPorEstado, filtroMozo);
     const ocultos = cobroPorCantidad ? idsOcultosCobro(vistaCobroPeriodo, porMozo) : new Set();
     const visibles = ocultos.size ? porMozo.filter((t) => !ocultos.has(String(t._id))) : porMozo;
-    if (filtro === 'todos') {
+    if (filtro === 'todos' && sortBy !== 'fecha') {
       return sortTicketsPendientesPrimero(visibles, sortBy, sortDir);
     }
     return sortTickets(visibles, sortBy, sortDir);
   }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro, cobroPorCantidad, vistaCobroPeriodo]);
 
   const filasBasico = useMemo(
-    () => groupTicketsComoComandasHtml(itemsFiltrados),
-    [itemsFiltrados],
+    () => groupTicketsComoComandasHtml(itemsFiltrados, { sortBy, sortDir }),
+    [itemsFiltrados, sortBy, sortDir],
   );
 
   const opcionesTicketCocina = useMemo(
@@ -606,7 +606,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       <div className="flex items-center gap-3 mt-1">
                         <div className="flex items-center gap-1 text-gray-300 text-xs">
                           <FaUtensils className="text-gray-400" />
-                          <span>Mesa {ticket.numMesa || '?'}</span>
+                          <span>{ticket.sinMesa ? 'Para llevar' : `Mesa ${ticket.numMesa || '?'}`}</span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-400 text-xs">
                           <FaUser className="text-gray-500" />
@@ -1304,7 +1304,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         <div className="flex items-center gap-3 mt-1">
                           <div className="flex items-center gap-1 text-gray-300 text-xs">
                             <FaUtensils className="text-gray-400" />
-                            <span>Mesa {fila.mesa || primero.numMesa || '?'}</span>
+                            <span>{primero.sinMesa ? 'Para llevar' : `Mesa ${fila.mesa || primero.numMesa || '?'}`}</span>
                           </div>
                           <div className="flex items-center gap-1 text-gray-400 text-xs">
                             <FaUser className="text-gray-500" />

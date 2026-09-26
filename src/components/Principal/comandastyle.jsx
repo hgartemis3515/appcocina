@@ -86,7 +86,7 @@ import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
 import useTiposPlatoReglas from "../../hooks/useTiposPlatoReglas";
 import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
-import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds } from "../../utils/estiloHeaderTarjetaKds";
+import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, colorBarraSuperiorMozo } from "../../utils/estiloHeaderTarjetaKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
 import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds, etiquetaBotonEliminarKds, clasesBotonEliminarKds, camuflarEliminarPlatoEpa } from "../../utils/kdsAnularPlatos";
@@ -5744,6 +5744,11 @@ const SicarComandaCard = ({
   const reglasTipo = useTiposPlatoReglas();
   const estiloHeader = resolverEstiloHeaderTarjetaComanda(kdsMozoConfig, { forzarCompacto: compactoKds });
   const padHeader = paddingHeaderTarjetaKds(estiloHeader);
+  const colorBarraMozo = colorBarraSuperiorMozo({
+    config: kdsMozoConfig,
+    configCocina: cocinaCfg,
+    colorPerfil: colorPerfilDeComanda(comanda),
+  });
   // 🔥 AUDITORÍA: Obtener platos eliminados del historialPlatos de la comanda
   // CORREGIDO: Excluir platos que fueron anulados desde cocina (se muestran en sección separada)
   const platosEliminadosHistorial = React.useMemo(() => {
@@ -6128,8 +6133,10 @@ const SicarComandaCard = ({
     >
       {/* Header con fondo que cambia según tiempo (gris/amarillo/rojo) - Zona Click 1 */}
       <div
-        className={`relative ${padHeader} ${headerReserva ? '' : bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`}
-        style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
+        className={`relative ${padHeader} ${headerReserva || colorBarraMozo ? '' : bgColor} group cursor-pointer hover:shadow-xl transition-all duration-200`}
+        style={headerReserva
+          ? { backgroundColor: headerReserva.hex }
+          : (colorBarraMozo ? { backgroundColor: colorBarraMozo } : undefined)}
         onClick={onToggleSelect}
       >
         {/* Checkmark grande absolute overlay centrado exacto barra roja - Zero espacio */}
@@ -6171,6 +6178,7 @@ const SicarComandaCard = ({
           minutosActuales={minutosActuales}
           alertYellowMinutes={alertYellowMinutes}
           alertRedMinutes={alertRedMinutes}
+          ignorarAlertaReloj={!!colorBarraMozo}
           estiloMozo={estiloMozo}
           colorLetraMozo={colorLetraMozo}
           nombreMozo={comanda.mozoNombre || comanda.mozos?.name || comanda.mozos?.nombre || 'Sin mozo'}

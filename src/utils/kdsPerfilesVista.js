@@ -60,6 +60,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'headerTarjetaColor',
   'headerTarjetaContorno',
   'headerTarjetaFondo',
+  'headerBarraFondoColorMozo',
   'colorReservaKds',
   'colorReservaTexto',
   'colorReservaHorario',

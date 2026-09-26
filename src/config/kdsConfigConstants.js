@@ -300,6 +300,7 @@ export const DEFAULT_KDS_CONFIG = {
   headerTarjetaColor: '#ffffff',
   headerTarjetaContorno: '#4b5563',
   headerTarjetaFondo: '#111827',
+  headerBarraFondoColorMozo: false,
   colorReservaKds: '#7DD3FC',
   colorReservaTexto: '#ffffff',
   colorReservaHorario: '#ffffff',

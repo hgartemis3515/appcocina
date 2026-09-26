@@ -450,6 +450,21 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               Cómo se ordenan en la barra superior: orden, número de comanda, mesa, reloj, mozo y Prep.
               Compacto y dos filas quitan el hueco del diseño de dos columnas.
             </p>
+            <label className="flex items-start gap-3 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={config.headerBarraFondoColorMozo === true}
+                onChange={(e) => updateConfig({ headerBarraFondoColorMozo: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-blue-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Fondo de la barra con el color del mozo</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>
+                  El cuadro de número de comanda, mesa, mozo y cronómetro usa el color de perfil del mozo.
+                  No pasa a amarillo ni a rojo cuando el cronómetro entra en alerta. Se guarda en el perfil de vista.
+                </span>
+              </span>
+            </label>
             {HEADER_TARJETA_ESTILOS.map((estilo) => {
               const activo = resolverHeaderTarjetaEstilo(config) === estilo.id;
               return (

@@ -83,6 +83,21 @@ export function ocultarPrepHeaderTarjeta(config) {
   return config?.headerTarjetaOcultarPrep === true;
 }
 
+/**
+ * Fondo de la barra superior (número, mesa, mozo, cronómetro).
+ * Solo el color de perfil del mozo, o el color forzado de cocina.
+ * null = seguir gris / amarillo / rojo del cronómetro.
+ */
+export function colorBarraSuperiorMozo({ config, configCocina, colorPerfil } = {}) {
+  if (config?.headerBarraFondoColorMozo !== true) return null;
+  if (configCocina?.forzarColorMozoUnico === true) {
+    return hexValidoOrdenCola(configCocina.colorMozoForzado)
+      ? configCocina.colorMozoForzado
+      : null;
+  }
+  return hexValidoOrdenCola(colorPerfil) ? colorPerfil : null;
+}
+
 export function tamanoLetraHeaderTarjetaKds(config = {}) {
   return clampInt(
     config.headerTarjetaTamano,
