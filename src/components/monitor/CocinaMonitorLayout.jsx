@@ -29,9 +29,7 @@ import {
   tiempoInicioGrupo,
   recolectarGuarnicionesMonitor,
   agrupacionGuarnicionesOn,
-  tituloGrupoGuarniciones,
   formatearReferenciaPadre,
-  lineaListaGuarniciones,
   tokenGuarnicion,
   cantidadGuarnicionEfectiva,
   deduplicarGuarnicionesJunta,
@@ -1143,12 +1141,11 @@ const CocinaMonitorLayout = ({
         : null;
       const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
       const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
-      const claveNombre = claveNombreComplemento(nombreGuarnicionSolo(comp) || nombreG);
       const key = juntaMerge
         ? claveGrupoGuarnicionMonitor({
           plato, comanda, platoIndex, comp, cid, agrupacionOn,
         })
-        : `${cid}::gjoin::${claveNombre}`;
+        : `${cid}::gg::${comandaId}:${platoIndex}`;
       if (!gruposMap.has(key)) {
         gruposMap.set(key, {
           nombre: nombreG,
@@ -1217,27 +1214,28 @@ const CocinaMonitorLayout = ({
       const idxLinea = firstItem?.platoIndex ?? platoIndex;
       const nLinea = obtenerCantidadLinea(firstItem?.comanda, platoRaw, idxLinea);
       const platoRef = platoRaw ? { ...platoRaw, cantidad: nLinea } : platoRaw;
-      const nombre = (agrupacionOn && !juntaMerge)
-        ? (tituloGrupoGuarniciones(comps, platoRef, firstItem?.comanda, idxLinea, configVisual) || rest.nombre)
-        : rest.nombre;
-      const tiempoInicio = (agrupacionOn || juntaMerge) ? tiempoInicioGrupo(comps) : rest.tiempoInicio;
-      let timers = rest.timers;
-      if (agrupacionOn || juntaMerge) {
-        const lineaId = juntaMerge ? `${rest.key}:gm` : `${comandaId}:${platoIndex}:gg`;
-        timers = tiempoInicio
-          ? [{
-              tiempoInicio,
-              cantidad: juntaMerge ? Math.max(1, rest.cantidadTotal) : 1,
-              mesa: mesaNum,
-              comandaNumero,
-              comandaId,
-              platoIndex,
-              unidadIndex: 0,
-              lineaId,
-              colorLinea: colorLineaDesdeId(lineaId),
-            }]
-          : [];
-      }
+      const etiquetasPlato = juntaMerge ? [] : comps.map((c) => {
+        const base = nombreCocinaComplemento(c, platoRef) || 'Guarnición';
+        const n = Math.max(1, Math.floor(Number(cantidadGuarnicionEfectiva(c, platoRef, firstItem?.comanda, idxLinea)) || 1));
+        return `${base} ${n}x`;
+      }).filter(Boolean);
+      const lineaClasica = etiquetasPlato.join(', ');
+      const nombre = lineaClasica || rest.nombre;
+      const tiempoInicio = tiempoInicioGrupo(comps) || rest.tiempoInicio;
+      const lineaId = juntaMerge ? `${rest.key}:gm` : `${comandaId}:${platoIndex}:gg`;
+      let timers = tiempoInicio
+        ? [{
+            tiempoInicio,
+            cantidad: juntaMerge ? Math.max(1, rest.cantidadTotal) : 1,
+            mesa: mesaNum,
+            comandaNumero,
+            comandaId,
+            platoIndex,
+            unidadIndex: 0,
+            lineaId,
+            colorLinea: colorLineaDesdeId(lineaId),
+          }]
+        : [];
       if (ocultarCronometroG) timers = [];
       const notasGrupo = textosNotasDeGrupo({ platos: rest.platos });
       const notasEnTarjeta = configVisual.notasJuntoAGuarniciones !== false;
@@ -1245,15 +1243,18 @@ const CocinaMonitorLayout = ({
         ...rest,
         nombre,
         comps,
-        cantidadTotal: rest.cantidadTotal,
+        cantidadTotal: lineaClasica ? Math.max(1, nLinea || 1) : rest.cantidadTotal,
         tiempoInicio,
         timers,
         comandaId,
         platoIndex,
-        subtitulo: formatearReferenciaPadre(padreTxt, modoRefPadre),
+        subtitulo: juntaMerge
+          ? formatearReferenciaPadre(padreTxt, modoRefPadre)
+          : (padres[0] || ''),
+        lineaClasica,
         lineaLista: juntaMerge
           ? lineaListaGuarnicionMerge(rest.nombre, rest.cantidadTotal, padreTxt, modoRefPadre, configVisual)
-          : lineaListaGuarniciones(comps, padreTxt, modoRefPadre, platoRef, firstItem?.comanda, idxLinea, configVisual),
+          : (lineaClasica ? `- ${lineaClasica}` : ''),
         nombrePadre: padreTxt,
         juntaMerge: !!juntaMerge,
         cocineroPrincipal: rest.cocineroPrincipal || null,

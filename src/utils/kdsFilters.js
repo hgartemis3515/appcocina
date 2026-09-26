@@ -833,7 +833,7 @@ export function getConfigParaModal(configEfectiva) {
 
 /** Comanda que nació de una reserva (KDS: header morado + prioridad). */
 export function esComandaReserva(comanda) {
-  return comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva;
+  return comanda?.origenCreacion === 'reserva' || !!comanda?.origenReserva || comanda?.programadaPorReserva === true;
 }
 
 /** Plato para llevar (línea), no el status de la comanda. Extra llevar no es PPA. */

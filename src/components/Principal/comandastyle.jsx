@@ -144,7 +144,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, ocultarAnularEnTablasKds, ordenSinAutorizacionCategorias, ordenSinAutorizacionPlatos, sosCategoriasAlFinal } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, ocultarAnularEnTablasKds, ordenSinAutorizacionCategorias, ordenSinAutorizacionPlatos, sosCategoriasAlFinal, vistaCocinaGuarnicionComoPlato } = useConfiguracionCocina(getToken);
   const asignacionBackupSnapshot = useAsignacionBackupKds();
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
@@ -4469,8 +4469,8 @@ const ComandaStyle = ({
                   gridAutoRows: config.autoAgrandamientoTarjetasKds === true
                     ? '8px'
                     : (esEstiloAprovechadorKds(config) ? '500px' : '520px'),
-                  columnGap: esEstiloAprovechadorKds(config) ? 0 : '20px',
-                  rowGap: config.autoAgrandamientoTarjetasKds === true || esEstiloAprovechadorKds(config) ? 0 : '20px',
+                  columnGap: 0,
+                  rowGap: 0,
                   justifyContent: esEstiloAprovechadorKds(config) ? 'start' : 'center',
                   alignContent: 'start',
                   alignItems: 'start',
@@ -6276,7 +6276,7 @@ const SicarComandaCard = ({
                 <CronometroAtrasoReservaKds comanda={comanda} config={kdsMozoConfig} />
                 <EtiquetasTipoKds etiquetas={etiquetasPrep} />
               </div>
-              <div className="px-2 py-2 space-y-1">
+              <div className="px-0 py-0 space-y-0">
                 {platosPreparacion.flatMap((plato, index) => {
                   const platoObj = plato.plato || plato;
                   // 🔥 FIX buscador: no usar indexOf sobre copias { ...plato, _puntuacion }
@@ -6327,6 +6327,11 @@ const SicarComandaCard = ({
                         || (unidad.tipo === 'grupo_guarniciones'
                         ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
                           : (comp.cantidad || 1));
+                      const vistaClasica = vistaCocinaGuarnicionComoPlato === false;
+                      const nombrePlatoPadre = obtenerNombreDisplayCocina(plato, {
+                        habilitadoEnKds: usarNombreCocinaEnTablaKds
+                      }) || 'Plato';
+                      const aliasCocinero = proc?.alias || proc?.nombre || '';
                       return (
                         <PlatoPreparacion
                           key={gKey}
@@ -6334,8 +6339,10 @@ const SicarComandaCard = ({
                           comandaId={comandaId}
                           platoId={platoId}
                           platoIndex={platoIndex}
-                          cantidad={cantG}
-                          nombre={unidad.nombreGuarnicion}
+                          cantidad={vistaClasica ? 1 : cantG}
+                          ocultarCantidad={vistaClasica}
+                          nombre={vistaClasica ? `${unidad.nombreGuarnicion} ${cantG}x` : unidad.nombreGuarnicion}
+                          subtitulo={vistaClasica ? `${nombrePlatoPadre}${aliasCocinero ? ` · ${aliasCocinero}` : ''}` : null}
                           estadoVisual={estadoVisualG}
                           nightMode={nightMode}
                           isEliminado={comp.eliminado === true}

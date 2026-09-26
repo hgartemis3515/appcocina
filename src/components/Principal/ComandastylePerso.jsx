@@ -3908,8 +3908,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   gridAutoRows: kdsVistaConfig.autoAgrandamientoTarjetasKds === true
                     ? '8px'
                     : (esEstiloAprovechadorKds(kdsVistaConfig) ? '500px' : '520px'),
-                  columnGap: esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
-                  rowGap: kdsVistaConfig.autoAgrandamientoTarjetasKds === true || esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
+                  columnGap: 0,
+                  rowGap: 0,
                   justifyContent: esEstiloAprovechadorKds(kdsVistaConfig) ? 'start' : 'center',
                   alignContent: 'start',
                   alignItems: 'start',
@@ -5571,7 +5571,7 @@ const SicarComandaCard = ({
                 <CronometroAtrasoReservaKds comanda={comanda} config={kdsMozoConfig} />
                 <EtiquetasTipoKds etiquetas={etiquetasPrep} />
               </div>
-              <div className="px-2 py-2 space-y-1">
+              <div className="px-0 py-0 space-y-0">
                 {platosPreparacion.flatMap((plato, index) => {
                   const platoObj = plato.plato || plato;
                   const platoIndex = resolverIndicePlato(comanda, plato);
@@ -5614,6 +5614,11 @@ const SicarComandaCard = ({
                         || (unidad.tipo === 'grupo_guarniciones'
                           ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
                           : (comp.cantidad || 1));
+                      const vistaClasica = cocinaCfg.vistaCocinaGuarnicionComoPlato === false;
+                      const nombrePlatoPadre = obtenerNombreDisplayCocina(plato, {
+                        habilitadoEnKds: usarNombreCocinaEnTablaKds
+                      }) || 'Plato';
+                      const aliasCocinero = proc?.alias || proc?.nombre || '';
                       return (
                         <PlatoPreparacion
                           key={gKey}
@@ -5621,8 +5626,10 @@ const SicarComandaCard = ({
                           comandaId={comandaId}
                           platoId={platoId}
                           platoIndex={platoIndex}
-                          cantidad={cantG}
-                          nombre={unidad.nombreGuarnicion}
+                          cantidad={vistaClasica ? 1 : cantG}
+                          ocultarCantidad={vistaClasica}
+                          nombre={vistaClasica ? `${unidad.nombreGuarnicion} ${cantG}x` : unidad.nombreGuarnicion}
+                          subtitulo={vistaClasica ? `${nombrePlatoPadre}${aliasCocinero ? ` · ${aliasCocinero}` : ''}` : null}
                           estadoVisual={estadoVisualG}
                           nightMode={nightMode}
                           isEliminado={comp.eliminado === true}

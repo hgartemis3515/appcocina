@@ -92,13 +92,15 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
   if (configVisual.ocultarCuadroGuarniciones === true) {
     return (
       <GuarnicionListaLinea
-        texto={nombresListaGuarniciones(
+        texto={item.lineaClasica
+          ? (String(item.lineaClasica).trim().startsWith('-') ? item.lineaClasica : `- ${item.lineaClasica}`)
+          : (nombresListaGuarniciones(
           item.comps,
           platoConCantidadDeLinea(item.platos?.[0]),
           item.platos?.[0]?.comanda,
           item.platos?.[0]?.platoIndex,
           configVisual,
-        ) || `- ${nombre}`}
+        ) || `- ${nombre}`)}
         textoPadre={refPadre}
         textoCocinero={textoCocinero}
         textoNota={textoNotaCuadro}

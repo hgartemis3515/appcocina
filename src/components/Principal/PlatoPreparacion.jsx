@@ -49,7 +49,8 @@ const PlatoPreparacion = ({
   // complementosSeleccionados (ya están partidos en tarjetas hermanas).
   tipoUnidad = 'principal',         // 'principal' | 'guarnicion'
   ocultarComplementos = false,      // si true, no renderizar complementosSeleccionados
-  nombreGuarnicion = null,          // título para guarnición: "Papas (Lomo Saltado)"
+  subtitulo = null,
+  ocultarCantidad = false,
   compId = null,                    // _id del subdoc complemento (para toggle de guarnición)
   estadoAlerta = null,              // null | 'alerta' | 'critica' (tiempo)
   etiquetaPrioridad = null,         // texto VIP/refire para mostrar como badge
@@ -152,7 +153,7 @@ const PlatoPreparacion = ({
       transition: { duration: 0.2 },
     },
     procesando: {
-      scale: [1, 1.015, 1],
+      scale: 1,
       opacity: [1, 0.95, 1],
       boxShadow: [
         '0 0 8px rgba(251, 191, 36, 0.3)',
@@ -166,7 +167,7 @@ const PlatoPreparacion = ({
       },
     },
     dejar: {
-      scale: [1, 1.02, 1],
+      scale: 1,
       opacity: [1, 0.9, 1],
       boxShadow: [
         '0 0 8px rgba(239, 68, 68, 0.3)',
@@ -194,7 +195,7 @@ const PlatoPreparacion = ({
       },
     },
     eliminado: {
-      scale: 0.98,
+      scale: 1,
       opacity: 0.6,
       boxShadow: '0 0 0px rgba(0,0,0,0)',
       transition: { duration: 0.2 },
@@ -282,14 +283,18 @@ const PlatoPreparacion = ({
           onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
         }
       }}
-      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-lg flex items-start gap-2 cursor-pointer border ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''} ${marcadoSos ? 'kds-sos-blink' : ''}`}
-      style={{ fontFamily: 'Arial, sans-serif', fontSize: compact ? '13px' : '18px' }}
+      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-none flex items-center gap-2 cursor-pointer border-b border-x-0 border-t-0 ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''} ${marcadoSos ? 'kds-sos-blink' : ''}`}
+      style={{
+        fontFamily: 'Arial, sans-serif',
+        fontSize: compact ? '13px' : '18px',
+        ...(ocultarComplementosTabla && !compact ? { minHeight: '64px' } : {}),
+      }}
       title={isEliminado ? 'Plato eliminado' : estadoVisual === 'dejar' ? '🔄 Cambiar plato' : estadoVisual === 'procesando' ? '⏳ Procesando' : estadoVisual === 'seleccionado' ? '✓ Listo para finalizar' : 'Click para marcar plato'}
       variants={containerVariants}
       initial="normal"
       animate={visualState}
-      whileHover={!isEliminado ? { scale: 1.02 } : {}}
-      whileTap={!isEliminado ? { scale: 0.98 } : {}}
+      whileHover={!isEliminado ? { scale: 1 } : {}}
+      whileTap={!isEliminado ? { scale: 1 } : {}}
     >
       <div
         className={`${compact ? 'w-5 h-5' : 'w-8 h-8'} border-2 rounded flex items-center justify-center pointer-events-none flex-shrink-0`}
@@ -346,12 +351,23 @@ const PlatoPreparacion = ({
       </div>
       <div className="flex-1 pointer-events-none">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 min-w-0">
-            <span style={estiloCantidad} title={`Cantidad: ${cantidad}`}>
+          <span className={`inline-flex items-center gap-1.5 min-w-0 ${ocultarComplementosTabla && !compact ? 'flex-1' : ''}`}>
+            <span style={estiloCantidad} title={`Cantidad: ${cantidad}`} className={ocultarCantidad ? 'hidden' : undefined}>
               {cantidad}
             </span>
-            <span style={estiloNombre}>{nombre}</span>
+            <span
+              style={ocultarComplementosTabla && !compact
+                ? { ...estiloNombre, display: 'flex', alignItems: 'center', minHeight: '40px', flex: '1 1 auto', boxSizing: 'border-box' }
+                : estiloNombre}
+            >
+              {nombre}
+            </span>
           </span>
+          {subtitulo ? (
+            <span className="basis-full text-[10px] leading-tight font-normal opacity-70">
+              {subtitulo}
+            </span>
+          ) : null}
 
           {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
           {(tipoServicio === 'para_llevar' || tipoServicio === 'extra_llevar') && (

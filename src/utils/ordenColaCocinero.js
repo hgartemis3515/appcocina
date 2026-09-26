@@ -1,4 +1,4 @@
-import { esComandaReserva } from './kdsFilters';
+import { esComandaReserva, esLineaParaLlevar, esLineaExtraLlevar } from './kdsFilters';
 import { comandaTienePlatoEnTarjetaKds } from './sosTablaKds';
 
 /**
@@ -273,6 +273,8 @@ export function filtrarLoteRespetandoOrden(platosMarcados, comandas, opts = {}) 
             || comandaOmiteOrdenSecuencial(comandaFila)
             || esComandaTablaUnoODos(item.comanda, mapaIndice)
             || esComandaTablaUnoODos(comandaFila, mapaIndice)
+            || esLineaParaLlevar(item.plato)
+            || esLineaExtraLlevar(item.plato)
             || platoExentoDeAutorizacion(item.plato, opts.exenciones);
         const key = `${item.comandaId}-${item.platoIndex}`;
         const numero = mapa.get(key);

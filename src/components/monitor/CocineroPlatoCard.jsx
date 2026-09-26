@@ -263,6 +263,8 @@ const CocineroPlatoCard = React.forwardRef(({
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = modoG
       ? tituloFilaVistaG(item.nombrePlato || nombre, item.qtyGuarnicion)
+      : item.lineaClasica
+        ? (String(item.lineaClasica).trim().startsWith('-') ? item.lineaClasica : `- ${item.lineaClasica}`)
       : item.juntaMerge
         ? `- ${labelConCantidadTotal(nombre, cantidadTotal, configVisual)}`
         : (nombresListaGuarniciones(
