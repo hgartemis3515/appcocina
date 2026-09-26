@@ -1,7 +1,7 @@
 // PLAN v5.5: 1. Refina botón toolbar (texto dinámico). 2. Handler auto-selección. 3. API+toast+sonido. 4. Sort prioritario en useEffect/socket. 5. Icono 🚀 rojo header. 6. Reset 'recoger'.
 // PLAN REVERTIR v5.5: 1. Refina botón/menú. 2. Lista platos reversibles. 3. Handler plato granular. 4. Modal checkboxes. 5. Socket/UI update. 6. Toast confirm.
 // VISTA PERSONALIZADA KDS: Filtrada por zonas/cocinero - Componente dedicado exclusivamente a Vista Personalizada
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,7 +33,7 @@ import DejarPlatoModal from "./DejarPlatoModal";
 import EliminarPlatoKdsModal from "./EliminarPlatoKdsModal";
 import TomarCocineroModal from "./TomarCocineroModal";
 import PlatoPreparacion from "./PlatoPreparacion";
-import { ordenarPlatosCategoriasAlFinal, ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
+import { ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
 import PpaSidebar from "./PpaSidebar";
 import ReservaSidebar from "./ReservaSidebar";
 import KdsTopBar from "./KdsTopBar";
@@ -3897,14 +3897,15 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               transition={{ duration: 0.3 }}
             >
               <div
-                className={`grid ${esEstiloAprovechadorKds(kdsVistaConfig) ? '' : 'gap-5'}`}
+                className={`grid ${esEstiloAprovechadorKds(kdsVistaConfig) || kdsVistaConfig.autoAgrandamientoTarjetasKds === true ? '' : 'gap-5'}`}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 300px))',
+                  gridTemplateColumns: 'repeat(auto-fill, 300px)',
                   gridAutoRows: kdsVistaConfig.autoAgrandamientoTarjetasKds === true
-                    ? 'auto'
+                    ? '8px'
                     : (esEstiloAprovechadorKds(kdsVistaConfig) ? '500px' : '520px'),
-                  gap: esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
+                  columnGap: esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
+                  rowGap: kdsVistaConfig.autoAgrandamientoTarjetasKds === true || esEstiloAprovechadorKds(kdsVistaConfig) ? 0 : '20px',
                   justifyContent: esEstiloAprovechadorKds(kdsVistaConfig) ? 'start' : 'center',
                   alignContent: 'start',
                   alignItems: 'start',
@@ -5241,14 +5242,13 @@ const SicarComandaCard = ({
       return p.anulado === true;
     });
 
-    const categoriasAlFinal = cocinaCfg.sosCategoriasAlFinal;
     return {
-      platosPreparacion: ordenarPlatosCategoriasAlFinal(preparacion, categoriasAlFinal),
-      platosListos: ordenarPlatosCategoriasAlFinal(listos, categoriasAlFinal),
+      platosPreparacion: preparacion,
+      platosListos: listos,
       platosAnulados: anulados,
       totalPlatos: platosConNombre.length
     };
-  }, [comanda.platos, comanda.platosFiltrados, hayBusquedaActiva, platosVisiblesBusqueda, cocinaCfg.sosCategoriasAlFinal]);
+  }, [comanda.platos, comanda.platosFiltrados, hayBusquedaActiva, platosVisiblesBusqueda]);
 
   const etiquetasPrep = React.useMemo(
     () => etiquetasTipoPreparacionKds(platosPreparacion, reglasTipo),
@@ -5337,9 +5337,31 @@ const SicarComandaCard = ({
 
   const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
   const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds === true;
+  const cardRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return undefined;
+    if (!autoAgrandar) {
+      el.style.gridRowEnd = '';
+      return undefined;
+    }
+    const ROW = 8;
+    const GAP = 20;
+    const apply = () => {
+      const h = el.offsetHeight;
+      const span = Math.max(1, Math.ceil((h + GAP) / ROW));
+      const next = `span ${span}`;
+      if (el.style.gridRowEnd !== next) el.style.gridRowEnd = next;
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [autoAgrandar]);
 
   return (
     <motion.div 
+      ref={cardRef}
       id={`kds-comanda-${comandaId}`}
       layoutId={`order-${comandaId}`}
       className={`${headerReserva ? '' : `${bgColor} ${borderColor}`} flex flex-col relative cursor-pointer`}
@@ -5348,6 +5370,7 @@ const SicarComandaCard = ({
         width: '300px',
         height: autoAgrandar ? 'auto' : '500px',
         maxHeight: autoAgrandar ? '500px' : undefined,
+        marginBottom: autoAgrandar ? '20px' : undefined,
         borderRadius: estiloAprovechador ? 0 : '12px',
         boxShadow: estiloAprovechador ? 'none' : shadowStyle,
         border: borderStyle,

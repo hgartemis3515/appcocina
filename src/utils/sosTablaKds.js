@@ -81,6 +81,27 @@ export function paginaDeComanda(comandas, comandaId, porPagina) {
   return Math.floor(idx / n);
 }
 
+function categoriasAlFinalDe(lista) {
+  return new Set(
+    (Array.isArray(lista) ? lista : [])
+      .map((s) => String(s || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function nombresCategoriaPlato(plato) {
+  const cat = plato?.plato && typeof plato.plato === 'object' ? plato.plato : plato;
+  const out = [];
+  if (cat?.categoria) out.push(cat.categoria);
+  if (Array.isArray(cat?.categorias)) out.push(...cat.categorias);
+  return out.map((s) => String(s || '').trim().toLowerCase()).filter(Boolean);
+}
+
+function grupoCategoriaAlFinal(grupo, alFinal) {
+  if (!alFinal.size || !grupo) return false;
+  return (grupo.categorias || []).some((c) => alFinal.has(c));
+}
+
 /**
  * Agrupa platos visibles del tablero KDS por nombre de cocina.
  * Orden: platos de comandas con prioridad primero (🚀), luego llegada.
@@ -107,6 +128,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const cantidad = qtyLineaSos(comanda, platoIndex, plato);
       const ts = instantePedidoSos(plato, comanda);
       const colaUno = esColaUno ? esColaUno(comandaId, platoIndex) === true : false;
+      const categorias = nombresCategoriaPlato(plato);
       const prev = groups.get(clave);
       if (!prev) {
         groups.set(clave, {
@@ -117,6 +139,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
           primero: colaUno,
           prioMax: prio,
           tsMin: ts,
+          categorias,
           comandaIdMasAntigua: comandaId,
           platoIndexMasAntigua: platoIndex,
         });
@@ -124,6 +147,9 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       }
       if (colaUno) prev.primero = true;
       prev.cantidad += cantidad;
+      for (const c of categorias) {
+        if (!prev.categorias.includes(c)) prev.categorias.push(c);
+      }
       if (prio > prev.prioMax) prev.prioMax = prio;
       if (ts < prev.tsMin) {
         prev.tsMin = ts;
@@ -134,6 +160,10 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
   }
 
   return [...groups.values()].sort((a, b) => {
+    const alFinal = categoriasAlFinalDe(opts.categoriasAlFinal);
+    const fa = grupoCategoriaAlFinal(a, alFinal) ? 1 : 0;
+    const fb = grupoCategoriaAlFinal(b, alFinal) ? 1 : 0;
+    if (fa !== fb) return fa - fb;
     if (a.prioridad !== b.prioridad) return a.prioridad ? -1 : 1;
     if (a.prioridad && b.prioridad && a.prioMax !== b.prioMax) return b.prioMax - a.prioMax;
     if (a.tsMin !== b.tsMin) return a.tsMin - b.tsMin;
