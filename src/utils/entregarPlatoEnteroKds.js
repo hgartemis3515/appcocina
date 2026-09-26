@@ -90,7 +90,7 @@ export function recolectarSeleccionEntregarEntero({
 
   entries.forEach((estado, key) => {
     if (esClaveGuarnicion(key)) {
-    if (estado !== 'seleccionado' && estado !== 'procesando') return;
+      if (estado !== 'seleccionado') return;
       const parsed = parseClaveGuarnicion(key);
       if (!parsed) return;
       const comanda = comandas.find((c) => String(c._id) === String(parsed.comandaId));
@@ -113,8 +113,7 @@ export function recolectarSeleccionEntregarEntero({
       return;
     }
 
-    const marcado = estado === 'seleccionado' || estado === 'entregando' || estado === 'procesando';
-    if (!marcado) return;
+    if (estado !== 'seleccionado' && estado !== 'entregando') return;
     const parsed = parseClavePlato(key);
     if (!parsed) return;
     const uniqueKey = `${parsed.comandaId}-${parsed.platoIndex}`;
@@ -134,7 +133,7 @@ export function recolectarSeleccionEntregarEntero({
       plato
     };
 
-    if (ESTADOS_A_FINALIZAR.has(plato.estado)) {
+    if (ESTADOS_A_FINALIZAR.has(plato.estado) && estado === 'seleccionado') {
       aFinalizar.push(item);
       return;
     }

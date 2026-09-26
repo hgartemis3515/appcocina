@@ -3347,11 +3347,13 @@ const ComandaStyle = ({
     });
     const aFinalizarRaw = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
     const aEntregarRaw = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
-    const ordenEntero = partirEntregaEnteraPorOrden(
-      [...aFinalizarRaw, ...aEntregarRaw],
-      comandas,
-      { tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato) }
-    );
+    const ordenEntero = puedeOmitirOrden
+      ? { bloqueados: [] }
+      : partirEntregaEnteraPorOrden(
+        [...aFinalizarRaw, ...aEntregarRaw],
+        comandas,
+        { tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato) }
+      );
     const bloqueadosIds = new Set(ordenEntero.bloqueados.map((p) => `${p.comandaId}-${p.platoIndex}`));
     const aFinalizar = aFinalizarRaw.filter((p) => !bloqueadosIds.has(`${p.comandaId}-${p.platoIndex}`));
     const aEntregar = aEntregarRaw.filter((p) => !bloqueadosIds.has(`${p.comandaId}-${p.platoIndex}`));

@@ -31,12 +31,15 @@ describe('entregarPlatoEnteroKds', () => {
       ]
     }];
     const platoStates = new Map([
-      ['c1-0', 'procesando'],
-      ['c1-1', 'entregando']
+      ['c1-0', 'seleccionado'],
+      ['c1-1', 'entregando'],
+      ['c1-2', 'procesando']
     ]);
+    comandas[0].platos.push({ _id: 'p3', estado: 'pedido', procesandoPor: { cocineroId: yo } });
     const r = recolectarSeleccionEntregarEntero({ platoStates, comandas, userId: yo });
     expect(r.aFinalizar.map((x) => x.platoId)).toEqual(['p1']);
     expect(r.aEntregar.map((x) => x.platoId)).toEqual(['p2']);
+    expect(r.aFinalizar.some((x) => x.platoId === 'p3')).toBe(false);
   });
 
   test('ignora plato de otro cocinero salvo supervisor', () => {

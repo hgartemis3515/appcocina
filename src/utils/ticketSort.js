@@ -79,7 +79,7 @@ function getComandaSortValue(ticket) {
 function getSortValue(ticket, sortBy) {
   switch (sortBy) {
     case 'fecha':
-      return new Date(ticket.createdAt || 0).getTime();
+      return fechaCreacionComandaMs(ticket);
     case 'comanda':
       return getComandaSortValue(ticket);
     case 'mesa':
@@ -114,7 +114,7 @@ export function sortTickets(tickets, sortBy = 'fecha', sortDir = 'desc') {
     if (va > vb) return 1 * dir;
 
     // Desempate estable por fecha descendente
-    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    return fechaCreacionComandaMs(b) - fechaCreacionComandaMs(a);
   });
 }
 
@@ -136,6 +136,26 @@ export function mesaKeyDeTicket(ticket) {
   const n = ticket?.numMesa;
   if (n == null || n === '') return 'sin-mesa';
   return String(n);
+}
+
+export function fechaCreacionComandaDeTicket(ticket) {
+  const comandas = Array.isArray(ticket?.comandas) ? ticket.comandas : [];
+  let best = null;
+  let max = 0;
+  for (const c of comandas) {
+    if (!c || typeof c !== 'object' || Array.isArray(c) || !c.createdAt) continue;
+    const t = new Date(c.createdAt).getTime();
+    if (Number.isFinite(t) && t > max) {
+      max = t;
+      best = c.createdAt;
+    }
+  }
+  return best || ticket?.createdAt || null;
+}
+
+export function fechaCreacionComandaMs(ticket) {
+  const d = new Date(fechaCreacionComandaDeTicket(ticket) || 0).getTime();
+  return Number.isFinite(d) ? d : 0;
 }
 
 export function tsTicketCreated(ticket) {
@@ -312,6 +332,7 @@ export function groupTicketsComoComandasHtml(tickets) {
 
   const filas = [];
   const volcarGrupo = (g) => {
+    g.tickets.sort((a, b) => fechaCreacionComandaMs(b) - fechaCreacionComandaMs(a));
     if (g.tickets.length > 1) {
       filas.push({
         tipo: 'grupo',
@@ -341,7 +362,11 @@ export function groupTicketsComoComandasHtml(tickets) {
     });
   }
 
-  return filas.sort((a, b) => tsTicketCreated(a.tickets[0]) - tsTicketCreated(b.tickets[0]));
+  return filas.sort((a, b) => {
+    const fa = Math.max(0, ...a.tickets.map(fechaCreacionComandaMs));
+    const fb = Math.max(0, ...b.tickets.map(fechaCreacionComandaMs));
+    return fb - fa;
+  });
 }
 
 /** Suma de la columna Total de las filas visibles (grupos cuentan una vez, no las hijas). */

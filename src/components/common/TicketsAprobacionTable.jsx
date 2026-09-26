@@ -3,7 +3,7 @@ import {
   FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
-import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla } from '../../utils/ticketSort';
+import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
 import BadgeNombreMozo from './BadgeNombreMozo';
 import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
 import TotalCuentaCobro from './TotalCuentaCobro';
@@ -198,7 +198,7 @@ function FilaTicketAvanzado({
         </td>
       )}
       <CeldaHorario
-        fecha={ticket.createdAt}
+        fecha={fechaCreacionComandaDeTicket(ticket)}
         ocultarHorario={indent}
         pintado={pintado}
         onTogglePintar={onTogglePintar}
@@ -508,7 +508,7 @@ export default function TicketsAprobacionTable({
                       </td>
                     )}
                     <CeldaHorario
-                      fecha={first.createdAt}
+                      fecha={fechaCreacionComandaDeTicket(first)}
                       pintado={grupoPintado}
                       onTogglePintar={() => togglePintarFila(fila.id)}
                       tamano={tamanoFecha}

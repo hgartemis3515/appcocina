@@ -7,6 +7,7 @@ import {
   groupTicketsByMozo,
   groupTicketsComoComandasHtml,
   ticketParaDetalleGrupo,
+  fechaCreacionComandaDeTicket,
 } from '../../utils/ticketSort';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { formatCurrency, formatTime, tipoBadge, estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar, ticketsForzablesDeGrupo } from '../../utils/ticketAprobacionUi';
@@ -114,7 +115,7 @@ function FilaTicket({
             </span>
           ) : null}
           {ticket.createdAt && (
-            <span className="text-[9px] text-gray-500">{formatTime(ticket.createdAt)}</span>
+            <span className="text-[9px] text-gray-500">{formatTime(fechaCreacionComandaDeTicket(ticket))}</span>
           )}
         </div>
       </td>

@@ -117,6 +117,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
   // Regla: solo mostrar la comanda más antigua al usar el buscador de platos
   const reglaSoloUltimaComandaBuscador = hasRegla('solo-ultima-comanda-buscador');
+  const puedeOmitirOrden = userRole === 'admin' || hasPermission('ver-panel-gestion-mozos');
 
   // PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS (Vista Personalizada
   // respeta la misma configuración que la Vista General).
@@ -2945,7 +2946,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     });
     const aFinalizarRaw = anexarCantidadEntrega(recolectado.aFinalizar, cantidadEntrega);
     const aEntregarRaw = anexarCantidadEntrega(recolectado.aEntregar, cantidadEntrega);
-    const ordenEntero = partirEntregaEnteraPorOrden([...aFinalizarRaw, ...aEntregarRaw], comandas);
+    const ordenEntero = puedeOmitirOrden
+      ? { bloqueados: [] }
+      : partirEntregaEnteraPorOrden([...aFinalizarRaw, ...aEntregarRaw], comandas);
     if (ordenEntero.bloqueados.length > 0) {
       setToastMessage({
         type: 'warning',
@@ -3011,6 +3014,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     batchFinalizarPlatos,
     entregarPlato,
     entregarPlatoEnteroAbsoluto,
+    puedeOmitirOrden,
     cantidadEntrega
   ]);
 

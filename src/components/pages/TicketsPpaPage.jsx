@@ -19,7 +19,7 @@ import TicketSortBar from '../common/TicketSortBar';
 import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
-import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo } from '../../utils/ticketSort';
+import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
 import { indexarCobroPorCantidad, idsOcultosCobro } from '../../utils/cobroPorCantidadVista';
@@ -614,7 +614,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         </div>
                       </div>
                       <div className="text-gray-500 text-[10px] mt-1">
-                        {formatDate(ticket.createdAt)} {formatTime(ticket.createdAt)}
+                        {formatDate(fechaCreacionComandaDeTicket(ticket))} {formatTime(fechaCreacionComandaDeTicket(ticket))}
                         {ticket.observaciones && (
                           <span className="block text-gray-400 mt-0.5 truncate" title={ticket.observaciones}>
                             Obs: {ticket.observaciones}
