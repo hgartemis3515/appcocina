@@ -95,6 +95,29 @@ describe('entregarPlatoEnteroKds', () => {
     expect(out.exitosos).toBe(1);
   });
 
+  test('absoluto entrega cada línea aunque compartan id de catálogo', async () => {
+    const batchFinalizarPlatos = jest.fn().mockResolvedValue({
+      resultados: [
+        { status: 'fulfilled', value: { exito: true, comandaId: 'c1', platoId: 'cat', platoIndex: 0 } },
+        { status: 'fulfilled', value: { exito: true, comandaId: 'c1', platoId: 'cat', platoIndex: 1 } }
+      ]
+    });
+    const out = await ejecutarEntregarPlatoEntero({
+      aFinalizar: [
+        { comandaId: 'c1', platoId: 'cat', platoIndex: 0 },
+        { comandaId: 'c1', platoId: 'cat', platoIndex: 1 }
+      ],
+      aEntregar: [],
+      guarniciones: [],
+      userId: 'u1',
+      batchFinalizarPlatos,
+      entregarPlato: jest.fn(),
+      absoluto: true
+    });
+    expect(batchFinalizarPlatos.mock.calls[0][0]).toHaveLength(2);
+    expect(out.exitosos).toBe(2);
+  });
+
   test('ejecutar: finalizar y luego salio', async () => {
     const finalizarGuarnicion = jest.fn().mockResolvedValue({ success: true });
     const batchFinalizarPlatos = jest.fn().mockResolvedValue({

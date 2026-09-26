@@ -180,7 +180,7 @@ export async function ejecutarEntregarPlatoEntero({
   const paraSalio = [];
   const seen = new Set();
   const pushSalio = (p) => {
-    const k = `${p.comandaId}-${p.platoId}`;
+    const k = `${p.comandaId}-${p.platoIndex ?? ''}-${p.platoId}`;
     if (seen.has(k)) return;
     seen.add(k);
     paraSalio.push(p);
@@ -194,7 +194,7 @@ export async function ejecutarEntregarPlatoEntero({
     const loteAbs = [];
     const seenAbs = new Set();
     const pushAbs = (p) => {
-      const k = `${p.comandaId}-${p.platoId}`;
+      const k = `${p.comandaId}-${p.platoIndex ?? ''}-${p.platoId}`;
       if (seenAbs.has(k)) return;
       seenAbs.add(k);
       loteAbs.push(p);
