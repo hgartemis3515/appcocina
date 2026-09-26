@@ -64,7 +64,7 @@ import {
   slugsTipoDePlato,
 } from '../../utils/tipoPlatoReglasCocina';
 import { platoJuntaGuarnicionesEntreVariantes } from '../../utils/platoFlagsCocina';
-import { agruparItemsVistaG, chipsOrdenDesdeMapa } from '../../utils/vistaGGuarnicion';
+import { agruparItemsVistaG } from '../../utils/vistaGGuarnicion';
 import { comandasVisiblesTablaKds, mapaIndiceTablaKds } from '../../utils/ordenColaCocinero';
 import { FaExpand, FaCompress } from 'react-icons/fa';
 
@@ -1263,7 +1263,7 @@ const CocinaMonitorLayout = ({
         }),
         hayNotaCuadro: notasGrupo.length > 0,
         notasCuadro: notasEnTarjeta ? notasGrupo.join(' · ') : '',
-        chipsOrden: chipsOrdenDesdeMapa(porOrden),
+        chipsOrden: [],
       };
     });
     grupos.sort((a, b) => {
