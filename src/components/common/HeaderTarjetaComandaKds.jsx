@@ -6,6 +6,8 @@ import {
   estiloNumeroSerieHeaderTarjetaKds,
   colorRelojHeaderTarjeta,
   ocultarPrepHeaderTarjeta,
+  ocultarDatoHeaderTarjeta,
+  tamanoDatoHeaderTarjeta,
   tamanoLetraHeaderTarjetaKds,
 } from '../../utils/estiloHeaderTarjetaKds';
 import { hexValidoOrdenCola } from '../../utils/estiloNumeroOrdenKds';
@@ -67,14 +69,25 @@ export default function HeaderTarjetaComandaKds({
   })();
   const mozoVisible = etiquetaMozosComandas([{ ...comanda, mozoNombre: nombreMozo }]) || nombreMozo;
   const tam = tamanoLetraHeaderTarjetaKds(config);
+  const tamNumero = tamanoDatoHeaderTarjeta(config, 'headerTamanoNumeroComanda', { doble: true });
+  const tamMesa = tamanoDatoHeaderTarjeta(config, 'headerTamanoMesa');
+  const tamMozo = tamanoDatoHeaderTarjeta(config, 'headerTamanoMozo');
+  const tamReloj = tamanoDatoHeaderTarjeta(config, 'headerTamanoCronometro');
+  const verNumero = !ocultarDatoHeaderTarjeta(config, 'headerOcultarNumeroComanda');
+  const verMesa = !ocultarDatoHeaderTarjeta(config, 'headerOcultarMesa');
+  const verMozo = !ocultarDatoHeaderTarjeta(config, 'headerOcultarMozo');
+  const verReloj = !ocultarDatoHeaderTarjeta(config, 'headerOcultarCronometro');
   const estiloDato = estiloDatoHeaderTarjetaKds(config);
+  const estiloMesa = estiloDatoHeaderTarjetaKds(config, { tamanoOverride: tamMesa });
   const fondoMozo = hexValidoOrdenCola(estiloMozo?.backgroundColor) ? estiloMozo.backgroundColor : null;
   const colorLetra = hexValidoOrdenCola(colorLetraMozo) ? colorLetraMozo : null;
   const estiloMozoChip = estiloDatoHeaderTarjetaKds(config, {
+    tamanoOverride: tamMozo,
     ...(fondoMozo ? { fondoOverride: fondoMozo } : { omitirFondo: true }),
     ...(colorLetra ? { colorOverride: colorLetra } : {}),
   });
   const estiloReloj = estiloDatoHeaderTarjetaKds(config, {
+    tamanoOverride: tamReloj,
     colorOverride: colorRelojHeaderTarjeta(
       minutosActuales,
       alertYellowMinutes,
@@ -84,13 +97,13 @@ export default function HeaderTarjetaComandaKds({
   });
   const ocultarPrep = ocultarPrepHeaderTarjeta(config);
   const prepVisible = !ocultarPrep && prepText;
-  const reloj = (
+  const reloj = verReloj ? (
     <RelojKds
       tiempoFormateado={tiempoFormateado}
       estiloReloj={estiloReloj}
-      tamIcono={Math.max(10, Math.round(tam * 0.72))}
+      tamIcono={Math.max(10, Math.round(tamReloj * 0.72))}
     />
-  );
+  ) : null;
   const prep = prepVisible
     ? <Chip style={estiloDato} title={prepTitle || prepText}>{prepText}</Chip>
     : null;
@@ -118,10 +131,11 @@ export default function HeaderTarjetaComandaKds({
           {horaCreacion}
         </span>
       ) : null}
+      {verNumero ? (
       <span
         style={{
           ...estiloDato,
-          fontSize: `${Math.round(tam * 2)}px`,
+          fontSize: `${tamNumero}px`,
           fontWeight: 800,
           lineHeight: 1,
           display: 'inline-block',
@@ -129,6 +143,7 @@ export default function HeaderTarjetaComandaKds({
       >
         #{nComanda}
       </span>
+      ) : null}
       {(esAtencion || esUrgente) && (
         <FaExclamationTriangle
           className={`shrink-0 ${esUrgente ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}
@@ -146,11 +161,11 @@ export default function HeaderTarjetaComandaKds({
         {numero}
         <div className={`${wrap} justify-between mt-1`}>
           <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
-          <Chip style={estiloDato}>{nombreMesa}</Chip>
+          {verMesa ? <Chip style={estiloMesa}>{nombreMesa}</Chip> : null}
           {reloj}
         </div>
         <div className={`${wrap} justify-between mt-1`}>
-          <Chip style={estiloMozoChip} title={nombreMozo}>👤 {mozoVisible}</Chip>
+          {verMozo ? <Chip style={estiloMozoChip} title={nombreMozo}>👤 {mozoVisible}</Chip> : null}
           <div className={wrap}>
             {serie}
             {prep}
@@ -168,11 +183,11 @@ export default function HeaderTarjetaComandaKds({
         {numero}
         <div className={`${wrap} justify-between mt-1`}>
           <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
-          <Chip style={estiloDato}>{nombreMesa}</Chip>
+          {verMesa ? <Chip style={estiloMesa}>{nombreMesa}</Chip> : null}
           {reloj}
         </div>
         <div className={`${wrap} justify-between mt-1`}>
-          <Chip style={estiloMozoChip} title={nombreMozo}>👤 {mozoVisible}</Chip>
+          {verMozo ? <Chip style={estiloMozoChip} title={nombreMozo}>👤 {mozoVisible}</Chip> : null}
           <div className={wrap}>
             {serie}
             {prep}
@@ -189,11 +204,13 @@ export default function HeaderTarjetaComandaKds({
       {numero}
       <div className={`${wrap} justify-center mt-0.5`}>
         <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
-        <Chip style={estiloDato}>{nombreMesa}</Chip>
+        {verMesa ? <Chip style={estiloMesa}>{nombreMesa}</Chip> : null}
         {reloj}
+        {verMozo ? (
         <Chip style={{ ...estiloMozoChip, maxWidth: '7rem', overflow: 'hidden' }} title={nombreMozo}>
           <span className="truncate">👤 {mozoVisible}</span>
         </Chip>
+        ) : null}
         {serie}
         {prep}
         {reserva}

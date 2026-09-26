@@ -50,7 +50,7 @@ import {
 import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
 import { esEstiloAprovechadorKds } from "../../utils/estiloHeaderTarjetaKds";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
-import { calcularNumerosColaPorCocinero, filtrarLoteRespetandoOrden, ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
+import { calcularNumerosColaPorCocinero, comandasVisiblesTablaKds, filtrarLoteRespetandoOrden, mapaIndiceTablaKds, ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
 import AutorizacionOrdenPad from "../common/AutorizacionOrdenPad";
 import { extraerResolucionSolicitudOrden } from "../../utils/solicitudOrdenKds";
 import {
@@ -1896,6 +1896,7 @@ const ComandaStyle = ({
 
   const gruposSosTabla = useMemo(() => {
     if (!isSupervisorView || !sosTablaOn) return [];
+    const mapaTabla = mapaIndiceTablaKds(comandasVisiblesTablaKds(todasComandas));
     return agruparPlatosSosTabla(todasComandas, {
       habilitadoEnKds: usarNombreCocinaEnTablaKds,
       categoriasAlFinal: sosCategoriasAlFinal,
@@ -1904,6 +1905,7 @@ const ComandaStyle = ({
         : undefined,
       esColaUno: (comandaId, platoIndex) =>
         (mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null) === 1,
+      esTablaUnoODos: (comandaId) => mapaTabla.get(String(comandaId)) === 1 || mapaTabla.get(String(comandaId)) === 2,
     });
   }, [isSupervisorView, sosTablaOn, todasComandas, usarNombreCocinaEnTablaKds, hayFiltroActivo, getPlatosVisibles, mapaColaCocineros, sosCategoriasAlFinal]);
 
@@ -3355,9 +3357,17 @@ const ComandaStyle = ({
         comandas,
         { tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato) }
       );
-    const bloqueadosIds = new Set(ordenEntero.bloqueados.map((p) => `${p.comandaId}-${p.platoIndex}`));
-    const aFinalizar = aFinalizarRaw.filter((p) => !bloqueadosIds.has(`${p.comandaId}-${p.platoIndex}`));
-    const aEntregar = aEntregarRaw.filter((p) => !bloqueadosIds.has(`${p.comandaId}-${p.platoIndex}`));
+    if (!puedeOmitirOrden && ordenEntero.bloqueados.length > 0) {
+      setPadAutorizacion({ platos: ordenEntero.bloqueados, finalizables: [] });
+      setToastMessage({
+        type: 'warning',
+        message: 'Hay platos fuera de orden. Autoriza con el código. 1, 2, 3 y 4 del mismo cocinero sí se entregan juntos.',
+        duration: 4500
+      });
+      return;
+    }
+    const aFinalizar = aFinalizarRaw;
+    const aEntregar = aEntregarRaw;
     const guarniciones = recolectado.guarniciones;
     if (aFinalizar.length === 0 && aEntregar.length === 0 && guarniciones.length === 0) {
       setToastMessage({
@@ -3676,8 +3686,7 @@ const ComandaStyle = ({
         await handleFinalizarPlatosGlobal();
         break;
       case 'SOLICITAR_ORDEN':
-        setPadAutorizacion({ platos, finalizables: platosFinalizables || [] });
-        await handleSolicitarOrden(platos, platosFinalizables || [], { conservarSeleccion: true });
+        setPadAutorizacion({ platos, finalizables: [] });
         break;
       case 'SIN_ACCION':
       default:
@@ -4678,7 +4687,7 @@ const ComandaStyle = ({
                   
                   return (
                     <div className="flex flex-col gap-0">
-                      {!(modo === 'FINALIZAR_PLATO' && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) && (
+                      {!(modo === 'FINALIZAR_PLATO' && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS) && entregarPlatoEnteroAbsoluto !== false) && (
                       <motion.button
                         onClick={handleBotonContextual}
                         disabled={!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading}
@@ -4732,7 +4741,7 @@ const ComandaStyle = ({
                       loading={isLoading}
                       nightMode={nightMode}
                       onClick={pideAutorizacion
-                        ? () => handleSolicitarOrden(ordenEntero.bloqueados, ordenEntero.permitidos)
+                        ? () => setPadAutorizacion({ platos: ordenEntero.bloqueados, finalizables: [] })
                         : handleEntregarPlatoEntero}
                       count={nSel || platos?.length || 0}
                       absoluto={absoluto}
@@ -5034,7 +5043,8 @@ const ComandaStyle = ({
                 })()}
               </div>
 
-              {/* 3. Paginación - Siempre visible si hay más de 1 página */}
+              {/* Paginado y, con paso absoluto, Finalizar plato pegado a su derecha */}
+              <div className="flex items-center gap-2">
               {totalPages > 1 && (
                 <div className="flex items-center gap-3">
                   <motion.button
@@ -5065,6 +5075,23 @@ const ComandaStyle = ({
                   Página 1
                 </div>
               )}
+              {entregarPlatoEnteroAbsoluto !== false && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS) && (() => {
+                const acc = determinarAccionBoton();
+                if (acc.modo !== 'FINALIZAR_PLATO') return null;
+                const cargando = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero;
+                return (
+                  <motion.button
+                    type="button"
+                    onClick={handleFinalizarPlatosGlobal}
+                    disabled={cargando}
+                    className="px-4 py-2 font-bold rounded-lg text-sm shadow-lg bg-green-600 text-white hover:bg-green-700"
+                    title="Solo marcar el plato como listo"
+                  >
+                    {cargando ? 'Procesando...' : (acc.mensaje && acc.mensaje.startsWith('Finalizar') ? acc.mensaje : 'Finalizar plato')}
+                  </motion.button>
+                );
+              })()}
+              </div>
             </div>
           </>
         )}

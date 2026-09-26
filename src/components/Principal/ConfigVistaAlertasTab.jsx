@@ -70,8 +70,11 @@ import {
   HEADER_TARJETA_LETRAS_DEFAULT,
   HEADER_TARJETA_TAMANO_MIN,
   HEADER_TARJETA_TAMANO_MAX,
+  HEADER_NUMERO_TAMANO_MAX,
+  HEADER_DATOS_CONFIG,
   resolverHeaderTarjetaEstilo,
   estiloDatoHeaderTarjetaKds,
+  tamanoDatoHeaderTarjeta,
 } from '../../utils/estiloHeaderTarjetaKds';
 import { COLOR_RESERVA_KDS_DEFAULT } from '../../utils/kdsFilters';
 import { RESERVA_TEXTO_DEFAULT } from '../../utils/estiloReservaKds';
@@ -606,6 +609,40 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   />
                 </div>
               </label>
+            </div>
+            <div className="space-y-2 pt-2 border-t border-gray-600/30">
+              <p className={`${textModal} text-sm font-semibold`}>Tamaño y ocultar cada dato</p>
+              <p className={`${textSecondary} text-xs`}>
+                Número de comanda, mesa, mozo y cronómetro. El tamaño de las letras del plato sigue en su propia sección.
+              </p>
+              {HEADER_DATOS_CONFIG.map((dato) => {
+                const max = dato.doble ? HEADER_NUMERO_TAMANO_MAX : HEADER_TARJETA_TAMANO_MAX;
+                const valor = tamanoDatoHeaderTarjeta(config, dato.tamano, { doble: !!dato.doble });
+                return (
+                  <div key={dato.id} className="flex flex-wrap items-center gap-2">
+                    <span className={`${textModal} text-sm w-40`}>{dato.label}</span>
+                    <select
+                      value={valor}
+                      onChange={(e) => updateConfig({ [dato.tamano]: parseInt(e.target.value, 10) })}
+                      className={`${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                      aria-label={`Tamaño de ${dato.label}`}
+                    >
+                      {Array.from({ length: max - HEADER_TARJETA_TAMANO_MIN + 1 }, (_, i) => HEADER_TARJETA_TAMANO_MIN + i).map((size) => (
+                        <option key={size} value={size}>{size}px</option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={config[dato.ocultar] === true}
+                        onChange={(e) => updateConfig({ [dato.ocultar]: e.target.checked })}
+                        className="w-4 h-4 rounded accent-lime-500"
+                      />
+                      <span className={`${textSecondary} text-xs`}>Ocultar</span>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex flex-wrap items-center gap-1">
               <span style={estiloDatoHeaderTarjetaKds(config)}>3</span>

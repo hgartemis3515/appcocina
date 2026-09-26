@@ -42,6 +42,14 @@ export const HEADER_TARJETA_LETRAS_DEFAULT = {
 
 export const HEADER_TARJETA_TAMANO_MIN = 10;
 export const HEADER_TARJETA_TAMANO_MAX = 32;
+export const HEADER_NUMERO_TAMANO_MAX = 64;
+
+export const HEADER_DATOS_CONFIG = [
+  { id: 'numero', label: 'Número de comanda', ocultar: 'headerOcultarNumeroComanda', tamano: 'headerTamanoNumeroComanda', doble: true },
+  { id: 'mesa', label: 'Mesa', ocultar: 'headerOcultarMesa', tamano: 'headerTamanoMesa' },
+  { id: 'mozo', label: 'Mozo', ocultar: 'headerOcultarMozo', tamano: 'headerTamanoMozo' },
+  { id: 'reloj', label: 'Cronómetro', ocultar: 'headerOcultarCronometro', tamano: 'headerTamanoCronometro' },
+];
 
 function clampInt(n, min, max, fallback) {
   const v = Number(n);
@@ -84,6 +92,20 @@ export function tamanoLetraHeaderTarjetaKds(config = {}) {
   );
 }
 
+export function ocultarDatoHeaderTarjeta(config, clave) {
+  return config?.[clave] === true;
+}
+
+/** Tamaño propio del dato. Sin valor, usa el tamaño general (el número de comanda, el doble). */
+export function tamanoDatoHeaderTarjeta(config = {}, clave, { doble = false } = {}) {
+  const base = tamanoLetraHeaderTarjetaKds(config);
+  const fallback = doble ? Math.min(HEADER_NUMERO_TAMANO_MAX, Math.round(base * 2)) : base;
+  const max = doble ? HEADER_NUMERO_TAMANO_MAX : HEADER_TARJETA_TAMANO_MAX;
+  const n = Number(config?.[clave]);
+  if (!Number.isFinite(n) || n < HEADER_TARJETA_TAMANO_MIN) return fallback;
+  return Math.min(max, Math.round(n));
+}
+
 export function colorRelojHeaderTarjeta(minutosActuales, alertYellowMinutes, alertRedMinutes, config = {}) {
   const amarillo = Number(alertYellowMinutes) || 0;
   const rojo = Number(alertRedMinutes) || 0;
@@ -112,7 +134,9 @@ export function estiloDatoHeaderTarjetaKds(config = {}, opts = {}) {
   const fuente = ORDEN_COLA_FUENTES.find((f) => f.id === config.headerTarjetaFuente)
     || ORDEN_COLA_FUENTES.find((f) => f.id === HEADER_TARJETA_LETRAS_DEFAULT.headerTarjetaFuente)
     || ORDEN_COLA_FUENTES[0];
-  const tam = tamanoLetraHeaderTarjetaKds(config);
+  const tam = Number.isFinite(Number(opts.tamanoOverride))
+    ? Number(opts.tamanoOverride)
+    : tamanoLetraHeaderTarjetaKds(config);
   const color = hexValidoOrdenCola(opts.colorOverride)
     ? opts.colorOverride
     : (hexValidoOrdenCola(config.headerTarjetaColor)

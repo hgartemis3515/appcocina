@@ -4083,7 +4083,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   
                   return (
                     <div className="flex flex-col gap-0">
-                      {!(modo === 'FINALIZAR_PLATO' && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS)) && (
+                      {!(modo === 'FINALIZAR_PLATO' && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS) && entregarPlatoEnteroAbsoluto !== false) && (
                       <motion.button
                         onClick={handleBotonContextual}
                         disabled={!hayPlatosSeleccionados || modo === 'SIN_ACCION' || isLoading}
@@ -4400,7 +4400,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 })()}
               </div>
 
-              {/* 3. Paginación - Siempre visible si hay más de 1 página */}
+              <div className="flex items-center gap-2">
               {totalPages > 1 && (
                 <div className="flex items-center gap-3">
                   <motion.button
@@ -4431,6 +4431,23 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                   Página 1
                 </div>
               )}
+              {entregarPlatoEnteroAbsoluto !== false && hasPermission(PERMISO_ENTREGAR_PLATO_ENTERO_KDS) && (() => {
+                const acc = determinarAccionBoton();
+                if (acc.modo !== 'FINALIZAR_PLATO') return null;
+                const cargando = isFinalizandoPlatos || isEntregandoPlatos || isEntregandoPlatoEntero;
+                return (
+                  <motion.button
+                    type="button"
+                    onClick={handleFinalizarPlatosGlobal}
+                    disabled={cargando}
+                    className="px-4 py-2 font-bold rounded-lg text-sm shadow-lg bg-green-600 text-white hover:bg-green-700"
+                    title="Solo marcar el plato como listo"
+                  >
+                    {cargando ? 'Procesando...' : (acc.mensaje && acc.mensaje.startsWith('Finalizar') ? acc.mensaje : 'Finalizar plato')}
+                  </motion.button>
+                );
+              })()}
+              </div>
             </div>
           </>
         )}

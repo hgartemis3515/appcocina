@@ -111,6 +111,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
   const habilitadoEnKds = opts.habilitadoEnKds === true;
   const platosDeComanda = typeof opts.platosDeComanda === 'function' ? opts.platosDeComanda : null;
   const esColaUno = typeof opts.esColaUno === 'function' ? opts.esColaUno : null;
+  const esTablaUnoODos = typeof opts.esTablaUnoODos === 'function' ? opts.esTablaUnoODos : null;
   const groups = new Map();
 
   for (const comanda of comandas || []) {
@@ -128,6 +129,8 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const cantidad = qtyLineaSos(comanda, platoIndex, plato);
       const ts = instantePedidoSos(plato, comanda);
       const colaUno = esColaUno ? esColaUno(comandaId, platoIndex) === true : false;
+      const tablaUnoDos = esTablaUnoODos ? esTablaUnoODos(comandaId) === true : false;
+      const verde = colaUno || tablaUnoDos;
       const categorias = nombresCategoriaPlato(plato);
       const prev = groups.get(clave);
       if (!prev) {
@@ -136,7 +139,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
           nombre,
           cantidad,
           prioridad,
-          primero: colaUno,
+          primero: verde,
           prioMax: prio,
           tsMin: ts,
           categorias,
@@ -145,7 +148,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
         });
         return;
       }
-      if (colaUno) prev.primero = true;
+      if (verde) prev.primero = true;
       prev.cantidad += cantidad;
       for (const c of categorias) {
         if (!prev.categorias.includes(c)) prev.categorias.push(c);
