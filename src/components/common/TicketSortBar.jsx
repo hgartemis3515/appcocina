@@ -18,8 +18,9 @@ function MozoFilterButton({ mozoFilter, mozosDisponibles, onMozoFilterChange }) 
   }, [open]);
 
   const mozoActivo = mozosDisponibles.find((m) => m.key === mozoFilter);
+  const textoMozo = (m) => m?.etiqueta || m?.nombre || '';
   const labelCorto = mozoActivo
-    ? (mozoActivo.nombre.length > 12 ? `${mozoActivo.nombre.slice(0, 12)}…` : mozoActivo.nombre)
+    ? (textoMozo(mozoActivo).length > 16 ? `${textoMozo(mozoActivo).slice(0, 16)}…` : textoMozo(mozoActivo))
     : 'Mozo';
 
   const handleSelect = (key) => {
@@ -86,7 +87,7 @@ function MozoFilterButton({ mozoFilter, mozosDisponibles, onMozoFilterChange }) 
                 className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 transition-colors
                   ${mozoFilter === mozo.key ? 'bg-blue-600/30 text-blue-200' : 'text-gray-300 hover:bg-gray-700'}`}
               >
-                <span className="truncate">{mozo.nombre}</span>
+                <span className="truncate">{textoMozo(mozo)}</span>
                 <span className="text-gray-500 flex-shrink-0">({mozo.count})</span>
               </button>
             ))

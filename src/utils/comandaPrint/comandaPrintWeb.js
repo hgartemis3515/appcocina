@@ -16,7 +16,7 @@ import {
 } from './comandaHtml.js';
 import { generarHtmlTicketCocina, filtrarDatosTicketCocina } from './ticketCocinaHtml.js';
 import { etiquetaMozoTicket } from '../numeroComandaMozo';
-import { getComandaIdsFromTicket } from '../ticketComandaDisplay';
+import { getComandaIdsFromTicket, getComandasNumbersFromTicket } from '../ticketComandaDisplay';
 
 /**
  * Default JSON fetch helper (no auth). Used when opts.fetchJson is not provided.
@@ -370,20 +370,7 @@ function resolverTotalesTicketImpresion(ticket, productos) {
  * Handles flat structure from backend and nested objects from populate.
  */
 function mapearTicketADatos(ticket) {
-  const comandasNumbers = (() => {
-    const nums = new Set();
-    (ticket.comandasNumbers || []).forEach((n) => {
-      if (n == null || n === '') return;
-      const num = Number(n);
-      if (!Number.isNaN(num)) nums.add(num);
-    });
-    (ticket.platos || []).forEach((p) => {
-      if (p?.comandaNumber == null || p.comandaNumber === '') return;
-      const num = Number(p.comandaNumber);
-      if (!Number.isNaN(num)) nums.add(num);
-    });
-    return [...nums].sort((a, b) => a - b);
-  })();
+  const comandasNumbers = getComandasNumbersFromTicket(ticket);
 
   const comandaNumeroDisplay = formatComandasNumbersLabel(comandasNumbers)
     || (ticket.ticketNumber ? `#${ticket.ticketNumber}` : '');
@@ -503,12 +490,13 @@ export async function imprimirComandaDesdeTicket(ticket, opts = {}) {
     ? ticket._grupoTickets.filter(Boolean)
     : [];
   const idsGrupo = idsComandaDeGrupo(ticket, ticketsGrupo);
+  const numsDia = getComandasNumbersFromTicket(ticket);
 
   const printOpts = {
     ...opts,
     printWin,
     ticketEstado: ticket.estado,
-    comandasNumbersOverride: ticket.comandasNumbers || opts.comandasNumbersOverride || null,
+    comandasNumbersOverride: numsDia.length ? numsDia : (opts.comandasNumbersOverride || null),
   };
 
   // Grupo de comandas: misma lógica que comandas.html (fusionar todas, no solo la primera).

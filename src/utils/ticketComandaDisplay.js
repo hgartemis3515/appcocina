@@ -1,8 +1,25 @@
 import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
 
-/** Números de comanda asociados a un ticket de aprobación o PPA. */
+function numeroDiaDeDoc(c) {
+  if (!c || typeof c !== 'object') return null;
+  const raw = c.numeroComandaDia != null && c.numeroComandaDia !== ''
+    ? c.numeroComandaDia
+    : c.numComanda;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Número del día (1…n). El histórico del ticket solo entra si la comanda no trae el del día. */
 export function getComandasNumbersFromTicket(ticket) {
   if (!ticket) return [];
+
+  const dias = new Set();
+  (ticket.comandas || []).forEach((c) => {
+    const n = numeroDiaDeDoc(c);
+    if (n != null) dias.add(n);
+  });
+  if (dias.size) return [...dias].sort((a, b) => a - b);
 
   const nums = new Set();
   (ticket.comandasNumbers || []).forEach((n) => {

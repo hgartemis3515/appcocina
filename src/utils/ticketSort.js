@@ -3,6 +3,7 @@ import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
 import { totalesVistaTicket } from './ticketTotales';
 import { ticketsForzablesDeGrupo } from './ticketAprobacionUi';
 import { colorPerfilDeTicket, colorLetraDeTicket } from './estiloMozoNombreKds';
+import { etiquetaMozoDeTickets } from './numeroComandaMozo';
 
 export const TICKET_SORT_OPTIONS = [
   { key: 'fecha', label: 'Fecha', defaultDir: 'desc' },
@@ -26,14 +27,19 @@ export function getMozosFromTickets(tickets) {
     const nombre = getMozoNombre(ticket);
     const key = nombre.toLowerCase();
     if (!map.has(key)) {
-      map.set(key, { nombre, key, count: 0, colorPerfil: colorPerfilDeTicket(ticket), colorLetra: colorLetraDeTicket(ticket) });
+      map.set(key, { nombre, key, count: 0, tickets: [], colorPerfil: colorPerfilDeTicket(ticket), colorLetra: colorLetraDeTicket(ticket) });
     }
-    map.get(key).count += 1;
+    const row = map.get(key);
+    row.count += 1;
+    row.tickets.push(ticket);
   }
 
-  return [...map.values()].sort((a, b) =>
-    a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-  );
+  return [...map.values()]
+    .map(({ tickets, ...row }) => ({
+      ...row,
+      etiqueta: etiquetaMozoDeTickets(tickets) || row.nombre,
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 }
 
 /** Agrupa tickets por mozo (orden alfabético). Conserva el orden relativo de cada lista. */
@@ -48,9 +54,9 @@ export function groupTicketsByMozo(tickets) {
     }
     map.get(key).tickets.push(ticket);
   }
-  return [...map.values()].sort((a, b) =>
-    a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-  );
+  return [...map.values()]
+    .map((g) => ({ ...g, etiqueta: etiquetaMozoDeTickets(g.tickets) || g.nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 }
 
 /** Filtra tickets por nombre de mozo (null = todos). */

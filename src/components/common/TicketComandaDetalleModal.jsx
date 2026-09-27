@@ -306,7 +306,7 @@ export default function TicketComandaDetalleModal({
               <div key={c._id || c.comandaNumber} className="space-y-2">
                 {comandas.length > 1 && (
                   <p className="text-white font-semibold text-sm">
-                    Comanda #{c.numComanda || c.comandaNumber || '—'}
+                    Comanda #{c.numeroComandaDia ?? c.numComanda ?? c.comandaNumber ?? '—'}
                     <span className="text-gray-400 font-normal text-xs ml-2">
                       Mesa {mesaDeComanda(c, ticket)}
                     </span>
