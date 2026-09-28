@@ -64,7 +64,7 @@ const PDFButton = () => {
       y += 10;
       doc.text(`Mozo: ${comanda.mozos.name}`, 10, y);
       y += 10;
-      doc.text(`Mesa: ${comanda.mesas.nummesa}`, 10, y);
+      doc.text(`Mesa: ${comanda.sinMesa || !comanda.mesas ? 'Sin mesa' : (comanda.mesas.nummesa ?? comanda.mesaNumero ?? 'Sin mesa')}`, 10, y);
       y += 10;
       doc.text(`Platos:`, 10, y);
       y += 10;

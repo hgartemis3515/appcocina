@@ -355,16 +355,26 @@ const useCocinaMonitorFilter = (
 
 /**
  * Extrae el número de mesa de una comanda de forma defensiva.
+ * Nunca devuelve un objeto (evita "[object Object]" en para llevar).
  */
 function obtenerMesaDeComanda(comanda) {
-  return (
-    comanda.mesaNumero ??
-    comanda.mesas?.nummesa ??
-    comanda.mesas?.numero ??
-    comanda.mesa?.numero ??
-    comanda.mesa ??
-    null
-  );
+  if (!comanda) return 'Sin mesa';
+  if (comanda.sinMesa === true) return 'Sin mesa';
+  const mesa = comanda.mesas || comanda.mesa;
+  if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return 'Sin mesa';
+  if (typeof mesa === 'object') {
+    const combinado = mesa?.nombreCombinado != null ? String(mesa.nombreCombinado).trim() : '';
+    if (combinado && combinado !== '[object Object]') return combinado;
+    const n = comanda.mesaNumero ?? mesa?.nummesa ?? mesa?.numMesa ?? mesa?.numero;
+    if (n != null && n !== '' && typeof n !== 'object') {
+      const s = String(n).trim();
+      if (s && s !== '[object Object]' && !/^sin\s*mesa$/i.test(s)) return s;
+    }
+    return 'Sin mesa';
+  }
+  if (comanda.mesaNumero != null && comanda.mesaNumero !== '') return comanda.mesaNumero;
+  if (mesa != null && mesa !== '' && String(mesa) !== '[object Object]') return mesa;
+  return 'Sin mesa';
 }
 
 export default useCocinaMonitorFilter;

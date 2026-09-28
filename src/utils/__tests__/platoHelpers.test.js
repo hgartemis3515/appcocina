@@ -20,6 +20,9 @@ import {
   LABEL_PARA_LLEVAR,
   LABEL_EXTRA_CLIENTE,
   fusionarComandaPreservandoToma,
+  textoMesaComanda,
+  valorMesaEscalar,
+  LABEL_SIN_MESA,
 } from '../platoHelpers';
 
 describe('obtenerNombreDisplayCocina', () => {
@@ -228,6 +231,26 @@ describe('nombreMesaKds', () => {
   test('mesa numerada sigue M#', () => {
     expect(nombreMesaKds({ mesas: { nummesa: 7 } })).toBe('M7');
     expect(nombreMesaKds({ mesas: { nombreCombinado: 'M5,6' } })).toBe('M5,6');
+  });
+
+  test('objeto mesa vacío no produce [object Object]', () => {
+    expect(nombreMesaKds({ mesas: {}, platos: [{ tipoServicio: 'para_llevar' }] })).toBe(LABEL_PARA_LLEVAR);
+    expect(nombreMesaKds({ mesa: {}, platos: [{ tipoServicio: 'para_llevar' }] })).toBe(LABEL_PARA_LLEVAR);
+  });
+});
+
+describe('textoMesaComanda', () => {
+  test('para llevar y sin mesa muestran Sin mesa, nunca [object Object]', () => {
+    expect(textoMesaComanda({ sinMesa: true })).toBe(LABEL_SIN_MESA);
+    expect(textoMesaComanda({ mesas: null, platos: [{ tipoServicio: 'para_llevar' }] })).toBe(LABEL_SIN_MESA);
+    expect(textoMesaComanda({ mesa: {} })).toBe(LABEL_SIN_MESA);
+    expect(textoMesaComanda({ mesas: { sinMesa: true, nummesa: 'Sin mesa' } })).toBe(LABEL_SIN_MESA);
+    expect(String(textoMesaComanda({ mesa: {} }))).not.toBe('[object Object]');
+  });
+
+  test('mesa numerada queda como número/etiqueta', () => {
+    expect(textoMesaComanda({ mesas: { nummesa: 1 } })).toBe('1');
+    expect(valorMesaEscalar({ nombreCombinado: 'M5,6,7' })).toBe('M5,6,7');
   });
 });
 

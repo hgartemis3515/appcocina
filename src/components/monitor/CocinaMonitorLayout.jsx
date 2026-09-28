@@ -39,7 +39,7 @@ import {
 } from '../../utils/guarnicionesKds';
 // §10: resolver el nombre de cocina del plato padre (alias nombreCocina, no el
 // nombre comercial que incluye complementos).
-import { obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
+import { obtenerNombreDisplayCocina, textoMesaComanda } from '../../utils/platoHelpers';
 import { primerCocineroIdFiltro, esUnSoloCocineroFiltro } from '../../utils/cocineroFiltroIds';
 import NotasMonitorFranja from './NotasMonitorFranja';
 import {
@@ -1044,7 +1044,7 @@ const CocinaMonitorLayout = ({
       });
       const grupos = filas.map((f) => {
         const { comanda, plato, platoIndex, comp, comandaId } = f;
-        const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
+        const mesaNum = textoMesaComanda(comanda);
         const comandaNumero = comanda.numero || comanda.numeroMesa || null;
         const ppG = comp?.procesandoPor;
         const cidG = ppG?.cocineroId;
@@ -1125,7 +1125,7 @@ const CocinaMonitorLayout = ({
           || 'Plato')
         : (obtenerNombreDisplayCocina(plato, { forzar: true }) || 'Plato');
       const comandaId = String(comanda._id || comanda.id || comanda.numero || '');
-      const mesaNum = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesas?.numero ?? comanda.mesa?.numero ?? comanda.mesa ?? null;
+      const mesaNum = textoMesaComanda(comanda);
       const comandaNumero = comanda.numero || comanda.numeroMesa || null;
       const nombreG = nombreCocinaComplemento(comp) || 'Guarnición';
       const qty = cantidadGuarnicionEfectiva(comp, plato, comanda, platoIndex);

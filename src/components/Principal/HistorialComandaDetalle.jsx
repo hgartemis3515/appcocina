@@ -3,7 +3,7 @@ import moment from "moment-timezone";
 import { FaTimes, FaUtensils, FaUser, FaClipboardList } from "react-icons/fa";
 import HistorialPlatoRow from "./HistorialPlatoRow";
 import { classifyComandaHistorial } from "../../utils/historialComandaRules";
-import { obtenerNombrePlato } from "../../utils/platoHelpers";
+import { obtenerNombrePlato, textoMesaComanda, LABEL_SIN_MESA } from "../../utils/platoHelpers";
 
 /**
  * HistorialComandaDetalle — Panel que muestra una comanda completa del Historial.
@@ -22,7 +22,7 @@ const HistorialComandaDetalle = ({ comanda, onClose, nightMode = true }) => {
   const platos = Array.isArray(comanda.platos) ? comanda.platos : [];
   const cantidades = comanda.cantidades || [];
 
-  const mesa = comanda.mesaNumero ?? comanda.mesas?.nummesa ?? comanda.mesa?.numero ?? comanda.mesa ?? comanda.numeroMesa ?? "—";
+  const mesa = textoMesaComanda(comanda);
   const orden = comanda.comandaNumber ?? comanda.orden ?? comanda.numeroOrden ?? "—";
   const mozo = comanda.mozoNombre || comanda.mozos?.name || "Sin mozo";
   const createdAt = comanda.createdAt
@@ -50,7 +50,7 @@ const HistorialComandaDetalle = ({ comanda, onClose, nightMode = true }) => {
               <span className={`text-xs px-2 py-0.5 rounded font-semibold ${badgeTipo}`}>
                 {clasif.tipo === "finalizada" ? "Finalizada" : "Parcial"} · {clasif.entregados}/{clasif.total}
               </span>
-              <span className="font-bold text-lg">Mesa {mesa}</span>
+              <span className="font-bold text-lg">{mesa === LABEL_SIN_MESA ? LABEL_SIN_MESA : `Mesa ${mesa}`}</span>
               <span className={`text-sm ${textSecondary}`}>Orden #{orden}</span>
             </div>
           </div>

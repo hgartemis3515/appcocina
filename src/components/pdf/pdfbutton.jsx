@@ -74,7 +74,7 @@ const PDFButton = () => {
         totalComanda += precio * cantidad;
       });
 
-      const mesa = comanda.mesas.nummesa;
+      const mesa = comanda.sinMesa || !comanda.mesas ? 'Sin mesa' : (comanda.mesas.nummesa ?? comanda.mesaNumero ?? 'Sin mesa');
       dineroPorMesa[mesa] = (dineroPorMesa[mesa] || 0) + totalComanda;
       dineroTotal += totalComanda;
 

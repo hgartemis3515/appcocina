@@ -345,6 +345,37 @@ export const grupoTieneLlevarColor = (platos = []) => platos.some(esPlatoLlevarC
 
 export const LABEL_PARA_LLEVAR = 'PARA LLEVAR';
 export const LABEL_EXTRA_CLIENTE = 'EXTRA CLIENTE';
+export const LABEL_SIN_MESA = 'Sin mesa';
+
+/** Número o etiqueta de mesa como escalar. Nunca un objeto ([object Object]). */
+export function valorMesaEscalar(valor) {
+  if (valor == null || valor === '') return null;
+  if (typeof valor === 'object') {
+    if (valor.sinMesa === true) return null;
+    const combinado = valor.nombreCombinado != null ? String(valor.nombreCombinado).trim() : '';
+    if (combinado && combinado !== '[object Object]') return combinado;
+    const n = valor.nummesa ?? valor.numMesa ?? valor.numero;
+    if (n != null && n !== '' && typeof n !== 'object') {
+      const s = String(n).trim();
+      if (s && s !== '[object Object]' && !/^sin\s*mesa$/i.test(s) && s !== 'SIN_MESA') return s;
+    }
+    return null;
+  }
+  const s = String(valor).trim();
+  if (!s || s === '[object Object]' || /^sin\s*mesa$/i.test(s) || s === 'SIN_MESA' || s.toUpperCase() === 'N/A') {
+    return null;
+  }
+  return s;
+}
+
+/** Texto de mesa para tablas/monitor. Pedido para llevar → "Sin mesa". */
+export function textoMesaComanda(comanda, mesaOverride) {
+  if (comanda?.sinMesa === true) return LABEL_SIN_MESA;
+  const mesa = mesaOverride !== undefined ? mesaOverride : (comanda?.mesas || comanda?.mesa);
+  if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return LABEL_SIN_MESA;
+  const n = valorMesaEscalar(mesa) ?? valorMesaEscalar(comanda?.mesaNumero);
+  return n == null ? LABEL_SIN_MESA : n;
+}
 export const etiquetaTipoServicioKds = (tipo) => {
   if (tipo === 'extra_llevar') return LABEL_EXTRA_CLIENTE;
   if (tipo === 'para_llevar') return LABEL_PARA_LLEVAR;
