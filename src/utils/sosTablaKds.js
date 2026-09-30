@@ -102,6 +102,164 @@ function grupoCategoriaAlFinal(grupo, alFinal) {
   return (grupo.categorias || []).some((c) => alFinal.has(c));
 }
 
+export function claveFamiliaSos(texto) {
+  return String(texto || '').trim().toUpperCase();
+}
+
+function opDeLinea(plato) {
+  const v = plato?.variantePlato;
+  if (!v || v.anexaNombre !== true) return '';
+  return String(v.pronombre || v.opcion || '').trim();
+}
+
+function baseSinOp(nombre, op) {
+  const n = String(nombre || '').trim();
+  const s = String(op || '').trim();
+  if (!n || !s) return n;
+  const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const cut = n.replace(new RegExp(`\\s+${esc}$`, 'i'), '').trim();
+  return cut || n;
+}
+
+function fundirOpsSos(grupos) {
+  const cubetas = new Map();
+  const sueltos = [];
+  for (const g of grupos) {
+    if (!g.op) {
+      sueltos.push(g);
+      continue;
+    }
+    const k = `${claveNombreSos(g.baseNombre)}|${g.familiaClave || ''}|${g.prioridad ? 'P' : ''}`;
+    if (!cubetas.has(k)) cubetas.set(k, []);
+    cubetas.get(k).push(g);
+  }
+  const salida = [...sueltos];
+  for (const [k, lista] of cubetas) {
+    const ops = new Set(lista.map((g) => claveFamiliaSos(g.op)));
+    if (ops.size < 2) {
+      salida.push(...lista);
+      continue;
+    }
+    const tipos = [...lista].sort((a, b) => a.tsMin - b.tsMin || a.nombre.localeCompare(b.nombre, 'es'));
+    const primero = tipos[0];
+    const categorias = [];
+    for (const g of tipos) {
+      for (const c of g.categorias || []) {
+        if (!categorias.includes(c)) categorias.push(c);
+      }
+    }
+    salida.push({
+      clave: `OP|${k}`,
+      nombre: primero.baseNombre || primero.nombre,
+      familia: true,
+      tipos,
+      items: tipos.flatMap((g) => g.items || []).sort((a, b) => a.ts - b.ts || a.platoIndex - b.platoIndex),
+      cantidad: tipos.reduce((s, g) => s + g.cantidad, 0),
+      prioridad: primero.prioridad,
+      primero: tipos.some((g) => g.primero),
+      prioMax: tipos.reduce((m, g) => Math.max(m, g.prioMax || 0), 0),
+      tsMin: primero.tsMin,
+      categorias,
+      familiaClave: primero.familiaClave || '',
+      familiaLabel: primero.familiaLabel || '',
+      comandaIdMasAntigua: primero.comandaIdMasAntigua,
+      platoIndexMasAntigua: primero.platoIndexMasAntigua,
+    });
+  }
+  return salida;
+}
+
+function sinMarcaFamilia(grupo) {
+  if (!grupo) return grupo;
+  const { familiaClave, familiaLabel, ...resto } = grupo;
+  return resto;
+}
+
+function fundirFamiliasSos(grupos) {
+  const cubetas = new Map();
+  const sueltos = [];
+  for (const g of grupos) {
+    if (!g.familiaClave) {
+      sueltos.push(sinMarcaFamilia(g));
+      continue;
+    }
+    const k = `${g.familiaClave}${g.prioridad ? '|P' : ''}`;
+    if (!cubetas.has(k)) cubetas.set(k, []);
+    cubetas.get(k).push(g);
+  }
+  const salida = [...sueltos];
+  for (const [k, lista] of cubetas) {
+    if (lista.length < 2) {
+      salida.push(sinMarcaFamilia(lista[0]));
+      continue;
+    }
+    const tipos = [...lista].sort((a, b) => a.tsMin - b.tsMin || a.nombre.localeCompare(b.nombre, 'es'));
+    const tiposLimpios = tipos.map(sinMarcaFamilia);
+    const items = tipos
+      .flatMap((g) => g.items || [])
+      .sort((a, b) => a.ts - b.ts || a.platoIndex - b.platoIndex);
+    const primero = tipos[0];
+    const categorias = [];
+    for (const g of tipos) {
+      for (const c of g.categorias || []) {
+        if (!categorias.includes(c)) categorias.push(c);
+      }
+    }
+    salida.push({
+      clave: `FAM|${k}`,
+      nombre: primero.familiaLabel || primero.nombre,
+      familia: true,
+      tipos: tiposLimpios,
+      items,
+      cantidad: tipos.reduce((s, g) => s + g.cantidad, 0),
+      prioridad: primero.prioridad,
+      primero: tipos.some((g) => g.primero),
+      prioMax: tipos.reduce((m, g) => Math.max(m, g.prioMax || 0), 0),
+      tsMin: primero.tsMin,
+      categorias,
+      comandaIdMasAntigua: primero.comandaIdMasAntigua,
+      platoIndexMasAntigua: primero.platoIndexMasAntigua,
+    });
+  }
+  return salida;
+}
+
+/**
+ * Comandas del modal: solo platos de la familia, de la más antigua a la más nueva.
+ */
+export function comandasDeFamiliaSos(grupo, comandas) {
+  if (!grupo?.familia || !Array.isArray(grupo.items)) return [];
+  const porId = new Map();
+  for (const it of grupo.items) {
+    const id = String(it.comandaId || '');
+    if (!id) continue;
+    if (!porId.has(id)) porId.set(id, []);
+    porId.get(id).push(it);
+  }
+  const filas = [];
+  for (const [id, items] of porId) {
+    const ordenados = [...items].sort((a, b) => a.ts - b.ts || a.platoIndex - b.platoIndex);
+    const comanda = (comandas || []).find((c) => String(c?._id || c?.id) === id);
+    if (!comanda) continue;
+    const platos = ordenados
+      .map((it) => comanda.platos?.[it.platoIndex])
+      .filter(Boolean);
+    if (!platos.length) continue;
+    filas.push({ comanda, platos, ts: ordenados[0].ts });
+  }
+  filas.sort((a, b) => a.ts - b.ts);
+  return filas;
+}
+
+export function buscarGrupoSos(grupos, clave) {
+  for (const g of grupos || []) {
+    if (g.clave === clave) return g;
+    const anidado = buscarGrupoSos(g.tipos, clave);
+    if (anidado) return anidado;
+  }
+  return null;
+}
+
 /**
  * Agrupa platos visibles del tablero KDS por nombre de cocina.
  * Orden: platos de comandas con prioridad primero (🚀), luego llegada.
@@ -112,6 +270,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
   const platosDeComanda = typeof opts.platosDeComanda === 'function' ? opts.platosDeComanda : null;
   const esColaUno = typeof opts.esColaUno === 'function' ? opts.esColaUno : null;
   const esTablaUnoODos = typeof opts.esTablaUnoODos === 'function' ? opts.esTablaUnoODos : null;
+  const grupoDe = typeof opts.grupoSosDePlato === 'function' ? opts.grupoSosDePlato : null;
   const groups = new Map();
 
   for (const comanda of comandas || []) {
@@ -123,6 +282,8 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const idx = resolverIndicePlato(comanda, plato);
       const platoIndex = Number.isInteger(idx) && idx >= 0 ? idx : i;
       const nombre = obtenerNombreDisplayCocina(plato, { habilitadoEnKds }) || 'Sin nombre';
+      const op = opDeLinea(plato);
+      const baseNombre = op ? baseSinOp(nombre, op) : nombre;
       const prio = Number(comanda?.prioridadOrden) || 0;
       const prioridad = prio > 0;
       const clave = `${claveNombreSos(nombre)}${prioridad ? '|P' : ''}`;
@@ -132,7 +293,10 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const tablaUnoDos = esTablaUnoODos ? esTablaUnoODos(comandaId) === true : false;
       const verde = colaUno || tablaUnoDos;
       const categorias = nombresCategoriaPlato(plato);
-      const prev = groups.get(clave);
+    const prev = groups.get(clave);
+      const item = { comandaId, platoIndex, ts, nombre };
+      const familiaLabel = grupoDe ? String(grupoDe(plato) || '').trim() : '';
+      const familiaClave = claveFamiliaSos(familiaLabel);
       if (!prev) {
         groups.set(clave, {
           clave,
@@ -145,11 +309,21 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
           categorias,
           comandaIdMasAntigua: comandaId,
           platoIndexMasAntigua: platoIndex,
+          familiaClave,
+          familiaLabel,
+          op,
+          baseNombre,
+          items: [item],
         });
         return;
       }
       if (verde) prev.primero = true;
       prev.cantidad += cantidad;
+      prev.items.push(item);
+      if (!prev.familiaClave && familiaClave) {
+        prev.familiaClave = familiaClave;
+        prev.familiaLabel = familiaLabel;
+      }
       for (const c of categorias) {
         if (!prev.categorias.includes(c)) prev.categorias.push(c);
       }
@@ -162,7 +336,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
     });
   }
 
-  return [...groups.values()].sort((a, b) => {
+  return fundirFamiliasSos(fundirOpsSos([...groups.values()])).sort((a, b) => {
     const alFinal = categoriasAlFinalDe(opts.categoriasAlFinal);
     const fa = grupoCategoriaAlFinal(a, alFinal) ? 1 : 0;
     const fb = grupoCategoriaAlFinal(b, alFinal) ? 1 : 0;

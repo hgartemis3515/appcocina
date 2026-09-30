@@ -164,9 +164,10 @@ export function generarHtmlTicketCocina({ datos }) {
     : Math.max(0, bruto - desc);
 
   let html = '';
+  html += `<div style="text-align:left;font-size:14px;font-weight:800;letter-spacing:1px;line-height:1.1;">COCINA</div>`;
   html += `<div style="text-align:center;font-size:22px;font-weight:800;letter-spacing:0.5px;line-height:1.15;padding:4px 0 6px;">${escapeHtml(letrero)}</div>`;
   html += `<table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
-    <tr>${celdaMeta('Mozo', d.mozo)}${celdaMeta('Mesa', d.mesa != null ? String(d.mesa) : '')}</tr>
+    <tr>${celdaMeta('Mozo', String(d.mozo || '').toLocaleUpperCase('es-PE'))}${celdaMeta('Mesa', d.mesa != null ? String(d.mesa) : '')}</tr>
     <tr>${celdaMeta('Fecha', fecha)}${celdaMeta('Área', d.area)}</tr>
   </table>`;
   html += `<table style="width:100%;border-collapse:collapse;font-size:11px;">

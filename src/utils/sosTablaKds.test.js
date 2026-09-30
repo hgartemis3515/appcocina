@@ -2,6 +2,7 @@ import {
   agruparPlatosSosTabla,
   claveNombreSos,
   comandaTienePlatoEnTarjetaKds,
+  comandasDeFamiliaSos,
   instantePedidoSos,
   paginaDeComanda,
   platoVisibleEnTablaKds,
@@ -197,5 +198,95 @@ describe('sosTablaKds', () => {
     expect(comandaTienePlatoEnTarjetaKds({
       platos: [{ estado: 'entregado' }, { estado: 'en_espera' }],
     })).toBe(true);
+  });
+
+  test('un solo tipo de familia sigue con el nombre del plato', () => {
+    const comandas = [{
+      _id: 'c1',
+      createdAt: '2026-09-21T10:00:00.000Z',
+      platos: [
+        { nombre: 'Chaufa de pollo', platoId: 1, tiempos: { pedido: '2026-09-21T10:00:00.000Z' } },
+        { nombre: 'Chaufa de pollo', platoId: 1, tiempos: { pedido: '2026-09-21T11:00:00.000Z' } },
+      ],
+      cantidades: [1, 1],
+    }];
+    const grupos = agruparPlatosSosTabla(comandas, {
+      grupoSosDePlato: (p) => (p.platoId === 1 ? 'Chaufa' : ''),
+    });
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].familia).toBeFalsy();
+    expect(grupos[0].nombre).toBe('Chaufa de pollo');
+    expect(grupos[0].cantidad).toBe(2);
+  });
+
+  test('dos tipos se juntan y salen del más antiguo al más nuevo', () => {
+    const comandas = [
+      {
+        _id: 'nueva',
+        createdAt: '2026-09-21T12:00:00.000Z',
+        platos: [
+          { nombre: 'Chaufa de carne', platoId: 2, tiempos: { pedido: '2026-09-21T12:00:00.000Z' } },
+          { nombre: 'Lomo', platoId: 9, tiempos: { pedido: '2026-09-21T12:00:00.000Z' } },
+        ],
+      },
+      {
+        _id: 'vieja',
+        createdAt: '2026-09-21T09:00:00.000Z',
+        platos: [
+          { nombre: 'Chaufa de pollo', platoId: 1, tiempos: { pedido: '2026-09-21T09:00:00.000Z' } },
+        ],
+      },
+    ];
+    const grupos = agruparPlatosSosTabla(comandas, {
+      grupoSosDePlato: (p) => (p.platoId === 1 || p.platoId === 2 ? 'chaufa' : ''),
+    });
+    const familia = grupos.find((g) => g.familia);
+    expect(familia.nombre).toBe('chaufa');
+    expect(familia.cantidad).toBe(2);
+    expect(familia.tipos.map((t) => t.nombre)).toEqual(['Chaufa de pollo', 'Chaufa de carne']);
+    expect(grupos.some((g) => g.nombre === 'Lomo')).toBe(true);
+    const filas = comandasDeFamiliaSos(familia, comandas);
+    expect(filas.map((f) => f.comanda._id)).toEqual(['vieja', 'nueva']);
+    expect(filas[1].platos).toHaveLength(1);
+    expect(filas[1].platos[0].nombre).toBe('Chaufa de carne');
+  });
+
+  test('un solo OP se queda con el nombre completo', () => {
+    const comandas = [{
+      _id: 'c1',
+      platos: [{
+        nombre: 'Pollo leña',
+        variantePlato: { anexaNombre: true, opcion: 'Pierna' },
+        tiempos: { pedido: '2026-09-21T10:00:00.000Z' },
+      }],
+    }];
+    const grupos = agruparPlatosSosTabla(comandas);
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].familia).toBeFalsy();
+    expect(grupos[0].nombre).toMatch(/Pierna/i);
+  });
+
+  test('dos OP del mismo plato se juntan sin el nombre de la OP', () => {
+    const comandas = [{
+      _id: 'c1',
+      platos: [
+        {
+          nombre: 'Pollo leña',
+          variantePlato: { anexaNombre: true, opcion: 'Pierna' },
+          tiempos: { pedido: '2026-09-21T10:00:00.000Z' },
+        },
+        {
+          nombre: 'Pollo leña',
+          variantePlato: { anexaNombre: true, opcion: 'Pecho' },
+          tiempos: { pedido: '2026-09-21T11:00:00.000Z' },
+        },
+      ],
+    }];
+    const grupos = agruparPlatosSosTabla(comandas);
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].familia).toBe(true);
+    expect(grupos[0].nombre).toBe('Pollo leña');
+    expect(grupos[0].cantidad).toBe(2);
+    expect(grupos[0].tipos.map((t) => t.nombre).sort()).toEqual(['Pollo leña Pecho', 'Pollo leña Pierna'].sort());
   });
 });

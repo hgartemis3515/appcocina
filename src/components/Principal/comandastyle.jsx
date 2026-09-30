@@ -39,16 +39,18 @@ import KdsTopBar from "./KdsTopBar";
 import HistorialModal from "./HistorialModal";
 import SosModoModal from "./SosModoModal";
 import SosTablaSidebar from "./SosTablaSidebar";
+import SosGrupoModal from "./SosGrupoModal";
 import useSosCocineras from "../../hooks/useSosCocineras";
 import {
   agruparPlatosSosTabla,
+  buscarGrupoSos,
   comandaTienePlatoEnTarjetaKds,
+  comandasDeFamiliaSos,
   guardarSosTablaLocal,
   leerSosTablaLocal,
   paginaDeComanda,
 } from "../../utils/sosTablaKds";
 import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
-import { esEstiloAprovechadorKds } from "../../utils/estiloHeaderTarjetaKds";
 // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: numeración #N por cocinero + flags
 import { calcularNumerosColaPorCocinero, comandasVisiblesTablaKds, filtrarLoteRespetandoOrden, mapaIndiceTablaKds, ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
 import AutorizacionOrdenPad from "../common/AutorizacionOrdenPad";
@@ -80,7 +82,6 @@ import { apiPut } from "../../config/apiClient";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, colorLetraDeComanda } from "../../utils/estiloMozoNombreKds";
-import { comandaKdsEstiloCompacto } from "../../utils/kdsComandaEstilo";
 import HeaderTarjetaComandaKds from "../common/HeaderTarjetaComandaKds";
 import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
@@ -204,6 +205,10 @@ const ComandaStyle = ({
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [sosHighlightId, setSosHighlightId] = useState(null);
   const [sosHighlightPlatoIndex, setSosHighlightPlatoIndex] = useState(null);
+  const [mapaGrupoSos, setMapaGrupoSos] = useState(() => new Map());
+  const [familiasAbiertas, setFamiliasAbiertas] = useState({});
+  const [modalClaveSos, setModalClaveSos] = useState(null);
+  const familiasAbiertasRef = useRef({});
   const sosMarkRef = useRef({ id: null, idx: null });
   sosMarkRef.current = { id: sosHighlightId, idx: sosHighlightPlatoIndex };
   const [pendingScroll, setPendingScroll] = useState(null);
@@ -1897,9 +1902,19 @@ const ComandaStyle = ({
   const gruposSosTabla = useMemo(() => {
     if (!isSupervisorView || !sosTablaOn) return [];
     const mapaTabla = mapaIndiceTablaKds(comandasVisiblesTablaKds(todasComandas));
+    const grupoSosDePlato = (plato) => {
+      const ids = [plato?.platoId, plato?.plato?.id, plato?.plato?._id, plato?.plato];
+      for (const id of ids) {
+        if (id == null || id === '' || typeof id === 'object') continue;
+        const g = mapaGrupoSos.get(String(id));
+        if (g) return g;
+      }
+      return '';
+    };
     return agruparPlatosSosTabla(todasComandas, {
       habilitadoEnKds: usarNombreCocinaEnTablaKds,
       categoriasAlFinal: sosCategoriasAlFinal,
+      grupoSosDePlato,
       platosDeComanda: hayFiltroActivo
         ? (c) => getPlatosVisibles(c) || []
         : undefined,
@@ -1907,7 +1922,7 @@ const ComandaStyle = ({
         (mapaColaCocineros?.get(`${comandaId}-${platoIndex}`) ?? null) === 1,
       esTablaUnoODos: (comandaId) => mapaTabla.get(String(comandaId)) === 1 || mapaTabla.get(String(comandaId)) === 2,
     });
-  }, [isSupervisorView, sosTablaOn, todasComandas, usarNombreCocinaEnTablaKds, hayFiltroActivo, getPlatosVisibles, mapaColaCocineros, sosCategoriasAlFinal]);
+  }, [isSupervisorView, sosTablaOn, todasComandas, usarNombreCocinaEnTablaKds, hayFiltroActivo, getPlatosVisibles, mapaColaCocineros, sosCategoriasAlFinal, mapaGrupoSos]);
 
   const irAGrupoSos = useCallback((grupo) => {
     if (!grupo?.comandaIdMasAntigua) return;
@@ -1918,6 +1933,82 @@ const ComandaStyle = ({
     if (page !== currentPage) setCurrentPage(page);
     setPendingScroll({ id, platoIndex: grupo.platoIndexMasAntigua });
   }, [todasComandas, COMANDAS_POR_PAGINA, currentPage]);
+
+  const onDobleGrupoSos = useCallback((grupo) => {
+    if (!grupo?.familia) return;
+    const clave = grupo.clave;
+    const abierta = !familiasAbiertasRef.current[clave];
+    const dentro = [];
+    const walk = (nodo) => {
+      for (const t of nodo?.tipos || []) {
+        if (t?.clave) dentro.push(t.clave);
+        if (t?.familia) walk(t);
+      }
+    };
+    walk(grupo);
+    const next = { ...familiasAbiertasRef.current, [clave]: abierta };
+    if (!abierta) {
+      dentro.forEach((k) => { next[k] = false; });
+    }
+    familiasAbiertasRef.current = next;
+    setFamiliasAbiertas(next);
+    if (abierta && grupo.comandaIdMasAntigua) {
+      const id = String(grupo.comandaIdMasAntigua);
+      setSosHighlightId(id);
+      setSosHighlightPlatoIndex(grupo.platoIndexMasAntigua);
+    }
+    setModalClaveSos((actual) => {
+      if (abierta) return clave;
+      if (actual === clave || dentro.includes(actual)) return null;
+      return actual;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isSupervisorView || !sosTablaOn) return undefined;
+    let vivo = true;
+    (async () => {
+      try {
+        const token = typeof getToken === 'function' ? await getToken() : null;
+        const res = await fetch(`${getServerBaseUrl()}/api/platos?grupoSos=1`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!vivo) return;
+        const mapa = new Map();
+        for (const p of Array.isArray(data) ? data : []) {
+          const texto = String(p?.grupoSos || '').trim();
+          if (!texto) continue;
+          if (p.id != null) mapa.set(String(p.id), texto);
+          if (p._id) mapa.set(String(p._id), texto);
+        }
+        setMapaGrupoSos(mapa);
+      } catch {
+        /* la tabla SOS sigue por nombre si el catálogo no responde */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [isSupervisorView, sosTablaOn, getToken]);
+
+  useEffect(() => {
+    if (!modalClaveSos && !Object.keys(familiasAbiertas).length) return;
+    const sigue = (clave) => clave && buscarGrupoSos(gruposSosTabla, clave);
+    if (modalClaveSos && !sigue(modalClaveSos)) setModalClaveSos(null);
+    setFamiliasAbiertas((prev) => {
+      let cambio = false;
+      const next = {};
+      Object.keys(prev).forEach((clave) => {
+        if (prev[clave] && sigue(clave)) next[clave] = true;
+        else if (prev[clave]) cambio = true;
+      });
+      if (Object.keys(prev).length !== Object.keys(next).length) cambio = true;
+      if (cambio) familiasAbiertasRef.current = next;
+      return cambio ? next : prev;
+    });
+  }, [modalClaveSos, familiasAbiertas, gruposSosTabla]);
 
   useEffect(() => {
     if (!pendingScroll?.id) return undefined;
@@ -4397,6 +4488,35 @@ const ComandaStyle = ({
       }))
     : [];
 
+  const esMarthaSos = String(userRole || '').toLowerCase() === 'martha';
+  const grupoFamiliaSos = modalClaveSos ? buscarGrupoSos(gruposSosTabla, modalClaveSos) : null;
+  const filasFamiliaSos = grupoFamiliaSos
+    ? comandasDeFamiliaSos(grupoFamiliaSos, todasComandas)
+    : [];
+  const modoPlatoModalSos = (comanda, plato, platoIndex) => {
+    if (!esMarthaSos) return 'marcar';
+    const item = { comandaId: comanda._id, platoIndex, plato, comanda };
+    const { bloqueados } = filtrarLoteRespetandoOrden([item], todasComandas, {
+      tieneOverride: (p) => platoTieneOverride(p.comandaId, p.platoIndex, p.plato),
+      exenciones: {
+        categorias: ordenSinAutorizacionCategorias,
+        platos: ordenSinAutorizacionPlatos,
+      },
+    });
+    if (bloqueados.length === 0) return 'marcar';
+    if (solicitudOrdenFueraDeCola !== false) return 'autorizar';
+    return 'ver';
+  };
+  const autorizarPlatoModalSos = (comandaId, plato, platoIndex) => {
+    handleSolicitarOrden([{
+      comandaId,
+      platoIndex,
+      plato,
+      platoId: plato?._id || plato?.plato?._id,
+      nombre: obtenerNombrePlato(plato),
+    }]);
+  };
+
   return (
     <div className={`w-full ${isFullscreen ? 'h-screen' : 'min-h-screen'} flex flex-col ${bgMain} ${textMain} overflow-hidden`}>
       {/* Header fijo estilo SICAR - Mejorado con indicadores de Vista */}
@@ -4451,7 +4571,7 @@ const ComandaStyle = ({
         className="flex-1 min-h-0 overflow-hidden p-3 flex pb-24"
         style={{ backgroundColor: fondoConjunto }}
       >
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
         {todasComandas.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className={`text-center ${textSecondary}`}>
@@ -4465,22 +4585,22 @@ const ComandaStyle = ({
           <>
             {/* Grid configurable: cuadrados altos 300x500px - CSS Grid pixel-perfect */}
             <motion.div 
-              className={`flex-1 min-h-0 overflow-y-auto ${esEstiloAprovechadorKds(config) ? 'p-0' : 'p-4'}`}
+              className="flex-1 min-h-0 overflow-y-auto p-0"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
               <div
-                className={`grid ${esEstiloAprovechadorKds(config) || config.autoAgrandamientoTarjetasKds === true ? '' : 'gap-5'}`}
+                className="grid"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, 300px)',
-                  gridAutoRows: config.autoAgrandamientoTarjetasKds === true
+                  gridAutoRows: config.autoAgrandamientoTarjetasKds !== false
                     ? '8px'
-                    : (esEstiloAprovechadorKds(config) ? '500px' : '520px'),
+                    : '500px',
                   columnGap: 0,
                   rowGap: 0,
-                  justifyContent: esEstiloAprovechadorKds(config) ? 'start' : 'center',
+                  justifyContent: 'start',
                   alignContent: 'start',
                   alignItems: 'start',
                 }}
@@ -5095,6 +5215,58 @@ const ComandaStyle = ({
             </div>
           </>
         )}
+        {filasFamiliaSos.length > 0 && (
+          <SosGrupoModal
+            filas={filasFamiliaSos}
+            renderTarjeta={(comanda, platos) => (
+              <SicarComandaCard
+                comanda={comanda}
+                tiempo={calcularTiempoTranscurrido(comanda)}
+                tiempoFormateado={tiemposComandas.get(comanda._id) || '00:00:00'}
+                getColorAlerta={getColorAlerta}
+                onListo={() => {}}
+                estadoColumna="en_espera"
+                comandaId={comanda._id}
+                isNew={false}
+                alertYellowMinutes={config.alertYellowMinutes}
+                alertRedMinutes={config.alertRedMinutes}
+                isSelected={false}
+                onToggleSelect={() => {}}
+                fontSize={config.design?.fontSize || 15}
+                platoStates={platoStates}
+                setPlatoStates={setPlatoStates}
+                cardNumber={0}
+                nightMode={nightMode}
+                platosEliminados={[]}
+                platosChecked={platosChecked}
+                togglePlatoCheck={togglePlatoCheck}
+                usuarioActualId={userId}
+                isSupervisorView={isSupervisorView}
+                comandaStates={comandaStates}
+                setComandaStates={setComandaStates}
+                onTomarComanda={handleTomarComanda}
+                onDejarComanda={handleDejarComanda}
+                onFinalizarComanda={handleFinalizarComandaCard}
+                obtenerNombreMesa={obtenerNombreMesa}
+                hayBusquedaActiva
+                platosVisiblesBusqueda={platos}
+                mapaColaCocineros={mapaColaCocineros}
+                sosTablaOn={sosTablaOn}
+                sosResaltada={String(sosHighlightId) === String(comanda._id)}
+                sosPlatoIndex={String(sosHighlightId) === String(comanda._id) ? sosHighlightPlatoIndex : null}
+                usarNombreCocinaEnTablaKds={usarNombreCocinaEnTablaKds}
+                permitirGuarnicionesSeparadas={permitirGuarnicionesSeparadas}
+                agrupacionOn={agrupacionOn}
+                tiemposGuarnicion={tiemposGuarnicion}
+                deshabilitarOrdenSecuencialGuarniciones={deshabilitarOrdenSecuencialGuarniciones}
+                juntarGuarnicionesVisualKds={juntarGuarnicionesVisualKds}
+                modoPlatoSos={(plato, platoIndex) => modoPlatoModalSos(comanda, plato, platoIndex)}
+                onAutorizarPlato={autorizarPlatoModalSos}
+                anclasDom={false}
+              />
+            )}
+          />
+        )}
         </div>
         <AutorizacionOrdenPad
           abierto={!!padAutorizacion}
@@ -5107,7 +5279,9 @@ const ComandaStyle = ({
             nightMode={nightMode}
             highlightComandaId={sosHighlightId}
             highlightPlatoIndex={sosHighlightPlatoIndex}
+            familiasAbiertas={familiasAbiertas}
             onSelectGrupo={irAGrupoSos}
+            onDobleGrupo={onDobleGrupoSos}
             onCerrar={() => {
               setSosTablaOn(false);
               guardarSosTablaLocal(false);
@@ -5728,6 +5902,9 @@ const SicarComandaCard = ({
   sosResaltada = false,
   sosPlatoIndex = null,
   sosTablaOn = false,
+  modoPlatoSos = null,
+  onAutorizarPlato = null,
+  anclasDom = true,
 }) => {
   const { config: kdsMozoConfig } = useConfig();
   const cocinaCfg = useConfiguracionCocina();
@@ -5740,9 +5917,11 @@ const SicarComandaCard = ({
     }),
     colorOverride: colorLetraMozo,
   });
-  const compactoKds = comandaKdsEstiloCompacto(comanda);
   const reglasTipo = useTiposPlatoReglas();
-  const estiloHeader = resolverEstiloHeaderTarjetaComanda(kdsMozoConfig, { forzarCompacto: compactoKds });
+  const estiloHeader = resolverEstiloHeaderTarjetaComanda(
+    { ...kdsMozoConfig, headerTarjetaEstilo: 'aprovechador' },
+    { forzarCompacto: true }
+  );
   const padHeader = paddingHeaderTarjetaKds(estiloHeader);
   const colorBarraMozo = colorBarraSuperiorMozo({
     config: kdsMozoConfig,
@@ -6075,8 +6254,8 @@ const SicarComandaCard = ({
     backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
   }
 
-  const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
-  const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds === true;
+  const estiloAprovechador = true;
+  const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds !== false;
   const cardRef = useRef(null);
   useLayoutEffect(() => {
     const el = cardRef.current;
@@ -6102,7 +6281,7 @@ const SicarComandaCard = ({
   return (
     <motion.div 
       ref={cardRef}
-      id={`kds-comanda-${comandaId}`}
+      id={anclasDom ? `kds-comanda-${comandaId}` : undefined}
       layoutId={`order-${comandaId}`}
       className={`${headerReserva ? '' : `${bgColor} ${borderColor}`} flex flex-col relative cursor-pointer ${sosResaltada ? 'ring-4 ring-yellow-400 z-10' : ''}`}
       style={{
@@ -6341,6 +6520,18 @@ const SicarComandaCard = ({
                     }
                   );
 
+                  const modoLinea = typeof modoPlatoSos === 'function' ? modoPlatoSos(plato, platoIndex) : 'marcar';
+                  const marcarLinea = modoLinea === 'marcar';
+                  const extraAutorizar = modoLinea === 'autorizar' && onAutorizarPlato ? (
+                    <button
+                      type="button"
+                      className="min-h-[44px] px-3 rounded bg-amber-500 text-black text-sm font-bold"
+                      onClick={() => onAutorizarPlato(comandaId, plato, platoIndex)}
+                    >
+                      Autorizar
+                    </button>
+                  ) : null;
+
                   return unidades.map((unidad, uIdx) => {
                     if (esTipoGuarnicionKds(unidad.tipo)) {
                       const gKey = `${comandaId}-${platoIndex}-g-${unidad.compId}`;
@@ -6381,7 +6572,8 @@ const SicarComandaCard = ({
                           estadoVisual={estadoVisualG}
                           nightMode={nightMode}
                           isEliminado={comp.eliminado === true}
-                          onToggle={togglePlatoCheck}
+                          onToggle={marcarLinea ? togglePlatoCheck : undefined}
+                          soloLectura={!marcarLinea}
                           complementosSeleccionados={[]}
                           procesandoPor={proc}
                           usuarioActualId={usuarioActualId}
@@ -6411,7 +6603,7 @@ const SicarComandaCard = ({
                     return (
                       <PlatoPreparacion
                         key={platoKey}
-                        domId={`kds-plato-${comandaId}-${platoIndex}`}
+                        domId={anclasDom ? `kds-plato-${comandaId}-${platoIndex}` : undefined}
                         marcadoSos={sosPlatoIndex != null && Number(sosPlatoIndex) === Number(platoIndex)}
                         plato={plato}
                         comandaId={comandaId}
@@ -6422,7 +6614,9 @@ const SicarComandaCard = ({
                         estadoVisual={estadoVisual}
                         nightMode={nightMode}
                         isEliminado={plato.eliminado === true}
-                        onToggle={togglePlatoCheck}
+                        onToggle={marcarLinea ? togglePlatoCheck : undefined}
+                        soloLectura={!marcarLinea}
+                        accionExtra={extraAutorizar}
                         complementosSeleccionados={plato.complementosSeleccionados || []}
                         procesandoPor={plato.procesandoPor}
                         usuarioActualId={usuarioActualId}
@@ -6532,7 +6726,7 @@ const SicarComandaCard = ({
                     
                     return (
                       <motion.div
-                        id={`kds-plato-${comandaId}-${platoIndex}`}
+                        id={anclasDom ? `kds-plato-${comandaId}-${platoIndex}` : undefined}
                         key={`listo-${platoIdUnico}-${platoIndex}`}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}

@@ -413,6 +413,8 @@ export function generarHtmlComanda({ datos, plantilla, serverOrigin, omitirGuarn
 
   let html = '';
 
+  html += '<div style="text-align:left;font-size:14px;font-weight:800;letter-spacing:1px;line-height:1.1;width:100%;">CAJA</div>';
+
   // === ENCABEZADO ===
   if (bloques.mostrarEncabezado !== false) {
     html += '<div class="header-block" style="text-align:center;width:100%;">';
@@ -452,7 +454,7 @@ export function generarHtmlComanda({ datos, plantilla, serverOrigin, omitirGuarn
       html += meta(`${etiquetas.mesa}:`, `<strong>${escapeHtml(String(datos.mesa))}</strong>`);
     }
     if (vis.mozo !== false && datos.mozo) {
-      html += meta(`${etiquetas.mozo}:`, escapeHtml(datos.mozo));
+      html += meta(`${etiquetas.mozo}:`, escapeHtml(String(datos.mozo).toLocaleUpperCase('es-PE')));
     }
     if (vis.area !== false && datos.area) {
       html += meta(`${etiquetas.area}:`, escapeHtml(datos.area));

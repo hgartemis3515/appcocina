@@ -18,7 +18,8 @@ describe('ticket cocina compacto', () => {
     });
     expect(html).toContain('#10a');
     expect(html).toContain('Lomo');
-    expect(html).toContain('Ana');
+    expect(html).toContain('ANA');
+    expect(html).toContain('>COCINA<');
     expect(html).not.toContain('SAN BENITO');
     expect(html).not.toMatch(/>COMANDA</);
     expect(html).toContain('Ticket cocina');

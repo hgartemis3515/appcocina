@@ -50,13 +50,12 @@ import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { useConfig } from "../../contexts/ConfigContext";
 import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, colorLetraDeComanda } from "../../utils/estiloMozoNombreKds";
-import { comandaKdsEstiloCompacto } from "../../utils/kdsComandaEstilo";
 import HeaderTarjetaComandaKds from "../common/HeaderTarjetaComandaKds";
 import { CronometroAtrasoReservaKds } from "../common/BadgeReservaKds";
 import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
 import useTiposPlatoReglas from "../../hooks/useTiposPlatoReglas";
 import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
-import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, esEstiloAprovechadorKds, colorBarraSuperiorMozo } from "../../utils/estiloHeaderTarjetaKds";
+import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, colorBarraSuperiorMozo } from "../../utils/estiloHeaderTarjetaKds";
 import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
 import { comandaTienePlatoEnTarjetaKds } from "../../utils/sosTablaKds";
 import { colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
@@ -3895,22 +3894,22 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           <>
             {/* Grid configurable: cuadrados altos 300x500px - CSS Grid pixel-perfect */}
             <motion.div 
-              className={`flex-1 min-h-0 overflow-y-auto ${esEstiloAprovechadorKds(kdsVistaConfig) ? 'p-0' : 'p-4'}`}
+              className="flex-1 min-h-0 overflow-y-auto p-0"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
               <div
-                className={`grid ${esEstiloAprovechadorKds(kdsVistaConfig) || kdsVistaConfig.autoAgrandamientoTarjetasKds === true ? '' : 'gap-5'}`}
+                className="grid"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, 300px)',
-                  gridAutoRows: kdsVistaConfig.autoAgrandamientoTarjetasKds === true
+                  gridAutoRows: kdsVistaConfig.autoAgrandamientoTarjetasKds !== false
                     ? '8px'
-                    : (esEstiloAprovechadorKds(kdsVistaConfig) ? '500px' : '520px'),
+                    : '500px',
                   columnGap: 0,
                   rowGap: 0,
-                  justifyContent: esEstiloAprovechadorKds(kdsVistaConfig) ? 'start' : 'center',
+                  justifyContent: 'start',
                   alignContent: 'start',
                   alignItems: 'start',
                 }}
@@ -5044,9 +5043,11 @@ const SicarComandaCard = ({
     }),
     colorOverride: colorLetraMozo,
   });
-  const compactoKds = comandaKdsEstiloCompacto(comanda);
   const reglasTipo = useTiposPlatoReglas();
-  const estiloHeader = resolverEstiloHeaderTarjetaComanda(kdsMozoConfig, { forzarCompacto: compactoKds });
+  const estiloHeader = resolverEstiloHeaderTarjetaComanda(
+    { ...kdsMozoConfig, headerTarjetaEstilo: 'aprovechador' },
+    { forzarCompacto: true }
+  );
   const padHeader = paddingHeaderTarjetaKds(estiloHeader);
   const colorBarraMozo = colorBarraSuperiorMozo({
     config: kdsMozoConfig,
@@ -5361,8 +5362,8 @@ const SicarComandaCard = ({
     backgroundStyle = `linear-gradient(135deg, rgba(34,197,94,0.4), rgba(0,255,0,0.2))`;
   }
 
-  const estiloAprovechador = esEstiloAprovechadorKds(kdsMozoConfig);
-  const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds === true;
+  const estiloAprovechador = true;
+  const autoAgrandar = kdsMozoConfig.autoAgrandamientoTarjetasKds !== false;
   const cardRef = useRef(null);
   useLayoutEffect(() => {
     const el = cardRef.current;

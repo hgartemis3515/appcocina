@@ -31,6 +31,8 @@ const PlatoPreparacion = ({
   nightMode = true,
   isEliminado = false,
   onToggle,
+  soloLectura = false,
+  accionExtra = null,
   complementosSeleccionados = [],
   // v7.2: Props para multi-cocinero
   procesandoPor = null,  // { cocineroId, nombre, alias, timestamp }
@@ -99,7 +101,7 @@ const PlatoPreparacion = ({
     e.stopPropagation();
     e.preventDefault();
     // 🔥 FIX: No permitir interacción si está tomado por otro cocinero (excepto supervisor)
-    if (!puedeInteractuar || isEliminado) return;
+    if (soloLectura || !puedeInteractuar || isEliminado) return;
     if (onToggle && platoIndex !== undefined && platoIndex !== null && platoIndex >= 0) {
       // PLAN GUARNICIONES_SEPARADAS: NUNCA caer al toggle del plato padre.
       // Si falta compId (subdoc sin _id), el padre genera fallback idx:N.
@@ -283,7 +285,7 @@ const PlatoPreparacion = ({
           onToggle(comandaId, platoIndex); // 🔥 CORREGIDO: Pasar índice, no ID
         }
       }}
-      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-none flex items-center gap-2 cursor-pointer border-b border-x-0 border-t-0 ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''} ${marcadoSos ? 'kds-sos-blink' : ''}`}
+      className={`font-semibold leading-tight ${compact ? 'px-2 py-0.5' : 'px-3 py-2'} rounded-none flex items-center gap-2 ${soloLectura ? 'cursor-default' : 'cursor-pointer'} border-b border-x-0 border-t-0 ${getBackgroundClass()} ${isEliminado ? 'line-through cursor-not-allowed' : ''} ${marcadoSos ? 'kds-sos-blink' : ''}`}
       style={{
         fontFamily: 'Arial, sans-serif',
         fontSize: compact ? '13px' : '18px',
@@ -296,6 +298,7 @@ const PlatoPreparacion = ({
       whileHover={!isEliminado ? { scale: 1 } : {}}
       whileTap={!isEliminado ? { scale: 1 } : {}}
     >
+      {!soloLectura && (
       <div
         className={`${compact ? 'w-5 h-5' : 'w-8 h-8'} border-2 rounded flex items-center justify-center pointer-events-none flex-shrink-0`}
         style={{
@@ -349,6 +352,7 @@ const PlatoPreparacion = ({
           <span className="text-red-500 text-lg font-bold" aria-hidden>✕</span>
         )}
       </div>
+      )}
       <div className="flex-1 pointer-events-none">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`inline-flex items-center gap-1.5 min-w-0 ${ocultarComplementosTabla && !compact ? 'flex-1' : ''}`}>
@@ -516,6 +520,15 @@ const PlatoPreparacion = ({
           );
         })()}
       </div>
+      {accionExtra ? (
+        <span
+          className="flex-shrink-0"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {accionExtra}
+        </span>
+      ) : null}
     </motion.div>
   );
 };

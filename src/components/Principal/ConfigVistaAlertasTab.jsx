@@ -337,7 +337,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
             <label className="flex items-start gap-3 cursor-pointer col-span-2">
               <input
                 type="checkbox"
-                checked={config.autoAgrandamientoTarjetasKds === true}
+                checked={config.autoAgrandamientoTarjetasKds !== false}
                 onChange={(e) => updateConfig({ autoAgrandamientoTarjetasKds: e.target.checked })}
                 className="w-5 h-5 mt-0.5 rounded accent-emerald-500"
               />
