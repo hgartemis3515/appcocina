@@ -1,4 +1,5 @@
 import { apiPost } from '../config/apiClient';
+import { getServerBaseUrl } from '../config/apiConfig';
 import { generarHtmlTicketCocina, formatLetreroTicket } from './comandaPrint/ticketCocinaHtml';
 import { etiquetaMozosComandas } from './numeroComandaMozo';
 import { obtenerNombreDisplayCocina } from './platoHelpers';
@@ -247,21 +248,43 @@ async function enviarEpos(ip, xml, nombre) {
   }
 }
 
+async function paradasImpresionAutomatica() {
+  try {
+    const base = getServerBaseUrl();
+    const res = await fetch(base ? `${base}/api/configuracion` : '/api/configuracion');
+    if (!res.ok) return { cocina: false, caja: false };
+    const data = await res.json();
+    const c = data?.configuracion?.cocina || {};
+    return {
+      cocina: c.detenerImpresionCocina === true,
+      caja: c.detenerImpresionCaja === true,
+    };
+  } catch {
+    return { cocina: false, caja: false };
+  }
+}
+
 export async function imprimirTicketCocinaKds(grupo) {
   const lista = (grupo || []).filter(Boolean);
   const datos = datosTicketDeGrupo(lista);
   if (!(datos.productos || []).length) return;
-  const cocinaGen = generarHtmlTicketCocina({ datos, cocina: true });
-  const cajaGen = generarHtmlTicketCocina({ datos, cocina: false });
-  const [imgCocina, imgCaja] = await Promise.all([
-    rasterizarHtmlTicket(cocinaGen.htmlInner),
-    rasterizarHtmlTicket(cajaGen.htmlInner),
-  ]);
+  const parada = await paradasImpresionAutomatica();
+  if (parada.cocina && parada.caja) return;
+  const trabajos = [];
+  if (!parada.cocina) {
+    const cocinaGen = generarHtmlTicketCocina({ datos, cocina: true });
+    trabajos.push(rasterizarHtmlTicket(cocinaGen.htmlInner).then((img) => (
+      enviarEpos(IP_IMPRESORA_COCINA, xmlImagenEpos(img), 'cocina')
+    )));
+  }
+  if (!parada.caja) {
+    const cajaGen = generarHtmlTicketCocina({ datos, cocina: false });
+    trabajos.push(rasterizarHtmlTicket(cajaGen.htmlInner).then((img) => (
+      enviarEpos(IP_IMPRESORA_CAJA, xmlImagenEpos(img), 'caja')
+    )));
+  }
   const fallos = [];
-  const jobs = await Promise.allSettled([
-    enviarEpos(IP_IMPRESORA_COCINA, xmlImagenEpos(imgCocina), 'cocina'),
-    enviarEpos(IP_IMPRESORA_CAJA, xmlImagenEpos(imgCaja), 'caja'),
-  ]);
+  const jobs = await Promise.allSettled(trabajos);
   jobs.forEach((j) => {
     if (j.status === 'rejected') fallos.push(j.reason?.message || 'Error de impresión');
   });

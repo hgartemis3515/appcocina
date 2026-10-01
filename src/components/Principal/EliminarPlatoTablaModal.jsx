@@ -21,6 +21,27 @@ function coincide(valor, filtro) {
   return String(valor || '').toLowerCase().includes(q);
 }
 
+/** Nombre del mozo, sin el número de su pedido (`Admin 1` → `Admin`). */
+function nombresMozoFiltro(comanda) {
+  const et = etiquetaMozosComandas([comanda])
+    || comanda?.mozoNombre
+    || comanda?.mozos?.name
+    || '';
+  const vistos = [];
+  for (const parte of String(et).split(' · ')) {
+    const nombre = parte.replace(/\s+\d+(?:\+\d+)*$/, '').trim();
+    if (!nombre || nombre === 'Sin mozo' || nombre === 'Sin asignar') continue;
+    if (!vistos.some((n) => n.toLowerCase() === nombre.toLowerCase())) vistos.push(nombre);
+  }
+  return vistos;
+}
+
+function textoMesaCuadro(mesa) {
+  const s = String(mesa ?? '').trim();
+  const m = s.match(/^M(\d.*)$/i);
+  return m ? `Mesa ${m[1]}` : s;
+}
+
 /**
  * Lista las comandas que están en la tabla KDS para eliminar platos o la comanda.
  */
@@ -42,15 +63,27 @@ export default function EliminarPlatoTablaModal({
   const [indices, setIndices] = useState([]);
   const [motivo, setMotivo] = useState('');
 
+  const mozosTabla = useMemo(() => {
+    const map = new Map();
+    for (const comanda of comandas || []) {
+      for (const nombre of nombresMozoFiltro(comanda)) {
+        const key = nombre.toLowerCase();
+        if (!map.has(key)) map.set(key, nombre);
+      }
+    }
+    return [...map.values()].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [comandas]);
+
   const filas = useMemo(() => (comandas || []).map((comanda) => {
     const numero = numeroComandaVisible(comanda);
-    const mesa = nombreMesaKds(comanda);
+    const mesa = textoMesaCuadro(nombreMesaKds(comanda));
     const mozo = etiquetaMozosComandas([comanda]) || comanda?.mozoNombre || comanda?.mozos?.name || '';
-    return { comanda, numero, mesa, mozo, platos: platosEnTabla(comanda) };
+    const nombresMozo = nombresMozoFiltro(comanda);
+    return { comanda, numero, mesa, mozo, nombresMozo, platos: platosEnTabla(comanda) };
   }).filter((f) => (
     coincide(f.numero, filtroNumero)
     && coincide(f.mesa, filtroMesa)
-    && coincide(f.mozo, filtroMozo)
+    && (!filtroMozo || f.nombresMozo.some((n) => n.toLowerCase() === filtroMozo.toLowerCase()))
   )), [comandas, filtroNumero, filtroMesa, filtroMozo]);
 
   if (!open) return null;
@@ -90,13 +123,16 @@ export default function EliminarPlatoTablaModal({
     <div className="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 p-3">
       <div className={`w-full max-w-5xl max-h-full flex flex-col rounded-xl border ${borde} ${bg} shadow-2xl`}>
         <div className={`flex items-center justify-between px-4 py-3 border-b ${borde}`}>
-          <h2 className="text-lg font-bold">Eliminar plato</h2>
+          <h2 className="text-lg font-bold">Eliminar</h2>
           <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px]" aria-label="Cerrar">✕</button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3">
           <input className={`p-2 rounded border ${input}`} placeholder="Nº comanda" value={filtroNumero} onChange={(e) => setFiltroNumero(e.target.value)} />
           <input className={`p-2 rounded border ${input}`} placeholder="Mesa" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} />
-          <input className={`p-2 rounded border ${input}`} placeholder="Mozo" value={filtroMozo} onChange={(e) => setFiltroMozo(e.target.value)} />
+          <select className={`p-2 rounded border ${input}`} value={filtroMozo} onChange={(e) => setFiltroMozo(e.target.value)} aria-label="Filtrar por mozo">
+            <option value="">Todos los mozos</option>
+            {mozosTabla.map((m) => <option key={m.toLowerCase()} value={m}>{m}</option>)}
+          </select>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3 space-y-2">
           {filas.length === 0 ? (
@@ -107,9 +143,15 @@ export default function EliminarPlatoTablaModal({
             const marcada = id === String(comandaId);
             const toda = marcada && esEliminarComandaCompletaKds(f.comanda, indices);
             return (
-              <div key={id} className={`rounded-lg border ${borde} p-3`}>
-                <div className="flex flex-wrap items-center gap-2 justify-between">
-                  <div className="font-bold">#{f.numero} · {f.mesa} · {f.mozo || 'Sin mozo'}</div>
+              <div key={id} className={`rounded-lg border overflow-hidden ${toda ? 'border-green-500' : borde}`}>
+                <div className={`flex flex-wrap items-center gap-2 justify-between px-3 py-2 ${nightMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                  <div className="flex items-center gap-2 min-w-0 font-bold">
+                    <span className="text-lg leading-none">#{f.numero}</span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-md bg-sky-600/40 text-white border border-sky-300/50 text-sm whitespace-nowrap">
+                      {f.mesa}
+                    </span>
+                    <span className="truncate">{f.mozo || 'Sin mozo'}</span>
+                  </div>
                   {puedeComanda ? (
                     <button
                       type="button"
@@ -120,22 +162,45 @@ export default function EliminarPlatoTablaModal({
                     </button>
                   ) : null}
                 </div>
-                <ul className="mt-2 space-y-1">
+                <div>
                   {f.platos.map(({ plato, index }) => {
                     const on = marcada && indices.includes(index);
                     const nombre = obtenerNombreDisplayCocina(plato, { habilitadoEnKds: usarNombreCocina }) || 'Plato';
+                    const cantidad = Number(plato?.cantidad) > 0 ? Number(plato.cantidad) : 1;
+                    const selCls = on
+                      ? (nightMode ? 'bg-green-500/30 text-green-300' : 'bg-green-500/20 text-green-800')
+                      : (nightMode ? 'text-white hover:bg-gray-700/50' : 'text-gray-900 hover:bg-gray-100');
                     return (
-                      <li key={index}>
-                        <label className={`flex items-center gap-2 min-h-[40px] ${puedePlatos ? 'cursor-pointer' : 'opacity-80'}`}>
-                          {puedePlatos ? (
-                            <input type="checkbox" checked={on} onChange={() => togglePlato(id, index)} />
-                          ) : null}
-                          <span>{nombre}</span>
-                        </label>
-                      </li>
+                      <button
+                        key={index}
+                        type="button"
+                        disabled={!puedePlatos}
+                        onClick={() => togglePlato(id, index)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b last:border-b-0 ${nightMode ? 'border-gray-700' : 'border-gray-200'} ${selCls} ${puedePlatos ? 'cursor-pointer' : 'opacity-80 cursor-default'}`}
+                        style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px', fontWeight: 600 }}
+                      >
+                        <span
+                          className="w-8 h-8 border-2 rounded flex items-center justify-center flex-shrink-0"
+                          style={{
+                            borderColor: on ? '#22c55e' : (nightMode ? '#6b7280' : '#9ca3af'),
+                            backgroundColor: on ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                          }}
+                          aria-hidden
+                        >
+                          {on ? (
+                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          ) : (
+                            <span className={`w-4 h-4 rounded border-2 ${nightMode ? 'bg-gray-600 border-gray-500' : 'bg-gray-300 border-gray-400'}`} />
+                          )}
+                        </span>
+                        <span className="font-black tabular-nums">{cantidad}</span>
+                        <span className="min-w-0">{nombre}</span>
+                      </button>
                     );
                   })}
-                </ul>
+                </div>
               </div>
             );
           })}

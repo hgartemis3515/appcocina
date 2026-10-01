@@ -3808,7 +3808,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         onToggleSearch={() => setShowSearch(!showSearch)}
         onEliminarPlato={() => setShowEliminarTabla(true)}
         mostrarEliminarPlato={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)}
-        eliminarPlatoLabel={camuflarEliminarPlatoEpa(kdsVistaConfig) ? textoBotonEliminarKds(kdsVistaConfig) : 'Eliminar plato'}
+        eliminarPlatoLabel={camuflarEliminarPlatoEpa(kdsVistaConfig) ? textoBotonEliminarKds(kdsVistaConfig) : 'Eliminar'}
         eliminarPlatoEstilo={estiloBotonEliminarKds(kdsVistaConfig)}
         eliminarPlatoCamuflado={camuflarEliminarPlatoEpa(kdsVistaConfig)}
         onShowConfig={() => setShowConfig(true)}

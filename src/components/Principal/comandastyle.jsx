@@ -4552,7 +4552,7 @@ const ComandaStyle = ({
         onToggleSearch={() => setShowSearch(!showSearch)}
         onEliminarPlato={() => setShowEliminarTabla(true)}
         mostrarEliminarPlato={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)}
-        eliminarPlatoLabel={camuflarEliminarPlatoEpa(config) ? textoBotonEliminarKds(config) : 'Eliminar plato'}
+        eliminarPlatoLabel={camuflarEliminarPlatoEpa(config) ? textoBotonEliminarKds(config) : 'Eliminar'}
         eliminarPlatoEstilo={estiloBotonEliminarKds(config)}
         eliminarPlatoCamuflado={camuflarEliminarPlatoEpa(config)}
         onShowConfig={() => setShowConfig(true)}

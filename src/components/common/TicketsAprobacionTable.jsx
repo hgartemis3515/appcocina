@@ -24,6 +24,20 @@ import {
   toggleFilaTicketVerde,
 } from '../../utils/filaTicketResalteVerde';
 
+const MOZO_VISTA_AVANZADA = { mozoNombreTamano: 20, mozoNombreColor: '#ffffff' };
+
+function CuadroMesaAvanzado({ texto, paraLlevar = false }) {
+  if (!texto) return null;
+  const tono = paraLlevar
+    ? 'bg-violet-600/45 text-violet-50 border-violet-300/55'
+    : 'bg-sky-600/50 text-white border-sky-300/60';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-bold text-base whitespace-nowrap ${tono}`}>
+      {texto}
+    </span>
+  );
+}
+
 function SortIcon({ active, dir }) {
   if (!active) return <FaSort className="inline text-[9px] opacity-40 ml-1" />;
   return dir === 'asc'
@@ -244,13 +258,20 @@ function FilaTicketAvanzado({
           )}
         </div>
       </td>
-      <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
-        {indent ? '' : (ticket.sinMesa ? 'Para llevar' : `Mesa ${ticket.numMesa || '?'}`)}
+      <td className="px-3 py-2 whitespace-nowrap">
+        {indent ? '' : (
+          <CuadroMesaAvanzado
+            paraLlevar={!!ticket.sinMesa}
+            texto={ticket.sinMesa ? 'Para llevar' : `Mesa ${ticket.numMesa || '?'}`}
+          />
+        )}
       </td>
-      <td className="px-3 py-2 min-w-[120px]">
+      <td className="px-3 py-2 min-w-[160px]">
         {indent ? null : (
           <>
-            <div className="truncate"><BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} /></div>
+            <div className="truncate">
+              <BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} configVista={MOZO_VISTA_AVANZADA} />
+            </div>
             {cliente && (
               <div className="text-[10px] text-gray-500 truncate">
                 {cliente}{dni ? ` · DNI ${dni}` : ''}
@@ -547,12 +568,18 @@ export default function TicketsAprobacionTable({
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-gray-200 whitespace-nowrap">
-                      Mesa {first.sinMesa ? 'Para llevar' : (fila.mesa || first.numMesa || '?')}
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <CuadroMesaAvanzado
+                        paraLlevar={!!first.sinMesa}
+                        texto={first.sinMesa ? 'Para llevar' : `Mesa ${fila.mesa || first.numMesa || '?'}`}
+                      />
                     </td>
-                    <td className="px-3 py-2 min-w-[120px]">
+                    <td className="px-3 py-2 min-w-[160px]">
                       <div className="truncate">
-                        <BadgeNombreMozo nombre={etiquetaMozoDeTickets(fila.tickets) || getMozoNombre(first)} />
+                        <BadgeNombreMozo
+                          nombre={etiquetaMozoDeTickets(fila.tickets) || getMozoNombre(first)}
+                          configVista={MOZO_VISTA_AVANZADA}
+                        />
                       </div>
                     </td>
                     <td className="px-3 py-2">

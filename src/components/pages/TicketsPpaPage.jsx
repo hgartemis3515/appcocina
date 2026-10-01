@@ -58,6 +58,49 @@ const countTicketsPendientesByMesa = (items) => {
   return map;
 };
 
+function textoMesaDeTicket(t) {
+  if (t?.sinMesa) return 'sin mesa';
+  const n = t?.numMesa ?? t?.mesa?.nummesa ?? t?.mesaNumero;
+  return n == null || n === '' ? '' : String(n);
+}
+
+function letreroNumerosTicket(t) {
+  const nums = getComandasNumbersFromTicket(t).map(String);
+  const partes = (t?.comandas || []).map((c) => {
+    const n = c?.numeroComandaDia ?? c?.numComanda ?? c?.comandaNumber;
+    if (n == null || n === '') return '';
+    return `${n}${letraRevisionTicket(c?.revisionTicket)}`;
+  }).filter(Boolean);
+  return `${getComandaDisplayLabel(t)} ${partes.join(' ')} ${nums.join(' ')}`.toLowerCase();
+}
+
+function ticketPasaFiltroDetalle(t, filtro) {
+  const numQ = String(filtro?.numero || '').trim().toLowerCase();
+  const mesaQ = String(filtro?.mesa || '').trim().toLowerCase();
+  if (!numQ && !mesaQ) return true;
+  if (numQ) {
+    const tokens = numQ.split(/[\s,+]+/).map((s) => s.replace(/#/g, '')).filter(Boolean);
+    const letrero = letreroNumerosTicket(t);
+    const nums = getComandasNumbersFromTicket(t).map(String);
+    const ok = tokens.every((tok) => {
+      const m = tok.match(/^(\d+)([a-z]+)?$/);
+      if (!m) return letrero.includes(tok);
+      if (!nums.includes(m[1]) && !letrero.includes(m[1])) return false;
+      if (m[2] && !letrero.includes(`${m[1]}${m[2]}`)) return false;
+      return true;
+    });
+    if (!ok) return false;
+  }
+  if (mesaQ) {
+    const mesa = textoMesaDeTicket(t).toLowerCase();
+    const q = mesaQ.replace(/^mesa\s+/, '').replace(/^m(?=\d)/, '');
+    if (q.includes('sin') || q.includes('llevar')) {
+      if (!t?.sinMesa) return false;
+    } else if (!mesa.includes(q)) return false;
+  }
+  return true;
+}
+
 function opcionesComandasTicketCocina(tickets) {
   const seen = new Map();
   for (const t of tickets || []) {
@@ -187,6 +230,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [sortBy, setSortBy] = useState('fecha');
   const [sortDir, setSortDir] = useState('desc');
   const [filtroMozo, setFiltroMozo] = useState(null);
+  const [filtroDetalle, setFiltroDetalle] = useState({ numero: '', mesa: '' });
+  const [filtroDetalleDraft, setFiltroDetalleDraft] = useState({ numero: '', mesa: '' });
+  const [showFiltroDetalle, setShowFiltroDetalle] = useState(false);
   const [forzarPagoLoading, setForzarPagoLoading] = useState({});
   const [ticketForzarPago, setTicketForzarPago] = useState(null);
   const [modoEliminar, setModoEliminar] = useState(false);
@@ -448,7 +494,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     if (filtro === 'pendientes') return itemsEnPeriodo.filter(t => t.estado === 'pendiente_aprobacion');
     if (filtro === 'aprobados') return itemsEnPeriodo.filter(t => t.estado === 'aprobado');
     if (filtro === 'reportados') return itemsEnPeriodo.filter(t => t.estado === 'reportado');
-    if (filtro === 'rechazados') return itemsEnPeriodo.filter(t => t.estado === 'rechazado');
     if (filtro === 'comandas') return itemsEnPeriodo.filter(t => t.tipo === 'comanda_completa');
     if (filtro === 'adelantados') return itemsEnPeriodo.filter(t => t.tipo === 'pago_adelantado');
     if (filtro === 'parciales') return itemsEnPeriodo.filter(t => t.tipo === 'pago_parcial');
@@ -467,13 +512,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
   const itemsFiltrados = useMemo(() => {
     const porMozo = filterTicketsByMozo(itemsPorEstado, filtroMozo);
-    const ocultos = cobroPorCantidad ? idsOcultosCobro(vistaCobroPeriodo, porMozo) : new Set();
-    const visibles = ocultos.size ? porMozo.filter((t) => !ocultos.has(String(t._id))) : porMozo;
+    const porDetalle = porMozo.filter((t) => ticketPasaFiltroDetalle(t, filtroDetalle));
+    const ocultos = cobroPorCantidad ? idsOcultosCobro(vistaCobroPeriodo, porDetalle) : new Set();
+    const visibles = ocultos.size ? porDetalle.filter((t) => !ocultos.has(String(t._id))) : porDetalle;
     if (filtro === 'todos' && sortBy !== 'fecha') {
       return sortTicketsPendientesPrimero(visibles, sortBy, sortDir);
     }
     return sortTickets(visibles, sortBy, sortDir);
-  }, [itemsPorEstado, filtroMozo, sortBy, sortDir, filtro, cobroPorCantidad, vistaCobroPeriodo]);
+  }, [itemsPorEstado, filtroMozo, filtroDetalle, sortBy, sortDir, filtro, cobroPorCantidad, vistaCobroPeriodo]);
 
   const filasBasico = useMemo(
     () => groupTicketsComoComandasHtml(itemsFiltrados, { sortBy, sortDir }),
@@ -990,7 +1036,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             {[
               { key: 'pendientes', label: 'Pendientes', icon: FaClock },
               { key: 'aprobados', label: 'Cobrados', icon: FaCheck },
-              { key: 'rechazados', label: 'Rechazados', icon: FaTimes },
               { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
               { key: 'todos', label: 'Todos', icon: FaFilter },
               { key: 'comandas', label: 'Comandas', icon: FaUtensils },
@@ -1011,6 +1056,21 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 {label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroDetalleDraft(filtroDetalle);
+                setShowFiltroDetalle(true);
+              }}
+              style={{ fontSize: `${letraFiltro}px` }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-colors border
+                ${(filtroDetalle.numero || filtroDetalle.mesa)
+                  ? 'bg-violet-600 text-white border-violet-400'
+                  : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600'}`}
+            >
+              <FaSlidersH size={Math.max(16, letraFiltro)} />
+              Filtro
+            </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {showTurnoDiaNoche && ['dia', 'noche'].map((id) => {
@@ -1619,6 +1679,68 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               >
                 {imprimiendoTicketCocina ? 'Imprimiendo...' : 'Cerrar'}
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFiltroDetalle && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowFiltroDetalle(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.96 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.96 }}
+              className="bg-gray-800 rounded-xl p-5 max-w-md w-full border border-gray-600"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 className="text-white font-bold text-lg mb-1">Filtro de la tabla</h4>
+              <p className="text-gray-400 text-xs mb-4">
+                Número de comanda, con letra si la tiene (7b, 11+10). Mesa por número o “sin mesa”.
+              </p>
+              <label className="block text-sm text-gray-300 mb-1">Número de comanda</label>
+              <input
+                value={filtroDetalleDraft.numero}
+                onChange={(e) => setFiltroDetalleDraft((p) => ({ ...p, numero: e.target.value }))}
+                placeholder="7, 12b o 11+10"
+                className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:border-violet-500 focus:outline-none mb-3"
+              />
+              <label className="block text-sm text-gray-300 mb-1">Mesa</label>
+              <input
+                value={filtroDetalleDraft.mesa}
+                onChange={(e) => setFiltroDetalleDraft((p) => ({ ...p, mesa: e.target.value }))}
+                placeholder="12 o sin mesa"
+                className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:border-violet-500 focus:outline-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltroDetalle({ numero: '', mesa: '' });
+                    setFiltroDetalleDraft({ numero: '', mesa: '' });
+                    setShowFiltroDetalle(false);
+                  }}
+                  className="flex-1 py-2.5 bg-gray-700 text-gray-300 rounded-lg text-sm"
+                >
+                  Limpiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltroDetalle(filtroDetalleDraft);
+                    setShowFiltroDetalle(false);
+                  }}
+                  className="flex-1 py-2.5 bg-violet-600 text-white rounded-lg text-sm font-semibold"
+                >
+                  Aplicar
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

@@ -58,7 +58,7 @@ const KdsTopBar = ({
   onToggleSearch,
   onEliminarPlato,
   mostrarEliminarPlato = false,
-  eliminarPlatoLabel = "Eliminar plato",
+  eliminarPlatoLabel = "Eliminar",
   eliminarPlatoEstilo,
   eliminarPlatoCamuflado = false,
   onShowConfig,
