@@ -25,6 +25,35 @@ function Chip({ style, title, children }) {
   );
 }
 
+/** `Jose 1` / `Jose 1+2 · Ana 3` → el número del mozo a la mitad del nombre. */
+function TextoMozoKds({ texto }) {
+  const grupos = String(texto || '').split(' · ');
+  return grupos.map((grupo, i) => {
+    const m = grupo.trim().match(/^(.+?)\s+(\d+(?:\+\d+)*)$/);
+    const nombre = m ? m[1] : grupo.trim();
+    const numero = m ? m[2] : '';
+    return (
+      <React.Fragment key={`${nombre}-${i}`}>
+        {i > 0 ? ' · ' : null}
+        {nombre}
+        {numero ? (
+          <>
+            {' '}
+            <span style={{ fontSize: '0.5em', fontWeight: 700 }}>{numero}</span>
+          </>
+        ) : null}
+      </React.Fragment>
+    );
+  });
+}
+
+/** Cuadro de mesa de la tabla KDS: `M1` → `Mesa 1`. */
+function textoCuadroMesaKds(nombreMesa) {
+  const s = String(nombreMesa ?? '').trim();
+  const m = s.match(/^M(\d.*)$/i);
+  return m ? `Mesa ${m[1]}` : s;
+}
+
 function RelojKds({ tiempoFormateado, estiloReloj, tamIcono }) {
   return (
     <Chip style={estiloReloj} title="Tiempo en cocina">
@@ -131,12 +160,17 @@ export default function HeaderTarjetaComandaKds({
           }}
           title={mozoVisible || nombreMozo}
         >
-          <span className="truncate">{mozoVisible || nombreMozo}</span>
+          <span className="truncate">
+            <TextoMozoKds texto={mozoVisible || nombreMozo} />
+          </span>
         </span>
       ) : <span />}
       {verMesa ? (
-        <span style={{ ...estiloHero, flexShrink: 0, maxWidth: '42%' }} title="Mesa">
-          {nombreMesa}
+        <span
+          style={{ ...estiloHero, flexShrink: 0, maxWidth: 'none', overflow: 'visible', whiteSpace: 'nowrap' }}
+          title="Mesa"
+        >
+          {textoCuadroMesaKds(nombreMesa)}
         </span>
       ) : null}
     </div>
