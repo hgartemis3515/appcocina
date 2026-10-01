@@ -257,13 +257,15 @@ async function enviarEpos(ip, xml, nombre) {
 async function paradasImpresionAutomatica() {
   try {
     const base = getServerBaseUrl();
-    const res = await fetch(base ? `${base}/api/configuracion` : '/api/configuracion');
+    const url = base
+      ? `${base}/api/configuracion/impresion-automatica`
+      : '/api/configuracion/impresion-automatica';
+    const res = await fetch(url);
     if (!res.ok) return { cocina: false, caja: false };
     const data = await res.json();
-    const c = data?.configuracion?.cocina || {};
     return {
-      cocina: c.detenerImpresionCocina === true,
-      caja: c.detenerImpresionCaja === true,
+      cocina: data?.detenerImpresionCocina === true,
+      caja: data?.detenerImpresionCaja === true,
     };
   } catch {
     return { cocina: false, caja: false };
