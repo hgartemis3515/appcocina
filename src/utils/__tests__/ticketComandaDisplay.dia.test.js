@@ -1,5 +1,5 @@
 import { getComandasNumbersFromTicket, getComandaDisplayLabel } from '../ticketComandaDisplay';
-import { etiquetaMozoTicket, etiquetaMozoDeTickets } from '../numeroComandaMozo';
+import { etiquetaMozoTicket, etiquetaMozoDeTickets, partesMozoConColor } from '../numeroComandaMozo';
 import { groupTicketsByMozo } from '../ticketSort';
 
 describe('numero del dia en tickets', () => {
@@ -31,5 +31,24 @@ describe('numero del dia en tickets', () => {
     expect(grupos[0].nombre).toBe('Ana');
     expect(grupos[0].etiqueta).toBe('Ana 5');
     expect(etiquetaMozoDeTickets(grupos[0].tickets)).toBe('Ana 5');
+  });
+
+  test('al juntar comandas conserva el color de perfil del mozo', () => {
+    const partes = partesMozoConColor([
+      {
+        nombreMozo: 'Jose',
+        mozo: { name: 'Jose', colorPerfil: '#047857', colorLetraPerfil: '#fde68a' },
+        comandas: [{ numeroComandaMozo: 1, mozoNombre: 'Jose' }],
+      },
+      {
+        nombreMozo: 'Jose',
+        mozo: '64b0a1',
+        comandas: [{ numeroComandaMozo: 2, mozoNombre: 'Jose' }],
+      },
+    ]);
+    expect(partes).toHaveLength(1);
+    expect(partes[0].etiqueta).toBe('Jose 1+2');
+    expect(partes[0].colorPerfil).toBe('#047857');
+    expect(partes[0].colorLetra).toBe('#fde68a');
   });
 });

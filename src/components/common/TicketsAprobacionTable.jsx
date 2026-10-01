@@ -4,8 +4,7 @@ import {
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
-import BadgeNombreMozo from './BadgeNombreMozo';
-import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
+import BadgeNombreMozo, { BadgesMozoDeTickets } from './BadgeNombreMozo';
 import TotalCuentaCobro from './TotalCuentaCobro';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
@@ -576,10 +575,7 @@ export default function TicketsAprobacionTable({
                     </td>
                     <td className="px-3 py-2 min-w-[160px]">
                       <div className="truncate">
-                        <BadgeNombreMozo
-                          nombre={etiquetaMozoDeTickets(fila.tickets) || getMozoNombre(first)}
-                          configVista={MOZO_VISTA_AVANZADA}
-                        />
+                        <BadgesMozoDeTickets tickets={fila.tickets} configVista={MOZO_VISTA_AVANZADA} />
                       </div>
                     </td>
                     <td className="px-3 py-2">

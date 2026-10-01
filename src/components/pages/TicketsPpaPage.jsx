@@ -20,8 +20,7 @@ import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
-import BadgeNombreMozo from '../common/BadgeNombreMozo';
-import { etiquetaMozoDeTickets } from '../../utils/numeroComandaMozo';
+import BadgeNombreMozo, { BadgesMozoDeTickets } from '../common/BadgeNombreMozo';
 import { indexarCobroPorCantidad, idsOcultosCobro } from '../../utils/cobroPorCantidadVista';
 import TotalCuentaCobro from '../common/TotalCuentaCobro';
 import { useConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
@@ -1368,7 +1367,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           </div>
                           <div className="flex items-center gap-1 text-gray-400 text-xs">
                             <FaUser className="text-gray-500" />
-                            <BadgeNombreMozo nombre={etiquetaMozoDeTickets(fila.tickets) || undefined} ticket={etiquetaMozoDeTickets(fila.tickets) ? null : primero} configVista={tablaPrefs} />
+                            <BadgesMozoDeTickets tickets={fila.tickets} configVista={tablaPrefs} />
                           </div>
                         </div>
                       </div>

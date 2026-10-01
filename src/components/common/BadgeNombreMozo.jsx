@@ -1,7 +1,7 @@
 import React from 'react';
 import useConfiguracionCocina from '../../hooks/useConfiguracionCocina';
 import { getMozoNombre } from '../../utils/ticketSort';
-import { etiquetaMozoTicket } from '../../utils/numeroComandaMozo';
+import { etiquetaMozoTicket, partesMozoConColor } from '../../utils/numeroComandaMozo';
 import {
   estiloBadgeNombreMozo,
   colorPerfilDeTicket,
@@ -41,6 +41,39 @@ export default function BadgeNombreMozo({
   return (
     <span className={className} style={estilo}>
       {prefix}{texto}
+    </span>
+  );
+}
+
+/** Nombres del grupo de comandas, cada mozo con su color de perfil. */
+export function BadgesMozoDeTickets({ tickets, configVista, className = '' }) {
+  const partes = partesMozoConColor(tickets);
+  if (partes.length === 0) {
+    return <BadgeNombreMozo configVista={configVista} className={className} />;
+  }
+  if (partes.length === 1) {
+    const p = partes[0];
+    return (
+      <BadgeNombreMozo
+        nombre={p.etiqueta}
+        colorPerfil={p.colorPerfil}
+        colorLetra={p.colorLetra}
+        configVista={configVista}
+        className={className}
+      />
+    );
+  }
+  return (
+    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+      {partes.map((p) => (
+        <BadgeNombreMozo
+          key={p.etiqueta}
+          nombre={p.etiqueta}
+          colorPerfil={p.colorPerfil}
+          colorLetra={p.colorLetra}
+          configVista={configVista}
+        />
+      ))}
     </span>
   );
 }
