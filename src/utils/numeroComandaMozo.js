@@ -19,7 +19,7 @@ function numsMozo(comandas) {
   return nums;
 }
 
-/** `1 Jose` o `1+2 Jose · 3 Ana`. El número del mozo va a la izquierda. */
+/** `Jose 1` o `Jose 1+2 · Ana 3`. El nombre va delante del número del mozo. */
 export function etiquetaMozosComandas(comandas, nombreFallback = '') {
   const ordenadas = [...(comandas || [])].sort(
     (a, b) => (Number(numeroComandaVisible(b)) || 0) - (Number(numeroComandaVisible(a)) || 0)
@@ -34,12 +34,12 @@ export function etiquetaMozosComandas(comandas, nombreFallback = '') {
   }
   if (grupos.size) {
     return [...grupos.entries()]
-      .map(([nombre, nums]) => (nums.length ? `${nums.join('+')} ${nombre}` : nombre))
+      .map(([nombre, nums]) => (nums.length ? `${nombre} ${nums.join('+')}` : nombre))
       .join(' · ');
   }
   const fb = String(nombreFallback || '').trim();
   const nums = numsMozo(ordenadas);
-  if (fb && fb !== 'Sin asignar' && fb !== 'Sin mozo' && nums.length) return `${nums.join('+')} ${fb}`;
+  if (fb && fb !== 'Sin asignar' && fb !== 'Sin mozo' && nums.length) return `${fb} ${nums.join('+')}`;
   return fb;
 }
 
@@ -52,7 +52,7 @@ export function etiquetaMozoTicket(ticket) {
     if (et) return et;
   }
   const n = Number(ticket.numeroComandaMozo);
-  if (Number.isFinite(n) && n > 0) return `${n} ${nombre}`;
+  if (Number.isFinite(n) && n > 0) return `${nombre} ${n}`;
   return nombre;
 }
 

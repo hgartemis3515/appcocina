@@ -37,10 +37,11 @@ describe('ticket cocina compacto', () => {
     }, { filtrarComandaNumero: 11, revisionTicket: 1 });
     expect(out.productos).toHaveLength(1);
     expect(out.productos[0].nombre).toBe('Chicha');
-    expect(out.comandaNumeroDisplay).toBe('#11a');
+    expect(out.comandaNumeroDisplay).toBe('#11b');
   });
 
-  test('letra 2 = B', () => {
-    expect(letraRevisionTicket(2)).toBe('B');
+  test('letra 1 = b y 2 = c', () => {
+    expect(letraRevisionTicket(1)).toBe('b');
+    expect(letraRevisionTicket(2)).toBe('c');
   });
 });

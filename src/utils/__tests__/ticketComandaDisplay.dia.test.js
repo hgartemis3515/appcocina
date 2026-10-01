@@ -13,14 +13,14 @@ describe('numero del dia en tickets', () => {
     };
     expect(getComandasNumbersFromTicket(ticket)).toEqual([3, 4]);
     expect(getComandaDisplayLabel(ticket)).toBe('#4+#3');
-    expect(etiquetaMozoTicket(ticket)).toBe('2+1 Jose');
+    expect(etiquetaMozoTicket(ticket)).toBe('Jose 2+1');
   });
 
   test('si no hay numero del dia usa el snapshot', () => {
     expect(getComandasNumbersFromTicket({ comandasNumbers: [81, 82] })).toEqual([81, 82]);
   });
 
-  test('el grupo de mozos muestra el numero a la izquierda', () => {
+  test('el grupo de mozos muestra el nombre delante del numero', () => {
     const grupos = groupTicketsByMozo([
       {
         _id: '1',
@@ -29,7 +29,7 @@ describe('numero del dia en tickets', () => {
       },
     ]);
     expect(grupos[0].nombre).toBe('Ana');
-    expect(grupos[0].etiqueta).toBe('5 Ana');
-    expect(etiquetaMozoDeTickets(grupos[0].tickets)).toBe('5 Ana');
+    expect(grupos[0].etiqueta).toBe('Ana 5');
+    expect(etiquetaMozoDeTickets(grupos[0].tickets)).toBe('Ana 5');
   });
 });

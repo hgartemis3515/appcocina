@@ -79,6 +79,7 @@ import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import useReservasProgramadas from "../../hooks/useReservasProgramadas";
 import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { apiPut } from "../../config/apiClient";
+import { imprimirTicketCocinaTrasEliminar } from "../../utils/imprimirTicketCocinaKds";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, colorLetraDeComanda } from "../../utils/estiloMozoNombreKds";
@@ -4371,13 +4372,20 @@ const ComandaStyle = ({
     }
     setEliminarPlatoLoading(true);
     try {
-      await apiPut(`/api/comanda/${r.comandaId}/eliminar-platos`, {
+      const data = await apiPut(`/api/comanda/${r.comandaId}/eliminar-platos`, {
         platosAEliminar: r.indices,
         motivo,
         sourceApp: 'cocina',
         usuarioId: userId || undefined,
         usuarioNombre: userName || undefined,
       });
+      if (data?.comanda) {
+        try {
+          await imprimirTicketCocinaTrasEliminar(data.comanda, comandas);
+        } catch (printErr) {
+          alert(printErr?.message || 'El plato se eliminó, pero no se imprimió el ticket de cocina.');
+        }
+      }
       setEliminarPlatoMotivo('');
       setShowEliminarPlatoModal(false);
       setPlatosChecked(new Map());

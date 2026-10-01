@@ -18,12 +18,11 @@ function escapeHtml(str) {
 export function letraRevisionTicket(n) {
   const k = Math.floor(Number(n) || 0);
   if (k < 1) return '';
-  if (k === 1) return 'a';
-  let x = k;
+  let x = k + 1;
   let s = '';
   while (x > 0) {
     const r = (x - 1) % 26;
-    s = String.fromCharCode(65 + r) + s;
+    s = String.fromCharCode(97 + r) + s;
     x = Math.floor((x - 1) / 26);
   }
   return s;
@@ -39,7 +38,7 @@ function ordenarNumerosLetrero(nums) {
 export function formatLetreroTicket(comandas) {
   const byN = new Map();
   for (const c of comandas || []) {
-    const dia = c?.numeroComandaDia;
+    const dia = c?.numeroComandaDia ?? c?.numComanda;
     const hist = c?.comandaNumber;
     const n = (dia != null && dia !== '' && Number.isFinite(Number(dia)))
       ? Number(dia)
@@ -79,6 +78,24 @@ function celdaMeta(label, value) {
   return `<td style="width:50%;padding:2px 3px;border:1px solid #000;vertical-align:top;">
     <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.3px;">${escapeHtml(label)}</div>
     <div style="font-size:12px;font-weight:700;line-height:1.2;">${escapeHtml(value || '—')}</div>
+  </td>`;
+}
+
+/** Mozo y mesa: el valor ocupa el cuadro, centrado. */
+function textoMesaTicket(mesa) {
+  const s = String(mesa ?? '').trim();
+  if (!s || s === '—' || s === '-') return '—';
+  if (/^sin mesa$/i.test(s)) return s;
+  if (/^m/i.test(s)) return s;
+  return `M${s}`;
+}
+
+function celdaLlena(value) {
+  const texto = String(value || '—');
+  const n = texto.length;
+  const size = n <= 4 ? 32 : n <= 9 ? 24 : n <= 16 ? 18 : 14;
+  return `<td style="width:50%;height:52px;padding:0 2px;border:1px solid #000;vertical-align:middle;text-align:center;">
+    <div style="font-size:${size}px;font-weight:800;line-height:1.05;text-align:center;word-break:break-word;">${escapeHtml(texto)}</div>
   </td>`;
 }
 
@@ -124,8 +141,9 @@ export function filtrarDatosTicketCocina(datos, filtro = {}) {
 /**
  * @returns {{ html: string, heightPx: number }}
  */
-export function generarHtmlTicketCocina({ datos }) {
+export function generarHtmlTicketCocina({ datos, cocina = true }) {
   const d = datos || {};
+  const esCocina = cocina !== false;
   const productos = (d.productos || []).filter((p) => p && !p.eliminado && !p.anulado);
   const simbolo = simboloDe(d);
   const letrero = d.comandaNumeroDisplay
@@ -147,10 +165,12 @@ export function generarHtmlTicketCocina({ datos }) {
     const unit = Number(p.precio ?? p.precioUnitario) || 0;
     const line = montoLinea(p);
     bruto += line;
-    filas += `<tr class="prod-item">
-      <td style="width:18px;padding:3px 2px;vertical-align:middle;">
+    const cuadro = esCocina
+      ? `<td style="width:18px;padding:3px 2px;vertical-align:middle;">
         <span style="display:inline-block;width:${CUADRO_PX}px;height:${CUADRO_PX}px;border:1.6px solid #000;box-sizing:border-box;"></span>
-      </td>
+      </td>`
+      : '';
+    filas += `<tr class="prod-item">${cuadro}
       <td style="padding:3px 2px;text-align:center;font-weight:700;width:22px;">${cant}</td>
       <td style="padding:3px 2px;">${escapeHtml(nombreProducto(p))}</td>
       <td style="padding:3px 2px;text-align:right;white-space:nowrap;">${fmt(unit)}</td>
@@ -164,16 +184,16 @@ export function generarHtmlTicketCocina({ datos }) {
     : Math.max(0, bruto - desc);
 
   let html = '';
-  html += `<div style="text-align:left;font-size:14px;font-weight:800;letter-spacing:1px;line-height:1.1;">COCINA</div>`;
+  html += `<div style="text-align:left;font-size:14px;font-weight:800;letter-spacing:1px;line-height:1.1;">${esCocina ? 'COCINA' : 'CAJA'}</div>`;
   html += `<div style="text-align:center;font-size:22px;font-weight:800;letter-spacing:0.5px;line-height:1.15;padding:4px 0 6px;">${escapeHtml(letrero)}</div>`;
   html += `<table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
-    <tr>${celdaMeta('Mozo', String(d.mozo || '').toLocaleUpperCase('es-PE'))}${celdaMeta('Mesa', d.mesa != null ? String(d.mesa) : '')}</tr>
+    <tr>${celdaLlena(String(d.mozo || '—').toLocaleUpperCase('es-PE'))}${celdaLlena(textoMesaTicket(d.mesa).toLocaleUpperCase('es-PE'))}</tr>
     <tr>${celdaMeta('Fecha', fecha)}${celdaMeta('Área', d.area)}</tr>
   </table>`;
   html += `<table style="width:100%;border-collapse:collapse;font-size:11px;">
     <thead>
       <tr>
-        <th style="width:18px;border-bottom:1px solid #000;"></th>
+        ${esCocina ? '<th style="width:18px;border-bottom:1px solid #000;"></th>' : ''}
         <th style="text-align:center;border-bottom:1px solid #000;padding:2px;">Cant</th>
         <th style="text-align:left;border-bottom:1px solid #000;padding:2px;">Plato</th>
         <th style="text-align:right;border-bottom:1px solid #000;padding:2px;">P.Unit</th>
