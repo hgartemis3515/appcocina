@@ -877,7 +877,7 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
           <fieldset className="space-y-2 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Botón Eliminar plato</legend>
             <p className={`${textSecondary} text-xs`}>
-              Cambia solo el texto y el color del botón de la barra. La función de eliminar no cambia.
+              Oculta el texto rojo. La letra, el color de letra y el fondo los eliges tú. La función de eliminar no cambia.
             </p>
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -887,16 +887,55 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 className="w-5 h-5 mt-0.5 rounded accent-gray-400"
               />
               <span>
-                <span className={`${textModal} font-semibold block`}>Camuflar como EPA</span>
+                <span className={`${textModal} font-semibold block`}>Ocultar eliminar plato personalizable</span>
                 <span className={`${textSecondary} text-xs block mt-0.5`}>
-                  El botón rojo «Eliminar plato» se muestra como <span className="font-semibold text-gray-400">EPA</span> en gris.
+                  El botón de la barra superior usa la letra y los colores de abajo.
                 </span>
               </span>
             </label>
             {config.camuflarEliminarPlatoEpa === true && (
-              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-500 text-gray-200">
-                EPA
-              </span>
+              <div className="space-y-2 pl-1">
+                <label className="block">
+                  <span className={`block ${textModal} text-sm font-semibold mb-1`}>Letra</span>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={config.eliminarPlatoLetra || ''}
+                    placeholder="EPA"
+                    onChange={(e) => updateConfig({ eliminarPlatoLetra: e.target.value })}
+                    className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de letra</span>
+                    <input
+                      type="color"
+                      value={config.eliminarPlatoColorLetra || '#e5e7eb'}
+                      onChange={(e) => updateConfig({ eliminarPlatoColorLetra: e.target.value })}
+                      className="w-full h-10 rounded border border-gray-500 bg-transparent"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={`block ${textModal} text-sm font-semibold mb-1`}>Color de fondo</span>
+                    <input
+                      type="color"
+                      value={config.eliminarPlatoColorFondo || '#6b7280'}
+                      onChange={(e) => updateConfig({ eliminarPlatoColorFondo: e.target.value })}
+                      className="w-full h-10 rounded border border-gray-500 bg-transparent"
+                    />
+                  </label>
+                </div>
+                <span
+                  className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold"
+                  style={{
+                    color: config.eliminarPlatoColorLetra || '#e5e7eb',
+                    backgroundColor: config.eliminarPlatoColorFondo || '#6b7280',
+                  }}
+                >
+                  {String(config.eliminarPlatoLetra || '').trim() || 'EPA'}
+                </span>
+              </div>
             )}
           </fieldset>
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">

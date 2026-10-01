@@ -214,9 +214,10 @@ describe('sosTablaKds', () => {
       grupoSosDePlato: (p) => (p.platoId === 1 ? 'Chaufa' : ''),
     });
     expect(grupos).toHaveLength(1);
-    expect(grupos[0].familia).toBeFalsy();
+    expect(grupos[0].familia).toBe(true);
     expect(grupos[0].nombre).toBe('Chaufa de pollo');
     expect(grupos[0].cantidad).toBe(2);
+    expect(grupos[0].tipos).toHaveLength(2);
   });
 
   test('dos tipos se juntan y salen del más antiguo al más nuevo', () => {
@@ -288,5 +289,21 @@ describe('sosTablaKds', () => {
     expect(grupos[0].nombre).toBe('Pollo leña');
     expect(grupos[0].cantidad).toBe(2);
     expect(grupos[0].tipos.map((t) => t.nombre).sort()).toEqual(['Pollo leña Pecho', 'Pollo leña Pierna'].sort());
+  });
+
+  test('cantidad 4 del mismo plato abre flecha con una unidad por fila', () => {
+    const comandas = [{
+      _id: 'c1',
+      createdAt: '2026-09-21T10:00:00.000Z',
+      platos: [{ nombre: 'Leña', tiempos: { pedido: '2026-09-21T10:00:00.000Z' } }],
+      cantidades: [4],
+    }];
+    const grupos = agruparPlatosSosTabla(comandas);
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].familia).toBe(true);
+    expect(grupos[0].nombre).toBe('Leña');
+    expect(grupos[0].cantidad).toBe(4);
+    expect(grupos[0].tipos).toHaveLength(4);
+    expect(grupos[0].tipos.every((t) => t.cantidad === 1 && t.nombre === 'Leña')).toBe(true);
   });
 });

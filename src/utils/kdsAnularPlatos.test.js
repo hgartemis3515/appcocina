@@ -136,10 +136,16 @@ describe('camuflar Eliminar plato como EPA', () => {
     expect(clasesBotonEliminarKds({})).toContain('bg-red-600');
   });
 
-  test('con flag muestra EPA en gris', () => {
-    expect(camuflarEliminarPlatoEpa({ camuflarEliminarPlatoEpa: true })).toBe(true);
-    expect(etiquetaBotonEliminarKds({ label: 'Eliminar plato' }, { camuflarEliminarPlatoEpa: true })).toBe('EPA');
+  test('con flag usa la letra y los colores guardados', () => {
+    const cfg = {
+      camuflarEliminarPlatoEpa: true,
+      eliminarPlatoLetra: 'X',
+      eliminarPlatoColorLetra: '#111111',
+      eliminarPlatoColorFondo: '#abcdef',
+    };
+    expect(camuflarEliminarPlatoEpa(cfg)).toBe(true);
+    expect(etiquetaBotonEliminarKds({ label: 'Eliminar plato' }, cfg)).toBe('X');
     expect(etiquetaBotonEliminarKds({ label: 'Eliminar comanda' }, { camuflarEliminarPlatoEpa: true })).toBe('EPA');
-    expect(clasesBotonEliminarKds({ camuflarEliminarPlatoEpa: true })).toContain('bg-gray-500');
+    expect(clasesBotonEliminarKds(cfg)).not.toContain('bg-red-600');
   });
 });

@@ -309,6 +309,9 @@ export const DEFAULT_KDS_CONFIG = {
   colorReservaCronometroFondo: '#fb923c',
   ocultarCohetePrioridadKds: false,
   camuflarEliminarPlatoEpa: false,
+  eliminarPlatoLetra: '',
+  eliminarPlatoColorLetra: '#e5e7eb',
+  eliminarPlatoColorFondo: '#6b7280',
   autoAgrandamientoTarjetasKds: true,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 

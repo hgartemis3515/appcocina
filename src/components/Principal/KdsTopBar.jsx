@@ -10,7 +10,7 @@ import {
   FaCompress,
   FaHistory,
   FaEllipsisV,
-  FaChartBar,
+  FaTrash,
   FaCalendarAlt,
 } from "react-icons/fa";
 import BotonCandadoCocina from "../common/BotonCandadoCocina";
@@ -56,7 +56,11 @@ const KdsTopBar = ({
   reservadasCount = 0,
   nightMode = true,
   onToggleSearch,
-  onShowReports,
+  onEliminarPlato,
+  mostrarEliminarPlato = false,
+  eliminarPlatoLabel = "Eliminar plato",
+  eliminarPlatoEstilo,
+  eliminarPlatoCamuflado = false,
   onShowConfig,
   onShowRevertir,
   onShowHistorial,
@@ -277,10 +281,18 @@ const KdsTopBar = ({
 
         {/* --- Acciones SECUNDARIAS: visibles en md+, overflow en móvil --- */}
         <div className="hidden md:flex items-center gap-2">
-          <button onClick={onShowReports} className={actionBtn} title="Reportes" aria-label="Reportes">
-            <FaChartBar />
-            <span className="hidden lg:inline">Reportes</span>
-          </button>
+          {mostrarEliminarPlato ? (
+            <button
+              onClick={onEliminarPlato}
+              className={actionBtn}
+              style={eliminarPlatoEstilo}
+              title="Eliminar plato"
+              aria-label={eliminarPlatoLabel}
+            >
+              {!eliminarPlatoCamuflado && <FaTrash />}
+              <span className={eliminarPlatoCamuflado ? undefined : 'hidden lg:inline'}>{eliminarPlatoLabel}</span>
+            </button>
+          ) : null}
           <button onClick={onShowRevertir} className={actionBtn} title="Revertir" aria-label="Revertir">
             <FaUndo />
             <span className="hidden lg:inline">Revertir</span>
@@ -317,7 +329,13 @@ const KdsTopBar = ({
               className={`absolute right-0 top-full mt-1 ${bgOverflowMenu} border ${borderOverflow} rounded-lg shadow-2xl py-1 min-w-[200px] z-50`}
               role="menu"
             >
-              <OverflowItem onClick={run(onShowReports)} icon={<FaChartBar />} label="Reportes" />
+              {mostrarEliminarPlato ? (
+                <OverflowItem
+                  onClick={run(onEliminarPlato)}
+                  icon={eliminarPlatoCamuflado ? null : <FaTrash />}
+                  label={eliminarPlatoLabel}
+                />
+              ) : null}
               <OverflowItem onClick={run(onShowRevertir)} icon={<FaUndo />} label="Revertir" />
               <OverflowItem onClick={run(onShowConfig)} icon={<FaCog />} label="Configuración" />
               <OverflowItem

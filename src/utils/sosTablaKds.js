@@ -224,6 +224,48 @@ function fundirFamiliasSos(grupos) {
   return salida;
 }
 
+/** Cantidad > 1: la fila se abre con flecha, una línea por unidad, como las familias. */
+function envolverCantidadSos(g) {
+  if (!g || g.familia || !(Number(g.cantidad) > 1)) return g;
+  const lineas = (g.items || []).length
+    ? g.items
+    : [{
+      comandaId: g.comandaIdMasAntigua,
+      platoIndex: g.platoIndexMasAntigua,
+      ts: g.tsMin,
+      nombre: g.nombre,
+      cantidad: g.cantidad,
+    }];
+  const tipos = [];
+  lineas.forEach((it, idx) => {
+    const n = Math.max(1, Math.floor(Number(it.cantidad) || 1));
+    for (let u = 0; u < n; u += 1) {
+      tipos.push({
+        clave: `${g.clave}|Q${idx}-${u}`,
+        nombre: it.nombre || g.nombre,
+        cantidad: 1,
+        prioridad: g.prioridad,
+        primero: false,
+        prioMax: g.prioMax || 0,
+        tsMin: it.ts ?? g.tsMin,
+        categorias: g.categorias || [],
+        comandaIdMasAntigua: it.comandaId,
+        platoIndexMasAntigua: it.platoIndex,
+        items: [{ ...it, cantidad: 1 }],
+      });
+    }
+  });
+  return { ...g, familia: true, tipos };
+}
+
+function envolverCantidadesSos(grupos) {
+  return (grupos || []).map((g) => {
+    const tipos = g?.tipos ? envolverCantidadesSos(g.tipos) : g?.tipos;
+    const base = tipos ? { ...g, tipos } : g;
+    return envolverCantidadSos(base);
+  });
+}
+
 /**
  * Comandas del modal: solo platos de la familia, de la más antigua a la más nueva.
  */
@@ -294,7 +336,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
       const verde = colaUno || tablaUnoDos;
       const categorias = nombresCategoriaPlato(plato);
     const prev = groups.get(clave);
-      const item = { comandaId, platoIndex, ts, nombre };
+      const item = { comandaId, platoIndex, ts, nombre, cantidad };
       const familiaLabel = grupoDe ? String(grupoDe(plato) || '').trim() : '';
       const familiaClave = claveFamiliaSos(familiaLabel);
       if (!prev) {
@@ -336,7 +378,7 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
     });
   }
 
-  return fundirFamiliasSos(fundirOpsSos([...groups.values()])).sort((a, b) => {
+  const ordenados = fundirFamiliasSos(fundirOpsSos([...groups.values()])).sort((a, b) => {
     const alFinal = categoriasAlFinalDe(opts.categoriasAlFinal);
     const fa = grupoCategoriaAlFinal(a, alFinal) ? 1 : 0;
     const fb = grupoCategoriaAlFinal(b, alFinal) ? 1 : 0;
@@ -346,4 +388,5 @@ export function agruparPlatosSosTabla(comandas, opts = {}) {
     if (a.tsMin !== b.tsMin) return a.tsMin - b.tsMin;
     return a.nombre.localeCompare(b.nombre, 'es');
   });
+  return envolverCantidadesSos(ordenados);
 }

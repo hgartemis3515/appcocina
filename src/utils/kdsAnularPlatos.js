@@ -101,21 +101,67 @@ export function resolverAccionEliminarKds(platosChecked, platoStates, comandas, 
 
 export const LABEL_EPA_CAMUFLAJE = 'EPA';
 
-/** Personalizar → Vista y alertas: el botón rojo se ve EPA en gris. */
+/** Vista y alertas: el botón se sustituye por letra, color de letra y fondo. */
 export function camuflarEliminarPlatoEpa(config) {
   return config?.camuflarEliminarPlatoEpa === true;
 }
 
+export function textoBotonEliminarKds(config) {
+  const letra = String(config?.eliminarPlatoLetra || '').trim();
+  return letra || LABEL_EPA_CAMUFLAJE;
+}
+
 export function etiquetaBotonEliminarKds(accion, config) {
-  if (camuflarEliminarPlatoEpa(config)) return LABEL_EPA_CAMUFLAJE;
+  if (camuflarEliminarPlatoEpa(config)) return textoBotonEliminarKds(config);
   return accion?.label || 'Eliminar plato';
 }
 
+export function estiloBotonEliminarKds(config) {
+  if (!camuflarEliminarPlatoEpa(config)) return undefined;
+  return {
+    backgroundColor: config?.eliminarPlatoColorFondo || '#6b7280',
+    color: config?.eliminarPlatoColorLetra || '#e5e7eb',
+  };
+}
+
 export function clasesBotonEliminarKds(config) {
-  if (camuflarEliminarPlatoEpa(config)) {
-    return 'px-4 py-2 bg-gray-500 hover:bg-gray-400 text-gray-200 font-semibold rounded-lg text-sm shadow-md flex items-center gap-1';
+  const base = 'px-4 py-2 font-semibold rounded-lg text-sm shadow-md flex items-center gap-1';
+  if (camuflarEliminarPlatoEpa(config)) return base;
+  return `${base} bg-red-600 hover:bg-red-500 text-white shadow-lg ring-2 ring-red-300`;
+}
+
+/** Selección directa del modal de la tabla (una comanda, sus índices). */
+export function resolverEliminarSeleccionKds(comanda, indices, permisos = {}) {
+  const lista = [...new Set((indices || []).map((n) => Number(n)).filter((n) => Number.isInteger(n) && n >= 0))];
+  if (!comanda?._id || !lista.length) {
+    return { ok: false, error: 'Seleccione un plato de la tabla.' };
   }
-  return 'px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-sm shadow-lg ring-2 ring-red-300 flex items-center gap-1';
+  const tipo = esEliminarComandaCompletaKds(comanda, lista) ? 'comanda' : 'plato';
+  const puedePlatos = permisos.eliminarPlatos !== false;
+  const puedeComanda = permisos.eliminarComanda === true;
+  if (tipo === 'comanda' && !puedeComanda) {
+    return {
+      ok: false,
+      tipo,
+      bloqueadoPorPermiso: true,
+      error: 'No tienes permiso para eliminar la comanda.',
+    };
+  }
+  if (tipo === 'plato' && !puedePlatos) {
+    return {
+      ok: false,
+      tipo,
+      bloqueadoPorPermiso: true,
+      error: 'No tienes permiso para eliminar platos.',
+    };
+  }
+  return {
+    ok: true,
+    tipo,
+    comandaId: String(comanda._id),
+    indices: lista.sort((a, b) => a - b),
+    label: tipo === 'comanda' ? 'Eliminar comanda' : 'Eliminar plato',
+  };
 }
 
 function platoDeClave(comandas, parsed) {
