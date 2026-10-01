@@ -445,6 +445,7 @@ function mapearTicketADatos(ticket) {
       || (typeof ticket.mozo === 'object' ? ticket.mozo?.name : ticket.mozo)
       || '—',
     area: ticket.area || ticket.mesa?.area?.nombre || '',
+    sinMesa: ticket.sinMesa === true,
     moneda: ticket.moneda === 'USD' ? 'USD' : 'PEN',
     tipoPago: resolverTipoPagoImpresion(ticket),
     pagoForzado: ticket.pagoForzado === true || ticket.origen === 'forzado',

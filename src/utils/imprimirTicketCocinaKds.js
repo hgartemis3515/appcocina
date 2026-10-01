@@ -216,7 +216,12 @@ function productosDe(grupo) {
       const unit = linea.precioUnitario != null
         ? Number(linea.precioUnitario)
         : (Number(linea?.plato?.precio) || 0);
-      out.push({ nombre, cantidad: cant, precio: unit });
+      out.push({
+        nombre,
+        cantidad: cant,
+        precio: unit,
+        tipoServicio: linea.tipoServicio || 'mesa',
+      });
     });
   }
   return out;
@@ -232,6 +237,7 @@ function datosTicketDeGrupo(lista) {
     productos,
     mozo: etiquetaMozosComandas(lista) || base.mozos?.name || base.mozoNombre || '',
     mesa: mesaLabel(base),
+    sinMesa: lista.some((c) => c?.sinMesa === true),
     area: base.areaNombre || base.mesas?.area?.nombre || '',
     fechaPedido: base.createdAt,
     montoDescuento: desc,

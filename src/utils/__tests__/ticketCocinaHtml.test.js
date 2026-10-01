@@ -1,4 +1,4 @@
-const { generarHtmlTicketCocina, filtrarDatosTicketCocina, letraRevisionTicket } = require('../comandaPrint/ticketCocinaHtml');
+const { generarHtmlTicketCocina, filtrarDatosTicketCocina, letraRevisionTicket, tipoCuadroTicket } = require('../comandaPrint/ticketCocinaHtml');
 
 describe('ticket cocina compacto', () => {
   test('sin título de restaurante y con cuadrado de check', () => {
@@ -19,6 +19,9 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('#10a');
     expect(html).toContain('Lomo');
     expect(html).toContain('ANA');
+    expect(html).toContain('>Tipo<');
+    expect(html).toContain('Para Mesa');
+    expect(html).not.toContain('Área');
     expect(html).toContain('>COCINA<');
     expect(html).not.toContain('SAN BENITO');
     expect(html).not.toMatch(/>COMANDA</);
@@ -43,5 +46,14 @@ describe('ticket cocina compacto', () => {
   test('letra 1 = b y 2 = c', () => {
     expect(letraRevisionTicket(1)).toBe('b');
     expect(letraRevisionTicket(2)).toBe('c');
+  });
+
+  test('el cuadro Tipo distingue mesa, llevar y extra', () => {
+    expect(tipoCuadroTicket([{ tipoServicio: 'mesa' }])).toBe('Para Mesa');
+    expect(tipoCuadroTicket([{ tipoServicio: 'para_llevar' }], { sinMesa: true })).toBe('Para llevar');
+    expect(tipoCuadroTicket([
+      { tipoServicio: 'mesa' },
+      { tipoServicio: 'extra_llevar' },
+    ])).toBe('Mesa extra llevar');
   });
 });
