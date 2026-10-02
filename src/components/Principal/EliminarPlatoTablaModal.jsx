@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import { FaDesktop, FaTruck, FaUserClock, FaUserSlash } from 'react-icons/fa';
 import { numeroComandaVisible } from '../../utils/numeroComandaVisible';
+import { MOTIVOS_RAPIDOS_COCINA } from '../../utils/motivosRapidosCocina';
 import { etiquetaMozosComandas } from '../../utils/numeroComandaMozo';
 import { nombreMesaKds, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import { platoVisibleEnTablaKds } from '../../utils/sosTablaKds';
@@ -36,6 +38,13 @@ function nombresMozoFiltro(comanda) {
   return vistos;
 }
 
+const ICONOS_MOTIVO = {
+  cliente_no_desea: FaUserSlash,
+  equivocacion_mozo: FaUserClock,
+  error_sistema: FaDesktop,
+  error_entrega: FaTruck,
+};
+
 function textoMesaCuadro(mesa) {
   const s = String(mesa ?? '').trim();
   const m = s.match(/^M(\d.*)$/i);
@@ -61,7 +70,6 @@ export default function EliminarPlatoTablaModal({
   const [filtroMozo, setFiltroMozo] = useState('');
   const [comandaId, setComandaId] = useState('');
   const [indices, setIndices] = useState([]);
-  const [motivo, setMotivo] = useState('');
 
   const mozosTabla = useMemo(() => {
     const map = new Map();
@@ -114,7 +122,7 @@ export default function EliminarPlatoTablaModal({
     elegir(id, [...set]);
   };
 
-  const confirmar = () => {
+  const confirmar = (motivo) => {
     if (!accion?.ok || !onConfirmar) return;
     onConfirmar({ comandaId: accion.comandaId, indices: accion.indices, motivo });
   };
@@ -207,20 +215,26 @@ export default function EliminarPlatoTablaModal({
         </div>
         <div className={`px-4 py-3 border-t ${borde} space-y-2`}>
           {accion && !accion.ok ? <p className="text-sm text-amber-400">{accion.error}</p> : null}
-          <input
-            className={`w-full p-2 rounded border ${input}`}
-            placeholder="Motivo (obligatorio)"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-          <button
-            type="button"
-            disabled={!accion?.ok || loading || motivo.trim().length < 2}
-            onClick={confirmar}
-            className="w-full min-h-[44px] rounded-lg bg-red-600 text-white font-semibold disabled:opacity-40"
-          >
-            {loading ? 'Eliminando…' : (accion?.label || 'Eliminar plato')}
-          </button>
+          <p className="text-xs opacity-70">
+            {loading ? 'Eliminando…' : 'Elige el motivo. Se elimina al tocarlo.'}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {MOTIVOS_RAPIDOS_COCINA.map((m) => {
+              const Icon = ICONOS_MOTIVO[m.id] || FaUserSlash;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  disabled={!accion?.ok || loading}
+                  onClick={() => confirmar(m.label)}
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl border border-red-500/40 text-xs font-semibold min-h-[72px] disabled:opacity-40"
+                >
+                  <Icon className="text-lg text-red-500" />
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

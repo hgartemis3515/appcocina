@@ -73,6 +73,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'eliminarPlatoColorLetra',
   'eliminarPlatoColorFondo',
   'autoAgrandamientoTarjetasKds',
+  'autoAgrandamientoDefaultOn',
   'fondoConjuntoTarjetas',
   'fondoConjuntoTarjetasClaro',
   'alertYellowMinutes',

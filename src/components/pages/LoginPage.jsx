@@ -356,8 +356,8 @@ const LoginPage = () => {
       return;
     }
 
-    if (!/^\d{8}$/.test(passwordLimpio)) {
-      setLocalError('La contraseña debe tener 8 digitos');
+    if (!/^\d{6,8}$/.test(passwordLimpio)) {
+      setLocalError('La contraseña debe tener 6, 7 u 8 dígitos');
       return;
     }
 
@@ -493,7 +493,7 @@ const LoginPage = () => {
             {/* Password Input */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                Contrasena (DNI)
+                Contrasena (DNI o clave)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -518,9 +518,9 @@ const LoginPage = () => {
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
-              {password.length > 0 && password.length < 8 && (
+              {password.length > 0 && password.length < 6 && (
                 <p className="text-gray-500 text-xs mt-1">
-                  {password.length}/8 digitos
+                  {password.length}/6 mínimo
                 </p>
               )}
             </div>
@@ -565,7 +565,7 @@ const LoginPage = () => {
             {/* Login Button */}
             <button
               type="submit"
-              disabled={isSubmitting || loading || !username.trim() || password.length !== 8}
+              disabled={isSubmitting || loading || !username.trim() || password.length < 6 || password.length > 8}
               className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-orange-500/30"
             >
               {isSubmitting || loading ? (

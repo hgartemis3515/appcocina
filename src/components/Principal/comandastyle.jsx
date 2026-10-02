@@ -1940,6 +1940,14 @@ const ComandaStyle = ({
   const onDobleGrupoSos = useCallback((grupo) => {
     if (!grupo?.familia) return;
     const clave = grupo.clave;
+    if (grupo.porCantidad) {
+      setModalClaveSos((actual) => (actual === clave ? null : clave));
+      if (grupo.comandaIdMasAntigua) {
+        setSosHighlightId(String(grupo.comandaIdMasAntigua));
+        setSosHighlightPlatoIndex(grupo.platoIndexMasAntigua);
+      }
+      return;
+    }
     const abierta = !familiasAbiertasRef.current[clave];
     const dentro = [];
     const walk = (nodo) => {

@@ -8,7 +8,7 @@ export default function SosGrupoModal({ filas = [], renderTarjeta }) {
   if (!filas.length) return null;
   return (
     <div
-      className="absolute inset-0 z-30 overflow-auto bg-black/80"
+      className="absolute inset-0 z-30 overflow-auto bg-black/95"
       aria-label="Comandas agrupadas SOS"
     >
       <div className="flex flex-wrap gap-3 p-4 items-start content-start">

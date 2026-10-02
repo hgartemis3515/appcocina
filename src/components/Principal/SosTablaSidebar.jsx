@@ -53,7 +53,7 @@ const SosTablaSidebar = ({
     const activo = highlightComandaId
       && String(g.comandaIdMasAntigua) === String(highlightComandaId)
       && mismoPlato;
-    const abierta = !!(g.familia && familiasAbiertas[g.clave]);
+    const abierta = !!(g.familia && !g.porCantidad && familiasAbiertas[g.clave]);
     return (
       <button
         key={g.clave}
@@ -117,7 +117,7 @@ const SosTablaSidebar = ({
 export default SosTablaSidebar;
 
 function BloqueGrupo({ g, profundidad, familiasAbiertas, fila }) {
-  const abierta = !!(g.familia && familiasAbiertas[g.clave]);
+  const abierta = !!(g.familia && !g.porCantidad && familiasAbiertas[g.clave]);
   const tipos = abierta ? (g.tipos || []) : [];
   return (
     <div className="relative">

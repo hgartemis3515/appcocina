@@ -224,7 +224,7 @@ function fundirFamiliasSos(grupos) {
   return salida;
 }
 
-/** Cantidad > 1: la fila se abre con flecha, una línea por unidad, como las familias. */
+/** Cantidad > 1: flecha en SOS, sin abrir filas. El doble clic muestra las comandas en el KDS. */
 function envolverCantidadSos(g) {
   if (!g || g.familia || !(Number(g.cantidad) > 1)) return g;
   const lineas = (g.items || []).length
@@ -255,7 +255,7 @@ function envolverCantidadSos(g) {
       });
     }
   });
-  return { ...g, familia: true, tipos };
+  return { ...g, familia: true, porCantidad: true, tipos };
 }
 
 function envolverCantidadesSos(grupos) {
