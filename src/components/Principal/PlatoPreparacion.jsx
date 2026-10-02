@@ -373,18 +373,6 @@ const PlatoPreparacion = ({
             </span>
           ) : null}
 
-          {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
-          {(tipoServicio === 'para_llevar' || tipoServicio === 'extra_llevar') && (
-            <span
-              style={estiloParaLlevar}
-              title={tipoServicio === 'extra_llevar'
-                ? 'Extra cliente (para llevar sin pago adelantado)'
-                : 'Este plato es para llevar (no se sirve en mesa)'}
-            >
-              {tipoServicio === 'extra_llevar' ? 'EXTRA CLIENTE' : 'PARA LLEVAR'}
-            </span>
-          )}
-          
           {/* v7.2: Badge de cocinero que esta procesando el plato */}
           {procesandoPor?.cocineroId && !ocultarCuadroCocinero && (
             <motion.span
@@ -414,6 +402,19 @@ const PlatoPreparacion = ({
                 </span>
               )}
             </motion.span>
+          )}
+
+          {(tipoServicio === 'para_llevar' || tipoServicio === 'extra_llevar') && (
+            <span className="basis-full flex">
+              <span
+                style={estiloParaLlevar}
+                title={tipoServicio === 'extra_llevar'
+                  ? 'Extra cliente (para llevar sin pago adelantado)'
+                  : 'Este plato es para llevar (no se sirve en mesa)'}
+              >
+                {tipoServicio === 'extra_llevar' ? 'EXTRA CLIENTE' : 'PARA LLEVAR'}
+              </span>
+            </span>
           )}
         </div>
         
