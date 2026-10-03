@@ -1,3 +1,13 @@
+import { letraRevisionTicket } from './letraRevisionTicket';
+
+/** `#12` o `#12b`. Sin numeroComandaDia no cae al histórico. */
+export function etiquetaComandaDia(comanda) {
+  if (!comanda) return '—';
+  const n = comanda.numeroComandaDia;
+  if (n == null || n === '' || !Number.isFinite(Number(n))) return '—';
+  return `#${Number(n)}${letraRevisionTicket(comanda.revisionTicket)}`;
+}
+
 /** Número que ve cocina y mozos. El histórico (comandaNumber) no se muestra aquí. */
 export function numeroComandaVisible(comanda) {
   if (!comanda) return null;

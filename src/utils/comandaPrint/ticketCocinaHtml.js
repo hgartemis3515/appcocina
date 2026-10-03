@@ -3,6 +3,9 @@
  * sin título de restaurante, cuadrado a la izquierda de cada plato.
  */
 import { envolverHtmlBoucherTicket, EPSON_TM_M30II_RECEIPT } from './comandaHtml.js';
+import { letraRevisionTicket } from '../letraRevisionTicket';
+
+export { letraRevisionTicket };
 
 const CUADRO_PX = 12;
 
@@ -33,19 +36,6 @@ export function htmlCambioGuarnicion(plato) {
   }
   if (!partes.length) return '';
   return `<div style="font-size:10px;font-weight:700;line-height:1.2;padding-top:1px;">${partes.join('<br/>')}</div>`;
-}
-
-export function letraRevisionTicket(n) {
-  const k = Math.floor(Number(n) || 0);
-  if (k < 1) return '';
-  let x = k + 1;
-  let s = '';
-  while (x > 0) {
-    const r = (x - 1) % 26;
-    s = String.fromCharCode(97 + r) + s;
-    x = Math.floor((x - 1) / 26);
-  }
-  return s;
 }
 
 /** Cuadro Tipo del ticket: Para Mesa, Para llevar o Mesa extra llevar. */
@@ -97,8 +87,20 @@ function fmt(n) {
   return Number(n || 0).toFixed(2);
 }
 
+function textoNombre(v) {
+  const s = String(v || '').trim();
+  if (!s || s === 'Plato' || s === 'Plato desconocido' || s === 'Sin nombre') return '';
+  return s;
+}
+
 function nombreProducto(p) {
-  return p?.nombre || p?.nombreComercial || p?.plato?.nombre || 'Plato';
+  const plato = p?.plato && typeof p.plato === 'object' ? p.plato : {};
+  return textoNombre(p?.nombreCocinaPedido)
+    || textoNombre(p?.nombre)
+    || textoNombre(p?.nombreComercial)
+    || textoNombre(plato.nombreCocina)
+    || textoNombre(plato.nombre)
+    || 'Plato';
 }
 
 function montoLinea(p) {
@@ -218,9 +220,15 @@ export function generarHtmlTicketCocina({ datos, cocina = true }) {
       </td>`
       : '';
     const cambioG = esCocina ? htmlCambioGuarnicion(p) : '';
+    const marcaAnulado = d.anulacion
+      ? '<span style="font-weight:900;letter-spacing:0.4px;white-space:nowrap;">ANULADO</span>'
+      : '';
+    const nombreCelda = marcaAnulado
+      ? `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><span>${escapeHtml(nombreProducto(p))}${cambioG}</span>${marcaAnulado}</div>`
+      : `${escapeHtml(nombreProducto(p))}${cambioG}`;
     filas += `<tr class="prod-item">${cuadro}
       <td style="padding:3px 2px;text-align:center;font-weight:700;width:22px;">${cant}</td>
-      <td style="padding:3px 2px;">${escapeHtml(nombreProducto(p))}${cambioG}</td>
+      <td style="padding:3px 2px;">${nombreCelda}</td>
       <td style="padding:3px 2px;text-align:right;white-space:nowrap;">${fmt(unit)}</td>
       <td style="padding:3px 2px;text-align:right;white-space:nowrap;font-weight:700;">${fmt(line)}</td>
     </tr>`;

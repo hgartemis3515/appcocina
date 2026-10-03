@@ -48,6 +48,26 @@ describe('ticket cocina compacto', () => {
     expect(letraRevisionTicket(2)).toBe('c');
   });
 
+  test('anulación: nombre del plato y ANULADO a la derecha', () => {
+    const { html } = generarHtmlTicketCocina({
+      datos: {
+        comandaNumeroDisplay: '#4b',
+        mozo: 'Ana',
+        mesa: 2,
+        productos: [
+          { plato: { nombre: 'Ceviche', nombreCocina: 'Ceviche' }, cantidad: 1, precio: 28 },
+        ],
+        anulacion: { usuario: 'Admin', hora: '03/10/2026 12:00', motivo: 'Error' },
+        montoDescuento: 0,
+        total: 28,
+      },
+    });
+    expect(html).toContain('Ceviche');
+    expect(html).toContain('>ANULADO<');
+    expect(html).toContain('justify-content:space-between');
+    expect(html).toContain('ANULADO X');
+  });
+
   test('el cuadro Tipo distingue mesa, llevar y extra', () => {
     expect(tipoCuadroTicket([{ tipoServicio: 'mesa' }])).toBe('Para Mesa');
     expect(tipoCuadroTicket([{ tipoServicio: 'para_llevar' }], { sinMesa: true })).toBe('Para llevar');

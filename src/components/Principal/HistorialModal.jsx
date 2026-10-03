@@ -8,8 +8,18 @@ import {
   FaFilter,
 } from "react-icons/fa";
 import useHistorialCocina from "../../hooks/useHistorialCocina";
-import HistorialComandaDetalle from "./HistorialComandaDetalle";
+import HistorialComandaDetalle, { NombreMozoHistorial } from "./HistorialComandaDetalle";
 import { classifyComandaHistorial, ultimaHoraEntregado } from "../../utils/historialComandaRules";
+import { etiquetaComandaDia } from "../../utils/numeroComandaVisible";
+
+function clienteDe(c) {
+  return String(
+    c?.clienteNombre
+    || c?.clienteNombreParaLlevar
+    || (c?.cliente && typeof c.cliente === "object" ? c.cliente.nombre : "")
+    || ""
+  ).trim();
+}
 
 /**
  * HistorialModal — Modal principal del Historial de cocina.
@@ -69,8 +79,10 @@ const HistorialModal = ({
   // Modo por plato: aplanar platos entregados
   const platosEntregados = modoLista === "plato" ? comandas.flatMap((c) => {
     const mesa = c.mesaNumero ?? c.mesas?.nummesa ?? c.mesa?.numero ?? c.mesa ?? "—";
-    const orden = c.comandaNumber ?? c.orden ?? c.numeroOrden ?? "—";
+    const orden = etiquetaComandaDia(c);
     const mozo = c.mozoNombre || c.mozos?.name || "Sin mozo";
+    const cliente = clienteDe(c);
+    const obs = String(c.observaciones || "").trim();
     return (c.platos || [])
       .filter((p) => !p.eliminado && !p.anulado && ["salio", "entregado", "pagado"].includes(String(p.estado).toLowerCase()))
       .map((p, idx) => ({
@@ -80,6 +92,8 @@ const HistorialModal = ({
         mesa,
         orden,
         mozo,
+        cliente,
+        obs,
       }));
   }) : [];
 
@@ -220,24 +234,35 @@ const HistorialModal = ({
                 const cl = classify(c);
                 const ultima = ultimaHoraEntregado(c);
                 const mesa = c.mesaNumero ?? c.mesas?.nummesa ?? c.mesa?.numero ?? c.mesa ?? "—";
-                const orden = c.comandaNumber ?? c.orden ?? c.numeroOrden ?? "—";
+                const orden = etiquetaComandaDia(c);
                 const mozo = c.mozoNombre || c.mozos?.name || "Sin mozo";
+                const cliente = clienteDe(c);
+                const obs = String(c.observaciones || "").trim();
                 return (
                   <button
                     key={c._id}
                     onClick={() => setComandaSeleccionada(c)}
                     className={`w-full text-left p-3 rounded-lg border ${borderModal} ${inputBg} hover:border-blue-500 transition-colors min-h-[44px]`}
                   >
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`text-xs px-2 py-0.5 rounded font-semibold ${cl.tipo === "finalizada" ? "bg-green-600 text-white" : "bg-yellow-500 text-white"}`}>
-                          {cl.tipo === "finalizada" ? "Finalizada" : "Parcial"} {cl.entregados}/{cl.total}
-                        </span>
-                        <span className="font-bold">Mesa {mesa}</span>
-                        <span className={`text-sm ${textSecondary}`}>#{orden}</span>
-                        <span className={`text-xs ${textSecondary} hidden sm:inline`}>· {mozo}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                          <span className={`text-sm font-semibold ${textMain}`}>{orden}</span>
+                          <span className="font-bold">Mesa {mesa}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-semibold ${cl.tipo === "finalizada" ? "bg-green-600 text-white" : "bg-yellow-500 text-white"}`}>
+                            {cl.tipo === "finalizada" ? "Finalizada" : "Parcial"} {cl.entregados}/{cl.total}
+                          </span>
+                          <NombreMozoHistorial comanda={c} nombre={mozo} nightMode={nightMode} />
+                        </div>
+                        {(cliente || obs) ? (
+                          <div className={`mt-1 text-xs ${textSecondary} truncate`}>
+                            {cliente || null}
+                            {cliente && obs ? " · " : ""}
+                            {obs ? <span className="italic">"{obs}"</span> : null}
+                          </div>
+                        ) : null}
                       </div>
-                      <span className={`text-xs ${textSecondary}`}>{fmtHora(ultima)}</span>
+                      <span className={`text-xs ${textSecondary} flex-shrink-0`}>{fmtHora(ultima)}</span>
                     </div>
                   </button>
                 );
@@ -260,9 +285,15 @@ const HistorialModal = ({
                           {item.plato.plato?.codigo ? `[${item.plato.plato.codigo}] ` : ""}
                           {item.plato.plato?.nombre || item.plato.nombre || "Plato"}
                         </div>
-                        <div className={`text-xs ${textSecondary}`}>
-                          Mesa {item.mesa} · #{item.orden} · {item.mozo}
+                        <div className={`text-xs ${textSecondary} flex items-center gap-1 flex-wrap`}>
+                          <span>{item.orden} · Mesa {item.mesa}</span>
+                          {item.cliente ? <span>· {item.cliente}</span> : null}
+                          <span>·</span>
+                          <NombreMozoHistorial comanda={item.comanda} nombre={item.mozo} nightMode={nightMode} />
                         </div>
+                        {item.obs ? (
+                          <div className={`text-xs italic truncate ${textSecondary}`}>"{item.obs}"</div>
+                        ) : null}
                       </div>
                       <span className={`text-xs ${textSecondary} flex-shrink-0`}>
                         {fmtHora(item.plato.tiempos?.salio || item.plato.tiempos?.entregado)}

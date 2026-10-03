@@ -222,7 +222,11 @@ function productosDe(grupo, incluirEliminados = false) {
     (c.platos || []).forEach((linea, index) => {
       if (!linea) return;
       if (!incluirEliminados && (linea.eliminado === true || linea.anulado === true)) return;
-      const nombre = obtenerNombreDisplayCocina(linea) || linea?.plato?.nombre || 'Plato';
+      const mostrado = obtenerNombreDisplayCocina(linea);
+      const platoObj = linea?.plato && typeof linea.plato === 'object' ? linea.plato : {};
+      const nombre = (mostrado && mostrado !== 'Plato')
+        ? mostrado
+        : (linea?.nombreCocinaPedido || linea?.nombre || platoObj.nombre || platoObj.nombreCocina || 'Plato');
       const cant = Number(c.cantidades?.[index] || linea.cantidad) || 1;
       const unit = linea.precioUnitario != null
         ? Number(linea.precioUnitario)
