@@ -3,6 +3,7 @@
  * Una fila por nombre de plato: G Plato (qtyG) → #orden(cant) por comanda de la tabla KDS.
  */
 import { esComplementoVariantePlato, nombreGuarnicionSolo } from './guarnicionesKds';
+import { esPlatoLlevarColor, tipoServicioDePlato } from './platoHelpers';
 
 function norm(v) {
   return String(v || '').trim().toLowerCase();
@@ -122,8 +123,15 @@ function qtyGDeComp(comp) {
   return 1;
 }
 
+function servicioFilaGuarnicion(item) {
+  const t = tipoServicioDePlato(item);
+  if (t === 'para_llevar' || t === 'extra_llevar') return t;
+  return 'mesa';
+}
+
 /**
- * Una fila por nombre de plato. Misma guarnición / plato en varias comandas se junta.
+ * Una fila por nombre de plato y tipo de servicio.
+ * Mesa y para llevar del mismo plato no se juntan.
  * chipsOrden: #ordenTabla(cantidad) por puesto en la tabla KDS.
  * items: salida de recolectarGuarnicionesMonitor.
  */
@@ -135,7 +143,8 @@ export function agruparItemsVistaG(items, { cantidadLinea, nombrePlato, tiempoDe
     if (!item?.plato || !item?.comanda) continue;
     const comandaId = String(item.comanda._id || item.comanda.id || item.comanda.numero || '');
     const nombre = nombrePlato(item.plato) || 'Plato';
-    const clave = norm(nombre) || 'plato';
+    const servicio = servicioFilaGuarnicion(item);
+    const clave = `${norm(nombre) || 'plato'}::${servicio}`;
     if (!por.has(clave)) {
       por.set(clave, {
         clave,
@@ -151,6 +160,7 @@ export function agruparItemsVistaG(items, { cantidadLinea, nombrePlato, tiempoDe
         qtyGuarnicion: qtyGDeComp(item.comp),
         porOrden: new Map(),
         cantidadTotal: 0,
+        paraLlevar: esPlatoLlevarColor(item),
       });
       lineasVistas.set(clave, new Set());
     }
@@ -198,6 +208,7 @@ export function agruparItemsVistaG(items, { cantidadLinea, nombrePlato, tiempoDe
       tiempoInicio: g.tiempoInicio,
       modoG: true,
       qtyGuarnicion: g.qtyGuarnicion,
+      paraLlevar: g.paraLlevar === true,
       chipsOrden: chipsOrdenDesdeMapa(g.porOrden),
       cantidadTotal: g.cantidadTotal,
     });

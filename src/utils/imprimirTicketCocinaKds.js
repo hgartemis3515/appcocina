@@ -206,11 +206,21 @@ function mesaLabel(c) {
   return '—';
 }
 
-function productosDe(grupo) {
+function nombreClienteTicket(c) {
+  return String(
+    c?.clienteNombre
+    || c?.clienteNombreParaLlevar
+    || (c?.cliente && typeof c.cliente === 'object' ? c.cliente.nombre : '')
+    || ''
+  ).trim();
+}
+
+function productosDe(grupo, incluirEliminados = false) {
   const out = [];
   for (const c of grupo) {
     (c.platos || []).forEach((linea, index) => {
-      if (!linea || linea.eliminado === true || linea.anulado === true) return;
+      if (!linea) return;
+      if (!incluirEliminados && (linea.eliminado === true || linea.anulado === true)) return;
       const nombre = obtenerNombreDisplayCocina(linea) || linea?.plato?.nombre || 'Plato';
       const cant = Number(c.cantidades?.[index] || linea.cantidad) || 1;
       const unit = linea.precioUnitario != null
@@ -227,22 +237,30 @@ function productosDe(grupo) {
   return out;
 }
 
-function datosTicketDeGrupo(lista) {
-  const productos = productosDe(lista);
+function datosTicketDeGrupo(lista, extra = {}) {
+  const productos = productosDe(lista, extra.incluirEliminados === true);
   const base = lista[0] || {};
   const desc = lista.reduce((s, c) => s + (Number(c.montoDescuento) || 0), 0);
   const motivo = lista.map((c) => c.motivoDescuento).find(Boolean) || '';
+  const reserva = lista.some((c) => c?.origenCreacion === 'reserva' || c?.programadaPorReserva === true || c?.origenReserva);
+  const fechaAtencion = lista.map((c) => c?.fechaAtencion || c?.origenReserva?.fechaReserva).find(Boolean);
   return {
-    comandaNumeroDisplay: formatLetreroTicket(lista),
+    comandaNumeroDisplay: extra.letrero || formatLetreroTicket(lista),
     productos,
     mozo: etiquetaMozosComandas(lista) || base.mozos?.name || base.mozoNombre || '',
+    clienteNombre: lista.map(nombreClienteTicket).find(Boolean) || '',
     mesa: mesaLabel(base),
     sinMesa: lista.some((c) => c?.sinMesa === true),
+    reserva,
+    fechaAtencion: fechaAtencion
+      ? new Date(fechaAtencion).toLocaleString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : '',
     area: base.areaNombre || base.mesas?.area?.nombre || '',
     fechaPedido: base.createdAt,
     montoDescuento: desc,
     descuentos: motivo ? [{ motivo }] : [],
     total: 0,
+    anulacion: extra.anulacion || null,
   };
 }
 
@@ -275,7 +293,7 @@ async function paradasImpresionAutomatica() {
 export async function imprimirTicketCocinaKds(grupo) {
   const lista = (grupo || []).filter(Boolean);
   const datos = datosTicketDeGrupo(lista);
-  if (!(datos.productos || []).length) return;
+  if (!(datos.productos || []).length && !datos.anulacion) return;
   const parada = await paradasImpresionAutomatica();
   if (parada.cocina && parada.caja) return;
   const trabajos = [];
@@ -314,4 +332,36 @@ export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
     grupo.push(fusionarLineas(null, actualizada));
   }
   await imprimirTicketCocinaKds(grupo);
+}
+
+/** Hoja de anulación: incluye los platos ya marcados eliminados y el pie ANULADO X. */
+export async function imprimirTicketAnulacionKds(comanda, ticketAnulacion) {
+  if (!comanda || !ticketAnulacion) return;
+  const datos = datosTicketDeGrupo([comanda], {
+    incluirEliminados: true,
+    anulacion: ticketAnulacion,
+    letrero: ticketAnulacion.letrero,
+  });
+  if (!(datos.productos || []).length && !datos.anulacion) return;
+  const parada = await paradasImpresionAutomatica();
+  if (parada.cocina && parada.caja) return;
+  const trabajos = [];
+  if (!parada.cocina) {
+    const cocinaGen = generarHtmlTicketCocina({ datos, cocina: true });
+    trabajos.push(rasterizarHtmlTicket(cocinaGen.htmlInner).then((img) => (
+      enviarEpos(IP_IMPRESORA_COCINA, xmlImagenEpos(img), 'cocina')
+    )));
+  }
+  if (!parada.caja) {
+    const cajaGen = generarHtmlTicketCocina({ datos, cocina: false });
+    trabajos.push(rasterizarHtmlTicket(cajaGen.htmlInner).then((img) => (
+      enviarEpos(IP_IMPRESORA_CAJA, xmlImagenEpos(img), 'caja')
+    )));
+  }
+  const fallos = [];
+  const jobs = await Promise.allSettled(trabajos);
+  jobs.forEach((j) => {
+    if (j.status === 'rejected') fallos.push(j.reason?.message || 'Error de impresión');
+  });
+  if (fallos.length) throw new Error(fallos.join('\n'));
 }

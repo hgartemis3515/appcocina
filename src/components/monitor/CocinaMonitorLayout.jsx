@@ -1087,6 +1087,7 @@ const CocinaMonitorLayout = ({
           comps: f.comps,
           esGuarnicion: true,
           modoG: true,
+          paraLlevar: f.paraLlevar === true,
           cambiosG: f.cambiosG,
           chipsOrden: f.chipsOrden || [],
           qtyGuarnicion: f.qtyGuarnicion,
@@ -1141,11 +1142,14 @@ const CocinaMonitorLayout = ({
         : null;
       const cocineroPrincipal = cocineroDesdeProcesandoPor(plato.procesandoPor, mapaPronombresCocinero);
       const cid = modoCocineros && cocinero?.id ? cocinero.id : '';
+      const servicioG = (plato?.tipoServicio === 'para_llevar' || plato?.tipoServicio === 'extra_llevar' || plato?.paraLlevar === true)
+        ? (plato?.tipoServicio === 'extra_llevar' ? 'extra_llevar' : 'para_llevar')
+        : 'mesa';
       const key = juntaMerge
         ? claveGrupoGuarnicionMonitor({
           plato, comanda, platoIndex, comp, cid, agrupacionOn,
         })
-        : `${cid}::gg::${comandaId}:${platoIndex}`;
+        : `${cid}::gg::${comandaId}:${platoIndex}::${servicioG}`;
       if (!gruposMap.has(key)) {
         gruposMap.set(key, {
           nombre: nombreG,
