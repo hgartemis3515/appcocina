@@ -608,7 +608,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     onClick={() => { if (modoEliminar) toggleSeleccionTickets(ticket); }}
-                    className={`bg-gray-800 rounded-xl border overflow-hidden shadow-lg ${
+                    className={`bg-gray-800 ${tablaPrefs.aprovechador ? 'rounded-none shadow-none' : 'rounded-xl shadow-lg'} border overflow-hidden ${
                       selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-gray-700'
                     } ${modoEliminar ? 'cursor-pointer' : ''}`}
                   >
@@ -619,21 +619,16 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       ticket.estado === 'reportado' ? 'bg-red-600/20 border-b border-red-500/30' :
                       'bg-violet-600/20 border-b border-violet-500/30'
                     }`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-yellow-300 text-sm font-mono font-bold flex items-center gap-2">
+                      <div className={`flex items-center justify-between ${tablaPrefs.aprovechador ? 'flex-nowrap gap-1' : ''}`}>
+                        <span className={`text-yellow-300 text-sm font-mono font-bold flex items-center gap-2 ${tablaPrefs.aprovechador ? 'flex-shrink-0 whitespace-nowrap' : ''}`}>
                           {modoEliminar && (
                             <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${
                               selEliminar ? 'bg-rose-600 border-rose-400 text-white' : 'border-gray-500 bg-gray-900'
                             }`}>{selEliminar ? '✓' : ''}</span>
                           )}
-                          Comanda: {comandaLabel}
-                          {ticket.ticketNumber != null && (
-                            <span className="text-amber-200/90 font-normal ml-1">
-                              · Ticket #{ticket.ticketNumber}
-                            </span>
-                          )}
+                          NC:{comandaLabel}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-2 ${tablaPrefs.aprovechador ? 'min-w-0 overflow-hidden' : 'flex-shrink-0'}`}>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
                             {badge.label}
                           </span>
@@ -657,10 +652,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <BadgeNombreMozo ticket={ticket} configVista={tablaPrefs} />
                         </div>
                       </div>
-                      <div className="text-gray-500 text-[10px] mt-1">
-                        {formatDate(fechaCreacionComandaDeTicket(ticket))} {formatTime(fechaCreacionComandaDeTicket(ticket))}
+                      <div className="mt-1">
+                        <span className="inline-block bg-black text-white text-sm font-bold px-2 py-0.5 rounded">
+                          {formatDate(fechaCreacionComandaDeTicket(ticket))} {formatTime(fechaCreacionComandaDeTicket(ticket))}
+                        </span>
                         {ticket.observaciones && (
-                          <span className="block text-gray-400 mt-0.5 truncate" title={ticket.observaciones}>
+                          <span className="block text-gray-400 text-[10px] mt-0.5 truncate" title={ticket.observaciones}>
                             Obs: {ticket.observaciones}
                           </span>
                         )}
@@ -877,7 +874,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     {ticket.estado === 'aprobado' && ticket.aprobadoPorNombre && (
                       <div className="p-2 bg-green-900/20">
                         <p className="text-green-400 text-xs">
-                          Aprobado por: {ticket.aprobadoPorNombre} — {formatTime(ticket.fechaAprobacion)}
+                          Cobrado por: {ticket.aprobadoPorNombre} — {formatTime(ticket.fechaAprobacion)}
                         </p>
                       </div>
                     )}
@@ -1255,7 +1252,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </p>
           </div>
         ) : (
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+          <div className={`grid ${tablaPrefs.aprovechador ? 'gap-0' : 'gap-3'}`} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
             <AnimatePresence>
               {filasBasico.map((fila) => {
                 if (fila.tipo === 'grupo') {

@@ -18,7 +18,7 @@ function MozoFilterButton({ mozoFilter, mozosDisponibles, onMozoFilterChange }) 
   }, [open]);
 
   const mozoActivo = mozosDisponibles.find((m) => m.key === mozoFilter);
-  const textoMozo = (m) => m?.etiqueta || m?.nombre || '';
+  const textoMozo = (m) => m?.nombre || '';
   const labelCorto = mozoActivo
     ? (textoMozo(mozoActivo).length > 16 ? `${textoMozo(mozoActivo).slice(0, 16)}…` : textoMozo(mozoActivo))
     : 'Mozo';
@@ -88,7 +88,6 @@ function MozoFilterButton({ mozoFilter, mozosDisponibles, onMozoFilterChange }) 
                   ${mozoFilter === mozo.key ? 'bg-blue-600/30 text-blue-200' : 'text-gray-300 hover:bg-gray-700'}`}
               >
                 <span className="truncate">{textoMozo(mozo)}</span>
-                <span className="text-gray-500 flex-shrink-0">({mozo.count})</span>
               </button>
             ))
           )}

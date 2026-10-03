@@ -126,6 +126,13 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
               checked={!!prefs.ocultarGuarniciones}
               onChange={(v) => onChange({ ocultarGuarniciones: v })}
             />
+            <ToggleRow
+              id="tickets-aprovechador"
+              label="Aprovechador"
+              hint="Las comandas van en cuadros pegados, sin hueco entre tarjetas. El encabezado sigue en una fila."
+              checked={!!prefs.aprovechador}
+              onChange={(v) => onChange({ aprovechador: v })}
+            />
           </section>
           <section>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2">Impresión</p>

@@ -10,6 +10,7 @@ const DEFAULT_DIAS = 30;
 export const DEFAULT_TICKETS_TABLA_PREFS = {
   ocultarGuarniciones: false,
   imprimirSinGuarniciones: false,
+  aprovechador: false,
   ...TICKETS_TABLA_VISUAL_DEFAULT,
 };
 
@@ -17,6 +18,7 @@ function normalizeTicketsTablaPrefs(parsed) {
   return {
     ocultarGuarniciones: !!parsed?.ocultarGuarniciones,
     imprimirSinGuarniciones: !!parsed?.imprimirSinGuarniciones,
+    aprovechador: !!parsed?.aprovechador,
     ...normalizeTicketsTablaVisual(parsed),
   };
 }
