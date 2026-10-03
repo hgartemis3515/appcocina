@@ -140,8 +140,11 @@ export function getDefaultSortDir(sortBy) {
 
 export function mesaKeyDeTicket(ticket) {
   const n = ticket?.numMesa;
-  if (n == null || n === '') return 'sin-mesa';
-  return String(n);
+  if (n != null && n !== '') return String(n);
+  const mesa = ticket?.mesa;
+  const id = mesa && typeof mesa === 'object' ? mesa._id : mesa;
+  if (id) return `mesa-${id}`;
+  return 'sin-mesa';
 }
 
 export function fechaCreacionComandaDeTicket(ticket) {

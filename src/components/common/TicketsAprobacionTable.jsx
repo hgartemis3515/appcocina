@@ -7,10 +7,10 @@ import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketP
 import BadgeNombreMozo, { BadgesMozoDeTickets } from './BadgeNombreMozo';
 import TotalCuentaCobro from './TotalCuentaCobro';
 import {
-  formatCurrency, formatDateTime, labelPagoTicket, tipoBadge,
+  formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, etiquetaMesaTicket,
   nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
   ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago,
-  estadoEntregaComandaTicket, estadoEntregaTickets, ticketTieneExtraLlevar,
+  estadoEntregaComandaTicket, estadoVisibleTicket, estadoVisibleTickets, ticketTieneExtraLlevar,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
@@ -261,7 +261,7 @@ function FilaTicketAvanzado({
         {indent ? '' : (
           <CuadroMesaAvanzado
             paraLlevar={!!ticket.sinMesa}
-            texto={ticket.sinMesa ? 'Para llevar' : `Mesa ${ticket.numMesa || '?'}`}
+            texto={etiquetaMesaTicket(ticket)}
           />
         )}
       </td>
@@ -297,8 +297,8 @@ function FilaTicketAvanzado({
         {labelPagoTicket(ticket)}
       </td>
       <td className="px-3 py-2">
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoComanda.bg}`}>
-          {estadoComanda.label}
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoVisibleTicket(ticket, estadoComanda).bg}`}>
+          {estadoVisibleTicket(ticket, estadoComanda).label}
         </span>
         {ticket.estado === 'pendiente_aprobacion' && !estadoComanda.entregado && (
           <div className="text-[9px] text-yellow-500/80 mt-0.5">Por aprobar</div>
@@ -511,7 +511,7 @@ export default function TicketsAprobacionTable({
               const { neto, montoDesc } = totalesVistaTicket(grupoTicket);
               const nPlatos = platosTicketVisibles(grupoTicket).length;
               const first = fila.tickets[0];
-              const estadoGrupo = estadoEntregaTickets(fila.tickets);
+              const estadoGrupo = estadoVisibleTickets(fila.tickets);
               const grupoSel = fila.tickets.length > 0 && fila.tickets.every((t) => idSet.has(String(t._id)));
               const grupoPintado = filaTicketResaltadaVerde(filasPintadas, fila.id);
               return (
@@ -570,7 +570,7 @@ export default function TicketsAprobacionTable({
                     <td className="px-3 py-2 whitespace-nowrap">
                       <CuadroMesaAvanzado
                         paraLlevar={!!first.sinMesa}
-                        texto={first.sinMesa ? 'Para llevar' : `Mesa ${fila.mesa || first.numMesa || '?'}`}
+                        texto={etiquetaMesaTicket(first)}
                       />
                     </td>
                     <td className="px-3 py-2 min-w-[160px]">

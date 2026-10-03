@@ -25,7 +25,7 @@ import { indexarCobroPorCantidad, idsOcultosCobro } from '../../utils/cobroPorCa
 import TotalCuentaCobro from '../common/TotalCuentaCobro';
 import { useConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
 import {
-  formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge,
+  formatCurrency, formatTime, formatDate, labelPagoTicket, tipoBadge, etiquetaMesaTicket,
   getFechaOperativa, loadModoVistaTickets, saveModoVistaTickets,
   loadTicketsTablaPrefs, saveTicketsTablaPrefs,
   nombreClienteTicket, dniClienteTicket,
@@ -33,7 +33,8 @@ import {
   rangoFechasDePeriodo, matchFechaRangoTicket, etiquetaPeriodoTickets,
   nextTurnosCierreState, PRESETS_PERIODO_TICKETS,
   estadoEntregaComandaTicket,
-  estadoEntregaTickets,
+  estadoVisibleTicket,
+  estadoVisibleTickets,
   ticketTieneExtraLlevar,
   rangoConsultaDesglose,
   ticketEsParaLlevar,
@@ -58,9 +59,7 @@ const countTicketsPendientesByMesa = (items) => {
 };
 
 function textoMesaDeTicket(t) {
-  if (t?.sinMesa) return 'sin mesa';
-  const n = t?.numMesa ?? t?.mesa?.nummesa ?? t?.mesaNumero;
-  return n == null || n === '' ? '' : String(n);
+  return etiquetaMesaTicket(t).toLowerCase();
 }
 
 function letreroNumerosTicket(t) {
@@ -638,8 +637,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
                             {badge.label}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoComanda.bg}`}>
-                            {estadoComanda.label}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoVisibleTicket(ticket, estadoComanda).bg}`}>
+                            {estadoVisibleTicket(ticket, estadoComanda).label}
                           </span>
                         </div>
                       </div>
@@ -651,7 +650,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       <div className="flex items-center gap-3 mt-1">
                         <div className="flex items-center gap-1 text-gray-300 text-xs">
                           <FaUtensils className="text-gray-400" />
-                          <span>{ticket.sinMesa ? 'Para llevar' : `Mesa ${ticket.numMesa || '?'}`}</span>
+                          <span>{etiquetaMesaTicket(ticket)}</span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-400 text-xs">
                           <FaUser className="text-gray-500" />
@@ -1266,7 +1265,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   const { bruto, neto, montoDesc } = totalesVistaTicket(grupoTicket);
                   // BUG_PAGO_PARCIAL_TABLA: saldo vivo por cobrar del grupo (únicos por comanda)
                   const saldoPendGrupo = saldoPendienteTicketsUnicos(fila.tickets);
-                  const estadoGrupo = estadoEntregaTickets(fila.tickets);
+                  const estadoGrupo = estadoVisibleTickets(fila.tickets);
                   const primero = fila.tickets[0];
                   const grupoSel = modoEliminar && fila.tickets.every((t) => idsEliminar.includes(String(t._id)));
                   const extraLlevar = fila.tickets.some(ticketTieneExtraLlevar);
@@ -1335,14 +1334,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             ) : null}
                           </button>
                           <div className="flex items-center gap-2 shrink-0">
-                            {abierto && forzablesGrupo.length > 0 && (
+                            {forzablesGrupo.length > 0 && (
                               <button
                                 type="button"
                                 disabled={cargandoGrupo}
                                 onClick={(e) => { e.stopPropagation(); abrirForzarPago(grupoTicket); }}
                                 className="text-[11px] px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white font-semibold"
                               >
-                                {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
+                                {cargandoGrupo ? 'Cobrando…' : 'Cobrar todo'}
                               </button>
                             )}
                             {abierto ? botonesAdelanto : null}
@@ -1363,7 +1362,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         <div className="flex items-center gap-3 mt-1">
                           <div className="flex items-center gap-1 text-gray-300 text-xs">
                             <FaUtensils className="text-gray-400" />
-                            <span>{primero.sinMesa ? 'Para llevar' : `Mesa ${fila.mesa || primero.numMesa || '?'}`}</span>
+                            <span>{etiquetaMesaTicket(primero)}</span>
                           </div>
                           <div className="flex items-center gap-1 text-gray-400 text-xs">
                             <FaUser className="text-gray-500" />

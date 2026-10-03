@@ -118,6 +118,16 @@ export const formatDateTime = (dateStr) => {
   return `${formatDate(dateStr)} ${formatTime(dateStr)}`.trim();
 };
 
+export function etiquetaMesaTicket(ticket) {
+  const mesa = ticket?.mesa && typeof ticket.mesa === 'object' ? ticket.mesa : null;
+  const nombre = String(mesa?.nombreMesa || mesa?.nombreCombinado || '').trim();
+  if (nombre) return nombre;
+  const n = ticket?.numMesa ?? mesa?.nummesa ?? ticket?.mesaNumero;
+  if (n != null && n !== '') return `Mesa ${n}`;
+  if (ticket?.sinMesa) return 'Para llevar';
+  return 'Mesa';
+}
+
 export const labelPagoTicket = (ticket) => {
   if (ticket?.estado === 'pendiente_aprobacion') {
     if (ticket.boucher) return 'Por aprobar';
@@ -256,6 +266,23 @@ export function estadoEntregaTickets(tickets) {
   const metas = list.map(estadoEntregaComandaTicket);
   if (metas.every((m) => m.entregado)) return META_ENTREGA_SI;
   return META_ENTREGA_NO;
+}
+
+const META_PENDIENTE_APROBACION = {
+  label: 'Pendiente de aprobación',
+  entregado: false,
+  bg: 'bg-yellow-500/30 text-yellow-200 border border-yellow-500/40',
+};
+
+export function estadoVisibleTicket(ticket, entrega) {
+  if (ticket?.estado === 'pendiente_aprobacion') return META_PENDIENTE_APROBACION;
+  return entrega || META_ENTREGA_NO;
+}
+
+export function estadoVisibleTickets(tickets) {
+  const list = Array.isArray(tickets) ? tickets : [];
+  if (list.some((t) => t?.estado === 'pendiente_aprobacion')) return META_PENDIENTE_APROBACION;
+  return estadoEntregaTickets(list);
 }
 
 export const nombreClienteTicket = (ticket) =>

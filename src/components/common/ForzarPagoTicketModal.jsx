@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FaMoneyBill } from 'react-icons/fa';
-import { formatCurrency } from '../../utils/ticketAprobacionUi';
+import { formatCurrency, etiquetaMesaTicket } from '../../utils/ticketAprobacionUi';
 import { totalesVistaTicket } from '../../utils/ticketTotales';
 
 const MOTIVOS_FORZAR = ['Cliente quiere pagar', 'Mozo ya cobro'];
@@ -48,8 +48,8 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
         </div>
         <p className="text-sm text-gray-300 mb-2">
           {ticket._esGrupoComandas
-            ? `Grupo de ${ticket._grupoTickets?.length || 0} comandas · Mesa ${ticket.numMesa || '?'}. Se cobra el total del grupo como pago adelantado. El mozo libera la mesa cuando entregue.`
-            : `Mesa ${ticket.numMesa || '?'}. Se registra el cobro como pago adelantado. El mozo libera la mesa cuando entregue.`}
+            ? `Grupo de ${ticket._grupoTickets?.length || 0} comandas · ${etiquetaMesaTicket(ticket)}. Se cobra el total del grupo como pago adelantado. El mozo libera la mesa cuando entregue.`
+            : `${etiquetaMesaTicket(ticket)}. Se registra el cobro como pago adelantado. El mozo libera la mesa cuando entregue.`}
         </p>
         {montoDesc > 0 && (
           <div className="text-xs space-y-0.5 mb-2">

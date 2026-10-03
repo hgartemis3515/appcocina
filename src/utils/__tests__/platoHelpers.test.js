@@ -231,6 +231,7 @@ describe('nombreMesaKds', () => {
   test('mesa numerada sigue M#', () => {
     expect(nombreMesaKds({ mesas: { nummesa: 7 } })).toBe('M7');
     expect(nombreMesaKds({ mesas: { nombreCombinado: 'M5,6' } })).toBe('M5,6');
+    expect(nombreMesaKds({ mesas: { nombreMesa: 'VIP Juan' } })).toBe('VIP Juan');
   });
 
   test('objeto mesa vacío no produce [object Object]', () => {

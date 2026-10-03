@@ -200,6 +200,7 @@ function fusionarLineas(anterior, nueva) {
 function mesaLabel(c) {
   if (c?.sinMesa) return 'Sin mesa';
   const m = c?.mesas;
+  if (m?.nombreMesa) return String(m.nombreMesa);
   if (m?.nombreCombinado) return String(m.nombreCombinado);
   if (m?.nummesa != null && m.nummesa !== '') return String(m.nummesa);
   if (c?.mesaNumero != null && c.mesaNumero !== '') return String(c.mesaNumero);

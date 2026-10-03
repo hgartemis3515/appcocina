@@ -352,6 +352,8 @@ export function valorMesaEscalar(valor) {
   if (valor == null || valor === '') return null;
   if (typeof valor === 'object') {
     if (valor.sinMesa === true) return null;
+    const nombre = valor.nombreMesa != null ? String(valor.nombreMesa).trim() : '';
+    if (nombre && nombre !== '[object Object]') return nombre;
     const combinado = valor.nombreCombinado != null ? String(valor.nombreCombinado).trim() : '';
     if (combinado && combinado !== '[object Object]') return combinado;
     const n = valor.nummesa ?? valor.numMesa ?? valor.numero;
@@ -392,6 +394,7 @@ export function comandaEsSinMesaOParaLlevar(comanda) {
   const mesa = comanda.mesas || comanda.mesa;
   if (mesa && typeof mesa === 'object' && mesa.sinMesa === true) return true;
   const num = comanda.mesaNumero ?? mesa?.nummesa ?? mesa?.numero ?? (typeof mesa === 'number' ? mesa : null);
+  if (mesa && typeof mesa === 'object' && String(mesa.nombreMesa || '').trim()) return false;
   if (num != null && num !== '' && String(num).toUpperCase() !== 'N/A') return false;
   const platos = platosActivosComanda(comanda);
   if (platos.length && platos.every((p) => p.tipoServicio === 'para_llevar' || p.paraLlevar === true)) {
@@ -409,6 +412,8 @@ export function nombreMesaKds(comanda, mesaOverride) {
     return LABEL_PARA_LLEVAR;
   }
   if (mesa && typeof mesa === 'object') {
+    const nombre = String(mesa.nombreMesa || '').trim();
+    if (nombre) return nombre;
     if (mesa.nombreCombinado) return mesa.nombreCombinado;
     if (mesa.nummesa != null && mesa.nummesa !== '') return `M${mesa.nummesa}`;
     if (mesa.numero != null && mesa.numero !== '') return `M${mesa.numero}`;

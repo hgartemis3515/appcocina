@@ -11,7 +11,7 @@ import {
   etiquetaEstadoPlato,
 } from '../../utils/ticketComandaDisplay';
 import {
-  formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, estadoTicketMeta,
+  formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, estadoTicketMeta, etiquetaMesaTicket,
   nombreClienteTicket, dniClienteTicket,
 } from '../../utils/ticketAprobacionUi';
 import { getMozoNombre } from '../../utils/ticketSort';
@@ -39,7 +39,7 @@ function claseEstadoPlato(estado, eliminado) {
 function mesaDeComanda(comanda, ticket) {
   const m = comanda?.mesas;
   if (m && typeof m === 'object') {
-    return m.nombreCombinado || m.nummesa || ticket?.numMesa || '—';
+    return m.nombreMesa || m.nombreCombinado || m.nummesa || ticket?.numMesa || '—';
   }
   return ticket?.numMesa != null ? ticket.numMesa : '—';
 }
@@ -262,7 +262,7 @@ export default function TicketComandaDetalleModal({
             </div>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-400">
               <span className="flex items-center gap-1">
-                <FaUtensils className="text-gray-500" /> Mesa {ticket.numMesa || '?'}
+                <FaUtensils className="text-gray-500" /> {etiquetaMesaTicket(ticket)}
               </span>
               <span className="flex items-center gap-1">
                 <FaUser className="text-gray-500" /> <BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} />
