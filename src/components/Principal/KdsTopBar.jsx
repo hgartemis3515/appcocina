@@ -286,7 +286,7 @@ const KdsTopBar = ({
               onClick={onEliminarPlato}
               className={actionBtn}
               style={eliminarPlatoEstilo}
-              title="Eliminar plato"
+              title={eliminarPlatoLabel}
               aria-label={eliminarPlatoLabel}
             >
               {!eliminarPlatoCamuflado && <FaTrash />}

@@ -31,6 +31,7 @@ import ReportsModal from "./ReportsModal";
 import RevertirModal from "./RevertirModal";
 import DejarPlatoModal from "./DejarPlatoModal";
 import EliminarPlatoKdsModal from "./EliminarPlatoKdsModal";
+import EliminarPlatoTablaModal from "./EliminarPlatoTablaModal";
 import TomarCocineroModal from "./TomarCocineroModal";
 import PlatoPreparacion from "./PlatoPreparacion";
 import { ordenarComandasTablaKds } from "../../utils/ordenColaCocinero";
@@ -156,6 +157,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const [anularObservaciones, setAnularObservaciones] = useState('');
   const [anularLoading, setAnularLoading] = useState(false);
   const [showEliminarPlatoModal, setShowEliminarPlatoModal] = useState(false);
+  const [showEliminarTabla, setShowEliminarTabla] = useState(false);
   const [eliminarPlatoMotivo, setEliminarPlatoMotivo] = useState('');
   const [eliminarPlatoLoading, setEliminarPlatoLoading] = useState(false);
   // 🔥 NUEVO: Estado para modal de dejar plato (con motivo para auditoría)
@@ -3691,6 +3693,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       }
       setEliminarPlatoMotivo('');
       setShowEliminarPlatoModal(false);
+      setShowEliminarTabla(false);
       setPlatosChecked(new Map());
       setPlatoStates(new Map());
       setSelectedOrders(new Set());
@@ -3815,11 +3818,9 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         reservadasCount={reservadasCount}
         nightMode={nightMode}
         onToggleSearch={() => setShowSearch(!showSearch)}
-        onEliminarPlato={abrirModalEliminarPlato}
-        mostrarEliminarPlato={showBtnEliminarPlato}
-        eliminarPlatoLabel={camuflarEliminarPlatoEpa(kdsVistaConfig)
-          ? textoBotonEliminarKds(kdsVistaConfig)
-          : (accionEliminarKds.ok ? accionEliminarKds.label : 'Eliminar')}
+        onEliminarPlato={() => setShowEliminarTabla(true)}
+        mostrarEliminarPlato={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin'}
+        eliminarPlatoLabel={camuflarEliminarPlatoEpa(kdsVistaConfig) ? textoBotonEliminarKds(kdsVistaConfig) : 'Eliminar'}
         eliminarPlatoEstilo={estiloBotonEliminarKds(kdsVistaConfig)}
         eliminarPlatoCamuflado={camuflarEliminarPlatoEpa(kdsVistaConfig)}
         onShowConfig={() => setShowConfig(true)}
@@ -4545,6 +4546,18 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         platos={platosPendientesDejar}
         nightMode={nightMode}
         loading={dejarLoading}
+      />
+
+      <EliminarPlatoTablaModal
+        open={showEliminarTabla}
+        nightMode={nightMode}
+        comandas={todasComandas}
+        puedePlatos={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || userRole === 'admin'}
+        puedeComanda={hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin'}
+        usarNombreCocina={usarNombreCocinaEnTablaKds}
+        loading={eliminarPlatoLoading}
+        onClose={() => setShowEliminarTabla(false)}
+        onConfirmar={({ comandaId, indices, motivo }) => handleEliminarPlatosKds(motivo, { comandaId, indices })}
       />
 
       <EliminarPlatoKdsModal
