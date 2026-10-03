@@ -675,6 +675,7 @@ function mapLineaProductoImpresion(p, comanda, index) {
       cantidad: c.cantidad || 1,
       precio: c.precio || 0,
     })),
+    guarnicionesCambio: p.guarnicionesCambio || null,
     notaEspecial: p.notaEspecial || '',
     paraLlevar,
     mostrarResumenComplementos: !!p.mostrarResumenComplementos,

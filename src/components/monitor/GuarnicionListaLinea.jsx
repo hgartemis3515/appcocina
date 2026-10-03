@@ -3,6 +3,7 @@ import { calcularSegundos, formatearCronometro } from '../../hooks/useCocinaMoni
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import { ChipsOrdenCantidadRow } from './ChipOrdenCantidad';
+import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
 /**
  * Línea de lista (cuadro OFF) para el panel derecho de Ver Cocina Completo.
@@ -10,13 +11,14 @@ import { ChipsOrdenCantidadRow } from './ChipOrdenCantidad';
  */
 const GAP = { unido: 0, compacto: 4, normal: 8, amplio: 14 };
 
-export function LineasCambioGuarnicion({ cambios, fontSize, color }) {
+export function LineasCambioGuarnicion({ cambios, fontSize, color, paraLlevar = false }) {
   if (!Array.isArray(cambios) || cambios.length === 0) return null;
   const fs = Math.max(12, Math.round((Number(fontSize) || 18) * 0.72));
+  const caja = paraLlevar ? estiloCuadroNombreParaLlevar(fs) : null;
   return (
     <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
       {cambios.map((c, i) => (
-        <div key={`${c.salio || ''}-${c.entro || ''}-${i}`} style={{ fontSize: `${fs}px`, color, lineHeight: 1.25 }}>
+        <div key={`${c.salio || ''}-${c.entro || ''}-${i}`} style={{ fontSize: `${fs}px`, color: paraLlevar ? '#ffffff' : color, lineHeight: 1.25, ...(caja || {}) }}>
           {c.salio ? <span style={{ textDecoration: 'line-through' }}>{c.salio}</span> : null}
           {c.salio && c.entro ? ' → ' : null}
           {!c.salio && c.entro ? '→ ' : null}
@@ -48,6 +50,7 @@ const GuarnicionListaLinea = ({
   configVisual = {},
   conCuadro = false,
   colorCuadro,
+  paraLlevar = false,
 }) => {
   const gap = GAP[espaciado] ?? GAP.normal;
   const mostrarReloj = !ocultarCronometro && cronometroIso;
@@ -86,10 +89,11 @@ const GuarnicionListaLinea = ({
           style={{
             fontSize: `${tamanioFuente}px`,
             fontWeight: pesoFuente,
-            color: colorTexto,
+            color: paraLlevar ? '#ffffff' : colorTexto,
             lineHeight: 1.25,
             whiteSpace: 'normal',
             wordBreak: 'break-word',
+            ...(paraLlevar ? estiloCuadroNombreParaLlevar(tamanioFuente) : null),
           }}
         >
           {texto}
@@ -144,7 +148,7 @@ const GuarnicionListaLinea = ({
           </span>
         )}
       </div>
-      <LineasCambioGuarnicion cambios={cambios} fontSize={tamanioFuente} color={colorPadre || colorTexto} />
+      <LineasCambioGuarnicion cambios={cambios} fontSize={tamanioFuente} color={colorPadre || colorTexto} paraLlevar={paraLlevar} />
       <NotaEnCuadroMonitor
         texto={textoNota}
         configVisual={configVisual}

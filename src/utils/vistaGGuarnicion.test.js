@@ -97,4 +97,24 @@ describe('agruparItemsVistaG', () => {
     ]);
     expect(filas[0].cambiosG).toEqual([{ salio: 'Arroz', entro: 'Frijol' }]);
   });
+
+  test('mesa y para llevar del mismo plato no se juntan; solo llevar queda marcado', () => {
+    const mesa = { ...plato({ pre: ['Ensalada'], pedido: ['Frijol'] }), tipoServicio: 'mesa' };
+    const llevar = { ...plato({ pre: ['Ensalada'], pedido: ['Frijol'] }), tipoServicio: 'para_llevar' };
+    const filas = agruparItemsVistaG(
+      [
+        { comanda: { _id: 'm' }, plato: mesa, platoIndex: 0, comp: { opcion: 'Frijol', grupo: 'Guarnicion' } },
+        { comanda: { _id: 'l' }, plato: llevar, platoIndex: 0, comp: { opcion: 'Frijol', grupo: 'Guarnicion' } },
+      ],
+      {
+        cantidadLinea: () => 1,
+        nombrePlato: () => 'Pollo a la leña',
+        tiempoDeComp: () => null,
+        indiceTabla: new Map([['m', 1], ['l', 2]]),
+      },
+    );
+    expect(filas).toHaveLength(2);
+    expect(filas.find((f) => f.paraLlevar !== true)?.chipsOrden).toEqual([{ orden: 1, cantidad: 1 }]);
+    expect(filas.find((f) => f.paraLlevar === true)?.chipsOrden).toEqual([{ orden: 2, cantidad: 1 }]);
+  });
 });

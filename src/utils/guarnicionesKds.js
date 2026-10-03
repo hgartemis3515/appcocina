@@ -11,7 +11,7 @@
  */
 
 import { platoCoincideCocineroFiltro } from './cocineroFiltroIds';
-import { platoCoincideId, normalizarId, pedidoConAliasCocina } from './platoHelpers';
+import { platoCoincideId, normalizarId, pedidoConAliasCocina, tipoServicioDePlato } from './platoHelpers';
 import { claveNombreComplemento } from './nombreComplementoCanonico';
 import { obtenerCantidadLinea } from './numeracionTimersMonitor';
 import {
@@ -54,13 +54,15 @@ export function claveGrupoGuarnicionMonitor({
 }) {
   const nombreG = nombreCocinaComplemento(comp) || 'Guarnición';
   const comandaId = String(comanda?._id || comanda?.id || comanda?.numero || '');
+  const servicio = tipoServicioDePlato({ plato, comanda });
+  const marca = servicio === 'para_llevar' || servicio === 'extra_llevar' ? servicio : 'mesa';
   if (platoJuntaGuarnicionesEntreVariantes(plato)) {
     const claveG = claveNombreComplemento(nombreGuarnicionSolo(comp) || nombreG);
-    return `${cid}::gmerge::${idCatalogoPlatoLinea(plato)}::${claveG}`;
+    return `${cid}::gmerge::${idCatalogoPlatoLinea(plato)}::${claveG}::${marca}`;
   }
   return agrupacionOn
-    ? `${cid}::gg::${comandaId}:${platoIndex}`
-    : `${cid}::g::${comandaId}:${platoIndex}:${comp?._id || nombreG}`;
+    ? `${cid}::gg::${comandaId}:${platoIndex}::${marca}`
+    : `${cid}::g::${comandaId}:${platoIndex}:${comp?._id || nombreG}::${marca}`;
 }
 
 /**

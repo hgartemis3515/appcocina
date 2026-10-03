@@ -289,6 +289,7 @@ describe('sosTablaKds', () => {
     expect(grupos[0].nombre).toBe('Pollo leña');
     expect(grupos[0].cantidad).toBe(2);
     expect(grupos[0].tipos.map((t) => t.nombre).sort()).toEqual(['Pollo leña Pecho', 'Pollo leña Pierna'].sort());
+    expect(grupos[0].porCantidad).toBeFalsy();
   });
 
   test('cantidad 4 del mismo plato abre flecha con una unidad por fila', () => {
@@ -305,5 +306,6 @@ describe('sosTablaKds', () => {
     expect(grupos[0].cantidad).toBe(4);
     expect(grupos[0].tipos).toHaveLength(4);
     expect(grupos[0].tipos.every((t) => t.cantidad === 1 && t.nombre === 'Leña')).toBe(true);
+    expect(grupos[0].porCantidad).toBe(true);
   });
 });

@@ -11,7 +11,7 @@ import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
-import { grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
+import { esPlatoLlevarColor, grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
 import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
 
@@ -259,6 +259,9 @@ const CocineroPlatoCard = React.forwardRef(({
     && configVisual.ocultarCuadroGuarniciones === true
     && configVisual.cuadroGuarnicionSiHayNota !== false
     && hayNotaCuadro;
+  const hayLlevarColor = esGuarnicion
+    ? (item.paraLlevar === true || (platos.length > 0 && platos.every((p) => esPlatoLlevarColor(p))))
+    : grupoTieneLlevarColor(platos);
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = modoG
@@ -298,6 +301,7 @@ const CocineroPlatoCard = React.forwardRef(({
         tamanioCronometro={tamanioFuenteCronometro}
         conCuadro={forzarCuadroPorNota}
         colorCuadro={colorAcento}
+        paraLlevar={hayLlevarColor}
       />
     );
   }
@@ -343,9 +347,8 @@ const CocineroPlatoCard = React.forwardRef(({
     fontFamily: fuenteFamilia,
   });
   const mostrarComplementos = configVisual.mostrarComplementos !== false;
-  const hayParaLlevar = !esGuarnicion && grupoTieneParaLlevar(platos);
-  const hayExtraLlevar = !esGuarnicion && grupoTieneExtraLlevar(platos);
-  const hayLlevarColor = !esGuarnicion && grupoTieneLlevarColor(platos);
+  const hayParaLlevar = grupoTieneParaLlevar(platos);
+  const hayExtraLlevar = grupoTieneExtraLlevar(platos);
 
   const fsUrgente = escalaDetalle(tamanioFuenteDetalle, 0.85);
   const fsAtencion = escalaDetalle(tamanioFuenteDetalle, 0.75);
@@ -567,6 +570,7 @@ const CocineroPlatoCard = React.forwardRef(({
             cambios={item.cambiosG}
             fontSize={tamanioFuentePlato}
             color={colorTextoPadre}
+            paraLlevar={hayLlevarColor}
           />
           {textoPronombreRef ? (
             <span

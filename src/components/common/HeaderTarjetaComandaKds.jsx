@@ -149,6 +149,8 @@ export default function HeaderTarjetaComandaKds({
     minWidth: 0,
     overflow: 'hidden',
   };
+  const textoMesa = textoCuadroMesaKds(nombreMesa);
+  const mesaParaLlevar = textoMesa.toUpperCase() === 'PARA LLEVAR';
   const hero = (verMozo || verMesa) ? (
     <div className="w-full flex items-center justify-between gap-1 leading-none">
       {verMozo ? (
@@ -167,10 +169,17 @@ export default function HeaderTarjetaComandaKds({
       ) : <span />}
       {verMesa ? (
         <span
-          style={{ ...estiloHero, flexShrink: 0, maxWidth: 'none', overflow: 'visible', whiteSpace: 'nowrap' }}
+          style={{
+            ...estiloHero,
+            flexShrink: 0,
+            maxWidth: 'none',
+            overflow: 'visible',
+            whiteSpace: 'nowrap',
+            ...(mesaParaLlevar ? { fontSize: `${Math.round(tamNumero * 0.7)}px` } : {}),
+          }}
           title="Mesa"
         >
-          {textoCuadroMesaKds(nombreMesa)}
+          {textoMesa}
         </span>
       ) : null}
     </div>

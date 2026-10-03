@@ -39,6 +39,7 @@ const PlatoPreparacion = ({
   usuarioActualId = null, // Para mostrar "Tú" vs nombre del cocinero
   // v7.5: Prop para supervisor (puede interactuar con cualquier plato)
   isSupervisorView = false,
+  puedeMarcarAjeno = false,
   // NUEVO: Tipo de servicio del plato ('mesa' | 'para_llevar')
   tipoServicio = 'mesa',
   // v3.0: flags para mostrar resumen de complementos en cocina
@@ -65,7 +66,7 @@ const PlatoPreparacion = ({
   // v7.5: EXCEPCIÓN: En modo supervisor, puede interactuar con cualquier plato
   const tomadoPorOtro = procesandoPor?.cocineroId && 
                          procesandoPor.cocineroId.toString() !== usuarioActualId?.toString();
-  const puedeInteractuar = isSupervisorView || !tomadoPorOtro;
+  const puedeInteractuar = isSupervisorView || puedeMarcarAjeno || !tomadoPorOtro;
   const { config: kdsConfig } = useConfig();
   const reglasTipo = useTiposPlatoReglas();
   const ocultaColaYCronometro = itemAplicaReglaContador(
@@ -373,18 +374,6 @@ const PlatoPreparacion = ({
             </span>
           ) : null}
 
-          {/* NUEVO: Badge PARA LLEVAR cuando tipoServicio === 'para_llevar' */}
-          {(tipoServicio === 'para_llevar' || tipoServicio === 'extra_llevar') && (
-            <span
-              style={estiloParaLlevar}
-              title={tipoServicio === 'extra_llevar'
-                ? 'Extra cliente (para llevar sin pago adelantado)'
-                : 'Este plato es para llevar (no se sirve en mesa)'}
-            >
-              {tipoServicio === 'extra_llevar' ? 'EXTRA CLIENTE' : 'PARA LLEVAR'}
-            </span>
-          )}
-          
           {/* v7.2: Badge de cocinero que esta procesando el plato */}
           {procesandoPor?.cocineroId && !ocultarCuadroCocinero && (
             <motion.span
@@ -415,8 +404,47 @@ const PlatoPreparacion = ({
               )}
             </motion.span>
           )}
+
+          {(tipoServicio === 'para_llevar' || tipoServicio === 'extra_llevar') && (
+            <span className="basis-full flex">
+              <span
+                style={estiloParaLlevar}
+                title={tipoServicio === 'extra_llevar'
+                  ? 'Extra cliente (para llevar sin pago adelantado)'
+                  : 'Este plato es para llevar (no se sirve en mesa)'}
+              >
+                {tipoServicio === 'extra_llevar' ? 'EXTRA CLIENTE' : 'PARA LLEVAR'}
+              </span>
+            </span>
+          )}
         </div>
         
+        {tipoUnidad !== 'guarnicion' && (() => {
+          const g = plato?.guarnicionesCambio;
+          const salieron = Array.isArray(g?.salieron) ? g.salieron : [];
+          const entraron = Array.isArray(g?.entraron) ? g.entraron : [];
+          const n = Math.max(salieron.length, entraron.length);
+          if (!n) return null;
+          const pares = [];
+          for (let i = 0; i < n; i += 1) {
+            const salio = String(salieron[i]?.opcion || salieron[i]?.nombre || '').trim();
+            const entro = String(entraron[i]?.opcion || entraron[i]?.nombre || '').trim();
+            if (salio || entro) pares.push({ salio, entro });
+          }
+          if (!pares.length) return null;
+          return (
+            <div className="basis-full pl-1 text-[13px] font-bold leading-tight" style={{ fontFamily: 'Arial, sans-serif' }}>
+              {pares.map((par, i) => (
+                <div key={`${par.salio}-${par.entro}-${i}`}>
+                  {par.salio ? <span style={{ textDecoration: 'line-through' }}>{par.salio}</span> : null}
+                  {par.salio && par.entro ? ' → ' : null}
+                  {par.entro || null}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* PLAN GUARNICIONES_SEPARADAS v1.1: badge de guarnición + alerta de tiempo */}
         {tipoUnidad === 'guarnicion' && (mostrarBadgeGuarnicion || elapsedG || estadoAlerta) && (
           <div className="flex items-center gap-1 pointer-events-none">

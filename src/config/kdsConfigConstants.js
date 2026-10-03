@@ -468,6 +468,12 @@ export const normalizarConfiguracion = (partialConfig = {}) => {
 
   if (!partialConfig.tamanoFuentePlatos) config.tamanoFuentePlatos = 18;
 
+  // Configs ya guardadas nacieron con el autoagrandamiento apagado. Una vez queda activo.
+  if (partialConfig.autoAgrandamientoDefaultOn !== true) {
+    config.autoAgrandamientoTarjetasKds = true;
+    config.autoAgrandamientoDefaultOn = true;
+  }
+
   config.design = {
     fontSize: config.tamanoFuente,
     cols: config.columnasGrid,

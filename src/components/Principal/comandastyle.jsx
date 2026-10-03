@@ -80,7 +80,7 @@ import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import useReservasProgramadas from "../../hooks/useReservasProgramadas";
 import { getApiUrl, getServerBaseUrl } from "../../config/apiConfig";
 import { apiPut } from "../../config/apiClient";
-import { imprimirTicketCocinaTrasEliminar } from "../../utils/imprimirTicketCocinaKds";
+import { imprimirTicketCocinaTrasEliminar, imprimirTicketAnulacionKds } from "../../utils/imprimirTicketCocinaKds";
 import { useAuth } from "../../contexts/AuthContext";
 import { useConfig } from "../../contexts/ConfigContext";
 import { estiloMozoNombreKds, resolverFondoNombreMozo, colorPerfilDeComanda, colorLetraDeComanda } from "../../utils/estiloMozoNombreKds";
@@ -1940,6 +1940,14 @@ const ComandaStyle = ({
   const onDobleGrupoSos = useCallback((grupo) => {
     if (!grupo?.familia) return;
     const clave = grupo.clave;
+    if (grupo.porCantidad) {
+      setModalClaveSos((actual) => (actual === clave ? null : clave));
+      if (grupo.comandaIdMasAntigua) {
+        setSosHighlightId(String(grupo.comandaIdMasAntigua));
+        setSosHighlightPlatoIndex(grupo.platoIndexMasAntigua);
+      }
+      return;
+    }
     const abierta = !familiasAbiertasRef.current[clave];
     const dentro = [];
     const walk = (nodo) => {
@@ -2077,7 +2085,10 @@ const ComandaStyle = ({
       if (!comp || comp.estadoCocina === 'recoger') return;
       const tomadoPorOtro = comp.procesandoPor?.cocineroId
         && comp.procesandoPor.cocineroId.toString() !== userId?.toString();
-      const permitirAjeno = isSupervisorView || entregarPlatoEnteroAbsoluto !== false;
+      const permitirAjeno = isSupervisorView || userRole === 'admin'
+        || hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA)
+        || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)
+        || entregarPlatoEnteroAbsoluto !== false;
       if (tomadoPorOtro && !permitirAjeno) return;
       const markG = sosMarkRef.current;
       if (markG.id != null && String(markG.id) === String(comandaId)
@@ -2135,7 +2146,10 @@ const ComandaStyle = ({
     // EXCEPCIÓN: En modo supervisor, permitir interactuar con cualquier plato
     const tomadoPorOtro = plato?.procesandoPor?.cocineroId && 
                           plato.procesandoPor.cocineroId.toString() !== miUsuarioId;
-    const permitirAjeno = isSupervisorView || entregarPlatoEnteroAbsoluto !== false;
+    const permitirAjeno = isSupervisorView || userRole === 'admin'
+      || hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA)
+      || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)
+      || entregarPlatoEnteroAbsoluto !== false;
     if (tomadoPorOtro && !permitirAjeno) {
       console.log(`[togglePlatoCheck] Plato ${platoIndex} tomado por otro cocinero, ignorando click`);
       return;
@@ -2194,7 +2208,7 @@ const ComandaStyle = ({
       
       return nuevo;
     });
-  }, [comandas, userId, isSupervisorView, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, deseleccionPlato]);
+  }, [comandas, userId, userRole, hasPermission, isSupervisorView, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, deseleccionPlato]);
 
   // Obtener total de platos marcados
   const getTotalPlatosMarcados = useCallback(() => {
@@ -4387,7 +4401,13 @@ const ComandaStyle = ({
         usuarioId: userId || undefined,
         usuarioNombre: userName || undefined,
       });
-      if (data?.comanda) {
+      if (data?.comandaEliminadaCompleta && data?.ticketAnulacion) {
+        try {
+          await imprimirTicketAnulacionKds(data.comanda, data.ticketAnulacion);
+        } catch (printErr) {
+          alert(printErr?.message || 'La comanda se eliminó, pero no se imprimió el ticket de anulación.');
+        }
+      } else if (data?.comanda) {
         try {
           await imprimirTicketCocinaTrasEliminar(data.comanda, comandas);
         } catch (printErr) {
@@ -4491,10 +4511,10 @@ const ComandaStyle = ({
   const bgBottomBar = nightMode ? 'bg-gray-900' : 'bg-white';
   const borderBottomBar = nightMode ? 'border-gray-700' : 'border-gray-300';
   const accionEliminarKds = resolverAccionEliminarKds(platosChecked, platoStates, comandas, {
-    eliminarPlatos: hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA),
-    eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA),
+    eliminarPlatos: hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || userRole === 'admin',
+    eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin',
   });
-  const showBtnEliminarPlato = accionEliminarKds.ok;
+  const showBtnEliminarPlato = (hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin') && accionEliminarKds.ok;
   const epaEliminarPlato = camuflarEliminarPlatoEpa(config);
   const platosResumenEliminar = showEliminarPlatoModal
     ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
@@ -4551,7 +4571,7 @@ const ComandaStyle = ({
         nightMode={nightMode}
         onToggleSearch={() => setShowSearch(!showSearch)}
         onEliminarPlato={() => setShowEliminarTabla(true)}
-        mostrarEliminarPlato={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)}
+        mostrarEliminarPlato={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin'}
         eliminarPlatoLabel={camuflarEliminarPlatoEpa(config) ? textoBotonEliminarKds(config) : 'Eliminar'}
         eliminarPlatoEstilo={estiloBotonEliminarKds(config)}
         eliminarPlatoCamuflado={camuflarEliminarPlatoEpa(config)}
@@ -4695,6 +4715,7 @@ const ComandaStyle = ({
                     togglePlatoCheck={togglePlatoCheck}
                     usuarioActualId={userId}
                     isSupervisorView={isSupervisorView}
+                    puedeMarcarAjeno={userRole === 'admin' || hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)}
                     // v7.4: Props para el sistema de 3 estados de comanda
                     comandaStates={comandaStates}
                     setComandaStates={setComandaStates}
@@ -5100,25 +5121,18 @@ const ComandaStyle = ({
                   );
                 })()}
 
-                <AnimatePresence>
                 {showBtnEliminarPlato && (
-                  <motion.button
-                    key="eliminar-plato-kds"
+                  <button
+                    type="button"
                     onClick={abrirModalEliminarPlato}
-                    className={clasesBotonEliminarKds(config)}
+                    className={`${clasesBotonEliminarKds(config)} shrink-0`}
                     style={estiloBotonEliminarKds(config)}
                     title={epaEliminarPlato ? 'Eliminar plato' : (accionEliminarKds.label || 'Eliminar plato')}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                   >
                     {!epaEliminarPlato && <FaTrash className="text-sm" />}
                     {etiquetaBotonEliminarKds(accionEliminarKds, config)}
-                  </motion.button>
+                  </button>
                 )}
-                </AnimatePresence>
 
                 {/* ANULAR: oculto por default (config.cocina.ocultarAnularEnTablasKds) */}
                 {ocultarAnularEnTablasKds !== true && (() => {
@@ -5264,6 +5278,7 @@ const ComandaStyle = ({
                 togglePlatoCheck={togglePlatoCheck}
                 usuarioActualId={userId}
                 isSupervisorView={isSupervisorView}
+                puedeMarcarAjeno={userRole === 'admin' || hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)}
                 comandaStates={comandaStates}
                 setComandaStates={setComandaStates}
                 onTomarComanda={handleTomarComanda}
@@ -5367,14 +5382,12 @@ const ComandaStyle = ({
         open={showEliminarTabla}
         nightMode={nightMode}
         comandas={todasComandas}
-        puedePlatos={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA)}
-        puedeComanda={hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA)}
+        puedePlatos={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || userRole === 'admin'}
+        puedeComanda={hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin'}
         usarNombreCocina={usarNombreCocinaEnTablaKds}
         loading={eliminarPlatoLoading}
         onClose={() => setShowEliminarTabla(false)}
-        onConfirmar={({ motivo, comandaId, indices }) => {
-          handleEliminarPlatosKds(motivo, { comandaId, indices });
-        }}
+        onConfirmar={({ comandaId, indices, motivo }) => handleEliminarPlatosKds(motivo, { comandaId, indices })}
       />
 
       <EliminarPlatoKdsModal
@@ -5922,6 +5935,7 @@ const SicarComandaCard = ({
   obtenerNombreMesa, // Función helper para obtener nombre de mesa
   // v7.5: Prop para supervisor
   isSupervisorView = false,
+  puedeMarcarAjeno = false,
   // 🔥 BÚSQUEDA: props explícitas para que la tarjeta no dependa de
   // comanda.platosFiltrados (que puede perderse en re-renders / sockets)
   hayBusquedaActiva = false,
@@ -6614,6 +6628,7 @@ const SicarComandaCard = ({
                           procesandoPor={proc}
                           usuarioActualId={usuarioActualId}
                           isSupervisorView={isSupervisorView}
+                          puedeMarcarAjeno={puedeMarcarAjeno}
                           tipoServicio={plato.tipoServicio || 'mesa'}
                           tipoUnidad="guarnicion"
                           ocultarComplementos
@@ -6657,6 +6672,7 @@ const SicarComandaCard = ({
                         procesandoPor={plato.procesandoPor}
                         usuarioActualId={usuarioActualId}
                         isSupervisorView={isSupervisorView}
+                        puedeMarcarAjeno={puedeMarcarAjeno}
                         tipoServicio={plato.tipoServicio || 'mesa'}
                         mostrarResumenComplementos={!!plato.mostrarResumenComplementos}
                         resumenComplementosImpresion={plato.resumenComplementosImpresion || null}

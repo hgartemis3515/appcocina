@@ -74,17 +74,16 @@ export function resolverAccionEliminarKds(platosChecked, platoStates, comandas, 
   const puedePlatos = permisos.eliminarPlatos !== false;
   const puedeComanda = permisos.eliminarComanda === true;
   if (tipo === 'comanda') {
-    if (!puedeComanda) {
-      return {
-        ok: false,
-        tipo,
-        comandaId: r.comandaId,
-        indices: r.indices,
-        bloqueadoPorPermiso: true,
-        error: 'No tienes permiso para eliminar la comanda. Quita algún plato de la selección o pide el permiso Eliminar comanda.',
-      };
-    }
-    return { ...r, ok: true, tipo, label: 'Eliminar comanda' };
+    if (puedeComanda) return { ...r, ok: true, tipo, label: 'Eliminar comanda' };
+    if (puedePlatos) return { ...r, ok: true, tipo: 'plato', label: 'Eliminar plato' };
+    return {
+      ok: false,
+      tipo,
+      comandaId: r.comandaId,
+      indices: r.indices,
+      bloqueadoPorPermiso: true,
+      error: 'No tienes permiso para eliminar la comanda. Quita algún plato de la selección o pide el permiso Eliminar comanda.',
+    };
   }
   if (!puedePlatos) {
     return {
@@ -170,16 +169,12 @@ function platoDeClave(comandas, parsed) {
   return comanda?.platos?.[parsed.platoIndex] || null;
 }
 
-/**
- * Visible solo con selección explícita:
- * - verde `seleccionado`
- * - recoger `entregando` (primer click en preparados)
- * - amarillo `procesando` solo si el plato NO está tomado (primer click libre)
- * No cuenta platos ya tomados en amarillo ni `dejar`.
- */
+/** Toque en la tabla: amarillo, verde, rojo de dejar, o recoger marcado.
+ * `procesando` solo cuenta si el plato NO está tomado por un cocinero: el
+ * amarillo automático de "tomado por otro" no es una selección del usuario. */
 export function esEstadoSeleccionEliminarPlato(estado, plato) {
-  if (estado === 'seleccionado' || estado === 'entregando') return true;
-  if (estado === 'procesando' && !plato?.procesandoPor?.cocineroId) return true;
+  if (estado === 'seleccionado' || estado === 'entregando' || estado === 'dejar') return true;
+  if (estado === 'procesando') return !plato?.procesandoPor?.cocineroId;
   return false;
 }
 

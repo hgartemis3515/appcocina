@@ -262,7 +262,17 @@ export function fusionarComandaPreservandoToma(local, incoming) {
     }
     return merged;
   });
-  return { ...incoming, platos };
+  const merged = { ...incoming, platos };
+  const colorIncoming = (merged.mozos && typeof merged.mozos === 'object' && merged.mozos.colorPerfil) || merged.colorPerfilMozo;
+  const colorLocal = (local?.mozos && typeof local.mozos === 'object' && local.mozos.colorPerfil) || local?.colorPerfilMozo;
+  if (!colorIncoming && colorLocal) {
+    merged.mozos = local.mozos;
+    merged.colorPerfilMozo = local.colorPerfilMozo || colorLocal;
+    if (!merged.colorLetraPerfilMozo && local?.colorLetraPerfilMozo) {
+      merged.colorLetraPerfilMozo = local.colorLetraPerfilMozo;
+    }
+  }
+  return merged;
 }
 
 export function aplicarTomaPlatoEnComandas(comandas, comandaId, platoId, procesandoPor) {
@@ -330,6 +340,7 @@ export const tieneNombrePlato = (plato) => {
  */
 export const tipoServicioDePlato = (item) => {
   if (!item || typeof item !== 'object') return 'mesa';
+  if (item.paraLlevar === true || item.plato?.paraLlevar === true) return 'para_llevar';
   const t = item.tipoServicio || item.plato?.tipoServicio || item.comanda?.tipoServicio;
   if (t === 'para_llevar' || t === 'extra_llevar') return t;
   return 'mesa';

@@ -239,7 +239,7 @@ const KdsTopBar = ({
         {typeof onOpenSos === "function" && (
           <button
             onClick={onOpenSos}
-            className={`inline-flex items-center justify-center rounded text-white text-xs font-black tracking-[0.2em] transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[52px] px-3 py-2 bg-red-600 hover:bg-red-500 active:bg-red-800 ${sosActivo ? "ring-2 ring-red-300 animate-pulse" : ""}`}
+            className={`inline-flex items-center justify-center rounded text-white text-xs font-black tracking-[0.2em] transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[52px] px-3 py-2 bg-red-600 hover:bg-red-500 active:bg-red-800 ${sosActivo ? "ring-2 ring-red-300" : ""}`}
             title="SOS — resumen de platos y modo cantidades"
             aria-label="SOS — resumen de platos y modo cantidades"
             aria-pressed={sosActivo}
@@ -266,7 +266,7 @@ const KdsTopBar = ({
 
         <button
           onClick={onToggleReserva || onShowReservadas}
-          className="inline-flex items-center justify-center gap-1.5 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[44px] px-3 py-2 bg-pink-500 hover:bg-pink-400 active:bg-pink-700 relative"
+          className={`inline-flex items-center justify-center gap-1.5 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[44px] px-3 py-2 bg-pink-500 hover:bg-pink-400 active:bg-pink-700 relative ${reservadasCount > 0 ? "animate-pulse" : ""}`}
           title="Reservas programadas (horario de habilitación KDS)"
           aria-label="Reserva"
         >
@@ -286,7 +286,7 @@ const KdsTopBar = ({
               onClick={onEliminarPlato}
               className={actionBtn}
               style={eliminarPlatoEstilo}
-              title="Eliminar plato"
+              title={eliminarPlatoLabel}
               aria-label={eliminarPlatoLabel}
             >
               {!eliminarPlatoCamuflado && <FaTrash />}

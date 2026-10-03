@@ -400,6 +400,7 @@ function mapearTicketADatos(ticket) {
         opcion: c.opcion || '',
         precio: c.precio || 0,
       })),
+      guarnicionesCambio: p.guarnicionesCambio || null,
       notaEspecial: p.notaEspecial || '',
       paraLlevar: tipoServicio === 'para_llevar',
     };
