@@ -916,7 +916,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               <FaShoppingBag className="text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-white truncate">Comandas y Pagos Adelantados</h1>
+              <h1 className="text-lg font-bold text-white truncate">Tablas de tickets y Pagos Adelantados</h1>
               <p className="text-gray-400 text-xs">Cobrar comandas, reportar incidencias</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
