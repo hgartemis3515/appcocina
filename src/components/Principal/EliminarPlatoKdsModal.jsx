@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTrash, FaUserSlash, FaUserClock, FaDesktop, FaTruck } from "react-icons/fa";
 import { MOTIVOS_RAPIDOS_COCINA, combinarMotivoRapido } from "../../utils/motivosRapidosCocina";
+import StepperCantidadEliminar from "./StepperCantidadEliminar";
 
 const ICONS = {
   cliente_no_desea: FaUserSlash,
@@ -21,9 +22,31 @@ const EliminarPlatoKdsModal = ({
   motivo = '',
   onMotivoChange,
   loading = false,
+  puedeAjustarCantidad = true,
   onCancel,
   onConfirm,
 }) => {
+  const [qty, setQty] = useState({});
+  const firma = (platos || []).map((p, i) => `${p.index ?? i}:${p.max ?? p.cantidad}`).join('|');
+  useEffect(() => {
+    if (!open) return;
+    const next = {};
+    (platos || []).forEach((p, i) => {
+      const max = Math.max(1, Math.floor(Number(p.max ?? p.cantidad) || 1));
+      next[p.index ?? i] = max;
+    });
+    setQty(next);
+  }, [open, firma]);
+
+  const confirmar = (motivo) => {
+    const cantidades = (platos || []).map((p, i) => {
+      const index = p.index ?? i;
+      const max = Math.max(1, Math.floor(Number(p.max ?? p.cantidad) || 1));
+      return { index, cantidad: qty[index] ?? max };
+    });
+    onConfirm?.(motivo, { cantidades });
+  };
+
   const textMain = nightMode ? 'text-white' : 'text-gray-900';
   const textSecondary = nightMode ? 'text-gray-400' : 'text-gray-600';
   const bgCard = nightMode ? 'bg-gray-800' : 'bg-white';
@@ -60,9 +83,25 @@ const EliminarPlatoKdsModal = ({
               </p>
               {platos.length > 0 && (
                 <ul className={`text-left text-sm mb-4 p-3 rounded-lg ${nightMode ? 'bg-red-950/40 text-red-100' : 'bg-red-50 text-red-900'}`}>
-                  {platos.map((p, i) => (
-                    <li key={i}>• {p.cantidad}x {p.nombre}</li>
-                  ))}
+                  {platos.map((p, i) => {
+                    const index = p.index ?? i;
+                    const max = Math.max(1, Math.floor(Number(p.max ?? p.cantidad) || 1));
+                    return (
+                      <li key={index} className="flex items-center justify-between gap-2 py-1">
+                        <span className="min-w-0 truncate">{p.nombre}</span>
+                        {puedeAjustarCantidad ? (
+                          <StepperCantidadEliminar
+                            value={qty[index] ?? max}
+                            max={max}
+                            nightMode={nightMode}
+                            onChange={(n) => setQty((prev) => ({ ...prev, [index]: n }))}
+                          />
+                        ) : (
+                          <span className="font-black tabular-nums">{max}</span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               <div className="grid grid-cols-2 gap-2">
@@ -73,7 +112,7 @@ const EliminarPlatoKdsModal = ({
                       key={m.id}
                       type="button"
                       disabled={loading}
-                      onClick={() => onConfirm(combinarMotivoRapido(m.label, motivo))}
+                      onClick={() => confirmar(combinarMotivoRapido(m.label, motivo))}
                       className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold min-h-[88px] ${btnIdle} disabled:opacity-50`}
                     >
                       <Icon className="text-lg text-red-500" />
@@ -107,7 +146,7 @@ const EliminarPlatoKdsModal = ({
               <button
                 type="button"
                 disabled={loading || String(motivo || '').trim().length < 2}
-                onClick={() => onConfirm(String(motivo || '').trim())}
+                onClick={() => confirmar(String(motivo || '').trim())}
                 className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-600 text-white disabled:opacity-40"
               >
                 Eliminar

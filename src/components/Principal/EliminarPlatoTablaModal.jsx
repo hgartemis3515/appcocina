@@ -6,15 +6,26 @@ import { etiquetaMozosComandas } from '../../utils/numeroComandaMozo';
 import { nombreMesaKds, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import { platoVisibleEnTablaKds } from '../../utils/sosTablaKds';
 import {
-  esEliminarComandaCompletaKds,
   indicesPlatosActivosComanda,
   resolverEliminarSeleccionKds,
 } from '../../utils/kdsAnularPlatos';
+import StepperCantidadEliminar from './StepperCantidadEliminar';
 
 function platosEnTabla(comanda) {
   return (comanda?.platos || [])
     .map((plato, index) => ({ plato, index }))
     .filter(({ plato }) => platoVisibleEnTablaKds(plato));
+}
+
+function maxLinea(comanda, index, plato) {
+  const n = Number(comanda?.cantidades?.[index]);
+  if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  const f = Number(plato?.cantidad);
+  return Number.isFinite(f) && f > 0 ? Math.floor(f) : 1;
+}
+
+function claveQty(id, index) {
+  return `${id}:${index}`;
 }
 
 function coincide(valor, filtro) {
@@ -70,6 +81,7 @@ export default function EliminarPlatoTablaModal({
   const [filtroMozo, setFiltroMozo] = useState('');
   const [comandaId, setComandaId] = useState('');
   const [indices, setIndices] = useState([]);
+  const [qtyMap, setQtyMap] = useState({});
 
   const mozosTabla = useMemo(() => {
     const map = new Map();
@@ -99,32 +111,59 @@ export default function EliminarPlatoTablaModal({
   const bg = nightMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900';
   const borde = nightMode ? 'border-gray-700' : 'border-gray-300';
   const input = nightMode ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300';
-  const comandaSel = filas.find((f) => String(f.comanda._id) === String(comandaId))?.comanda;
-  const accion = comandaSel
+  const filaSel = filas.find((f) => String(f.comanda._id) === String(comandaId));
+  const comandaSel = filaSel?.comanda;
+  const bajaCompleta = comandaSel && indices.length > 0 && indicesPlatosActivosComanda(comandaSel).every((i) => {
+    if (!indices.includes(i)) return false;
+    const plato = comandaSel.platos?.[i];
+    const max = maxLinea(comandaSel, i, plato);
+    return (qtyMap[claveQty(comandaId, i)] ?? max) >= max;
+  });
+  let accion = comandaSel
     ? resolverEliminarSeleccionKds(comandaSel, indices, {
       eliminarPlatos: puedePlatos,
       eliminarComanda: puedeComanda,
     })
     : null;
+  if (accion?.ok && accion.tipo === 'comanda' && !bajaCompleta) {
+    accion = puedePlatos
+      ? { ...accion, tipo: 'plato', label: 'Eliminar plato' }
+      : { ...accion, ok: false, error: 'No tienes permiso para eliminar platos.' };
+  }
 
-  const elegir = (id, lista) => {
+  const elegir = (id, lista, comanda) => {
     setComandaId(String(id));
     setIndices(lista);
+    setQtyMap(() => {
+      const next = {};
+      lista.forEach((index) => {
+        next[claveQty(id, index)] = maxLinea(comanda, index, comanda?.platos?.[index]);
+      });
+      return next;
+    });
   };
 
-  const togglePlato = (id, index) => {
+  const togglePlato = (id, index, comanda) => {
     if (!puedePlatos) return;
     const mismo = String(id) === String(comandaId);
     const base = mismo ? indices : [];
     const set = new Set(base);
     if (set.has(index)) set.delete(index);
     else set.add(index);
-    elegir(id, [...set]);
+    elegir(id, [...set], comanda);
+  };
+
+  const cambiarQty = (id, index, value) => {
+    setQtyMap((prev) => ({ ...prev, [claveQty(id, index)]: value }));
   };
 
   const confirmar = (motivo) => {
-    if (!accion?.ok || !onConfirmar) return;
-    onConfirmar({ comandaId: accion.comandaId, indices: accion.indices, motivo });
+    if (!accion?.ok || !onConfirmar || !comandaSel) return;
+    const cantidades = accion.indices.map((index) => {
+      const max = maxLinea(comandaSel, index, comandaSel.platos?.[index]);
+      return { index, cantidad: qtyMap[claveQty(comandaId, index)] ?? max };
+    });
+    onConfirmar({ comandaId: accion.comandaId, indices: accion.indices, motivo, cantidades });
   };
 
   return (
@@ -149,7 +188,7 @@ export default function EliminarPlatoTablaModal({
             const id = String(f.comanda._id);
             const activos = indicesPlatosActivosComanda(f.comanda);
             const marcada = id === String(comandaId);
-            const toda = marcada && esEliminarComandaCompletaKds(f.comanda, indices);
+            const toda = marcada && bajaCompleta;
             return (
               <div key={id} className={`rounded-lg border overflow-hidden ${toda ? 'border-green-500' : borde}`}>
                 <div className={`flex flex-wrap items-center gap-2 justify-between px-3 py-2 ${nightMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
@@ -164,7 +203,7 @@ export default function EliminarPlatoTablaModal({
                     <button
                       type="button"
                       className="text-sm px-3 py-1.5 rounded bg-red-700 text-white"
-                      onClick={() => elegir(id, activos)}
+                      onClick={() => elegir(id, activos, f.comanda)}
                     >
                       {toda ? 'Comanda marcada' : 'Eliminar comanda'}
                     </button>
@@ -174,16 +213,20 @@ export default function EliminarPlatoTablaModal({
                   {f.platos.map(({ plato, index }) => {
                     const on = marcada && indices.includes(index);
                     const nombre = obtenerNombreDisplayCocina(plato, { habilitadoEnKds: usarNombreCocina }) || 'Plato';
-                    const cantidad = Number(plato?.cantidad) > 0 ? Number(plato.cantidad) : 1;
+                    const cantidad = maxLinea(f.comanda, index, plato);
+                    const qty = qtyMap[claveQty(id, index)] ?? cantidad;
                     const selCls = on
                       ? (nightMode ? 'bg-green-500/30 text-green-300' : 'bg-green-500/20 text-green-800')
                       : (nightMode ? 'text-white hover:bg-gray-700/50' : 'text-gray-900 hover:bg-gray-100');
                     return (
-                      <button
+                      <div
                         key={index}
-                        type="button"
-                        disabled={!puedePlatos}
-                        onClick={() => togglePlato(id, index)}
+                        role="button"
+                        tabIndex={puedePlatos ? 0 : -1}
+                        onClick={() => togglePlato(id, index, f.comanda)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') togglePlato(id, index, f.comanda);
+                        }}
                         className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b last:border-b-0 ${nightMode ? 'border-gray-700' : 'border-gray-200'} ${selCls} ${puedePlatos ? 'cursor-pointer' : 'opacity-80 cursor-default'}`}
                         style={{ fontFamily: 'Arial, sans-serif', fontSize: '18px', fontWeight: 600 }}
                       >
@@ -204,8 +247,16 @@ export default function EliminarPlatoTablaModal({
                           )}
                         </span>
                         <span className="font-black tabular-nums">{cantidad}</span>
-                        <span className="min-w-0">{nombre}</span>
-                      </button>
+                        <span className="min-w-0 flex-1">{nombre}</span>
+                        {on && puedePlatos ? (
+                          <StepperCantidadEliminar
+                            value={qty}
+                            max={cantidad}
+                            nightMode={nightMode}
+                            onChange={(n) => cambiarQty(id, index, n)}
+                          />
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>

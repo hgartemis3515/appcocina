@@ -3673,6 +3673,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     try {
       const data = await apiPut(`/api/comanda/${r.comandaId}/eliminar-platos`, {
         platosAEliminar: r.indices,
+        cantidadesAEliminar: forzado?.cantidades,
         motivo,
         sourceApp: 'cocina',
         usuarioId: userId || undefined,
@@ -3795,6 +3796,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const epaEliminarPlato = camuflarEliminarPlatoEpa(kdsVistaConfig);
   const platosResumenEliminar = showEliminarPlatoModal
     ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
+        index: item.index,
+        max: Math.max(1, Math.floor(Number(item.cantidad) || 1)),
         cantidad: item.cantidad,
         nombre: obtenerNombreDisplayCocina(item.plato, { habilitadoEnKds: usarNombreCocinaEnTablaKds })
           || obtenerNombrePlato(item.plato)
@@ -4557,7 +4560,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         usarNombreCocina={usarNombreCocinaEnTablaKds}
         loading={eliminarPlatoLoading}
         onClose={() => setShowEliminarTabla(false)}
-        onConfirmar={({ comandaId, indices, motivo }) => handleEliminarPlatosKds(motivo, { comandaId, indices })}
+        onConfirmar={({ comandaId, indices, motivo, cantidades }) => handleEliminarPlatosKds(motivo, { comandaId, indices, cantidades })}
       />
 
       <EliminarPlatoKdsModal
@@ -4568,11 +4571,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         motivo={eliminarPlatoMotivo}
         onMotivoChange={setEliminarPlatoMotivo}
         loading={eliminarPlatoLoading}
+        puedeAjustarCantidad={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || userRole === 'admin'}
         onCancel={() => {
           setShowEliminarPlatoModal(false);
           setEliminarPlatoMotivo('');
         }}
-        onConfirm={handleEliminarPlatosKds}
+        onConfirm={(motivo, extra) => handleEliminarPlatosKds(motivo, extra)}
       />
 
       {/* 🔥 NUEVO: Modal de Anulación desde Cocina */}

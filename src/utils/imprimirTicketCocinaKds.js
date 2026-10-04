@@ -323,7 +323,11 @@ export async function imprimirTicketCocinaKds(grupo) {
   if (fallos.length) throw new Error(fallos.join('\n'));
 }
 
-/** Grupo del mismo pedido. La letra queda solo en la comanda editada. */
+/**
+ * Reimprime cocina y caja tras eliminar plato o bajar cantidad.
+ * Usa la comanda ya guardada: platos activos, cantidades que quedan y revisionTicket.
+ * Letra: 0 sin sufijo, 1 = b, 2 = c. Solo la comanda editada cambia de letra.
+ */
 export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
   if (!actualizada) return;
   const pid = idPedido(actualizada);
