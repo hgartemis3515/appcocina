@@ -1181,7 +1181,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               eliminados.push({
                 platoId: h.platoId,
                 nombre: h.nombreOriginal || 'Plato eliminado',
-                cantidad: h.cantidadOriginal || 1,
+                cantidad: (Number(h.cantidadOriginal) > Number(h.cantidadFinal) && h.cantidadFinal != null) ? (Number(h.cantidadOriginal) - Number(h.cantidadFinal)) : (h.cantidadEliminada || h.cantidadOriginal || 1),
                 timestamp: h.timestamp || new Date().toISOString(),
                 nombreMozo: nombreMozo,
                 motivo: h.motivo || 'Eliminado'
@@ -1195,7 +1195,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               eliminados.push({
                 platoId: h.platoId,
                 nombre: h.nombreOriginal || 'Plato eliminado',
-                cantidad: h.cantidadOriginal || 1,
+                cantidad: (Number(h.cantidadOriginal) > Number(h.cantidadFinal) && h.cantidadFinal != null) ? (Number(h.cantidadOriginal) - Number(h.cantidadFinal)) : (h.cantidadEliminada || h.cantidadOriginal || 1),
                 timestamp: h.timestamp || new Date().toISOString(),
                 nombreMozo: h.usuario?.name || h.usuario?.nombre || h.nombreMozo || 'Mozo',
                 motivo: h.motivo || 'Eliminado'
@@ -1350,7 +1350,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             eliminadosActuales.push({
               platoId: data.platoId,
               nombre: ultimoEliminado.nombreOriginal || data.plato?.nombre || 'Plato eliminado',
-              cantidad: ultimoEliminado.cantidadOriginal || 1,
+              cantidad: (Number(ultimoEliminado.cantidadOriginal) > Number(ultimoEliminado.cantidadFinal) && ultimoEliminado.cantidadFinal != null) ? (Number(ultimoEliminado.cantidadOriginal) - Number(ultimoEliminado.cantidadFinal)) : (ultimoEliminado.cantidadEliminada || ultimoEliminado.cantidadOriginal || 1),
               timestamp: ultimoEliminado.timestamp || new Date(),
               nombreMozo: ultimoEliminado.usuario?.name || ultimoEliminado.usuario?.nombre || ultimoEliminado.nombreMozo || 'Mozo',
               motivo: ultimoEliminado.motivo || 'Eliminado'
@@ -5148,7 +5148,7 @@ const SicarComandaCard = ({
         return {
           platoId: h.platoId,
           nombre: nombre, // Puede ser null si no se encontró
-          cantidad: h.cantidadOriginal || h.cantidad || 1,
+          cantidad: (Number(h.cantidadOriginal) > Number(h.cantidadFinal) && h.cantidadFinal != null) ? (Number(h.cantidadOriginal) - Number(h.cantidadFinal)) : (h.cantidadEliminada || h.cantidadOriginal || h.cantidad || 1),
           motivo: h.motivo || 'Eliminado',
           timestamp: h.timestamp || new Date(),
           usuario: h.usuario,
