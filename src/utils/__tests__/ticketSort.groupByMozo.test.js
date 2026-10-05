@@ -117,4 +117,55 @@ describe('totalVentasFilasTabla', () => {
     ]);
     expect(totalVentasFilasTabla(filas)).toBe(112);
   });
+
+  test('adelanto y comanda completa de la misma comanda cuentan una vez', () => {
+    const filas = [{
+      tipo: 'grupo',
+      tickets: [
+        {
+          _id: 'ppa',
+          comandas: ['c1'],
+          estado: 'aprobado',
+          total: 40,
+          platos: [{ platoLineaId: 'l1', subtotal: 40, nombre: 'Lomo', cantidad: 1, precio: 40 }],
+        },
+        {
+          _id: 'full',
+          comandas: ['c1'],
+          estado: 'aprobado',
+          total: 80,
+          platos: [
+            { platoLineaId: 'l1', subtotal: 40, nombre: 'Lomo', cantidad: 1, precio: 40 },
+            { platoLineaId: 'l2', subtotal: 40, nombre: 'Chicha', cantidad: 1, precio: 40 },
+          ],
+        },
+      ],
+    }];
+    expect(totalVentasFilasTabla(filas)).toBe(80);
+  });
+
+  test('dos parciales de líneas distintas se suman', () => {
+    const filas = [{
+      tipo: 'grupo',
+      tickets: [
+        {
+          _id: 'a',
+          comandas: ['c1'],
+          estado: 'aprobado',
+          tipo: 'pago_parcial',
+          total: 30,
+          platos: [{ platoLineaId: 'l1', subtotal: 30 }],
+        },
+        {
+          _id: 'b',
+          comandas: ['c1'],
+          estado: 'aprobado',
+          tipo: 'pago_parcial',
+          total: 20,
+          platos: [{ platoLineaId: 'l2', subtotal: 20 }],
+        },
+      ],
+    }];
+    expect(totalVentasFilasTabla(filas)).toBe(50);
+  });
 });

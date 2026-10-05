@@ -394,15 +394,77 @@ export function groupTicketsComoComandasHtml(tickets, opts = {}) {
   });
 }
 
+function idLineaVisible(p) {
+  if (!p || p.eliminado || p.anulado || p.platoLineaId == null || p.platoLineaId === '') return '';
+  return String(p.platoLineaId);
+}
+
+function claveComandaVisible(t) {
+  const ids = getComandaIdsFromTicket(t);
+  if (ids.length === 1) return ids[0];
+  if (ids.length > 1) return '';
+  const nums = getComandasNumbersFromTicket(t);
+  if (nums.length === 1) return `n:${nums[0]}`;
+  return '';
+}
+
+/** Total visible de una comanda: cada línea una vez. Sin líneas, el ticket mayor cubre al adelanto. */
+function coberturaComandaVisible(tickets) {
+  const lineas = new Map();
+  let sinLinea = 0;
+  let mayor = 0;
+  let hayLinea = false;
+  for (const t of tickets) {
+    const neto = Number(totalesVistaTicket(t).neto) || 0;
+    const platos = (Array.isArray(t.platos) ? t.platos : []).filter((p) => idLineaVisible(p));
+    if (platos.length) {
+      hayLinea = true;
+      for (const p of platos) {
+        const id = idLineaVisible(p);
+        if (lineas.has(id)) continue;
+        const sub = Number(p.subtotal) || (Number(p.precio) || 0) * (Number(p.cantidad) || 1);
+        lineas.set(id, sub);
+      }
+      continue;
+    }
+    sinLinea += neto;
+    if (neto > mayor) mayor = neto;
+  }
+  if (!hayLinea) {
+    if (mayor + 0.009 >= sinLinea - mayor) return mayor;
+    return Math.round(sinLinea * 100) / 100;
+  }
+  let cov = 0;
+  for (const s of lineas.values()) cov += s;
+  if (!(sinLinea > 0)) return Math.round(cov * 100) / 100;
+  if (mayor + 0.009 >= sinLinea - mayor && mayor + 0.009 >= cov) return Math.round(mayor * 100) / 100;
+  return Math.round((cov + sinLinea) * 100) / 100;
+}
+
+function coberturaTicketsVisibles(tickets) {
+  const porComanda = new Map();
+  const sueltos = [];
+  for (const t of tickets || []) {
+    if (!t) continue;
+    const clave = claveComandaVisible(t);
+    if (!clave) {
+      sueltos.push(t);
+      continue;
+    }
+    if (!porComanda.has(clave)) porComanda.set(clave, []);
+    porComanda.get(clave).push(t);
+  }
+  let sum = 0;
+  for (const lista of porComanda.values()) sum += coberturaComandaVisible(lista);
+  for (const t of sueltos) sum += Number(totalesVistaTicket(t).neto) || 0;
+  return Math.round(sum * 100) / 100;
+}
+
 /** Suma de la columna Total de las filas visibles (grupos cuentan una vez, no las hijas). */
 export function totalVentasFilasTabla(filas = []) {
   let sum = 0;
   for (const fila of filas || []) {
-    const tickets = fila?.tickets || [];
-    if (!tickets.length) continue;
-    const doc = fila.tipo === 'grupo' ? ticketParaDetalleGrupo(tickets) : tickets[0];
-    if (!doc) continue;
-    sum += Number(totalesVistaTicket(doc).neto) || 0;
+    sum += coberturaTicketsVisibles(fila?.tickets || []);
   }
   return Math.round(sum * 100) / 100;
 }

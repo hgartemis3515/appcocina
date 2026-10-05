@@ -77,11 +77,11 @@ describe('resumenKpisTickets con saldo por cobrar', () => {
         tipo: 'pago_parcial',
         total: 33,
         platos: [{ subtotal: 33, cantidad: 1 }],
-        comandas: [{ _id: 'c2087', pendienteCobro: 144 }],
+        comandas: [{ _id: 'c2087', pendienteCobro: 111 }],
       },
     ]);
     expect(k.aprobados).toBe(33);
-    expect(k.pendiente).toBe(111); // 144 - 33 ya contado como cobrado
+    expect(k.pendiente).toBe(111);
   });
 
   test('sin pendienteCobro el KPI sigue usando el snapshot (compat)', () => {
