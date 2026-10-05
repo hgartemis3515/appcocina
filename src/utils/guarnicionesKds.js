@@ -11,9 +11,10 @@
  */
 
 import { platoCoincideCocineroFiltro } from './cocineroFiltroIds';
-import { platoCoincideId, normalizarId, pedidoConAliasCocina, tipoServicioDePlato } from './platoHelpers';
+import { platoCoincideId, normalizarId, pedidoConAliasCocina, tipoServicioDePlato, obtenerNombreDisplayCocina } from './platoHelpers';
 import { claveNombreComplemento } from './nombreComplementoCanonico';
-import { obtenerCantidadLinea } from './numeracionTimersMonitor';
+import { colorLineaDesdeId, obtenerCantidadLinea } from './numeracionTimersMonitor';
+import { tiempoInicioPlatoCocina } from './kdsFilters';
 import {
   platoJuntaGuarnicionesEntreVariantes,
   idCatalogoPlatoLinea,
@@ -101,6 +102,19 @@ export function complementoForzarVisibleTablaKds(comp, plato) {
   if (comp.forzarVisibleTablaKds === true) return true;
   const grupo = grupoCatalogoDeComplemento(comp, plato);
   return !!(grupo && grupo.forzarVisibleTablaKds === true && grupo.esVariantePlato !== true && grupo.anexarVarianteAlNombre !== true);
+}
+
+/** Guarnición fija que en Ver cocina completo va a la tabla de platos, no a complementos. */
+export function grupoVisualEnTablaPlatos(comp, plato) {
+  if (!comp || esComplementoVariantePlato(comp, plato)) return false;
+  const grupo = grupoCatalogoDeComplemento(comp, plato);
+  return !!(
+    grupo
+    && grupo.seleccionFija === true
+    && grupo.visualEnTablaPlatos === true
+    && grupo.esVariantePlato !== true
+    && grupo.anexarVarianteAlNombre !== true
+  );
 }
 
 /** Lista a pintar bajo el plato: todas, o solo las marcadas si la vista oculta guarniciones. */
@@ -756,6 +770,7 @@ export function recolectarGuarnicionesMonitor(comandas, opts = {}) {
       for (const comp of comps) {
         const tomada = !!(comp.procesandoPor && comp.procesandoPor.cocineroId);
         if (!tomada) continue;
+        if (grupoVisualEnTablaPlatos(comp, plato)) continue;
         if (cocineroIdFiltrado) {
           const gid = comp.procesandoPor && comp.procesandoPor.cocineroId;
           if (!platoCoincideCocineroFiltro(gid, cocineroIdFiltrado)) continue;
@@ -769,6 +784,103 @@ export function recolectarGuarnicionesMonitor(comandas, opts = {}) {
     }
   }
   return out;
+}
+
+function cocineroDeGuarnicion(comp) {
+  const pp = comp?.procesandoPor;
+  if (!pp?.cocineroId) return null;
+  return {
+    id: String(pp.cocineroId),
+    alias: pp.alias || pp.nombre || 'Cocinero',
+    nombre: pp.nombre || pp.alias || '',
+  };
+}
+
+/**
+ * Filas de Ver cocina completo (tabla izquierda) para guarniciones fijas
+ * marcadas «Visual en la tabla de platos». El nombre es plato + guarnición.
+ * Desaparecen cuando el plato padre deja pedido/en_espera.
+ */
+export function filasVisualTablaPlatos(comandas, opts = {}) {
+  const { cocineroIdFiltrado = null } = opts;
+  const grupos = new Map();
+  if (!Array.isArray(comandas)) return [];
+
+  for (const comanda of comandas) {
+    if (comanda?.programadaPorReserva === true) continue;
+    const platos = comanda.platos || [];
+    for (let platoIndex = 0; platoIndex < platos.length; platoIndex += 1) {
+      const plato = platos[platoIndex];
+      if (!plato || plato.anulado || plato.eliminado || plato.eliminar) continue;
+      const estado = plato.estado || '';
+      if (estado && !['pedido', 'en_espera'].includes(estado)) continue;
+      const comps = guarnicionesPendientes(plato);
+      const base = String(obtenerNombreDisplayCocina(plato, { forzar: true }) || '').trim();
+      if (!base) continue;
+      const qty = Math.max(1, Number(obtenerCantidadLinea(comanda, plato, platoIndex)) || 1);
+      const comandaId = String(comanda._id || comanda.id || '');
+      const mesa = comanda.mesas?.nummesa ?? comanda.mesaNumero ?? comanda.numeroMesa ?? null;
+
+      for (const comp of comps) {
+        if (!grupoVisualEnTablaPlatos(comp, plato)) continue;
+        const cocinero = cocineroDeGuarnicion(comp);
+        if (!cocinero) continue;
+        if (cocineroIdFiltrado && !platoCoincideCocineroFiltro(cocinero.id, cocineroIdFiltrado)) continue;
+        const opcion = String(comp.opcion || '').trim();
+        if (!opcion) continue;
+        const nombre = `${base} ${opcion}`.trim();
+        const key = `${cocinero.id}::${nombre}`;
+        if (!grupos.has(key)) {
+          grupos.set(key, {
+            nombre,
+            cantidadTotal: 0,
+            platos: [],
+            tiempoInicio: null,
+            complementosKey: 'visual-tabla-platos',
+            key,
+            grupoId: `visual-${key}`,
+            cocinero,
+            timers: [],
+            slugsTipo: [],
+            visualTablaPlatos: true,
+          });
+        }
+        const grupo = grupos.get(key);
+        const tiempoInicio = tiempoInicioPlatoCocina(plato, comanda);
+        grupo.cantidadTotal += qty;
+        grupo.platos.push({
+          plato,
+          comanda,
+          platoIndex,
+          tiempoInicio,
+          nombre,
+          cocinero,
+        });
+        const lineaId = `${comandaId}:${platoIndex}:visual:${opcion}`;
+        const colorLinea = colorLineaDesdeId(lineaId);
+        for (let u = 0; u < qty; u += 1) {
+          grupo.timers.push({
+            tiempoInicio,
+            cantidad: 1,
+            mesa,
+            comandaNumero: comanda.numeroComandaDia ?? comanda.numero ?? null,
+            comandaId,
+            platoIndex,
+            unidadIndex: u,
+            lineaId,
+            colorLinea,
+            prioridadOrden: Number(comanda?.prioridadOrden) || 0,
+            visualTablaPlatos: true,
+          });
+        }
+        const t = tiempoInicio ? new Date(tiempoInicio).getTime() : null;
+        if (t != null && (grupo.tiempoInicio == null || t < new Date(grupo.tiempoInicio).getTime())) {
+          grupo.tiempoInicio = tiempoInicio;
+        }
+      }
+    }
+  }
+  return [...grupos.values()];
 }
 
 function idsComandaIguales(a, b) {

@@ -6,6 +6,7 @@ import useCocinerosLista from '../../hooks/useCocinerosLista';
 import useBuscadorPlatos from '../../hooks/useBuscadorPlatos';
 import CocinaMonitorLayout from './CocinaMonitorLayout';
 import { parseCocineroIdsFiltro } from '../../utils/cocineroFiltroIds';
+import { filasVisualTablaPlatos } from '../../utils/guarnicionesKds';
 
 const STORAGE_COCINERO_KEY = 'cocinaMonitorCocineroId';
 
@@ -92,16 +93,20 @@ const CocinaMonitorCompleto = ({ onGoToMenu, modoFijo = false, cocineroIdFijo = 
 
   // Enriquecer cada grupo con fotoUrl del cocinero (desde la lista del selector)
   const platosPendientes = useMemo(() => {
-    if (!platosPendientesRaw || platosPendientesRaw.length === 0) return platosPendientesRaw;
+    const visuales = filasVisualTablaPlatos(comandasParaMonitor, {
+      cocineroIdFiltrado: cocineroActivoId,
+    });
+    const base = [...(platosPendientesRaw || []), ...visuales];
+    if (base.length === 0) return base;
     const fotoPorId = new Map();
     for (const c of cocineros) fotoPorId.set(String(c._id), c.fotoUrl || '');
-    return platosPendientesRaw.map(item => {
+    return base.map(item => {
       if (!item.cocinero) return item;
       const fotoUrl = fotoPorId.get(String(item.cocinero.id)) || '';
       if (!fotoUrl) return item;
       return { ...item, cocinero: { ...item.cocinero, fotoUrl } };
     });
-  }, [platosPendientesRaw, cocineros]);
+  }, [platosPendientesRaw, cocineros, comandasParaMonitor, cocineroActivoId]);
 
   // Nombre del cocinero seleccionado para el empty state contextual
   const nombreCocineroActivo = useMemo(() => {
