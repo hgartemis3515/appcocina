@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
+import { textoCronometroComanda, TEXTO_CRONOMETRO_CERO } from "../../utils/textoCronometroComanda";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "../additionals/SearchBar";
 import { 
@@ -1747,19 +1748,12 @@ const ComandaStyle = ({
         comandas.forEach(comanda => {
           const inicio = instanteInicioCocinaComanda(comanda);
           if (!inicio) {
-            nuevo.set(comanda._id, "00:00:00");
+            nuevo.set(comanda._id, TEXTO_CRONOMETRO_CERO);
             return;
           }
           const ahora = moment().tz("America/Lima");
           const creacion = moment(inicio).tz("America/Lima");
-          const diffSegundos = ahora.diff(creacion, "seconds");
-          
-          const horas = Math.floor(diffSegundos / 3600);
-          const minutos = Math.floor((diffSegundos % 3600) / 60);
-          const segundos = diffSegundos % 60;
-          
-          const tiempoFormateado = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
-          nuevo.set(comanda._id, tiempoFormateado);
+          nuevo.set(comanda._id, textoCronometroComanda(ahora.diff(creacion, "seconds")));
         });
         return nuevo;
       });
@@ -4659,7 +4653,7 @@ const ComandaStyle = ({
                 // Número de posición de la tarjeta (1, 2, 3, 4, 5...)
                 const cardNumber = (currentPage * COMANDAS_POR_PAGINA) + index + 1;
                 // Obtener tiempo formateado HH:MM:SS
-                const tiempoFormateado = tiemposComandas.get(comanda._id) || "00:00:00";
+                const tiempoFormateado = tiemposComandas.get(comanda._id) || TEXTO_CRONOMETRO_CERO;
                 return (
                   <SicarComandaCard
                     key={comanda._id}
@@ -5261,7 +5255,7 @@ const ComandaStyle = ({
               <SicarComandaCard
                 comanda={comanda}
                 tiempo={calcularTiempoTranscurrido(comanda)}
-                tiempoFormateado={tiemposComandas.get(comanda._id) || '00:00:00'}
+                tiempoFormateado={tiemposComandas.get(comanda._id) || TEXTO_CRONOMETRO_CERO}
                 getColorAlerta={getColorAlerta}
                 onListo={() => {}}
                 estadoColumna="en_espera"
@@ -5911,7 +5905,7 @@ const ComandaStyle = ({
 const SicarComandaCard = ({
   comanda,
   tiempo,
-  tiempoFormateado = "00:00:00",
+  tiempoFormateado = TEXTO_CRONOMETRO_CERO,
   getColorAlerta,
   onListo,
   estadoColumna,
