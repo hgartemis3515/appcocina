@@ -27,6 +27,10 @@ export function getComandasNumbersFromTicket(ticket) {
     const num = Number(n);
     if (!Number.isNaN(num)) nums.add(num);
   });
+  // El grupo ya trae el número del día en comandasNumbers.
+  // comandaNumber del plato es el correlativo histórico: no se mezcla.
+  if (nums.size) return [...nums].sort((a, b) => a - b);
+
   (ticket.platos || []).forEach((p) => {
     if (p?.comandaNumber == null || p.comandaNumber === '') return;
     const num = Number(p.comandaNumber);
