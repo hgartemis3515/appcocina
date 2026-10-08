@@ -55,6 +55,19 @@ export function colorLetraDeComanda(comanda) {
   return campoColorDeMozo(comanda?.mozos, 'colorLetraPerfil') || comanda?.colorLetraPerfilMozo || null;
 }
 
+/** Igual que usuarios.html: fondo colorPerfil, letra colorLetraPerfil. Sin perfil, null. */
+export function estiloChipNombreMozo(comanda) {
+  const fondoRaw = colorPerfilDeComanda(comanda);
+  const letraRaw = colorLetraDeComanda(comanda);
+  const fondo = hexValidoOrdenCola(fondoRaw) ? String(fondoRaw) : '';
+  const letra = hexValidoOrdenCola(letraRaw) ? String(letraRaw) : '';
+  if (!fondo && !letra) return null;
+  return {
+    background: fondo || undefined,
+    color: letra || '#ffffff',
+  };
+}
+
 /**
  * Fondo del recuadro detrás del nombre:
  * - forzarColorMozoUnico → colorMozoForzado

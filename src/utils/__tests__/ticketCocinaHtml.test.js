@@ -21,6 +21,7 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('ANA');
     expect(html).toContain('>Tipo<');
     expect(html).toContain('Para Mesa');
+    expect(html).not.toContain('font-size:9px;font-weight:600');
     expect(html).not.toContain('Área');
     expect(html).toContain('>COCINA<');
     expect(html).not.toContain('SAN BENITO');
@@ -46,6 +47,50 @@ describe('ticket cocina compacto', () => {
   test('letra 1 = b y 2 = c', () => {
     expect(letraRevisionTicket(1)).toBe('b');
     expect(letraRevisionTicket(2)).toBe('c');
+  });
+
+  test('anulación: nombre del plato y ANULADO a la derecha', () => {
+    const { html } = generarHtmlTicketCocina({
+      datos: {
+        comandaNumeroDisplay: '#4b',
+        mozo: 'Ana',
+        mesa: 2,
+        productos: [
+          { plato: { nombre: 'Ceviche', nombreCocina: 'Ceviche' }, cantidad: 1, precio: 28 },
+        ],
+        anulacion: { usuario: 'Admin', hora: '03/10/2026 12:00', motivo: 'Error' },
+        montoDescuento: 0,
+        total: 28,
+      },
+    });
+    expect(html).toContain('Ceviche');
+    expect(html).toContain('>ANULADO<');
+    expect(html).toContain('justify-content:space-between');
+    expect(html).toContain('ANULADO X');
+  });
+
+  test('el nombre del cliente va encima del tipo y un 20% más grande', () => {
+    const { html } = generarHtmlTicketCocina({
+      datos: {
+        comandaNumeroDisplay: '#8',
+        mozo: 'Ana',
+        mesa: 'Sin mesa',
+        sinMesa: true,
+        clienteNombre: 'Rosa',
+        productos: [
+          { nombre: 'Chicha', cantidad: 1, precio: 5, tipoServicio: 'para_llevar' },
+        ],
+        montoDescuento: 0,
+        total: 5,
+      },
+    });
+    const nombre = html.indexOf('font-size:10.8px');
+    const tipo = html.indexOf('>Tipo<');
+    const valor = html.indexOf('Para llevar');
+    expect(nombre).toBeGreaterThan(-1);
+    expect(nombre).toBeLessThan(tipo);
+    expect(tipo).toBeLessThan(valor);
+    expect(html).toContain('Rosa');
   });
 
   test('el cuadro Tipo distingue mesa, llevar y extra', () => {

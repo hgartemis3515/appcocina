@@ -302,12 +302,11 @@ export function resumenKpisTickets(tickets = []) {
       pendiente += saldoDominante ? saldo : neto;
       if (montoDesc > 0) descuento += montoDesc;
     } else if (est === 'aprobado') {
-      // Cobrado + aprobado: cuenta su snapshot, pero si la comanda aún tiene saldo
-      // pendiente por cobrar (parcial aprobado con resto), ese resto se mantiene pendiente.
+      // Snapshot aprobado una vez. pendienteCobro es solo lo que falta, al lado.
       const saldo = saldoPendienteTicket(t);
-      const restoPendiente = saldo != null && saldo > 0 ? Math.max(0, saldo - neto) : 0;
+      const resto = saldo != null && saldo > 0 ? saldo : 0;
       aprobados += neto;
-      pendiente += restoPendiente;
+      pendiente += resto;
       if (montoDesc > 0) descuento += montoDesc;
     }
   }

@@ -4,6 +4,21 @@ import { FaTimes, FaUtensils, FaUser, FaClipboardList } from "react-icons/fa";
 import HistorialPlatoRow from "./HistorialPlatoRow";
 import { classifyComandaHistorial } from "../../utils/historialComandaRules";
 import { obtenerNombrePlato, textoMesaComanda, LABEL_SIN_MESA } from "../../utils/platoHelpers";
+import { etiquetaComandaDia } from "../../utils/numeroComandaVisible";
+import { estiloChipNombreMozo } from "../../utils/estiloMozoNombreKds";
+
+export function NombreMozoHistorial({ comanda, nombre, nightMode = true }) {
+  const chip = estiloChipNombreMozo(comanda);
+  const suelto = nightMode ? "text-gray-200" : "text-gray-800";
+  return (
+    <span
+      className={chip ? "text-xs font-semibold px-1.5 py-0.5 rounded" : `text-xs ${suelto}`}
+      style={chip || undefined}
+    >
+      {nombre}
+    </span>
+  );
+}
 
 /**
  * HistorialComandaDetalle — Panel que muestra una comanda completa del Historial.
@@ -23,8 +38,15 @@ const HistorialComandaDetalle = ({ comanda, onClose, nightMode = true }) => {
   const cantidades = comanda.cantidades || [];
 
   const mesa = textoMesaComanda(comanda);
-  const orden = comanda.comandaNumber ?? comanda.orden ?? comanda.numeroOrden ?? "—";
+  const orden = etiquetaComandaDia(comanda);
   const mozo = comanda.mozoNombre || comanda.mozos?.name || "Sin mozo";
+  const cliente = String(
+    comanda.clienteNombre
+    || comanda.clienteNombreParaLlevar
+    || (comanda.cliente && typeof comanda.cliente === "object" ? comanda.cliente.nombre : "")
+    || ""
+  ).trim();
+  const obs = String(comanda.observaciones || "").trim();
   const createdAt = comanda.createdAt
     ? moment(comanda.createdAt).tz("America/Lima").format("HH:mm")
     : "—";
@@ -50,8 +72,8 @@ const HistorialComandaDetalle = ({ comanda, onClose, nightMode = true }) => {
               <span className={`text-xs px-2 py-0.5 rounded font-semibold ${badgeTipo}`}>
                 {clasif.tipo === "finalizada" ? "Finalizada" : "Parcial"} · {clasif.entregados}/{clasif.total}
               </span>
+              <span className="text-sm font-semibold">{orden}</span>
               <span className="font-bold text-lg">{mesa === LABEL_SIN_MESA ? LABEL_SIN_MESA : `Mesa ${mesa}`}</span>
-              <span className={`text-sm ${textSecondary}`}>Orden #{orden}</span>
             </div>
           </div>
           <button
@@ -69,11 +91,13 @@ const HistorialComandaDetalle = ({ comanda, onClose, nightMode = true }) => {
             <FaClipboardList /> {createdAt}
           </span>
           <span className="flex items-center gap-1">
-            <FaUser /> {mozo}
+            <FaUser />
+            <NombreMozoHistorial comanda={comanda} nombre={mozo} nightMode={nightMode} />
           </span>
-          {comanda.observaciones && (
-            <span className="italic truncate max-w-[200px]">"{comanda.observaciones}"</span>
-          )}
+          {cliente ? <span>{cliente}</span> : null}
+          {obs ? (
+            <span className="italic">{obs}</span>
+          ) : null}
         </div>
 
         {/* Platos */}

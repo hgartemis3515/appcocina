@@ -1,6 +1,6 @@
 import { getComandasNumbersFromTicket, getComandaDisplayLabel } from '../ticketComandaDisplay';
 import { etiquetaMozoTicket, etiquetaMozoDeTickets, partesMozoConColor } from '../numeroComandaMozo';
-import { groupTicketsByMozo } from '../ticketSort';
+import { groupTicketsByMozo, ticketParaDetalleGrupo } from '../ticketSort';
 
 describe('numero del dia en tickets', () => {
   test('prefiere numeroComandaDia y no el historico', () => {
@@ -18,6 +18,28 @@ describe('numero del dia en tickets', () => {
 
   test('si no hay numero del dia usa el snapshot', () => {
     expect(getComandasNumbersFromTicket({ comandasNumbers: [81, 82] })).toEqual([81, 82]);
+  });
+
+  test('el grupo no mezcla el historico del plato con el numero del dia', () => {
+    const grupo = ticketParaDetalleGrupo([
+      {
+        _id: 't1',
+        comandas: [{ _id: 'a', comandaNumber: 476, numeroComandaDia: 1 }],
+        platos: [{ comandaNumber: 476, nombre: 'Chicha' }],
+      },
+      {
+        _id: 't2',
+        comandas: [{ _id: 'b', comandaNumber: 477, numeroComandaDia: 2 }],
+        platos: [{ comandaNumber: 477, nombre: 'Lomo' }],
+      },
+      {
+        _id: 't3',
+        comandas: [{ _id: 'c', comandaNumber: 478, numeroComandaDia: 3 }],
+        platos: [{ comandaNumber: 478, nombre: 'Patasca' }],
+      },
+    ]);
+    expect(getComandasNumbersFromTicket(grupo)).toEqual([1, 2, 3]);
+    expect(getComandaDisplayLabel(grupo)).toBe('#3+#2+#1');
   });
 
   test('el grupo de mozos muestra el nombre delante del numero', () => {

@@ -1255,3 +1255,43 @@ describe('deduplicarGuarnicionesJunta', () => {
     expect(out[0].qty).toBe(1);
   });
 });
+
+describe('visual en tabla de platos', () => {
+  const { recolectarGuarnicionesMonitor, filasVisualTablaPlatos } = require('./guarnicionesKds');
+  const comanda = {
+    _id: 'c1',
+    cantidades: [1],
+    platos: [{
+      estado: 'pedido',
+      nombre: 'Duo Marino Ceviche',
+      plato: {
+        nombre: 'Duo Marino Ceviche',
+        complementos: [{
+          grupo: 'Extras',
+          seleccionFija: true,
+          visualEnTablaPlatos: true,
+          opciones: [{ nombre: 'Chicharrón de Pescado' }],
+        }],
+      },
+      complementosSeleccionados: [{
+        _id: 'g1',
+        grupo: 'Extras',
+        opcion: 'Chicharrón de Pescado',
+        procesandoPor: { cocineroId: 'cook-1', nombre: 'Ana' },
+      }],
+    }],
+  };
+
+  test('no va al panel de complementos y sí a la tabla de platos', () => {
+    expect(recolectarGuarnicionesMonitor([comanda])).toHaveLength(0);
+    const filas = filasVisualTablaPlatos([comanda]);
+    expect(filas).toHaveLength(1);
+    expect(filas[0].nombre).toBe('Duo Marino Ceviche Chicharrón de Pescado');
+    expect(filas[0].cocinero.id).toBe('cook-1');
+  });
+
+  test('al salir de pedido ya no se ve', () => {
+    const lista = [{ ...comanda, platos: [{ ...comanda.platos[0], estado: 'recoger' }] }];
+    expect(filasVisualTablaPlatos(lista)).toHaveLength(0);
+  });
+});

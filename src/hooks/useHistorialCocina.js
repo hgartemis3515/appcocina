@@ -11,6 +11,7 @@ import axios from "axios";
 import moment from "moment-timezone";
 import { getApiUrl } from "../config/apiConfig";
 import { obtenerNombrePlato, obtenerCodigoPlato } from "../utils/platoHelpers";
+import { etiquetaComandaDia } from "../utils/numeroComandaVisible";
 import {
   filtrarComandasElegiblesHistorial,
   classifyComandaHistorial,
@@ -32,8 +33,7 @@ const hoyLima = () => moment().tz("America/Lima").format("YYYY-MM-DD");
 const mesaDeComanda = (c) =>
   c?.mesaNumero ?? c?.mesas?.nummesa ?? c?.mesa?.numero ?? c?.mesa ?? c?.numeroMesa ?? "";
 
-const ordenDeComanda = (c) =>
-  c?.comandaNumber ?? c?.orden ?? c?.numeroOrden ?? "";
+const ordenDeComanda = (c) => etiquetaComandaDia(c);
 
 const useHistorialCocina = ({ getToken, socket } = {}) => {
   const [fecha, setFecha] = useState(hoyLima());
@@ -162,12 +162,14 @@ const useHistorialCocina = ({ getToken, socket } = {}) => {
         const orden = String(ordenDeComanda(c)).toLowerCase();
         const mesa = String(mesaDeComanda(c)).toLowerCase();
         const mozo = String(c.mozoNombre || c.mozos?.name || "").toLowerCase();
+        const cliente = String(c.clienteNombre || c.clienteNombreParaLlevar || "").toLowerCase();
+        const obs = String(c.observaciones || "").toLowerCase();
         const matchPlato = (c.platos || []).some((p) => {
           const np = obtenerNombrePlato(p).toLowerCase();
           const cp = obtenerCodigoPlato(p).toLowerCase();
           return np.includes(q) || cp.includes(q);
         });
-        return orden.includes(q) || mesa.includes(q) || mozo.includes(q) || matchPlato;
+        return orden.includes(q) || mesa.includes(q) || mozo.includes(q) || cliente.includes(q) || obs.includes(q) || matchPlato;
       });
     }
     if (filtros.progreso !== "todas") {

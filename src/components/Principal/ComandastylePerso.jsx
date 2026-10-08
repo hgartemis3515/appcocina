@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import moment from "moment-timezone";
+import { textoCronometroComanda, TEXTO_CRONOMETRO_CERO } from "../../utils/textoCronometroComanda";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "../additionals/SearchBar";
 import { 
@@ -1181,7 +1182,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               eliminados.push({
                 platoId: h.platoId,
                 nombre: h.nombreOriginal || 'Plato eliminado',
-                cantidad: h.cantidadOriginal || 1,
+                cantidad: (Number(h.cantidadOriginal) > Number(h.cantidadFinal) && h.cantidadFinal != null) ? (Number(h.cantidadOriginal) - Number(h.cantidadFinal)) : (h.cantidadEliminada || h.cantidadOriginal || 1),
                 timestamp: h.timestamp || new Date().toISOString(),
                 nombreMozo: nombreMozo,
                 motivo: h.motivo || 'Eliminado'
@@ -1195,7 +1196,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
               eliminados.push({
                 platoId: h.platoId,
                 nombre: h.nombreOriginal || 'Plato eliminado',
-                cantidad: h.cantidadOriginal || 1,
+                cantidad: (Number(h.cantidadOriginal) > Number(h.cantidadFinal) && h.cantidadFinal != null) ? (Number(h.cantidadOriginal) - Number(h.cantidadFinal)) : (h.cantidadEliminada || h.cantidadOriginal || 1),
                 timestamp: h.timestamp || new Date().toISOString(),
                 nombreMozo: h.usuario?.name || h.usuario?.nombre || h.nombreMozo || 'Mozo',
                 motivo: h.motivo || 'Eliminado'
@@ -1350,7 +1351,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
             eliminadosActuales.push({
               platoId: data.platoId,
               nombre: ultimoEliminado.nombreOriginal || data.plato?.nombre || 'Plato eliminado',
-              cantidad: ultimoEliminado.cantidadOriginal || 1,
+              cantidad: (Number(ultimoEliminado.cantidadOriginal) > Number(ultimoEliminado.cantidadFinal) && ultimoEliminado.cantidadFinal != null) ? (Number(ultimoEliminado.cantidadOriginal) - Number(ultimoEliminado.cantidadFinal)) : (ultimoEliminado.cantidadEliminada || ultimoEliminado.cantidadOriginal || 1),
               timestamp: ultimoEliminado.timestamp || new Date(),
               nombreMozo: ultimoEliminado.usuario?.name || ultimoEliminado.usuario?.nombre || ultimoEliminado.nombreMozo || 'Mozo',
               motivo: ultimoEliminado.motivo || 'Eliminado'
@@ -1779,19 +1780,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         comandas.forEach(comanda => {
           const inicio = instanteInicioCocinaComanda(comanda);
           if (!inicio) {
-            nuevo.set(comanda._id, "00:00:00");
+            nuevo.set(comanda._id, TEXTO_CRONOMETRO_CERO);
             return;
           }
           const ahora = moment().tz("America/Lima");
           const creacion = moment(inicio).tz("America/Lima");
-          const diffSegundos = ahora.diff(creacion, "seconds");
-          
-          const horas = Math.floor(diffSegundos / 3600);
-          const minutos = Math.floor((diffSegundos % 3600) / 60);
-          const segundos = diffSegundos % 60;
-          
-          const tiempoFormateado = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
-          nuevo.set(comanda._id, tiempoFormateado);
+          nuevo.set(comanda._id, textoCronometroComanda(ahora.diff(creacion, "seconds")));
         });
         return nuevo;
       });
@@ -3673,6 +3667,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     try {
       const data = await apiPut(`/api/comanda/${r.comandaId}/eliminar-platos`, {
         platosAEliminar: r.indices,
+        cantidadesAEliminar: forzado?.cantidades,
         motivo,
         sourceApp: 'cocina',
         usuarioId: userId || undefined,
@@ -3795,6 +3790,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const epaEliminarPlato = camuflarEliminarPlatoEpa(kdsVistaConfig);
   const platosResumenEliminar = showEliminarPlatoModal
     ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
+        index: item.index,
+        max: Math.max(1, Math.floor(Number(item.cantidad) || 1)),
         cantidad: item.cantidad,
         nombre: obtenerNombreDisplayCocina(item.plato, { habilitadoEnKds: usarNombreCocinaEnTablaKds })
           || obtenerNombrePlato(item.plato)
@@ -3957,7 +3954,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 // Número de posición de la tarjeta (1, 2, 3, 4, 5...)
                 const cardNumber = (currentPage * COMANDAS_POR_PAGINA) + index + 1;
                 // Obtener tiempo formateado HH:MM:SS
-                const tiempoFormateado = tiemposComandas.get(comanda._id) || "00:00:00";
+                const tiempoFormateado = tiemposComandas.get(comanda._id) || TEXTO_CRONOMETRO_CERO;
                 return (
                   <SicarComandaCard
                     key={comanda._id}
@@ -4557,7 +4554,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         usarNombreCocina={usarNombreCocinaEnTablaKds}
         loading={eliminarPlatoLoading}
         onClose={() => setShowEliminarTabla(false)}
-        onConfirmar={({ comandaId, indices, motivo }) => handleEliminarPlatosKds(motivo, { comandaId, indices })}
+        onConfirmar={({ comandaId, indices, motivo, cantidades }) => handleEliminarPlatosKds(motivo, { comandaId, indices, cantidades })}
       />
 
       <EliminarPlatoKdsModal
@@ -4568,11 +4565,12 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
         motivo={eliminarPlatoMotivo}
         onMotivoChange={setEliminarPlatoMotivo}
         loading={eliminarPlatoLoading}
+        puedeAjustarCantidad={hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || userRole === 'admin'}
         onCancel={() => {
           setShowEliminarPlatoModal(false);
           setEliminarPlatoMotivo('');
         }}
-        onConfirm={handleEliminarPlatosKds}
+        onConfirm={(motivo, extra) => handleEliminarPlatosKds(motivo, extra)}
       />
 
       {/* 🔥 NUEVO: Modal de Anulación desde Cocina */}
@@ -5036,7 +5034,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 const SicarComandaCard = ({ 
   comanda, 
   tiempo, 
-  tiempoFormateado = "00:00:00",
+  tiempoFormateado = TEXTO_CRONOMETRO_CERO,
   getColorAlerta, 
   onListo,
   estadoColumna,
@@ -5144,7 +5142,7 @@ const SicarComandaCard = ({
         return {
           platoId: h.platoId,
           nombre: nombre, // Puede ser null si no se encontró
-          cantidad: h.cantidadOriginal || h.cantidad || 1,
+          cantidad: (Number(h.cantidadOriginal) > Number(h.cantidadFinal) && h.cantidadFinal != null) ? (Number(h.cantidadOriginal) - Number(h.cantidadFinal)) : (h.cantidadEliminada || h.cantidadOriginal || h.cantidad || 1),
           motivo: h.motivo || 'Eliminado',
           timestamp: h.timestamp || new Date(),
           usuario: h.usuario,

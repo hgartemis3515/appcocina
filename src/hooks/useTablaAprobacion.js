@@ -256,11 +256,13 @@ export default function useTablaAprobacion({
 
     const handleComandaAprobada = (data) => {
       console.log('[TablaAprobacion] Comanda aprobada:', data?.ticketNumber);
+      const id = data?.ticketId != null ? String(data.ticketId) : '';
       setItems(prev => prev.map(t =>
-        t._id === data?.ticketId
-          ? { ...t, estado: 'aprobado', aprobadoPorNombre: data?.aprobadoPorNombre, fechaAprobacion: data?.fechaAprobacion || new Date().toISOString() }
+        id && String(t._id) === id
+          ? { ...t, estado: 'aprobado', pagoForzado: data?.pagoForzado === true || t.pagoForzado, aprobadoPorNombre: data?.aprobadoPorNombre, fechaAprobacion: data?.fechaAprobacion || new Date().toISOString() }
           : t
       ));
+      fetchItemsDebounced();
     };
 
     const handleMesaReportada = () => {

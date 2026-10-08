@@ -222,7 +222,11 @@ function productosDe(grupo, incluirEliminados = false) {
     (c.platos || []).forEach((linea, index) => {
       if (!linea) return;
       if (!incluirEliminados && (linea.eliminado === true || linea.anulado === true)) return;
-      const nombre = obtenerNombreDisplayCocina(linea) || linea?.plato?.nombre || 'Plato';
+      const mostrado = obtenerNombreDisplayCocina(linea);
+      const platoObj = linea?.plato && typeof linea.plato === 'object' ? linea.plato : {};
+      const nombre = (mostrado && mostrado !== 'Plato')
+        ? mostrado
+        : (linea?.nombreCocinaPedido || linea?.nombre || platoObj.nombre || platoObj.nombreCocina || 'Plato');
       const cant = Number(c.cantidades?.[index] || linea.cantidad) || 1;
       const unit = linea.precioUnitario != null
         ? Number(linea.precioUnitario)
@@ -319,7 +323,11 @@ export async function imprimirTicketCocinaKds(grupo) {
   if (fallos.length) throw new Error(fallos.join('\n'));
 }
 
-/** Grupo del mismo pedido. La letra queda solo en la comanda editada. */
+/**
+ * Reimprime cocina y caja tras eliminar plato o bajar cantidad.
+ * Usa la comanda ya guardada: platos activos, cantidades que quedan y revisionTicket.
+ * Letra: 0 sin sufijo, 1 = b, 2 = c. Solo la comanda editada cambia de letra.
+ */
 export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
   if (!actualizada) return;
   const pid = idPedido(actualizada);
