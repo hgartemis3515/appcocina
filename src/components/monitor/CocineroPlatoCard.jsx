@@ -187,6 +187,9 @@ const CocineroPlatoCard = React.forwardRef(({
   tick = 0,
 }, ref) => {
   const { nombre, cantidadTotal, platos = [], timers = [], cocinero } = item;
+  // PLAN_METODO_PRUEBA_ADMIN: la tarjeta lleva el chip PRUEBA si algún plato
+  // pertenece a una comanda de prueba del admin.
+  const esPruebaCard = Array.isArray(platos) && platos.some((p) => p?.comanda?.esPrueba === true);
   const esGuarnicion = item.esGuarnicion === true;
   const modoG = esGuarnicion && item.modoG === true;
   const chipsOrden = Array.isArray(item.chipsOrden) ? item.chipsOrden : [];
@@ -435,6 +438,7 @@ const CocineroPlatoCard = React.forwardRef(({
   const hayDetallesGuarnicion = !esGuarnicion && mostrarComplementos && !!complementosTexto;
   const alturaAlContenido = compacto || aprovecharEspacio || hayDetallesGuarnicion;
   const hayPie = (!ocultarAtencionUrgente && (esCritico || esAlerta))
+    || esPruebaCard
     || (configVisual.mostrarMesas !== false && !esGuarnicion);
   const outerStyle = {
     display: 'flex',
@@ -681,6 +685,24 @@ const CocineroPlatoCard = React.forwardRef(({
             }}
           >
             ⏳ ATENCIÓN
+          </span>
+        )}
+        {esPruebaCard && (
+          <span
+            style={{
+              padding: '4px 12px',
+              borderRadius: '8px',
+              fontSize: `${fsAtencion}px`,
+              fontWeight: 900,
+              color: '#FFFFFF',
+              background: '#7C3AED',
+              border: '1px solid #A78BFA',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+            title="Comanda de prueba (monto 0)"
+          >
+            PRUEBA
           </span>
         )}
         {configVisual.mostrarMesas !== false && !esGuarnicion && (

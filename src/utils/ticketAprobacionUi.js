@@ -358,12 +358,16 @@ export function ticketEsAltaSinPago(ticket) {
 
 export function ticketPuedeAprobarse(ticket) {
   if (!ticket || ticket.estado !== 'pendiente_aprobacion') return false;
+  // PLAN_METODO_PRUEBA_ADMIN: tickets PRUEBA (monto 0) se aprueban sin boucher.
+  if (ticket.esPrueba === true) return true;
   if (esPagoAdelantado(ticket)) return true;
   return !!ticket.boucher;
 }
 
 export function ticketPuedeForzarPago(ticket) {
   if (!ticket || ticket.estado !== 'pendiente_aprobacion') return false;
+  // PLAN_METODO_PRUEBA_ADMIN: una prueba no se fuerza (ya es aprobable sin cobro).
+  if (ticket.esPrueba === true) return false;
   if (esPagoAdelantado(ticket)) return false;
   return esTicketComanda(ticket) || esPagoParcial(ticket);
 }

@@ -203,6 +203,15 @@ export default function HeaderTarjetaComandaKds({
       #{nComanda}
     </span>
   ) : null;
+  // PLAN_METODO_PRUEBA_ADMIN: comanda de prueba del admin (monto 0)
+  const chipPrueba = comanda?.esPrueba ? (
+    <Chip
+      style={{ ...estiloDato, backgroundColor: '#7C3AED', color: '#FFFFFF', borderColor: '#7C3AED', fontWeight: 800 }}
+      title="Comanda de prueba (monto 0)"
+    >
+      PRUEBA
+    </Chip>
+  ) : null;
   const urgencia = (esAtencion || esUrgente) ? (
     <FaExclamationTriangle
       className={`shrink-0 ${esUrgente ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}
@@ -219,6 +228,7 @@ export default function HeaderTarjetaComandaKds({
         <div className={`${wrap} justify-between mt-1`}>
           {hora}
           {numeroChico}
+          {chipPrueba}
           {urgencia}
           <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
           {reloj}
@@ -242,6 +252,7 @@ export default function HeaderTarjetaComandaKds({
         <div className={`${wrap} justify-between mt-1`}>
           {hora}
           {numeroChico}
+          {chipPrueba}
           {urgencia}
           <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
           {reloj}
@@ -264,6 +275,7 @@ export default function HeaderTarjetaComandaKds({
       <div className={`${wrap} justify-center mt-0.5`}>
         {hora}
         {numeroChico}
+        {chipPrueba}
         {urgencia}
         <Chip style={estiloDato} title="Orden en el tablero">{cardNumber}</Chip>
         {reloj}

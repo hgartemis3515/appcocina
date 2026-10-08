@@ -280,6 +280,11 @@ function FilaTicketAvanzado({
         )}
       </td>
       <td className="px-3 py-2">
+        {ticket.esPrueba && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-violet-600 text-white border border-violet-400 mr-1">
+            PRUEBA
+          </span>
+        )}
         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
           {badge.label}
         </span>
@@ -593,6 +598,11 @@ export default function TicketsAprobacionTable({
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-400 uppercase">—</td>
                     <td className="px-3 py-2">
+                      {fila.tickets.some((t) => t.esPrueba) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-violet-600 text-white border border-violet-400 mr-1">
+                          PRUEBA
+                        </span>
+                      )}
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
                         {estadoGrupo.label}
                       </span>

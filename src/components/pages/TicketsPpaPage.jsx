@@ -629,6 +629,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           NC:{comandaLabel}
                         </span>
                         <div className={`flex items-center gap-2 ${tablaPrefs.aprovechador ? 'min-w-0 overflow-hidden' : 'flex-shrink-0'}`}>
+                          {ticket.esPrueba && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-violet-600 text-white border border-violet-400">
+                              PRUEBA
+                            </span>
+                          )}
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${badge.bg}`}>
                             {badge.label}
                           </span>
@@ -1342,6 +1347,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                               </button>
                             )}
                             {abierto ? botonesAdelanto : null}
+                            {fila.tickets.some((t) => t.esPrueba) && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-violet-600 text-white border border-violet-400">
+                                PRUEBA
+                              </span>
+                            )}
                             <span className={`text-xs px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoGrupo.bg}`}>
                               {estadoGrupo.label}
                             </span>
