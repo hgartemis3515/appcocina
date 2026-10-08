@@ -1,7 +1,10 @@
 /**
  * Timbres de nueva comanda (tablas KDS).
- * Web Audio: sin mp3, sin librerías nativas. El beep clásico (800 Hz) queda como default.
+ * Web Audio para los tonos. El MP3 propio vive en esta computadora.
  */
+import { TIMBRE_MP3, prepararTimbreMp3, reproducirTimbreMp3 } from './kdsTimbreMp3';
+
+export { TIMBRE_MP3 };
 
 export const TIMBRE_DEFAULT = 'beep_clasico';
 export const TIMBRE_VOLUMEN_DEFAULT = 70;
@@ -62,6 +65,7 @@ function clampVolumen(v) {
 }
 
 export function resolverTimbreClave(clave) {
+  if (clave === TIMBRE_MP3) return TIMBRE_MP3;
   return CLAVE_SET.has(clave) ? clave : TIMBRE_DEFAULT;
 }
 
@@ -271,6 +275,9 @@ export function syncKdsNotificationSound(config = {}) {
     timbreFinalizarClave: resolverTimbreClave(config.timbreFinalizarClave || config.timbreClave),
     timbreEntregarClave: resolverTimbreClave(config.timbreEntregarClave || config.timbreClave),
   };
+  if (liveOpts.clave === TIMBRE_MP3 || liveOpts.timbreFinalizarClave === TIMBRE_MP3 || liveOpts.timbreEntregarClave === TIMBRE_MP3) {
+    prepararTimbreMp3();
+  }
 }
 
 /**
@@ -283,7 +290,19 @@ export function playKdsNotificationSound(override = {}) {
   const enabled = override.force === true ? true : liveOpts.enabled;
   if (!enabled) return;
   const clave = resolverTimbreClave(override.clave ?? liveOpts.clave);
-  const vol = masterGain(override.volumen ?? liveOpts.volumen);
+  const volumenPct = clampVolumen(override.volumen ?? liveOpts.volumen);
+  if (volumenPct <= 0) return;
+  if (clave === TIMBRE_MP3) {
+    const beep = () => playRecipe(TIMBRE_DEFAULT, masterGain(volumenPct));
+    if (reproducirTimbreMp3(volumenPct / 100)) return;
+    prepararTimbreMp3()
+      .then((ok) => {
+        if (!ok || !reproducirTimbreMp3(volumenPct / 100)) beep();
+      })
+      .catch(beep);
+    return;
+  }
+  const vol = masterGain(volumenPct);
   if (vol <= 0.001) return;
   try {
     playRecipe(clave, vol);

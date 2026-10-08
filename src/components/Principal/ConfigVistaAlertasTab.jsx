@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FaPalette, FaClock, FaSave, FaFolderOpen, FaTrash, FaPlus, FaBell, FaPlay, FaVolumeUp, FaVolumeDown, FaVolumeMute } from 'react-icons/fa';
 import { useConfig } from '../../contexts/ConfigContext';
 import {
@@ -66,6 +66,13 @@ import {
   playKdsEventSound,
 } from '../../utils/kdsNotificationSounds';
 import {
+  TIMBRE_MP3,
+  guardarTimbreMp3,
+  quitarTimbreMp3,
+  leerTimbreMp3,
+  nombreTimbreMp3,
+} from '../../utils/kdsTimbreMp3';
+import {
   HEADER_TARJETA_ESTILOS,
   HEADER_TARJETA_LETRAS_DEFAULT,
   HEADER_TARJETA_TAMANO_MIN,
@@ -101,6 +108,14 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
 
   const [perfilSel, setPerfilSel] = useState(perfilActivo || '');
   const [msg, setMsg] = useState(null);
+  const [nombreMp3, setNombreMp3] = useState('');
+  const inputMp3Ref = useRef(null);
+
+  useEffect(() => {
+    leerTimbreMp3()
+      .then(() => setNombreMp3(nombreTimbreMp3()))
+      .catch(() => setNombreMp3(''));
+  }, []);
 
   useEffect(() => {
     recargarPerfilesVista();
@@ -1752,6 +1767,77 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
         {resolverTimbreClave(config.timbreClave) === TIMBRE_DEFAULT && (
           <p className={`${textSecondary} text-xs mt-3`}>Beep clásico es el tono que ya usaba el tablero.</p>
         )}
+
+        <div className={`mt-4 rounded-lg border p-3 ${resolverTimbreClave(config.timbreClave) === TIMBRE_MP3 ? 'border-amber-400 bg-amber-500/15' : borderModal}`}>
+          <p className={`text-sm font-semibold ${textModal}`}>Sonido propio (esta computadora)</p>
+          <p className={`${textSecondary} text-[11px] mt-0.5`}>
+            MP3 que suena al llegar una comanda. Queda guardado solo en este navegador.
+          </p>
+          <input
+            ref={inputMp3Ref}
+            type="file"
+            accept="audio/mpeg,.mp3"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files && e.target.files[0];
+              e.target.value = '';
+              if (!file) return;
+              try {
+                const nombre = await guardarTimbreMp3(file);
+                setNombreMp3(nombre);
+                updateConfig({ timbreClave: TIMBRE_MP3 });
+                playKdsNotificationSound({
+                  clave: TIMBRE_MP3,
+                  volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+                  force: true,
+                });
+              } catch (err) {
+                flash('err', err?.message || 'No se pudo guardar el MP3');
+              }
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => inputMp3Ref.current && inputMp3Ref.current.click()}
+              className="px-3 py-2 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              Importar MP3
+            </button>
+            <span className={`text-xs ${textSecondary} truncate max-w-[220px]`}>
+              {nombreMp3 || 'Sin archivo'}
+            </span>
+            <button
+              type="button"
+              disabled={!nombreMp3}
+              onClick={() => {
+                updateConfig({ timbreClave: TIMBRE_MP3 });
+                playKdsNotificationSound({
+                  clave: TIMBRE_MP3,
+                  volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+                  force: true,
+                });
+              }}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 ${nightMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
+            >
+              Usar y probar
+            </button>
+            <button
+              type="button"
+              disabled={!nombreMp3}
+              onClick={async () => {
+                await quitarTimbreMp3();
+                setNombreMp3('');
+                if (resolverTimbreClave(config.timbreClave) === TIMBRE_MP3) {
+                  updateConfig({ timbreClave: TIMBRE_DEFAULT });
+                }
+              }}
+              className="px-3 py-2 rounded-lg text-sm font-semibold text-red-300 border border-red-400/40 disabled:opacity-40"
+            >
+              Quitar
+            </button>
+          </div>
+        </div>
 
         <div className={`mt-5 pt-4 border-t ${borderModal} space-y-3`}>
           <h4 className={`${textModal} text-sm font-bold flex items-center gap-2`}>
