@@ -19,7 +19,7 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('#10a');
     expect(html).toContain('Lomo');
     expect(html).toContain('ANA');
-    expect(html).toContain('>Tipo<');
+    expect(html).not.toContain('>Tipo<');
     expect(html).toContain('Para Mesa');
     expect(html).not.toContain('font-size:9px;font-weight:600');
     expect(html).not.toContain('Área');
@@ -84,13 +84,12 @@ describe('ticket cocina compacto', () => {
         total: 5,
       },
     });
-    const nombre = html.indexOf('font-size:10.8px');
-    const tipo = html.indexOf('>Tipo<');
+    const nombre = html.indexOf('>Rosa<');
     const valor = html.indexOf('Para llevar');
     expect(nombre).toBeGreaterThan(-1);
-    expect(nombre).toBeLessThan(tipo);
-    expect(tipo).toBeLessThan(valor);
-    expect(html).toContain('Rosa');
+    expect(nombre).toBeLessThan(valor);
+    expect(html).not.toContain('>Tipo<');
+    expect(html).toContain('font-size:10.8px');
   });
 
   test('el cuadro Tipo distingue mesa, llevar y extra', () => {
