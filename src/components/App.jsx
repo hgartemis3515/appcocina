@@ -87,6 +87,20 @@ const AppRouter = () => {
     }
 
     if (isAuthenticated) {
+      const vistaPanel = params.get('vista');
+      if (vistaPanel === 'tickets') {
+        setCurrentView('TICKETS_PPA');
+        return;
+      }
+      if (vistaPanel === 'comandas') {
+        setCurrentView('COCINA');
+        return;
+      }
+      if (vistaPanel === 'ver-cocina') {
+        setCurrentView('VER_COCINA_COMPLETO');
+        return;
+      }
+
       // Deep link modo fijo: ?monitor=N&vistaId=X&modo=fijo
       // Permite abrir directamente Ver Cocina Personalizado en una TV
       const modoFijo = params.get('modo');
@@ -155,6 +169,7 @@ const AppRouter = () => {
 
   useEffect(() => {
     if (!ocultarTablasKdsMenosSupervisor) return;
+    if (new URLSearchParams(window.location.search).get('vista') === 'comandas') return;
     if (currentView === 'COCINA' || currentView === 'COCINA_PERSONALIZADA') {
       setCurrentView('COCINA_SUPERVISOR');
     }
