@@ -267,6 +267,7 @@ function datosTicketDeGrupo(lista, extra = {}) {
     descuentos: motivo ? [{ motivo }] : [],
     total: 0,
     anulacion: extra.anulacion || null,
+    esPrueba: lista.some((c) => c?.esPrueba === true),
   };
 }
 
@@ -296,11 +297,16 @@ async function paradasImpresionAutomatica() {
   }
 }
 
+async function paradasDeTicket(datos) {
+  if (datos?.esPrueba === true) return { cocina: false, caja: false };
+  return paradasImpresionAutomatica();
+}
+
 export async function imprimirTicketCocinaKds(grupo) {
   const lista = (grupo || []).filter(Boolean);
   const datos = datosTicketDeGrupo(lista);
   if (!(datos.productos || []).length && !datos.anulacion) return;
-  const parada = await paradasImpresionAutomatica();
+  const parada = await paradasDeTicket(datos);
   if (parada.cocina && parada.caja) return;
   const trabajos = [];
   if (!parada.cocina) {
@@ -353,7 +359,7 @@ export async function imprimirTicketAnulacionKds(comanda, ticketAnulacion) {
     letrero: ticketAnulacion.letrero,
   });
   if (!(datos.productos || []).length && !datos.anulacion) return;
-  const parada = await paradasImpresionAutomatica();
+  const parada = await paradasDeTicket(datos);
   if (parada.cocina && parada.caja) return;
   const trabajos = [];
   if (!parada.cocina) {

@@ -355,6 +355,7 @@ const CocineroPlatoCard = React.forwardRef(({
 
   const fsUrgente = escalaDetalle(tamanioFuenteDetalle, 0.85);
   const fsAtencion = escalaDetalle(tamanioFuenteDetalle, 0.75);
+  const fsPrueba = escalaDetalle(tamanioFuenteDetalle, 1);
   const fsEtiquetaMesa = escalaDetalle(tamanioFuenteDetalle, 0.65);
   const fsIniciales = escalaDetalle(tamanioFuenteDetalle, 0.65);
   const esUnido = espaciado === 'unido';
@@ -690,9 +691,9 @@ const CocineroPlatoCard = React.forwardRef(({
         {esPruebaCard && (
           <span
             style={{
-              padding: '4px 12px',
+              padding: '6px 16px',
               borderRadius: '8px',
-              fontSize: `${fsAtencion}px`,
+              fontSize: `${fsPrueba}px`,
               fontWeight: 900,
               color: '#FFFFFF',
               background: '#7C3AED',

@@ -69,6 +69,21 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('ANULADO X');
   });
 
+  test('PRUEBA solo si la comanda es de prueba', () => {
+    const base = {
+      comandaNumeroDisplay: '#3',
+      mozo: 'Ana',
+      mesa: 1,
+      productos: [{ nombre: 'Agua', cantidad: 1, precio: 0 }],
+      montoDescuento: 0,
+      total: 0,
+    };
+    const sin = generarHtmlTicketCocina({ datos: base }).html;
+    const con = generarHtmlTicketCocina({ datos: { ...base, esPrueba: true } }).html;
+    expect(sin).not.toContain('>PRUEBA<');
+    expect(con).toContain('>PRUEBA<');
+  });
+
   test('el nombre del cliente va encima del tipo y un 20% más grande', () => {
     const { html } = generarHtmlTicketCocina({
       datos: {

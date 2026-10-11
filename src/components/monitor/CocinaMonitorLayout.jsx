@@ -14,6 +14,7 @@ import CocineroSelectorDropdown from './CocineroSelectorDropdown';
 import MonitorEmptyState from './MonitorEmptyState';
 import MonitorConfigPanel from './MonitorConfigPanel';
 import SearchBar from '../additionals/SearchBar';
+import AlertaInventarioFranja from './AlertaInventarioFranja';
 import useCocinaMonitorTimer from '../../hooks/useCocinaMonitorTimer';
 import { calcularSegundos, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
 import { asignarNumeroGlobal, colorLineaDesdeId, obtenerCantidadLinea } from '../../utils/numeracionTimersMonitor';
@@ -1725,6 +1726,7 @@ const CocinaMonitorLayout = ({
           )}
         </div>
       </header>
+      <AlertaInventarioFranja getToken={getToken} />
 
       {/* Panel de personalización visual */}
       <AnimatePresence>

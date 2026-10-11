@@ -204,9 +204,22 @@ export default function HeaderTarjetaComandaKds({
     </span>
   ) : null;
   // PLAN_METODO_PRUEBA_ADMIN: comanda de prueba del admin (monto 0)
+  const tamPrueba = Math.round(tamNumero * 1.25);
   const chipPrueba = comanda?.esPrueba ? (
     <Chip
-      style={{ ...estiloDato, backgroundColor: '#7C3AED', color: '#FFFFFF', borderColor: '#7C3AED', fontWeight: 800 }}
+      style={{
+        ...estiloDato,
+        fontSize: `${tamPrueba}px`,
+        lineHeight: 1,
+        fontWeight: 800,
+        backgroundColor: '#7C3AED',
+        color: '#FFFFFF',
+        borderColor: '#7C3AED',
+        paddingLeft: `${Math.max(8, Math.round(tamPrueba * 0.28))}px`,
+        paddingRight: `${Math.max(8, Math.round(tamPrueba * 0.28))}px`,
+        paddingTop: `${Math.max(3, Math.round(tamPrueba * 0.12))}px`,
+        paddingBottom: `${Math.max(3, Math.round(tamPrueba * 0.12))}px`,
+      }}
       title="Comanda de prueba (monto 0)"
     >
       PRUEBA

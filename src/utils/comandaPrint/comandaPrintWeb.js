@@ -119,6 +119,7 @@ export function mergeDatosImprimibles(lista) {
     totalSinDescuento: Number(subtotal.toFixed(2)),
     tipoPago,
     pagoForzado,
+    esPrueba: items.some((d) => d.esPrueba === true),
   };
 }
 
@@ -450,6 +451,7 @@ function mapearTicketADatos(ticket) {
     moneda: ticket.moneda === 'USD' ? 'USD' : 'PEN',
     tipoPago: resolverTipoPagoImpresion(ticket),
     pagoForzado: ticket.pagoForzado === true || ticket.origen === 'forzado',
+    esPrueba: ticket.esPrueba === true || (Array.isArray(ticket.comandas) && ticket.comandas.some((c) => c?.esPrueba === true)),
     observaciones: ticket.observaciones || '',
     productos,
     subtotal: montoDescuento > 0 || haySnapshot ? bruto : totales.subtotal,
