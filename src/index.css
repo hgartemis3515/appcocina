@@ -87,6 +87,33 @@ body {
   background: #5A5A5A;
 }
 
+/* Barra de scroll de la lista de platos en la tarjeta KDS.
+   El color lo ponen --kds-scroll-thumb / --kds-scroll-track / --kds-scroll-contorno. */
+[data-kds-scroll-platos] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--kds-scroll-thumb, #4A4A4A) var(--kds-scroll-track, #2A2A2A);
+}
+
+[data-kds-scroll-platos]::-webkit-scrollbar {
+  width: 12px;
+}
+
+[data-kds-scroll-platos]::-webkit-scrollbar-track {
+  background: var(--kds-scroll-track, #2A2A2A);
+  border-radius: 5px;
+}
+
+[data-kds-scroll-platos]::-webkit-scrollbar-thumb {
+  background: var(--kds-scroll-thumb, #4A4A4A);
+  border-radius: 5px;
+  border: var(--kds-scroll-grosor, 0px) solid var(--kds-scroll-contorno, transparent);
+}
+
+[data-kds-scroll-platos]::-webkit-scrollbar-thumb:hover {
+  background: var(--kds-scroll-thumb, #4A4A4A);
+  filter: brightness(1.2);
+}
+
 /* Pulso para temporizadores en zona critica del monitor Ver Cocina */
 @keyframes kdspulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }

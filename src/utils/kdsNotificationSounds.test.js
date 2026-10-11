@@ -15,6 +15,7 @@ describe('kdsNotificationSounds', () => {
   test('clave inválida cae al beep clásico', () => {
     expect(resolverTimbreClave('no-existe')).toBe(TIMBRE_DEFAULT);
     expect(resolverTimbreClave('ding_dong')).toBe('ding_dong');
+    expect(resolverTimbreClave('mp3_personal')).toBe('mp3_personal');
   });
 
   test('por defecto solo suena nueva comanda', () => {

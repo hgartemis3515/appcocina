@@ -261,6 +261,27 @@ const MenuPage = ({ onNavigate }) => {
     visible: { opacity: 1, y: 0 },
   };
 
+  const abrirPanelComandas = () => {
+    const base = `${getServerBaseUrl()}/comandas.html`;
+    let token = '';
+    try {
+      const raw = localStorage.getItem('cocinaAuth');
+      const data = raw ? JSON.parse(raw) : null;
+      token = data?.token || '';
+    } catch (_) {
+      token = '';
+    }
+    if (!token) {
+      window.open(base, '_blank', 'noopener');
+      return;
+    }
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ token }))))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    window.open(`${base}#panelAuth=${payload}`, '_blank', 'noopener');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
       {/* Header */}
@@ -286,13 +307,11 @@ const MenuPage = ({ onNavigate }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    window.location.href = `${getServerBaseUrl()}/login.html`;
-                  }}
-                  className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-4 py-2 rounded-lg border border-amber-400/40 transition-colors"
-                  title="Abrir el login del panel (backend)"
+                  onClick={abrirPanelComandas}
+                  className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg border border-amber-400/40 transition-colors text-[18.2px] px-[20.8px] py-[10.4px]"
+                  title="Abrir comandas del panel con esta sesión"
                 >
-                  <FaExternalLinkAlt className="text-xs" />
+                  <FaExternalLinkAlt className="text-[15.6px]" />
                   Panel
                 </button>
               </div>

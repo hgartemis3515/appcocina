@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FaPalette, FaClock, FaSave, FaFolderOpen, FaTrash, FaPlus, FaBell, FaPlay, FaVolumeUp, FaVolumeDown, FaVolumeMute } from 'react-icons/fa';
 import { useConfig } from '../../contexts/ConfigContext';
 import {
@@ -11,6 +11,7 @@ import {
   FONDO_CONJUNTO_TARJETAS_NOCHE,
   FONDO_CONJUNTO_TARJETAS_CLARO,
 } from '../../config/kdsConfigConstants';
+import { SCROLL_PLATOS_DEFAULT, grosorScrollPlatosKds, varsScrollPlatosKds } from '../../utils/estiloCuadroPlatosKds';
 import {
   ORDEN_COLA_FUENTES,
   ORDEN_COLA_TAMANO_MIN,
@@ -66,6 +67,13 @@ import {
   playKdsEventSound,
 } from '../../utils/kdsNotificationSounds';
 import {
+  TIMBRE_MP3,
+  guardarTimbreMp3,
+  quitarTimbreMp3,
+  leerTimbreMp3,
+  nombreTimbreMp3,
+} from '../../utils/kdsTimbreMp3';
+import {
   HEADER_TARJETA_ESTILOS,
   HEADER_TARJETA_LETRAS_DEFAULT,
   HEADER_TARJETA_TAMANO_MIN,
@@ -101,6 +109,14 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
 
   const [perfilSel, setPerfilSel] = useState(perfilActivo || '');
   const [msg, setMsg] = useState(null);
+  const [nombreMp3, setNombreMp3] = useState('');
+  const inputMp3Ref = useRef(null);
+
+  useEffect(() => {
+    leerTimbreMp3()
+      .then(() => setNombreMp3(nombreTimbreMp3()))
+      .catch(() => setNombreMp3(''));
+  }, []);
 
   useEffect(() => {
     recargarPerfilesVista();
@@ -444,6 +460,75 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
 
         <section className={`rounded-xl border ${borderModal} ${cardBg} p-4 flex flex-col gap-4`}>
           <h3 className={`text-lg font-bold ${textModal}`}>Tarjeta</h3>
+          <fieldset className="space-y-3">
+            <legend className={`${textModal} font-semibold`}>Barra de scroll de platos</legend>
+            <p className={`${textSecondary} text-xs`}>
+              El botón gris a la derecha de los platos y el riel negro donde se desliza. El contorno rodea ese botón; sube el grosor para verlo.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                ['scrollPlatosColor', 'Color del botón (oscuro)', 'Color del botón de scroll en modo oscuro'],
+                ['scrollPlatosColorClaro', 'Color del botón (claro)', 'Color del botón de scroll en modo claro'],
+                ['scrollPlatosRiel', 'Color del riel (oscuro)', 'Color del riel de scroll en modo oscuro'],
+                ['scrollPlatosRielClaro', 'Color del riel (claro)', 'Color del riel de scroll en modo claro'],
+                ['scrollPlatosContorno', 'Contorno del botón (oscuro)', 'Color de contorno del botón de scroll en modo oscuro'],
+                ['scrollPlatosContornoClaro', 'Contorno del botón (claro)', 'Color de contorno del botón de scroll en modo claro'],
+              ].map(([clave, etiqueta, aria]) => (
+                <label className="block" key={clave}>
+                  <span className={`block ${textModal} text-xs font-semibold mb-1`}>{etiqueta}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={hexParaColorPicker(config[clave], SCROLL_PLATOS_DEFAULT[clave])}
+                      onChange={(e) => updateConfig({ [clave]: e.target.value })}
+                      className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                      aria-label={aria}
+                    />
+                    <input
+                      type="text"
+                      value={config[clave] || SCROLL_PLATOS_DEFAULT[clave]}
+                      onChange={(e) => updateConfig({ [clave]: e.target.value })}
+                      className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                      maxLength={7}
+                      spellCheck={false}
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+            <label className="block max-w-[160px]">
+              <span className={`block ${textModal} text-sm font-semibold mb-1`}>Grosor del contorno</span>
+              <input
+                type="number"
+                min={0}
+                max={6}
+                value={grosorScrollPlatosKds(config.scrollPlatosGrosor)}
+                onChange={(e) => updateConfig({ scrollPlatosGrosor: grosorScrollPlatosKds(e.target.value) })}
+                className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+              />
+            </label>
+            {(() => {
+              const vista = varsScrollPlatosKds(config, nightMode);
+              return (
+                <div className="h-16 w-14 rounded flex justify-center py-1" style={{ background: vista['--kds-scroll-track'] }} aria-hidden>
+                  <div
+                    className="w-3 h-8 rounded"
+                    style={{
+                      background: vista['--kds-scroll-thumb'],
+                      border: `${vista['--kds-scroll-grosor']} solid ${vista['--kds-scroll-contorno']}`,
+                    }}
+                  />
+                </div>
+              );
+            })()}
+            <button
+              type="button"
+              onClick={() => updateConfig({ ...SCROLL_PLATOS_DEFAULT })}
+              className={`text-xs px-2 py-1 rounded border ${borderModal} ${textSecondary} hover:text-white`}
+            >
+              Restaurar barra de scroll
+            </button>
+          </fieldset>
           <fieldset className="space-y-2">
             <legend className={`${textModal} font-semibold`}>Estilos de tarjeta de comanda</legend>
             <p className={`${textSecondary} text-xs`}>
@@ -936,6 +1021,54 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   {String(config.eliminarPlatoLetra || '').trim() || 'EPA'}
                 </span>
               </div>
+            )}
+          </fieldset>
+          <fieldset className="space-y-2 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Deselección de platos</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Segundos que un plato marcado sigue seleccionado antes de soltarse solo. Cada plato cuenta su propio tiempo.
+            </p>
+            <label className="block max-w-[160px]">
+              <span className={`block ${textModal} text-sm font-semibold mb-1`}>Segundos</span>
+              <input
+                type="number"
+                min={5}
+                max={180}
+                value={config.deseleccionPlatoSegundos ?? 20}
+                onChange={(e) => updateConfig({ deseleccionPlatoSegundos: Math.min(180, Math.max(5, parseInt(e.target.value, 10) || 20)) })}
+                className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+              />
+            </label>
+          </fieldset>
+          <fieldset className="space-y-2 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Parpadeo SOS</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Al pulsar un plato en SOS TABLA, esa línea parpadea el tiempo que elijas, o sin parar.
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.sosParpadeoInfinito === true}
+                onChange={(e) => updateConfig({ sosParpadeoInfinito: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-red-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Parpadeo infinito</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>Sigue hasta que se toque el plato en la tarjeta.</span>
+              </span>
+            </label>
+            {config.sosParpadeoInfinito !== true && (
+              <label className="block max-w-[160px]">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Segundos</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={config.sosParpadeoSegundos ?? 15}
+                  onChange={(e) => updateConfig({ sosParpadeoSegundos: Math.min(180, Math.max(1, parseInt(e.target.value, 10) || 15)) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                />
+              </label>
             )}
           </fieldset>
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
@@ -1752,6 +1885,77 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
         {resolverTimbreClave(config.timbreClave) === TIMBRE_DEFAULT && (
           <p className={`${textSecondary} text-xs mt-3`}>Beep clásico es el tono que ya usaba el tablero.</p>
         )}
+
+        <div className={`mt-4 rounded-lg border p-3 ${resolverTimbreClave(config.timbreClave) === TIMBRE_MP3 ? 'border-amber-400 bg-amber-500/15' : borderModal}`}>
+          <p className={`text-sm font-semibold ${textModal}`}>Sonido propio (esta computadora)</p>
+          <p className={`${textSecondary} text-[11px] mt-0.5`}>
+            MP3 que suena al llegar una comanda. Queda guardado solo en este navegador.
+          </p>
+          <input
+            ref={inputMp3Ref}
+            type="file"
+            accept="audio/mpeg,.mp3"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files && e.target.files[0];
+              e.target.value = '';
+              if (!file) return;
+              try {
+                const nombre = await guardarTimbreMp3(file);
+                setNombreMp3(nombre);
+                updateConfig({ timbreClave: TIMBRE_MP3 });
+                playKdsNotificationSound({
+                  clave: TIMBRE_MP3,
+                  volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+                  force: true,
+                });
+              } catch (err) {
+                flash('err', err?.message || 'No se pudo guardar el MP3');
+              }
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => inputMp3Ref.current && inputMp3Ref.current.click()}
+              className="px-3 py-2 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              Importar MP3
+            </button>
+            <span className={`text-xs ${textSecondary} truncate max-w-[220px]`}>
+              {nombreMp3 || 'Sin archivo'}
+            </span>
+            <button
+              type="button"
+              disabled={!nombreMp3}
+              onClick={() => {
+                updateConfig({ timbreClave: TIMBRE_MP3 });
+                playKdsNotificationSound({
+                  clave: TIMBRE_MP3,
+                  volumen: Number.isFinite(config.timbreVolumen) ? config.timbreVolumen : TIMBRE_VOLUMEN_DEFAULT,
+                  force: true,
+                });
+              }}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 ${nightMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
+            >
+              Usar y probar
+            </button>
+            <button
+              type="button"
+              disabled={!nombreMp3}
+              onClick={async () => {
+                await quitarTimbreMp3();
+                setNombreMp3('');
+                if (resolverTimbreClave(config.timbreClave) === TIMBRE_MP3) {
+                  updateConfig({ timbreClave: TIMBRE_DEFAULT });
+                }
+              }}
+              className="px-3 py-2 rounded-lg text-sm font-semibold text-red-300 border border-red-400/40 disabled:opacity-40"
+            >
+              Quitar
+            </button>
+          </div>
+        </div>
 
         <div className={`mt-5 pt-4 border-t ${borderModal} space-y-3`}>
           <h4 className={`${textModal} text-sm font-bold flex items-center gap-2`}>

@@ -59,6 +59,7 @@ import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
 import useTiposPlatoReglas from "../../hooks/useTiposPlatoReglas";
 import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, colorBarraSuperiorMozo } from "../../utils/estiloHeaderTarjetaKds";
+import { varsScrollPlatosKds } from "../../utils/estiloCuadroPlatosKds";
 import { numeroComandaVisible } from "../../utils/numeroComandaVisible";
 import { comandaTienePlatoEnTarjetaKds } from "../../utils/sosTablaKds";
 import { colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
@@ -72,7 +73,7 @@ import {
   platoRetenidoFueraDeCocina,
   instanteInicioCocinaComanda
 } from "../../utils/kdsFilters";
-import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds, etiquetaBotonEliminarKds, clasesBotonEliminarKds, camuflarEliminarPlatoEpa, estiloBotonEliminarKds, textoBotonEliminarKds, resolverEliminarSeleccionKds } from "../../utils/kdsAnularPlatos";
+import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds, etiquetaBotonEliminarKds, clasesBotonEliminarKds, camuflarEliminarPlatoEpa, estiloBotonEliminarKds, textoBotonEliminarKds, resolverEliminarSeleccionKds, esEstadoSeleccionEliminarPlato, lotesEliminarKds } from "../../utils/kdsAnularPlatos";
 import { contarPlatosReversiblesKds } from "../../utils/kdsRevertirPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma, aplicarTomaPlatoEnComandas, aplicarLiberacionPlatoEnComandas } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
@@ -187,7 +188,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const [platosEliminados, setPlatosEliminados] = useState(new Map()); // Trackear platos eliminados: { comandaId: [{ platoId, nombre, cantidad, timestamp }] }
   // Estado para checkboxes de platos individuales: Map<`${comandaId}-${platoId}`, boolean>
   const [platosChecked, setPlatosChecked] = useState(new Map());
-  const deseleccionPlato = useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked);
+  const deseleccionPlato = useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked, kdsVistaConfig.deseleccionPlatoSegundos);
   // Estado para tiempos formateados HH:MM:SS por comanda: Map<comandaId, string>
   const [tiemposComandas, setTiemposComandas] = useState(new Map());
   // Estado para prevenir double-submit en finalizar platos
@@ -1469,22 +1470,16 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       // Resetear estado visual local cuando Socket actualiza plato (backend cambió estado)
       // FIX: Usar el índice del plato para el key, no el platoId
       const platoKey = `${data.comandaId}-${platoIndexParaKey}`;
+      if (data.nuevoEstado === "recoger" || data.nuevoEstado === "salio" || data.nuevoEstado === "entregado" || data.nuevoEstado === "en_espera") {
+        deseleccionPlato.cancelar(platoKey);
+      }
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
-        // Reset a 'normal' cuando backend actualiza (plato ya procesado)
-        if (data.nuevoEstado === "recoger") {
-          nuevo.set(platoKey, 'normal');
-        }
-        // SALIO: Si el plato salió de cocina (posiblemente desde otro tablero),
-        // limpiar el estado visual 'entregando' — el plato desaparecerá de PREPARADOS
-        if (data.nuevoEstado === "salio") {
+        if (data.nuevoEstado === "recoger" || data.nuevoEstado === "salio" || data.nuevoEstado === "entregado") {
           nuevo.delete(platoKey);
-          console.log(`🚶 Plato salió de cocina: ${data.platoId} (índice: ${platoIndexParaKey})`);
         }
-        // PARRAFO 5: Si vuelve a 'en_espera' (revertido), también resetear
         if (data.nuevoEstado === "en_espera") {
           nuevo.set(platoKey, 'normal');
-          console.log(`↩️ Plato revertido a preparación: ${data.platoId} (índice: ${platoIndexParaKey})`);
         }
         return nuevo;
       });
@@ -1503,7 +1498,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       return nuevasComandas;
     });
-  }, [config.soundEnabled, obtenerComandas]);
+  }, [config.soundEnabled, obtenerComandas, deseleccionPlato]);
 
   // TEMA 1: Handler para cuando se actualiza la configuración del cocinero vía Socket
   // Se ejecuta cuando el admin cambia zonas, filtros o preferencias KDS
@@ -1974,7 +1969,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           primerToqueFinalizar: primerToqueFinalizarAsignado
         });
         nuevo.set(key, nuevoEstado);
-        if (nuevoEstado === 'seleccionado') deseleccionPlato.programar(key);
+        if (esEstadoSeleccionEliminarPlato(nuevoEstado, comp)) deseleccionPlato.programar(key);
         else deseleccionPlato.cancelar(key);
         return nuevo;
       });
@@ -1994,7 +1989,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       setPlatoStates(prev => {
         const nuevo = new Map(prev);
         const estadoActual = nuevo.get(key) || 'normal';
-        nuevo.set(key, estadoActual === 'entregando' ? 'normal' : 'entregando');
+        const siguiente = estadoActual === 'entregando' ? 'normal' : 'entregando';
+        nuevo.set(key, siguiente);
+        if (siguiente === 'entregando') deseleccionPlato.programar(key);
+        else deseleccionPlato.cancelar(key);
         return nuevo;
       });
       return;
@@ -2033,7 +2031,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       
       nuevo.set(key, nuevoEstado);
 
-      if (nuevoEstado === 'seleccionado') deseleccionPlato.programar(key);
+      if (esEstadoSeleccionEliminarPlato(nuevoEstado, plato)) deseleccionPlato.programar(key);
       else deseleccionPlato.cancelar(key);
       
       // SYNC: Sincronizar platoStates 'seleccionado' → platosChecked true (para batch)
@@ -2985,7 +2983,13 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       });
 
       if (keysLimpiar.length > 0) {
+        keysLimpiar.forEach((k) => deseleccionPlato.cancelar(k));
         setPlatoStates((prev) => {
+          const nuevo = new Map(prev);
+          keysLimpiar.forEach((k) => nuevo.delete(k));
+          return nuevo;
+        });
+        setPlatosChecked((prev) => {
           const nuevo = new Map(prev);
           keysLimpiar.forEach((k) => nuevo.delete(k));
           return nuevo;
@@ -3017,7 +3021,8 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     entregarPlato,
     entregarPlatoEnteroAbsoluto,
     puedeOmitirOrden,
-    cantidadEntrega
+    cantidadEntrega,
+    deseleccionPlato
   ]);
 
   const handlePasarABackup = useCallback(async () => {
@@ -3663,27 +3668,34 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
       alert(r.error);
       return;
     }
+    const lotes = lotesEliminarKds(r, forzado?.cantidades);
+    if (!lotes.length) {
+      alert('Marque el plato a eliminar.');
+      return;
+    }
     setEliminarPlatoLoading(true);
     try {
-      const data = await apiPut(`/api/comanda/${r.comandaId}/eliminar-platos`, {
-        platosAEliminar: r.indices,
-        cantidadesAEliminar: forzado?.cantidades,
-        motivo,
-        sourceApp: 'cocina',
-        usuarioId: userId || undefined,
-        usuarioNombre: userName || undefined,
-      });
-      if (data?.comandaEliminadaCompleta && data?.ticketAnulacion) {
-        try {
-          await imprimirTicketAnulacionKds(data.comanda, data.ticketAnulacion);
-        } catch (printErr) {
-          alert(printErr?.message || 'La comanda se eliminó, pero no se imprimió el ticket de anulación.');
-        }
-      } else if (data?.comanda) {
-        try {
-          await imprimirTicketCocinaTrasEliminar(data.comanda, comandas);
-        } catch (printErr) {
-          alert(printErr?.message || 'El plato se eliminó, pero no se imprimió el ticket de cocina.');
+      for (const lote of lotes) {
+        const data = await apiPut(`/api/comanda/${lote.comandaId}/eliminar-platos`, {
+          platosAEliminar: lote.indices,
+          cantidadesAEliminar: lote.cantidades,
+          motivo,
+          sourceApp: 'cocina',
+          usuarioId: userId || undefined,
+          usuarioNombre: userName || undefined,
+        });
+        if (data?.comandaEliminadaCompleta && data?.ticketAnulacion) {
+          try {
+            await imprimirTicketAnulacionKds(data.comanda, data.ticketAnulacion);
+          } catch (printErr) {
+            alert(printErr?.message || 'La comanda se eliminó, pero no se imprimió el ticket de anulación.');
+          }
+        } else if (data?.comanda) {
+          try {
+            await imprimirTicketCocinaTrasEliminar(data.comanda, comandas);
+          } catch (printErr) {
+            alert(printErr?.message || 'El plato se eliminó, pero no se imprimió el ticket de cocina.');
+          }
         }
       }
       setEliminarPlatoMotivo('');
@@ -3786,16 +3798,19 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     eliminarPlatos: hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || userRole === 'admin',
     eliminarComanda: hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin',
   });
-  const showBtnEliminarPlato = (hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin') && accionEliminarKds.ok;
+  const nEliminarPlatos = accionEliminarKds.ok ? (accionEliminarKds.cantidad || 0) : 0;
+  const showBtnEliminarPlato = (hasPermission(PERMISO_ELIMINAR_PLATOS_COCINA) || hasPermission(PERMISO_ELIMINAR_COMANDAS_COCINA) || userRole === 'admin') && nEliminarPlatos > 0;
   const epaEliminarPlato = camuflarEliminarPlatoEpa(kdsVistaConfig);
   const platosResumenEliminar = showEliminarPlatoModal
     ? resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas).map((item) => ({
         index: item.index,
+        comandaId: item.comandaId,
+        clave: item.clave,
         max: Math.max(1, Math.floor(Number(item.cantidad) || 1)),
         cantidad: item.cantidad,
-        nombre: obtenerNombreDisplayCocina(item.plato, { habilitadoEnKds: usarNombreCocinaEnTablaKds })
+        nombre: `${item.comandaNumber != null ? `#${item.comandaNumber} ` : ''}${obtenerNombreDisplayCocina(item.plato, { habilitadoEnKds: usarNombreCocinaEnTablaKds })
           || obtenerNombrePlato(item.plato)
-          || 'Sin nombre'
+          || 'Sin nombre'}`
       }))
     : [];
 
@@ -4353,10 +4368,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                     onClick={abrirModalEliminarPlato}
                     className={`${clasesBotonEliminarKds(kdsVistaConfig)} shrink-0`}
                     style={estiloBotonEliminarKds(kdsVistaConfig)}
-                    title={epaEliminarPlato ? 'Eliminar plato' : (accionEliminarKds.label || 'Eliminar plato')}
+                    title={epaEliminarPlato ? 'Eliminar plato' : `${accionEliminarKds.label || 'Eliminar plato'} x${nEliminarPlatos}`}
                   >
                     {!epaEliminarPlato && <FaTrash className="text-sm" />}
-                    {etiquetaBotonEliminarKds(accionEliminarKds, kdsVistaConfig)}
+                    {`${etiquetaBotonEliminarKds(accionEliminarKds, kdsVistaConfig)} x${nEliminarPlatos}`}
                   </button>
                 )}
 
@@ -5350,6 +5365,7 @@ const SicarComandaCard = ({
   // En modo nocturno: fondo oscuro, texto claro
   // En modo claro: fondo claro, texto oscuro
   const bgPlatos = nightMode ? "bg-gray-800" : "bg-white";
+  const varsScrollPlatos = varsScrollPlatosKds(kdsMozoConfig, nightMode);
   const bgBarPrep = headerReserva
     ? 'bg-black/20 hover:bg-black/25 active:bg-black/30 border-black/20'
     : (nightMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border-gray-600' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-gray-300');
@@ -5577,8 +5593,9 @@ const SicarComandaCard = ({
 
       {/* Lista de platos vertical */}
       <div
+        data-kds-scroll-platos=""
         className={`${autoAgrandar ? 'min-h-0 overflow-y-auto' : 'flex-1 overflow-y-auto'} ${headerReserva ? '' : bgPlatos}`}
-        style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
+        style={{ ...varsScrollPlatos, ...(headerReserva ? { backgroundColor: headerReserva.hex } : {}) }}
       >
         <div className={`flex flex-col ${autoAgrandar ? '' : 'h-full'}`}>
           {/* Observaciones del mozo - se muestra solo si hay contenido */}

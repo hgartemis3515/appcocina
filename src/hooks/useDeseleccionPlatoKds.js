@@ -1,10 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-const MS = 15000;
+export const MS_DESELECCION_PLATO_KDS = 20000;
 
-/** Quita la selección local de un plato a los 15 s. */
-export default function useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked) {
+export function segundosDeseleccionPlatoKds(valor) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return 20;
+  return Math.min(180, Math.max(5, Math.round(n)));
+}
+
+export function msDeseleccionPlatoKds(valor) {
+  return segundosDeseleccionPlatoKds(valor) * 1000;
+}
+
+export function segundosParpadeoSos(valor) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return 15;
+  return Math.min(180, Math.max(1, Math.round(n)));
+}
+
+export function quitarSeleccionPlato(prev, key) {
+  const est = prev?.get?.(key);
+  if (est !== 'seleccionado' && est !== 'entregando') return prev;
+  const next = new Map(prev);
+  next.delete(key);
+  return next;
+}
+
+/** Quita la selección local de un plato. Cada clave tiene su propio temporizador. */
+export default function useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked, segundos = 20) {
   const timers = useRef(new Map());
+  const msRef = useRef(msDeseleccionPlatoKds(segundos));
+  msRef.current = msDeseleccionPlatoKds(segundos);
 
   const cancelar = useCallback((key) => {
     const prev = timers.current.get(key);
@@ -16,13 +42,7 @@ export default function useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked)
     cancelar(key);
     const id = setTimeout(() => {
       timers.current.delete(key);
-      setPlatoStates((prev) => {
-        const est = prev.get(key);
-        if (est !== 'seleccionado' && est !== 'entregando') return prev;
-        const next = new Map(prev);
-        next.delete(key);
-        return next;
-      });
+      setPlatoStates((prev) => quitarSeleccionPlato(prev, key));
       if (typeof setPlatosChecked === 'function') {
         setPlatosChecked((prev) => {
           if (!prev?.has?.(key)) return prev;
@@ -31,7 +51,7 @@ export default function useDeseleccionPlatoKds(setPlatoStates, setPlatosChecked)
           return next;
         });
       }
-    }, MS);
+    }, msRef.current);
     timers.current.set(key, id);
   }, [cancelar, setPlatoStates, setPlatosChecked]);
 
