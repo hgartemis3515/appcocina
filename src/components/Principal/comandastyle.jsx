@@ -91,6 +91,7 @@ import EtiquetasTipoKds from "../common/EtiquetasTipoKds";
 import useTiposPlatoReglas from "../../hooks/useTiposPlatoReglas";
 import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, colorBarraSuperiorMozo } from "../../utils/estiloHeaderTarjetaKds";
+import { varsScrollPlatosKds } from "../../utils/estiloCuadroPlatosKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
 import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
 import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds, etiquetaBotonEliminarKds, clasesBotonEliminarKds, camuflarEliminarPlatoEpa, estiloBotonEliminarKds, textoBotonEliminarKds, resolverEliminarSeleccionKds, esEstadoSeleccionEliminarPlato, lotesEliminarKds } from "../../utils/kdsAnularPlatos";
@@ -6257,6 +6258,7 @@ const SicarComandaCard = ({
   // En modo nocturno: fondo oscuro, texto claro
   // En modo claro: fondo claro, texto oscuro
   const bgPlatos = nightMode ? "bg-gray-800" : "bg-white";
+  const varsScrollPlatos = varsScrollPlatosKds(kdsMozoConfig, nightMode);
   const bgBarPrep = headerReserva
     ? 'bg-black/20 hover:bg-black/25 active:bg-black/30 border-black/20'
     : (nightMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border-gray-600' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-gray-300');
@@ -6502,7 +6504,7 @@ const SicarComandaCard = ({
       <div
         data-kds-scroll-platos=""
         className={`${autoAgrandar ? 'min-h-0 overflow-y-auto' : 'flex-1 overflow-y-auto'} ${headerReserva ? '' : bgPlatos}`}
-        style={headerReserva ? { backgroundColor: headerReserva.hex } : undefined}
+        style={{ ...varsScrollPlatos, ...(headerReserva ? { backgroundColor: headerReserva.hex } : {}) }}
       >
         <div className={`flex flex-col ${autoAgrandar ? '' : 'h-full'}`}>
           {/* Observaciones del mozo - se muestra solo si hay contenido */}

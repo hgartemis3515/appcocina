@@ -11,6 +11,7 @@ import {
   FONDO_CONJUNTO_TARJETAS_NOCHE,
   FONDO_CONJUNTO_TARJETAS_CLARO,
 } from '../../config/kdsConfigConstants';
+import { SCROLL_PLATOS_DEFAULT, grosorScrollPlatosKds, varsScrollPlatosKds } from '../../utils/estiloCuadroPlatosKds';
 import {
   ORDEN_COLA_FUENTES,
   ORDEN_COLA_TAMANO_MIN,
@@ -459,6 +460,75 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
 
         <section className={`rounded-xl border ${borderModal} ${cardBg} p-4 flex flex-col gap-4`}>
           <h3 className={`text-lg font-bold ${textModal}`}>Tarjeta</h3>
+          <fieldset className="space-y-3">
+            <legend className={`${textModal} font-semibold`}>Barra de scroll de platos</legend>
+            <p className={`${textSecondary} text-xs`}>
+              El botón gris a la derecha de los platos y el riel negro donde se desliza. El contorno rodea ese botón; sube el grosor para verlo.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                ['scrollPlatosColor', 'Color del botón (oscuro)', 'Color del botón de scroll en modo oscuro'],
+                ['scrollPlatosColorClaro', 'Color del botón (claro)', 'Color del botón de scroll en modo claro'],
+                ['scrollPlatosRiel', 'Color del riel (oscuro)', 'Color del riel de scroll en modo oscuro'],
+                ['scrollPlatosRielClaro', 'Color del riel (claro)', 'Color del riel de scroll en modo claro'],
+                ['scrollPlatosContorno', 'Contorno del botón (oscuro)', 'Color de contorno del botón de scroll en modo oscuro'],
+                ['scrollPlatosContornoClaro', 'Contorno del botón (claro)', 'Color de contorno del botón de scroll en modo claro'],
+              ].map(([clave, etiqueta, aria]) => (
+                <label className="block" key={clave}>
+                  <span className={`block ${textModal} text-xs font-semibold mb-1`}>{etiqueta}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={hexParaColorPicker(config[clave], SCROLL_PLATOS_DEFAULT[clave])}
+                      onChange={(e) => updateConfig({ [clave]: e.target.value })}
+                      className="h-10 w-12 rounded border border-gray-500 bg-transparent cursor-pointer"
+                      aria-label={aria}
+                    />
+                    <input
+                      type="text"
+                      value={config[clave] || SCROLL_PLATOS_DEFAULT[clave]}
+                      onChange={(e) => updateConfig({ [clave]: e.target.value })}
+                      className={`flex-1 ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal} font-mono text-sm`}
+                      maxLength={7}
+                      spellCheck={false}
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+            <label className="block max-w-[160px]">
+              <span className={`block ${textModal} text-sm font-semibold mb-1`}>Grosor del contorno</span>
+              <input
+                type="number"
+                min={0}
+                max={6}
+                value={grosorScrollPlatosKds(config.scrollPlatosGrosor)}
+                onChange={(e) => updateConfig({ scrollPlatosGrosor: grosorScrollPlatosKds(e.target.value) })}
+                className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+              />
+            </label>
+            {(() => {
+              const vista = varsScrollPlatosKds(config, nightMode);
+              return (
+                <div className="h-16 w-14 rounded flex justify-center py-1" style={{ background: vista['--kds-scroll-track'] }} aria-hidden>
+                  <div
+                    className="w-3 h-8 rounded"
+                    style={{
+                      background: vista['--kds-scroll-thumb'],
+                      border: `${vista['--kds-scroll-grosor']} solid ${vista['--kds-scroll-contorno']}`,
+                    }}
+                  />
+                </div>
+              );
+            })()}
+            <button
+              type="button"
+              onClick={() => updateConfig({ ...SCROLL_PLATOS_DEFAULT })}
+              className={`text-xs px-2 py-1 rounded border ${borderModal} ${textSecondary} hover:text-white`}
+            >
+              Restaurar barra de scroll
+            </button>
+          </fieldset>
           <fieldset className="space-y-2">
             <legend className={`${textModal} font-semibold`}>Estilos de tarjeta de comanda</legend>
             <p className={`${textSecondary} text-xs`}>

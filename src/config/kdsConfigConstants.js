@@ -315,6 +315,13 @@ export const DEFAULT_KDS_CONFIG = {
   deseleccionPlatoSegundos: 20,
   sosParpadeoSegundos: 15,
   sosParpadeoInfinito: false,
+  scrollPlatosColor: '#4A4A4A',
+  scrollPlatosColorClaro: '#6b7280',
+  scrollPlatosRiel: '#2A2A2A',
+  scrollPlatosRielClaro: '#d1d5db',
+  scrollPlatosContorno: '#000000',
+  scrollPlatosContornoClaro: '#111827',
+  scrollPlatosGrosor: 0,
   autoAgrandamientoTarjetasKds: true,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 
