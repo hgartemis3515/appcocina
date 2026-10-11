@@ -27,13 +27,14 @@ const EliminarPlatoKdsModal = ({
   onConfirm,
 }) => {
   const [qty, setQty] = useState({});
-  const firma = (platos || []).map((p, i) => `${p.index ?? i}:${p.max ?? p.cantidad}`).join('|');
+  const claveDe = (p, i) => p.clave || `${p.comandaId || ''}:${p.index ?? i}`;
+  const firma = (platos || []).map((p, i) => `${claveDe(p, i)}:${p.max ?? p.cantidad}`).join('|');
   useEffect(() => {
     if (!open) return;
     const next = {};
     (platos || []).forEach((p, i) => {
       const max = Math.max(1, Math.floor(Number(p.max ?? p.cantidad) || 1));
-      next[p.index ?? i] = max;
+      next[claveDe(p, i)] = max;
     });
     setQty(next);
   }, [open, firma]);
@@ -41,8 +42,9 @@ const EliminarPlatoKdsModal = ({
   const confirmar = (motivo) => {
     const cantidades = (platos || []).map((p, i) => {
       const index = p.index ?? i;
+      const clave = claveDe(p, i);
       const max = Math.max(1, Math.floor(Number(p.max ?? p.cantidad) || 1));
-      return { index, cantidad: qty[index] ?? max };
+      return { clave, comandaId: p.comandaId, index, cantidad: qty[clave] ?? max };
     });
     onConfirm?.(motivo, { cantidades });
   };
@@ -84,17 +86,17 @@ const EliminarPlatoKdsModal = ({
               {platos.length > 0 && (
                 <ul className={`text-left text-sm mb-4 p-3 rounded-lg ${nightMode ? 'bg-red-950/40 text-red-100' : 'bg-red-50 text-red-900'}`}>
                   {platos.map((p, i) => {
-                    const index = p.index ?? i;
+                    const clave = claveDe(p, i);
                     const max = Math.max(1, Math.floor(Number(p.max ?? p.cantidad) || 1));
                     return (
-                      <li key={index} className="flex items-center justify-between gap-2 py-1">
+                      <li key={clave} className="flex items-center justify-between gap-2 py-1">
                         <span className="min-w-0 truncate">{p.nombre}</span>
                         {puedeAjustarCantidad ? (
                           <StepperCantidadEliminar
-                            value={qty[index] ?? max}
+                            value={qty[clave] ?? max}
                             max={max}
                             nightMode={nightMode}
-                            onChange={(n) => setQty((prev) => ({ ...prev, [index]: n }))}
+                            onChange={(n) => setQty((prev) => ({ ...prev, [clave]: n }))}
                           />
                         ) : (
                           <span className="font-black tabular-nums">{max}</span>

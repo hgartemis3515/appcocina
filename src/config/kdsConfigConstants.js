@@ -312,6 +312,9 @@ export const DEFAULT_KDS_CONFIG = {
   eliminarPlatoLetra: '',
   eliminarPlatoColorLetra: '#e5e7eb',
   eliminarPlatoColorFondo: '#6b7280',
+  deseleccionPlatoSegundos: 20,
+  sosParpadeoSegundos: 15,
+  sosParpadeoInfinito: false,
   autoAgrandamientoTarjetasKds: true,
   ordenamientoDefault: ORDENAMIENTO.TIEMPO,
 

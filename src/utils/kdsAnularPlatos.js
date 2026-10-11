@@ -52,6 +52,13 @@ export const PERMISO_ELIMINAR_PLATOS_COCINA = 'eliminar-platos-cocina';
 /** Permiso de rol: Eliminar comanda completa en KDS (todos los platos o el único). */
 export const PERMISO_ELIMINAR_COMANDAS_COCINA = 'eliminar-comandas-cocina';
 
+/** Plato que sigue en la tabla de cocina y se puede marcar para eliminar. */
+export function platoSigueSeleccionableKds(plato) {
+  if (!plato || plato.eliminado === true || plato.anulado === true) return false;
+  const estado = String(plato.estado || 'en_espera').toLowerCase();
+  return estado !== 'entregado' && estado !== 'salio' && estado !== 'pagado';
+}
+
 export function indicesPlatosActivosComanda(comanda) {
   return (comanda?.platos || [])
     .map((p, i) => ({ p, i }))
@@ -66,21 +73,19 @@ export function esEliminarComandaCompletaKds(comanda, indicesSeleccionados) {
   return activos.every((i) => set.has(i));
 }
 
-export function resolverAccionEliminarKds(platosChecked, platoStates, comandas, permisos = {}) {
-  const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
-  if (!r.ok) return r;
-  const comanda = (comandas || []).find((c) => String(c._id) === String(r.comandaId));
-  const tipo = esEliminarComandaCompletaKds(comanda, r.indices) ? 'comanda' : 'plato';
+function accionDeGrupo(comanda, indices, permisos) {
+  const tipo = esEliminarComandaCompletaKds(comanda, indices) ? 'comanda' : 'plato';
   const puedePlatos = permisos.eliminarPlatos !== false;
   const puedeComanda = permisos.eliminarComanda === true;
+  const comandaId = comanda?._id != null ? String(comanda._id) : null;
   if (tipo === 'comanda') {
-    if (puedeComanda) return { ...r, ok: true, tipo, label: 'Eliminar comanda' };
-    if (puedePlatos) return { ...r, ok: true, tipo: 'plato', label: 'Eliminar plato' };
+    if (puedeComanda) return { ok: true, tipo, label: 'Eliminar comanda', comandaId, indices };
+    if (puedePlatos) return { ok: true, tipo: 'plato', label: 'Eliminar plato', comandaId, indices };
     return {
       ok: false,
       tipo,
-      comandaId: r.comandaId,
-      indices: r.indices,
+      comandaId,
+      indices,
       bloqueadoPorPermiso: true,
       error: 'No tienes permiso para eliminar la comanda. Quita algún plato de la selección o pide el permiso Eliminar comanda.',
     };
@@ -89,13 +94,46 @@ export function resolverAccionEliminarKds(platosChecked, platoStates, comandas, 
     return {
       ok: false,
       tipo,
-      comandaId: r.comandaId,
-      indices: r.indices,
+      comandaId,
+      indices,
       bloqueadoPorPermiso: true,
       error: 'No tienes permiso para eliminar platos.',
     };
   }
-  return { ...r, ok: true, tipo, label: 'Eliminar plato' };
+  return { ok: true, tipo, label: 'Eliminar plato', comandaId, indices };
+}
+
+function etiquetaDeAcciones(acciones) {
+  const hayPlato = acciones.some((a) => a.tipo === 'plato');
+  const hayComanda = acciones.some((a) => a.tipo === 'comanda');
+  if ((hayPlato && hayComanda) || acciones.length > 1) return 'Eliminar plato y comanda';
+  if (hayComanda) return 'Eliminar comanda';
+  return 'Eliminar plato';
+}
+
+export function resolverAccionEliminarKds(platosChecked, platoStates, comandas, permisos = {}) {
+  const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
+  if (!r.ok) return r;
+  const grupos = r.grupos || [{ comandaId: r.comandaId, indices: r.indices }];
+  const acciones = [];
+  for (const g of grupos) {
+    const comanda = (comandas || []).find((c) => String(c._id) === String(g.comandaId));
+    const accion = accionDeGrupo(comanda, g.indices, permisos);
+    if (!accion.ok) return accion;
+    acciones.push(accion);
+  }
+  const label = etiquetaDeAcciones(acciones);
+  const tipo = label === 'Eliminar comanda' ? 'comanda' : (label === 'Eliminar plato' ? 'plato' : 'mixto');
+  const cantidad = acciones.reduce((s, a) => s + (a.indices?.length || 0), 0);
+  return {
+    ok: true,
+    tipo,
+    label,
+    cantidad,
+    comandaId: acciones.length === 1 ? acciones[0].comandaId : null,
+    indices: acciones.length === 1 ? acciones[0].indices : [],
+    grupos: acciones,
+  };
 }
 
 export const LABEL_EPA_CAMUFLAJE = 'EPA';
@@ -179,18 +217,19 @@ export function esEstadoSeleccionEliminarPlato(estado, plato) {
 }
 
 function recorrerClavesSeleccionadas(platosChecked, platoStates, comandas, visit) {
-  (platoStates || new Map()).forEach((estado, key) => {
+  const cuenta = (key, estado) => {
     const parsed = parseClavePlatoKds(key);
     if (!parsed) return;
-    if (esEstadoSeleccionEliminarPlato(estado, platoDeClave(comandas, parsed))) visit(key);
-  });
+    const plato = platoDeClave(comandas, parsed);
+    if (!platoSigueSeleccionableKds(plato)) return;
+    if (esEstadoSeleccionEliminarPlato(estado, plato)) visit(key);
+  };
+  (platoStates || new Map()).forEach((estado, key) => cuenta(key, estado));
   (platosChecked || new Map()).forEach((checked, key) => {
     if (!checked) return;
-    const parsed = parseClavePlatoKds(key);
-    if (!parsed) return;
     const estado = (platoStates || new Map()).get(key);
     if (estado && estado !== 'seleccionado') return;
-    visit(key);
+    cuenta(key, estado || 'seleccionado');
   });
 }
 
@@ -223,31 +262,68 @@ export function hayBotonEliminarKds(platosChecked, platoStates, comandas, permis
   return resolverAccionEliminarKds(platosChecked, platoStates, comandas, permisos).ok === true;
 }
 
+export function gruposPlatosSeleccionadosKds(platosChecked, platoStates, comandas) {
+  const porComanda = new Map();
+  recorrerClavesSeleccionadas(platosChecked, platoStates, comandas, (key) => {
+    const parsed = parseClavePlatoKds(key);
+    if (!parsed) return;
+    const id = String(parsed.comandaId);
+    if (!porComanda.has(id)) porComanda.set(id, new Set());
+    porComanda.get(id).add(parsed.platoIndex);
+  });
+  return [...porComanda.entries()].map(([comandaId, set]) => ({
+    comandaId,
+    indices: [...set].sort((a, b) => a - b),
+  }));
+}
+
 export function resolverEliminarPlatosKds(platosChecked, platoStates, comandas) {
-  const comandaId = comandaIdDesdePlatosSeleccionados(platosChecked, platoStates, comandas);
-  if (!comandaId) {
-    return { ok: false, error: 'Marque el plato a eliminar (un solo pedido).' };
-  }
-  const indices = indicesPlatosSeleccionadosKds(platosChecked, platoStates, comandaId, comandas);
-  if (!indices.length) {
+  const grupos = gruposPlatosSeleccionadosKds(platosChecked, platoStates, comandas);
+  if (!grupos.length) {
     return { ok: false, error: 'Marque el plato a eliminar.' };
   }
-  return { ok: true, comandaId, indices };
+  if (grupos.length === 1) {
+    return { ok: true, comandaId: grupos[0].comandaId, indices: grupos[0].indices, grupos };
+  }
+  return { ok: true, comandaId: null, indices: [], grupos };
 }
 
 export function resumenPlatosSeleccionadosKds(platosChecked, platoStates, comandas) {
   const r = resolverEliminarPlatosKds(platosChecked, platoStates, comandas);
   if (!r.ok) return [];
-  const comanda = (comandas || []).find((c) => String(c._id) === String(r.comandaId));
-  if (!comanda) return [];
-  return r.indices.map((i) => {
-    const p = comanda.platos?.[i];
-    if (!p) return null;
-    return {
-      index: i,
-      plato: p,
-      cantidad: comanda.cantidades?.[i] || 1,
-      comandaNumber: comanda.comandaNumber
-    };
-  }).filter(Boolean);
+  const grupos = r.grupos || [{ comandaId: r.comandaId, indices: r.indices }];
+  return grupos.flatMap((g) => {
+    const comanda = (comandas || []).find((c) => String(c._id) === String(g.comandaId));
+    if (!comanda) return [];
+    return g.indices.map((i) => {
+      const p = comanda.platos?.[i];
+      if (!p || !platoSigueSeleccionableKds(p)) return null;
+      return {
+        index: i,
+        comandaId: String(g.comandaId),
+        clave: `${g.comandaId}:${i}`,
+        plato: p,
+        cantidad: comanda.cantidades?.[i] || 1,
+        comandaNumber: comanda.comandaNumber
+      };
+    }).filter(Boolean);
+  });
+}
+
+export function lotesEliminarKds(accion, cantidades) {
+  const grupos = accion?.grupos?.length
+    ? accion.grupos
+    : (accion?.comandaId ? [{ comandaId: accion.comandaId, indices: accion.indices || [] }] : []);
+  const lista = Array.isArray(cantidades) ? cantidades : [];
+  return grupos.map((g) => ({
+    comandaId: g.comandaId,
+    indices: g.indices,
+    cantidades: g.indices.map((index) => {
+      const hit = lista.find((c) =>
+        Number(c.index) === Number(index)
+        && (c.comandaId == null || c.comandaId === '' || String(c.comandaId) === String(g.comandaId))
+      );
+      return hit ? { index, cantidad: hit.cantidad } : null;
+    }).filter(Boolean),
+  }));
 }

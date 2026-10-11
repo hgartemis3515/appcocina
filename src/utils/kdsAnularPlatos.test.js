@@ -12,6 +12,8 @@ import {
   comandaIdDesdePlatosSeleccionados,
   haySeleccionEliminarPlatoKds,
   resolverEliminarPlatosKds,
+  gruposPlatosSeleccionadosKds,
+  lotesEliminarKds,
   etiquetaBotonEliminarKds,
   clasesBotonEliminarKds,
   camuflarEliminarPlatoEpa,
@@ -91,7 +93,7 @@ describe('kdsAnularPlatos', () => {
   test('comandaIdDesdePlatosSeleccionados cuenta dejar y exige una comanda', () => {
     const a = 'aaaaaaaaaaaaaaaaaaaaaaaa';
     const b = 'bbbbbbbbbbbbbbbbbbbbbbbb';
-    const comandas = [{ _id: a, platos: [{}] }, { _id: b, platos: [{}] }];
+    const comandas = [{ _id: a, platos: [{}] }, { _id: b, platos: [{}, {}] }];
     expect(comandaIdDesdePlatosSeleccionados(new Map(), new Map([[`${a}-0`, 'procesando']]), comandas)).toBe(a);
     expect(comandaIdDesdePlatosSeleccionados(new Map(), new Map([[`${a}-0`, 'dejar']]), comandas)).toBe(a);
     expect(comandaIdDesdePlatosSeleccionados(
@@ -99,15 +101,55 @@ describe('kdsAnularPlatos', () => {
       new Map([[`${a}-0`, 'seleccionado'], [`${b}-1`, 'seleccionado']]),
       comandas
     )).toBeNull();
+    expect(comandaIdDesdePlatosSeleccionados(
+      new Map(),
+      new Map([[`${a}-0`, 'seleccionado'], [`${b}-1`, 'seleccionado']]),
+      [{ _id: a, platos: [{}] }, { _id: b, platos: [{}, { estado: 'entregado' }] }]
+    )).toBe(a);
   });
 
-  test('resolverEliminarPlatosKds pide un solo pedido con plato clickeado', () => {
+  test('resolverEliminarPlatosKds acepta un plato y también varias comandas', () => {
     const id = '507f1f77bcf86cd799439011';
+    const otra = '607f1f77bcf86cd799439022';
     expect(resolverEliminarPlatosKds(new Map(), new Map(), []).ok).toBe(false);
     const ok = resolverEliminarPlatosKds(new Map(), new Map([[`${id}-3`, 'seleccionado']]), [
       { _id: id, platos: [{}, {}, {}, {}] },
     ]);
-    expect(ok).toEqual({ ok: true, comandaId: id, indices: [3] });
+    expect(ok).toEqual({
+      ok: true,
+      comandaId: id,
+      indices: [3],
+      grupos: [{ comandaId: id, indices: [3] }],
+    });
+    const comandas = [
+      { _id: id, platos: [{}, {}] },
+      { _id: otra, platos: [{ estado: 'pedido' }, { estado: 'entregado' }] },
+    ];
+    const states = new Map([
+      [`${id}-0`, 'seleccionado'],
+      [`${otra}-0`, 'seleccionado'],
+      [`${otra}-1`, 'seleccionado'],
+    ]);
+    const multi = resolverEliminarPlatosKds(new Map(), states, comandas);
+    expect(multi.ok).toBe(true);
+    expect(gruposPlatosSeleccionadosKds(new Map(), states, comandas)).toEqual([
+      { comandaId: id, indices: [0] },
+      { comandaId: otra, indices: [0] },
+    ]);
+    const accion = resolverAccionEliminarKds(new Map(), states, comandas, {
+      eliminarPlatos: true,
+      eliminarComanda: true,
+    });
+    expect(accion.ok).toBe(true);
+    expect(accion.label).toBe('Eliminar plato y comanda');
+    expect(accion.cantidad).toBe(2);
+    expect(lotesEliminarKds(accion, [
+      { comandaId: id, index: 0, cantidad: 1 },
+      { comandaId: otra, index: 0, cantidad: 2 },
+    ])).toEqual([
+      { comandaId: id, indices: [0], cantidades: [{ index: 0, cantidad: 1 }] },
+      { comandaId: otra, indices: [0], cantidades: [{ index: 0, cantidad: 2 }] },
+    ]);
   });
 
   test('un plato o todos los activos = eliminar comanda; parcial = plato', () => {

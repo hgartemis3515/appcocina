@@ -953,6 +953,54 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </div>
             )}
           </fieldset>
+          <fieldset className="space-y-2 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Deselección de platos</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Segundos que un plato marcado sigue seleccionado antes de soltarse solo. Cada plato cuenta su propio tiempo.
+            </p>
+            <label className="block max-w-[160px]">
+              <span className={`block ${textModal} text-sm font-semibold mb-1`}>Segundos</span>
+              <input
+                type="number"
+                min={5}
+                max={180}
+                value={config.deseleccionPlatoSegundos ?? 20}
+                onChange={(e) => updateConfig({ deseleccionPlatoSegundos: Math.min(180, Math.max(5, parseInt(e.target.value, 10) || 20)) })}
+                className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+              />
+            </label>
+          </fieldset>
+          <fieldset className="space-y-2 pt-2 border-t border-gray-600/40">
+            <legend className={`${textModal} font-semibold`}>Parpadeo SOS</legend>
+            <p className={`${textSecondary} text-xs`}>
+              Al pulsar un plato en SOS TABLA, esa línea parpadea el tiempo que elijas, o sin parar.
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.sosParpadeoInfinito === true}
+                onChange={(e) => updateConfig({ sosParpadeoInfinito: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-red-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>Parpadeo infinito</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>Sigue hasta que se toque el plato en la tarjeta.</span>
+              </span>
+            </label>
+            {config.sosParpadeoInfinito !== true && (
+              <label className="block max-w-[160px]">
+                <span className={`block ${textModal} text-sm font-semibold mb-1`}>Segundos</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={config.sosParpadeoSegundos ?? 15}
+                  onChange={(e) => updateConfig({ sosParpadeoSegundos: Math.min(180, Math.max(1, parseInt(e.target.value, 10) || 15)) })}
+                  className={`w-full ${inputBg} ${inputText} p-2 rounded-lg border ${borderModal}`}
+                />
+              </label>
+            )}
+          </fieldset>
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Letras del nombre del plato</legend>
             <p className={`${textSecondary} text-xs`}>
