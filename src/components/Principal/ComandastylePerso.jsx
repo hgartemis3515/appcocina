@@ -5616,7 +5616,7 @@ const SicarComandaCard = ({
             </div>
           )}
           {(() => {
-            const nombreCliente = String(comanda?.clienteNombreParaLlevar || '').trim();
+            const nombreCliente = String(comanda?.clienteNombre || comanda?.clienteNombreParaLlevar || '').trim();
             const numTicket = comanda?.numeroTicketCliente;
             if (!nombreCliente && (numTicket == null || numTicket === '')) return null;
             const texto = nombreCliente ? `🎟️ Cliente: ${nombreCliente}` : `🎟️ Cliente: #${numTicket}`;

@@ -11,6 +11,7 @@ export const DEFAULT_TICKETS_TABLA_PREFS = {
   ocultarGuarniciones: false,
   imprimirSinGuarniciones: false,
   aprovechador: false,
+  verNumerosMozo: false,
   ...TICKETS_TABLA_VISUAL_DEFAULT,
 };
 
@@ -19,6 +20,7 @@ function normalizeTicketsTablaPrefs(parsed) {
     ocultarGuarniciones: !!parsed?.ocultarGuarniciones,
     imprimirSinGuarniciones: !!parsed?.imprimirSinGuarniciones,
     aprovechador: !!parsed?.aprovechador,
+    verNumerosMozo: parsed?.verNumerosMozo === true,
     ...normalizeTicketsTablaVisual(parsed),
   };
 }

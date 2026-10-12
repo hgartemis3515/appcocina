@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown, FaEye, FaMoneyBill,
+  FaCheck, FaTimes, FaPrint, FaExclamationTriangle, FaSyncAlt, FaSort, FaSortUp, FaSortDown,   FaEye, FaMoneyBill,
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
@@ -269,7 +269,7 @@ function FilaTicketAvanzado({
         {indent ? null : (
           <>
             <div className="truncate">
-              <BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} configVista={MOZO_VISTA_AVANZADA} />
+              <BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} configVista={{ ...MOZO_VISTA_AVANZADA, verNumerosMozo }} />
             </div>
             {cliente && (
               <div className="text-[10px] text-gray-500 truncate">
@@ -350,6 +350,7 @@ export default function TicketsAprobacionTable({
   idsSeleccionados = [],
   onToggleSeleccion,
   ocultarGuarniciones = false,
+  verNumerosMozo = false,
   vistaPorTicket = null,
   tamanoFecha = 14,
 }) {
@@ -580,7 +581,7 @@ export default function TicketsAprobacionTable({
                     </td>
                     <td className="px-3 py-2 min-w-[160px]">
                       <div className="truncate">
-                        <BadgesMozoDeTickets tickets={fila.tickets} configVista={MOZO_VISTA_AVANZADA} />
+                        <BadgesMozoDeTickets tickets={fila.tickets} configVista={{ ...MOZO_VISTA_AVANZADA, verNumerosMozo }} />
                       </div>
                     </td>
                     <td className="px-3 py-2">

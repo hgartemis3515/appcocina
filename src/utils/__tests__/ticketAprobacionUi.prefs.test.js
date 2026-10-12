@@ -23,6 +23,8 @@ describe('tickets tabla prefs', () => {
     expect(saved).toEqual({
       ocultarGuarniciones: true,
       imprimirSinGuarniciones: true,
+      aprovechador: false,
+      verNumerosMozo: false,
       ...TICKETS_TABLA_VISUAL_DEFAULT,
     });
     expect(loadTicketsTablaPrefs()).toEqual(saved);

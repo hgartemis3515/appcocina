@@ -42,7 +42,7 @@ import {
 import { estiloCuerpoParaLlevarTickets, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
 import { platosTicketVisibles, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
-import { apiGet } from '../../config/apiClient';
+import { apiGet, apiPost } from '../../config/apiClient';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
 import { letraRevisionTicket } from '../../utils/comandaPrint/ticketCocinaHtml';
 
@@ -223,6 +223,17 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const letraFiltro = Math.min(22, Math.max(12, Number(tablaPrefs.filtroTamano) || 14));
   const [showTablaConfig, setShowTablaConfig] = useState(false);
   const [showModalTicketCocina, setShowModalTicketCocina] = useState(false);
+  const [showModalTicketCaja, setShowModalTicketCaja] = useState(false);
+  const [comandasCaja, setComandasCaja] = useState([]);
+  const [busquedaCaja, setBusquedaCaja] = useState('');
+  const [pagoPartesFila, setPagoPartesFila] = useState(null);
+  const [pagoPartesModo, setPagoPartesModo] = useState('monto');
+  const [pagoPartesMonto, setPagoPartesMonto] = useState('');
+  const [pagoPartesIds, setPagoPartesIds] = useState([]);
+  const [pagoPartesPlatos, setPagoPartesPlatos] = useState([]);
+  const [pagoPartesMetodo, setPagoPartesMetodo] = useState('efectivo');
+  const [pagoPartesEnviando, setPagoPartesEnviando] = useState(false);
+  const [partesCuenta, setPartesCuenta] = useState([]);
   const [busquedaTicketCocina, setBusquedaTicketCocina] = useState('');
   const [imprimiendoTicketCocina, setImprimiendoTicketCocina] = useState(false);
   const [sortBy, setSortBy] = useState('fecha');
@@ -544,6 +555,166 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
     setBusquedaTicketCocina('');
     setShowModalTicketCocina(true);
+  };
+
+  const abrirSelectorTicketCaja = async () => {
+    try {
+      const data = await apiGet('/api/aprobacion/comandas-imprimibles', {
+        desde: fechaDesde,
+        hasta: fechaHasta,
+      });
+      const lista = Array.isArray(data?.comandas) ? data.comandas : [];
+      if (!lista.length) {
+        alert('No hay comandas para imprimir en este período.');
+        return;
+      }
+      setComandasCaja(lista);
+      setBusquedaCaja('');
+      setShowModalTicketCaja(true);
+    } catch (err) {
+      alert(err?.userMessage || err?.message || 'No se pudo cargar las comandas');
+    }
+  };
+
+  const imprimirTicketCaja = async (comanda) => {
+    if (!comanda?._id) return;
+    try {
+      await imprimirComanda({ _id: comanda._id, comandas: [comanda._id] });
+      setShowModalTicketCaja(false);
+    } catch (err) {
+      alert('Error al imprimir ticket de caja: ' + (err.userMessage || err.message));
+    }
+  };
+
+  const comandasDeFila = (fila) => {
+    const map = new Map();
+    (fila?.tickets || []).forEach((t) => {
+      const ids = getComandaIdsFromTicket(t);
+      const nums = getComandasNumbersFromTicket(t);
+      ids.forEach((id, i) => {
+        if (!map.has(String(id))) {
+          map.set(String(id), { id: String(id), numero: nums[i] || nums[0] || id });
+        }
+      });
+      if (!ids.length && t._id) map.set(String(t._id), { id: String(t._id), numero: nums[0] || t.ticketNumber });
+    });
+    return [...map.values()];
+  };
+
+  const platosDeFila = (fila, ids) => {
+    const set = new Set(ids.map(String));
+    const out = [];
+    (fila?.tickets || []).forEach((t) => {
+      (t.platos || []).forEach((p) => {
+        const cid = String(p.comandaId || '');
+        if (cid && !set.has(cid)) return;
+        if (!p.platoLineaId) return;
+        out.push(p);
+      });
+    });
+    return out;
+  };
+
+  const platosCuentaPartes = () => (
+    pagoPartesFila ? platosDeFila(pagoPartesFila, pagoPartesIds).filter((p) => p.platoLineaId) : []
+  );
+  const saldoCuentaPartes = () => {
+    if (!pagoPartesFila || !pagoPartesIds.length) return 0;
+    const ids = new Set(pagoPartesIds.map(String));
+    const porComanda = new Map();
+    let ok = false;
+    (pagoPartesFila.tickets || []).forEach((t) => {
+      (t.comandas || []).forEach((c) => {
+        if (!c || typeof c !== 'object') return;
+        const id = String(c._id || c.id || '');
+        if (id && !ids.has(id)) return;
+        const n = Number(c.pendienteCobro);
+        if (!Number.isFinite(n)) return;
+        ok = true;
+        const key = id || String(c.numeroComandaDia || c.comandaNumber || porComanda.size);
+        porComanda.set(key, Math.max(porComanda.get(key) || 0, Math.max(0, n)));
+      });
+    });
+    if (ok) {
+      let sum = 0;
+      porComanda.forEach((v) => { sum += v; });
+      return Number(sum.toFixed(2));
+    }
+    return Number(platosCuentaPartes().filter((p) => String(p.estado || '').toLowerCase() !== 'pagado').reduce((s, p) => s + (Number(p.subtotal) || 0), 0).toFixed(2));
+  };
+  const nuevaParteCuenta = (extra = {}) => ({
+    id: `${Date.now()}-${Math.random()}`,
+    nombre: '',
+    metodoPago: 'efectivo',
+    modo: 'monto',
+    monto: '',
+    platoLineaIds: [],
+    ...extra,
+  });
+  const proponerPartesPorNombre = () => {
+    const grupos = new Map();
+    platosCuentaPartes().forEach((p) => {
+      const nombre = String(p.clienteNombreLinea || '').trim();
+      const key = nombre || 'sin-nombre';
+      if (!grupos.has(key)) grupos.set(key, { nombre, ids: [] });
+      grupos.get(key).ids.push(String(p.platoLineaId));
+    });
+    const partes = [...grupos.values()].filter((g) => g.nombre).map((g) => nuevaParteCuenta({
+      nombre: g.nombre, modo: 'platos', platoLineaIds: g.ids,
+    }));
+    const sueltos = grupos.get('sin-nombre');
+    if (sueltos?.ids?.length) {
+      partes.push(nuevaParteCuenta({ modo: 'platos', platoLineaIds: sueltos.ids }));
+    }
+    setPartesCuenta(partes.length ? partes : [nuevaParteCuenta(), nuevaParteCuenta()]);
+  };
+  const repartirEnIguales = (n) => {
+    const cant = Math.max(2, Math.min(12, Number(n) || 2));
+    const cents = Math.round(saldoCuentaPartes() * 100);
+    const base = Math.floor(cents / cant);
+    const resto = cents - base * cant;
+    setPartesCuenta(Array.from({ length: cant }, (_, i) => nuevaParteCuenta({
+      modo: 'monto',
+      monto: ((base + (i === cant - 1 ? resto : 0)) / 100).toFixed(2),
+    })));
+  };
+
+  const abrirPagoEnPartes = (fila) => {
+    const comandas = comandasDeFila(fila);
+    const ids = comandas.map((c) => c.id);
+    setPagoPartesFila(fila);
+    setPagoPartesIds(ids);
+    setPartesCuenta([nuevaParteCuenta(), nuevaParteCuenta()]);
+  };
+
+  const enviarPagoEnPartes = async () => {
+    if (!pagoPartesIds.length) {
+      alert('Marca las comandas de la mesa');
+      return;
+    }
+    if (!partesCuenta.length) {
+      alert('Agrega al menos una parte');
+      return;
+    }
+    setPagoPartesEnviando(true);
+    try {
+      await apiPost('/api/aprobacion/pago-en-partes', {
+        comandaIds: pagoPartesIds,
+        partes: partesCuenta.map((p) => ({
+          nombre: p.nombre,
+          metodoPago: p.metodoPago,
+          modo: p.modo,
+          monto: Number(p.monto),
+          platoLineaIds: p.platoLineaIds,
+        })),
+      });
+      setPagoPartesFila(null);
+      fetchItems();
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.userMessage || err?.message || 'No se pudo crear el pago');
+    } finally {
+      setPagoPartesEnviando(false);
+    }
   };
 
   const handleImprimirTicketCocina = async (opcion) => {
@@ -958,6 +1129,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
           <div className="flex items-center gap-3 flex-wrap justify-end">
             <button
               type="button"
+              onClick={abrirSelectorTicketCaja}
+              className="relative p-2 rounded-lg border border-emerald-500/50 text-white bg-emerald-700 hover:bg-emerald-600 transition-colors"
+              title="Imprimir ticket de caja"
+            >
+              <FaPrint className="text-sm" />
+              <span className="absolute -bottom-0.5 -right-0.5 text-[11px] leading-none" aria-hidden>💵</span>
+            </button>
+            <button
+              type="button"
               onClick={abrirSelectorTicketCocina}
               className="relative p-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-amber-500/50 transition-colors"
               title="Imprimir ticket de cocina"
@@ -988,6 +1168,25 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               title="Eliminar tickets de la tabla (marcar comandas)"
             >
               <FaTrash className="text-sm" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!itemsFiltrados.length) {
+                  alert('No hay tickets en la vista para cobrar en partes.');
+                  return;
+                }
+                setPagoPartesFila({ tickets: itemsFiltrados });
+                setPagoPartesIds([]);
+                setPartesCuenta([
+                  { id: 'a', nombre: '', metodoPago: 'efectivo', modo: 'monto', monto: '', platoLineaIds: [] },
+                  { id: 'b', nombre: '', metodoPago: 'efectivo', modo: 'monto', monto: '', platoLineaIds: [] },
+                ]);
+              }}
+              className="px-2.5 py-2 rounded-lg border border-violet-400 bg-violet-700 text-white text-xs font-bold hover:bg-violet-600"
+              title="Pago en partes: elegir tickets"
+            >
+              En partes
             </button>
             <SocketConnectionBadge connectionStatus={connectionStatus} authError={authError} />
             <BotonCandadoCocina compact />
@@ -1207,6 +1406,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             idsSeleccionados={idsEliminar}
             onToggleSeleccion={toggleSeleccionTickets}
             ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+            verNumerosMozo={tablaPrefs.verNumerosMozo === true}
             tamanoFecha={letraFiltro}
             vistaPorTicket={cobroPorCantidad ? vistaCobroPeriodo : null}
           />
@@ -1241,6 +1441,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             rechazarLoading={rechazarLoading}
             forzarPagoLoading={forzarPagoLoading}
             ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+            verNumerosMozo={tablaPrefs.verNumerosMozo === true}
           />
         ) : loading && itemsFiltrados.length === 0 ? (
           <div className="text-center py-16">
@@ -1633,6 +1834,135 @@ export default function TicketsPpaPage({ onGoToMenu }) {
       </AnimatePresence>
 
       <AnimatePresence>
+        {showModalTicketCaja && (
+          <div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4" onClick={() => setShowModalTicketCaja(false)}>
+            <div className="bg-gray-900 border border-emerald-500/40 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                <h2 className="text-white font-bold">Ticket de caja</h2>
+                <button type="button" className="text-white" onClick={() => setShowModalTicketCaja(false)}>Cerrar</button>
+              </div>
+              <input
+                className="m-3 bg-gray-800 text-white rounded-lg px-3 py-2 text-sm"
+                placeholder="Buscar número, mesa o mozo"
+                value={busquedaCaja}
+                onChange={(e) => setBusquedaCaja(e.target.value)}
+              />
+              <div className="overflow-y-auto px-3 pb-4 flex flex-wrap gap-2">
+                {comandasCaja.filter((c) => {
+                  const q = busquedaCaja.trim().toLowerCase();
+                  if (!q) return true;
+                  return `${c.numero} ${c.mesa} ${c.mozo} ${c.clienteNombre}`.toLowerCase().includes(q);
+                }).map((c) => (
+                  <button
+                    key={String(c._id)}
+                    type="button"
+                    onClick={() => imprimirTicketCaja(c)}
+                    className={`px-3 py-2 rounded-lg text-white text-sm font-bold ${c.eliminada ? 'bg-rose-700' : 'bg-emerald-700'}`}
+                  >
+                    #{c.numero} {c.mesa}{c.clienteNombre ? ` · ${c.clienteNombre}` : ''}{c.eliminada ? ' · eliminada' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {pagoPartesFila && (
+          <div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4" onClick={() => !pagoPartesEnviando && setPagoPartesFila(null)}>
+            <div className="bg-gray-900 border border-violet-500/40 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-white font-bold mb-1">Pago en partes de la mesa</h2>
+              <p className="text-white/80 text-xs mb-2">Marca las comandas de esta cuenta. Las partes se arman sobre el saldo pendiente por cobrar: S/ {saldoCuentaPartes().toFixed(2)}</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {comandasDeFila(pagoPartesFila).map((c) => (
+                  <label key={c.id} className={`px-2 py-2 rounded text-white text-xs font-bold cursor-pointer ${pagoPartesIds.includes(c.id) ? 'bg-violet-600 ring-2 ring-white' : 'bg-gray-700'}`}>
+                    <input
+                      type="checkbox"
+                      className="mr-1"
+                      checked={pagoPartesIds.includes(c.id)}
+                      onChange={() => setPagoPartesIds((prev) => prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])}
+                    />
+                    #{c.numero}
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button type="button" className="px-3 py-2 rounded bg-amber-700 text-white text-xs font-bold" onClick={() => repartirEnIguales(partesCuenta.length || 2)}>Repartir en iguales</button>
+                <button type="button" className="px-3 py-2 rounded bg-sky-700 text-white text-xs font-bold" onClick={proponerPartesPorNombre}>Proponer por nombre</button>
+                <button type="button" className="px-3 py-2 rounded bg-gray-700 text-white text-xs font-bold" onClick={() => {
+                  const suma = partesCuenta.reduce((s, parte) => {
+                    if (parte.modo === 'platos') {
+                      return s + platosCuentaPartes().filter((p) => parte.platoLineaIds.includes(String(p.platoLineaId))).reduce((a, p) => a + (Number(p.subtotal) || 0), 0);
+                    }
+                    return s + (Number(parte.monto) || 0);
+                  }, 0);
+                  const queda = Math.max(0, Number((saldoCuentaPartes() - suma).toFixed(2)));
+                  setPartesCuenta((prev) => [...prev, { id: `${Date.now()}`, nombre: '', metodoPago: 'efectivo', modo: 'monto', monto: queda.toFixed(2), platoLineaIds: [] }]);
+                }}>Agregar parte del saldo</button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mb-3">
+                {partesCuenta.map((parte, idx) => {
+                  const totalParte = parte.modo === 'platos'
+                    ? platosCuentaPartes().filter((p) => parte.platoLineaIds.includes(String(p.platoLineaId))).reduce((s, p) => s + (Number(p.subtotal) || 0), 0)
+                    : Number(parte.monto) || 0;
+                  return (
+                    <div key={parte.id} className="rounded-xl border border-white/15 p-3 bg-gray-800">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-white font-bold text-sm">Parte {idx + 1}</p>
+                        <button type="button" className="text-rose-300 text-xs" onClick={() => setPartesCuenta((prev) => prev.filter((x) => x.id !== parte.id))}>Quitar</button>
+                      </div>
+                      <input className="w-full mb-2 bg-gray-900 text-white rounded px-2 py-2 text-sm" placeholder="Nombre de quien paga" value={parte.nombre} onChange={(e) => setPartesCuenta((prev) => prev.map((x) => x.id === parte.id ? { ...x, nombre: e.target.value } : x))} />
+                      <div className="flex gap-1 mb-2">
+                        <button type="button" className={`flex-1 py-1 rounded text-white text-xs font-bold ${parte.modo === 'monto' ? 'bg-amber-600' : 'bg-gray-700'}`} onClick={() => setPartesCuenta((prev) => prev.map((x) => x.id === parte.id ? { ...x, modo: 'monto' } : x))}>Monto</button>
+                        <button type="button" className={`flex-1 py-1 rounded text-white text-xs font-bold ${parte.modo === 'platos' ? 'bg-amber-600' : 'bg-gray-700'}`} onClick={() => setPartesCuenta((prev) => prev.map((x) => x.id === parte.id ? { ...x, modo: 'platos' } : x))}>Platos</button>
+                      </div>
+                      {parte.modo === 'monto' ? (
+                        <input className="w-full mb-2 bg-gray-900 text-white rounded px-2 py-2" inputMode="decimal" placeholder="Monto" value={parte.monto} onChange={(e) => setPartesCuenta((prev) => prev.map((x) => x.id === parte.id ? { ...x, monto: e.target.value } : x))} />
+                      ) : (
+                        <div className="max-h-28 overflow-y-auto mb-2 space-y-1">
+                          {platosCuentaPartes().map((p) => {
+                            const id = String(p.platoLineaId);
+                            const on = parte.platoLineaIds.includes(id);
+                            return (
+                              <label key={id} className={`block px-2 py-1 rounded text-white text-[11px] ${on ? 'bg-emerald-700' : 'bg-gray-900'}`}>
+                                <input type="checkbox" className="mr-1" checked={on} onChange={() => setPartesCuenta((prev) => prev.map((x) => {
+                                  const sin = x.platoLineaIds.filter((n) => n !== id);
+                                  if (x.id !== parte.id) return { ...x, platoLineaIds: sin };
+                                  return { ...x, platoLineaIds: on ? sin : [...sin, id] };
+                                }))} />
+                                {p.nombre} · S/ {Number(p.subtotal || 0).toFixed(2)}{p.clienteNombreLinea ? ` · ${p.clienteNombreLinea}` : ''}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <select className="w-full bg-gray-900 text-white rounded px-2 py-2 text-sm mb-2" value={parte.metodoPago} onChange={(e) => setPartesCuenta((prev) => prev.map((x) => x.id === parte.id ? { ...x, metodoPago: e.target.value } : x))}>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="digital">Digital</option>
+                        <option value="tarjeta">Tarjeta</option>
+                      </select>
+                      <p className="text-white font-bold text-sm">S/ {totalParte.toFixed(2)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {(() => {
+                const suma = partesCuenta.reduce((s, parte) => {
+                  if (parte.modo === 'platos') {
+                    return s + platosCuentaPartes().filter((p) => parte.platoLineaIds.includes(String(p.platoLineaId))).reduce((a, p) => a + (Number(p.subtotal) || 0), 0);
+                  }
+                  return s + (Number(parte.monto) || 0);
+                }, 0);
+                const falta = saldoCuentaPartes() - suma;
+                return <p className={`text-sm font-bold mb-3 ${Math.abs(falta) < 0.02 ? 'text-emerald-300' : 'text-amber-300'}`}>Suma S/ {suma.toFixed(2)} · {Math.abs(falta) < 0.02 ? 'Cuadra con el saldo' : `Falta S/ ${falta.toFixed(2)}`}</p>;
+              })()}
+              <div className="flex gap-2">
+                <button type="button" className="flex-1 py-2 rounded bg-gray-700 text-white font-bold" onClick={() => setPagoPartesFila(null)} disabled={pagoPartesEnviando}>Cerrar</button>
+                <button type="button" className="flex-1 py-2 rounded bg-violet-600 text-white font-bold disabled:opacity-50" onClick={enviarPagoEnPartes} disabled={pagoPartesEnviando}>
+                  {pagoPartesEnviando ? 'Creando…' : 'Crear partes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {showModalTicketCocina && (
           <motion.div
             initial={{ opacity: 0 }}

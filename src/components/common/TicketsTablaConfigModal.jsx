@@ -120,6 +120,13 @@ export default function TicketsTablaConfigModal({ prefs, onChange, onClose }) {
           <section>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2">Visualización</p>
             <ToggleRow
+              id="tickets-ver-numeros-mozo"
+              label="Ver números del mozo"
+              hint="Muestra 2+3+5 junto al nombre. Apagado, solo se ve el nombre."
+              checked={prefs.verNumerosMozo === true}
+              onChange={(v) => onChange({ verNumerosMozo: v })}
+            />
+            <ToggleRow
               id="tickets-ocultar-guarniciones"
               label="Ocultar guarniciones"
               hint="Las comandas muestran solo platos, sin complementos ni guarniciones."

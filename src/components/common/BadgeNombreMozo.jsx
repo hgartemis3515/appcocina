@@ -8,6 +8,12 @@ import {
   colorLetraDeTicket,
 } from '../../utils/estiloMozoNombreKds';
 
+function textoMozoVisible(texto, verNumeros) {
+  const raw = String(texto || '');
+  if (verNumeros) return raw;
+  return raw.replace(/\s+\d+(?:\+\d+)*/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
 /**
  * Recuadro de color: perfil del mozo, color forzado, o config de Personalizar tabla
  * (vista Básico: fondo, letra y tamaño).
@@ -24,7 +30,8 @@ export default function BadgeNombreMozo({
   const cocina = useConfiguracionCocina();
   const perfil = colorPerfil || (ticket ? colorPerfilDeTicket(ticket) : null);
   const letra = colorLetra || (ticket ? colorLetraDeTicket(ticket) : null);
-  const texto = (ticket ? etiquetaMozoTicket(ticket) : '') || nombre || (ticket ? getMozoNombre(ticket) : '');
+  const crudo = (ticket ? etiquetaMozoTicket(ticket) : '') || nombre || (ticket ? getMozoNombre(ticket) : '');
+  const texto = textoMozoVisible(crudo, configVista?.verNumerosMozo === true);
   const estilo = estiloBadgeNombreMozo({
     configVista,
     colorPerfil: perfil,
