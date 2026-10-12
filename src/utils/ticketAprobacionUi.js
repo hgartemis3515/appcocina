@@ -289,8 +289,39 @@ export function estadoVisibleTickets(tickets) {
   return estadoEntregaTickets(list);
 }
 
+export function nombresClienteDeTicket(ticket) {
+  const set = new Set();
+  const push = (v) => {
+    const s = String(v || '').trim();
+    if (!s || s === 'Cliente' || s === 'Sin cliente') return;
+    set.add(s);
+  };
+  push(ticket?.cliente?.nombre);
+  push(ticket?.nombreCliente);
+  push(ticket?.clienteNombre);
+  push(ticket?.clienteNombreParaLlevar);
+  (ticket?.comandas || []).forEach((c) => {
+    if (!c || typeof c !== 'object') return;
+    push(c.clienteNombre);
+    push(c.clienteNombreParaLlevar);
+    push(c.cliente?.nombre);
+  });
+  (ticket?.platos || []).forEach((p) => push(p?.clienteNombreLinea));
+  return [...set];
+}
+
+export function nombresClienteDeTickets(tickets) {
+  const set = new Set();
+  (tickets || []).forEach((t) => nombresClienteDeTicket(t).forEach((n) => set.add(n)));
+  return [...set];
+}
+
 export const nombreClienteTicket = (ticket) =>
-  ticket?.cliente?.nombre || ticket?.nombreCliente || ticket?.clienteNombre || '';
+  nombresClienteDeTicket(ticket)[0]
+  || ticket?.cliente?.nombre
+  || ticket?.nombreCliente
+  || ticket?.clienteNombre
+  || '';
 
 export const dniClienteTicket = (ticket) =>
   ticket?.cliente?.dni || ticket?.dniCliente || ticket?.clienteDni || '';

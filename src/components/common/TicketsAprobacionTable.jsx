@@ -4,11 +4,12 @@ import {
 } from 'react-icons/fa';
 import { getComandaDisplayLabel } from '../../utils/ticketComandaDisplay';
 import { getDefaultSortDir, getMozoNombre, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, totalVentasFilasTabla, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
-import BadgeNombreMozo, { BadgesMozoDeTickets } from './BadgeNombreMozo';
+import BadgeNombreMozo, { BadgesMozoDeTickets, NombreClienteResalte } from './BadgeNombreMozo';
 import TotalCuentaCobro from './TotalCuentaCobro';
 import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, etiquetaMesaTicket,
-  nombreClienteTicket, dniClienteTicket, esTicketComanda, esPagoParcial,
+  esTicketComanda, esPagoParcial,
+  nombresClienteDeTicket, nombresClienteDeTickets,
   ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago,
   estadoEntregaComandaTicket, estadoVisibleTicket, estadoVisibleTickets, ticketTieneExtraLlevar,
 } from '../../utils/ticketAprobacionUi';
@@ -187,8 +188,6 @@ function FilaTicketAvanzado({
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
   const comandaLabel = getComandaDisplayLabel(ticket);
-  const cliente = nombreClienteTicket(ticket);
-  const dni = dniClienteTicket(ticket);
   const platosVis = platosTicketVisibles(ticket);
   const nPlatos = platosVis.length;
   const { neto, montoDesc } = totalesVistaTicket(ticket);
@@ -268,14 +267,10 @@ function FilaTicketAvanzado({
       <td className="px-3 py-2 min-w-[160px]">
         {indent ? null : (
           <>
-            <div className="truncate">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <BadgeNombreMozo ticket={ticket} nombre={getMozoNombre(ticket)} configVista={{ ...MOZO_VISTA_AVANZADA, verNumerosMozo }} />
+              <NombreClienteResalte nombres={nombresClienteDeTicket(ticket)} />
             </div>
-            {cliente && (
-              <div className="text-[10px] text-gray-500 truncate">
-                {cliente}{dni ? ` · DNI ${dni}` : ''}
-              </div>
-            )}
           </>
         )}
       </td>
@@ -580,8 +575,9 @@ export default function TicketsAprobacionTable({
                       />
                     </td>
                     <td className="px-3 py-2 min-w-[160px]">
-                      <div className="truncate">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <BadgesMozoDeTickets tickets={fila.tickets} configVista={{ ...MOZO_VISTA_AVANZADA, verNumerosMozo }} />
+                        <NombreClienteResalte nombres={nombresClienteDeTickets(fila.tickets)} />
                       </div>
                     </td>
                     <td className="px-3 py-2">

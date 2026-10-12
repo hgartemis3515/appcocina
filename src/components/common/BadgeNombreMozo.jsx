@@ -52,6 +52,24 @@ export default function BadgeNombreMozo({
   );
 }
 
+export function NombreClienteResalte({ nombres, className = '' }) {
+  const lista = (nombres || []).map((n) => String(n || '').trim()).filter(Boolean);
+  if (!lista.length) return null;
+  return (
+    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+      {lista.map((n) => (
+        <span
+          key={n}
+          className="px-2 py-0.5 rounded-md bg-[#6d28d9] text-white text-xs font-extrabold leading-tight shadow-sm"
+          title={n}
+        >
+          {n}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** Nombres del grupo de comandas, cada mozo con su color de perfil. */
 export function BadgesMozoDeTickets({ tickets, configVista, className = '' }) {
   const partes = partesMozoConColor(tickets);

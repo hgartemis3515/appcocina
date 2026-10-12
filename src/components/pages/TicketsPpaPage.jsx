@@ -20,7 +20,8 @@ import TicketsAprobacionTable from '../common/TicketsAprobacionTable';
 import TicketsMozosPendientesGrid from '../common/TicketsMozosPendientesGrid';
 import TicketsTablaConfigModal from '../common/TicketsTablaConfigModal';
 import { sortTickets, filterTicketsByMozo, getMozosFromTickets, sortTicketsPendientesPrimero, groupTicketsComoComandasHtml, ticketParaDetalleGrupo, ticketParaCobroGrupo, fechaCreacionComandaDeTicket } from '../../utils/ticketSort';
-import BadgeNombreMozo, { BadgesMozoDeTickets } from '../common/BadgeNombreMozo';
+import BadgeNombreMozo, { BadgesMozoDeTickets, NombreClienteResalte } from '../common/BadgeNombreMozo';
+import { nombresClienteDeTicket, nombresClienteDeTickets } from '../../utils/ticketAprobacionUi';
 import { indexarCobroPorCantidad, idsOcultosCobro } from '../../utils/cobroPorCantidadVista';
 import TotalCuentaCobro from '../common/TotalCuentaCobro';
 import { useConfiguracionCocina } from '../../hooks/useConfiguracionCocina';
@@ -823,9 +824,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                           <FaUtensils className="text-gray-400" />
                           <span>{etiquetaMesaTicket(ticket)}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                        <div className="flex items-center gap-1 text-gray-400 text-xs min-w-0">
                           <FaUser className="text-gray-500" />
                           <BadgeNombreMozo ticket={ticket} configVista={tablaPrefs} />
+                          <NombreClienteResalte nombres={nombresClienteDeTicket(ticket)} />
                         </div>
                       </div>
                       <div className="mt-1">
@@ -1572,9 +1574,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <FaUtensils className="text-gray-400" />
                             <span>{etiquetaMesaTicket(primero)}</span>
                           </div>
-                          <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <div className="flex items-center gap-1 text-gray-400 text-xs min-w-0">
                             <FaUser className="text-gray-500" />
                             <BadgesMozoDeTickets tickets={fila.tickets} configVista={tablaPrefs} />
+                            <NombreClienteResalte nombres={nombresClienteDeTickets(fila.tickets)} />
                           </div>
                         </div>
                       </div>
