@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { estiloCantidadBadge, radioForma, textoCantidadBadge, cantidadVaALaIzquierda } from '../../utils/monitorBadgeStyles';
+import NombreConCorte from './NombreConCorte';
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
@@ -136,14 +137,28 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           gap: '8px',
         }}
       >
+        {cantidadVaALaIzquierda(configVisual) && (
+          <span style={estiloCantidadBadge(configVisual)}>
+            {textoCantidadBadge(cantidadTotal, configVisual)}
+          </span>
+        )}
         <span
           style={{
             minWidth: 0,
+            flex: configVisual.cortarNombreConGuion === true ? '1 1 0%' : undefined,
             color: colorNombrePlato,
             ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
           }}
         >
-          {nombreVisible}
+          <NombreConCorte
+            texto={nombreVisible}
+            activo={configVisual.cortarNombreConGuion === true}
+            style={{
+              fontSize: `${tamanioFuentePlato}px`,
+              fontWeight: pesoFuentePlato,
+              color: 'inherit',
+            }}
+          />
         </span>
         {hayParaLlevar && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
@@ -151,9 +166,11 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
         {hayExtraLlevar && (
           <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
         )}
-        <span style={estiloCantidadBadge(configVisual)}>
-          {textoCantidadBadge(cantidadTotal, configVisual)}
-        </span>
+        {!cantidadVaALaIzquierda(configVisual) && (
+          <span style={estiloCantidadBadge(configVisual)}>
+            {textoCantidadBadge(cantidadTotal, configVisual)}
+          </span>
+        )}
       </div>
 
       {mostrarComplementos && complementosTexto && (

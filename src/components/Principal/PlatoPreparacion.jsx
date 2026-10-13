@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useConfig } from '../../contexts/ConfigContext';
 import { estiloNumeroOrdenKds, textoNumeroOrdenKds } from '../../utils/estiloNumeroOrdenKds';
-import { estiloCantidadPlatoKds } from '../../utils/estiloCantidadPlatoKds';
+import { estiloCantidadPlatoKds, cantidadPlatoVaALaIzquierda } from '../../utils/estiloCantidadPlatoKds';
 import { estiloNombrePlatoKds } from '../../utils/estiloNombrePlatoKds';
 import { estiloNombreComplementoKds } from '../../utils/estiloNombreComplementoKds';
 import { estiloParaLlevarKds } from '../../utils/estiloParaLlevarKds';
@@ -93,6 +93,7 @@ const PlatoPreparacion = ({
   const textoOrdenCola = textoNumeroOrdenKds(numeroColaCocinero, kdsConfig);
   const estiloOrdenCola = estiloNumeroOrdenKds(kdsConfig);
   const estiloCantidad = estiloCantidadPlatoKds(kdsConfig);
+  const cantidadALaIzquierda = cantidadPlatoVaALaIzquierda(kdsConfig);
   const estiloNombre = tipoUnidad === 'guarnicion'
     ? estiloNombreComplementoKds(kdsConfig, { compact: true })
     : estiloNombrePlatoKds(kdsConfig, { compact });
@@ -357,9 +358,11 @@ const PlatoPreparacion = ({
       <div className="flex-1 pointer-events-none">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`inline-flex items-center gap-1.5 min-w-0 ${ocultarComplementosTabla && !compact ? 'flex-1' : ''}`}>
+            {cantidadALaIzquierda && (
             <span style={estiloCantidad} title={`Cantidad: ${cantidad}`} className={ocultarCantidad ? 'hidden' : undefined}>
               {cantidad}
             </span>
+            )}
             <span
               style={ocultarComplementosTabla && !compact
                 ? { ...estiloNombre, display: 'flex', alignItems: 'center', minHeight: '40px', flex: '1 1 auto', boxSizing: 'border-box' }
@@ -367,6 +370,11 @@ const PlatoPreparacion = ({
             >
               {nombre}
             </span>
+            {!cantidadALaIzquierda && (
+            <span style={estiloCantidad} title={`Cantidad: ${cantidad}`} className={ocultarCantidad ? 'hidden' : undefined}>
+              {cantidad}
+            </span>
+            )}
           </span>
           {subtitulo ? (
             <span className="basis-full text-[10px] leading-tight font-normal opacity-70">

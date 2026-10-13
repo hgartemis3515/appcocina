@@ -8,7 +8,8 @@ import GuarnicionListaLinea, { LineasCambioGuarnicion } from './GuarnicionListaL
 import { tituloFilaVistaG } from '../../utils/vistaGGuarnicion';
 import { ChipsOrdenCantidadRow } from './ChipOrdenCantidad';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
-import { estiloCantidadBadge, radioForma, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { estiloCantidadBadge, radioForma, textoCantidadBadge, cantidadVaALaIzquierda } from '../../utils/monitorBadgeStyles';
+import NombreConCorte from './NombreConCorte';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import { esPlatoLlevarColor, grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
@@ -540,6 +541,11 @@ const CocineroPlatoCard = React.forwardRef(({
             Plato:
           </span>
         )}
+        {cantidadVaALaIzquierda(configVisual) && !modoG && (
+          <span style={estiloCantidadBadge(configVisual)}>
+            {textoCantidadBadge(cantidadTotal, configVisual)}
+          </span>
+        )}
         <div
           style={{
             fontSize: `${fsPlatoAcomodado}px`,
@@ -547,13 +553,19 @@ const CocineroPlatoCard = React.forwardRef(({
             lineHeight: 1.05,
             color: colorNombrePlato,
             textShadow: hayLlevarColor ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
-            wordBreak: 'break-word',
-            overflowWrap: 'anywhere',
+            wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
+            overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
             whiteSpace: 'normal',
+            flex: configVisual.cortarNombreConGuion === true ? '1 1 0%' : undefined,
+            minWidth: configVisual.cortarNombreConGuion === true ? 0 : undefined,
             ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
           }}
         >
-          {nombreVisible}
+          <NombreConCorte
+            texto={nombreVisible}
+            activo={configVisual.cortarNombreConGuion === true}
+            style={{ color: 'inherit', font: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }}
+          />
         </div>
         <ChipsOrdenCantidadRow chips={chipsOrden} fontSize={Math.max(14, Math.round((tamanioFuentePlato || 38) * 0.45))} />
         {hayParaLlevar && (
@@ -562,7 +574,7 @@ const CocineroPlatoCard = React.forwardRef(({
         {hayExtraLlevar && (
           <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
         )}
-        {!modoG && (
+        {!cantidadVaALaIzquierda(configVisual) && !modoG && (
           <span style={estiloCantidadBadge(configVisual)}>
             {textoCantidadBadge(cantidadTotal, configVisual)}
           </span>

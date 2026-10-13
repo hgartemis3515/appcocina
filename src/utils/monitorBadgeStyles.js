@@ -139,6 +139,11 @@ export function textoCantidadBadge(cantidad, configVisual = {}) {
   return `${prefijoCantidadBadge(configVisual)}${cantidad}`;
 }
 
+/** Marcado: el cuadro de cantidad va a la izquierda del nombre. */
+export function cantidadVaALaIzquierda(configVisual = {}) {
+  return configVisual.cantidadALaIzquierda === true;
+}
+
 /**
  * Estilo inline del badge ×N (cantidad).
  * @param {object} configVisual
@@ -200,6 +205,8 @@ export const BADGE_DEFAULTS = {
   cantidadRadio: DEFAULT_CANTIDAD.radio,
   cantidadPeso: DEFAULT_CANTIDAD.peso,
   cantidadPrefijo: DEFAULT_CANTIDAD.prefijo,
+  cantidadALaIzquierda: false,
+  cortarNombreConGuion: false,
   cantidadSeguirAlerta: false,
 };
 

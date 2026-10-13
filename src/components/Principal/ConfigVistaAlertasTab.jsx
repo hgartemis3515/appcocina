@@ -29,6 +29,7 @@ import {
   CANTIDAD_PLATO_TAMANO_MIN,
   CANTIDAD_PLATO_TAMANO_MAX,
   estiloCantidadPlatoKds,
+  cantidadPlatoVaALaIzquierda,
 } from '../../utils/estiloCantidadPlatoKds';
 import {
   MOZO_NOMBRE_DEFAULT,
@@ -1548,7 +1549,25 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 </select>
               </label>
             </div>
-            <span style={estiloCantidadPlatoKds(config)}>1</span>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cantidadPlatoVaALaIzquierda(config)}
+                onChange={(e) => updateConfig({ cantidadPlatoALaIzquierda: e.target.checked })}
+                className="w-5 h-5 mt-0.5 rounded accent-emerald-500"
+              />
+              <span>
+                <span className={`${textModal} font-semibold block`}>A la izquierda del nombre</span>
+                <span className={`${textSecondary} text-xs block mt-0.5`}>
+                  El número queda antes del plato. Si lo quitas, pasa a la derecha.
+                </span>
+              </span>
+            </label>
+            <span className="inline-flex items-center gap-1">
+              {cantidadPlatoVaALaIzquierda(config) && <span style={estiloCantidadPlatoKds(config)}>1</span>}
+              <span style={estiloNombrePlatoKds(config)}>Bistec</span>
+              {!cantidadPlatoVaALaIzquierda(config) && <span style={estiloCantidadPlatoKds(config)}>1</span>}
+            </span>
           </fieldset>
 
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
@@ -1688,10 +1707,11 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 👤 Juan
               </div>
               <div className="text-lime-200 text-[10px] mt-1 leading-tight flex items-center gap-1 flex-wrap">
-                <span style={estiloCantidadPlatoKds(config)}>1</span>
+                {cantidadPlatoVaALaIzquierda(config) && <span style={estiloCantidadPlatoKds(config)}>1</span>}
                 <span style={estiloNombrePlatoKds(config)}>
                   {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
                 </span>
+                {!cantidadPlatoVaALaIzquierda(config) && <span style={estiloCantidadPlatoKds(config)}>1</span>}
                 <span
                   className="rounded-full"
                   style={estiloNumeroOrdenKds(config)}

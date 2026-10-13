@@ -289,6 +289,7 @@ export const DEFAULT_KDS_CONFIG = {
   cantidadPlatoColor: '#ffffff',
   cantidadPlatoFondo: '#b45309',
   cantidadPlatoTamano: 14,
+  cantidadPlatoALaIzquierda: true,
   mozoNombreFuente: 'arial',
   mozoNombreTamano: 12,
   mozoNombreColor: '#ffffff',

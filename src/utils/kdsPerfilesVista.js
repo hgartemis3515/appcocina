@@ -41,6 +41,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'cantidadPlatoColor',
   'cantidadPlatoFondo',
   'cantidadPlatoTamano',
+  'cantidadPlatoALaIzquierda',
   'mozoNombreFuente',
   'mozoNombreTamano',
   'mozoNombreColor',

@@ -8,6 +8,7 @@ export const CANTIDAD_PLATO_DEFAULT = {
   cantidadPlatoColor: '#ffffff',
   cantidadPlatoFondo: '#b45309',
   cantidadPlatoTamano: 14,
+  cantidadPlatoALaIzquierda: true,
 };
 
 export const CANTIDAD_PLATO_TAMANO_MIN = 10;
@@ -54,4 +55,9 @@ export function estiloCantidadPlatoKds(config = {}) {
     boxSizing: 'border-box',
     flexShrink: 0,
   };
+}
+
+/** Sin marcar, la cantidad sigue a la izquierda del nombre (como hoy en Ver cocina). */
+export function cantidadPlatoVaALaIzquierda(config = {}) {
+  return config.cantidadPlatoALaIzquierda !== false;
 }

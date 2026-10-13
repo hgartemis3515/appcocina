@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { calcularSegundos, formatearCronometro, nivelAlerta } from '../../hooks/useCocinaMonitorTimer';
-import { estiloCantidadBadge, textoCantidadBadge } from '../../utils/monitorBadgeStyles';
+import { estiloCantidadBadge, textoCantidadBadge, cantidadVaALaIzquierda } from '../../utils/monitorBadgeStyles';
+import NombreConCorte from './NombreConCorte';
 import { formatearReferenciaPadre, tokenGuarnicion, nombresListaGuarniciones, platoConCantidadDeLinea } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import GuarnicionListaLinea from './GuarnicionListaLinea';
@@ -151,10 +152,23 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
           gap: '8px',
         }}
       >
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
-        <span style={estiloCantidadBadge(configVisual)}>
-          {textoCantidadBadge(cantidadTotal, configVisual)}
+        {cantidadVaALaIzquierda(configVisual) && (
+          <span style={estiloCantidadBadge(configVisual)}>
+            {textoCantidadBadge(cantidadTotal, configVisual)}
+          </span>
+        )}
+        <span style={{ minWidth: 0, flex: configVisual.cortarNombreConGuion === true ? '1 1 0%' : undefined, overflow: 'hidden' }}>
+          <NombreConCorte
+            texto={nombre}
+            activo={configVisual.cortarNombreConGuion === true}
+            style={{ fontSize: `${tamanioFuentePlato}px`, fontWeight: pesoFuentePlato }}
+          />
         </span>
+        {!cantidadVaALaIzquierda(configVisual) && (
+          <span style={estiloCantidadBadge(configVisual)}>
+            {textoCantidadBadge(cantidadTotal, configVisual)}
+          </span>
+        )}
       </div>
 
       {/* Sub-texto: "de {nombreCocinaPadre}" — referencia al plato padre.

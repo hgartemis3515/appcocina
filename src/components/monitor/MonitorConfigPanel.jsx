@@ -21,6 +21,7 @@ import {
   estiloCantidadBadge,
   textoCantidadBadge,
   prefijoCantidadBadge,
+  cantidadVaALaIzquierda,
 } from '../../utils/monitorBadgeStyles';
 import {
   prefijoCantidadGuarnicion,
@@ -608,6 +609,20 @@ const MonitorConfigPanel = ({
 
         {/* Tipografía */}
         <Section title="Tipografía" colorAcento={colorAcento}>
+          <label style={{ ...lbl, display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.cortarNombreConGuion === true}
+              onChange={(e) => guardar({ cortarNombreConGuion: e.target.checked })}
+              style={{ width: 18, height: 18, marginTop: 2 }}
+            />
+            <span>
+              Cortar palabras con -
+              <span style={{ display: 'block', fontWeight: 500, opacity: 0.8 }}>
+                Si una letra no cabe en el cuadro, se pone - y el resto baja. Ej. Arr- / oz con poll- / o.
+              </span>
+            </span>
+          </label>
           <label style={{ ...lbl, minWidth: '180px' }}>
             Tipo de fuente
             <select
@@ -1739,6 +1754,20 @@ const MonitorConfigPanel = ({
 
         {/* Cantidad N (símbolo × personalizable) */}
         <Section title="Cantidad" colorAcento={colorAcento}>
+          <label style={{ ...lbl, display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={cantidadVaALaIzquierda(configVisual)}
+              onChange={(e) => guardar({ cantidadALaIzquierda: e.target.checked })}
+              style={{ width: 18, height: 18, marginTop: 2 }}
+            />
+            <span>
+              A la izquierda del nombre
+              <span style={{ display: 'block', fontWeight: 500, opacity: 0.8 }}>
+                El número queda antes del plato. Si lo quitas, sigue a la derecha.
+              </span>
+            </span>
+          </label>
           <label style={lbl}>
             Símbolo (X)
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
