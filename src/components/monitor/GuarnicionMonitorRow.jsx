@@ -152,16 +152,16 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
           gap: '8px',
         }}
       >
-        {cantidadVaALaIzquierda(configVisual) && (
-          <span style={estiloCantidadBadge(configVisual)}>
-            {textoCantidadBadge(cantidadTotal, configVisual)}
-          </span>
-        )}
-        <span style={{ minWidth: 0, flex: configVisual.cortarNombreConGuion === true ? '1 1 0%' : undefined, overflow: 'hidden' }}>
+        <span style={{ minWidth: 0, flex: '1 1 0%', overflow: 'hidden' }}>
           <NombreConCorte
             texto={nombre}
             activo={configVisual.cortarNombreConGuion === true}
             style={{ fontSize: `${tamanioFuentePlato}px`, fontWeight: pesoFuentePlato }}
+            prefijo={cantidadVaALaIzquierda(configVisual) ? (
+              <span style={estiloCantidadBadge(configVisual)}>
+                {textoCantidadBadge(cantidadTotal, configVisual)}
+              </span>
+            ) : null}
           />
         </span>
         {!cantidadVaALaIzquierda(configVisual) && (
@@ -236,7 +236,7 @@ const GuarnicionMonitorRow = React.forwardRef(({ item, configVisual = {}, tick =
         display: 'flex',
         flexDirection: 'column',
         alignItems: disposicionVertical ? 'flex-start' : 'flex-end',
-        marginLeft: disposicionVertical ? 0 : '24px',
+        marginLeft: disposicionVertical || configVisual.cronometroPegado === true ? 0 : '24px',
         marginTop: disposicionVertical ? '10px' : 0,
         flexShrink: 0,
       }}

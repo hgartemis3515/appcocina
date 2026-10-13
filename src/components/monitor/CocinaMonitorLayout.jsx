@@ -210,6 +210,7 @@ const DEFAULT_CONFIG = {
   cronometroAncho: null,
   cronometroAlto: null,
   cronometroRadio: null,
+  cronometroPegado: false,
   tarjetaRadio: 14,
   tarjetaPadding: null,
   tarjetaGap: 16,

@@ -13,8 +13,9 @@ function medirCon(el) {
 /**
  * Si activo, llena el ancho y corta la palabra con "-" cuando la siguiente letra no cabe.
  */
-export default function NombreConCorte({ texto, activo, style }) {
+export default function NombreConCorte({ texto, activo, style, prefijo = null }) {
   const ref = useRef(null);
+  const prefijoRef = useRef(null);
   const [lineas, setLineas] = useState(null);
 
   useLayoutEffect(() => {
@@ -28,30 +29,47 @@ export default function NombreConCorte({ texto, activo, style }) {
       const ancho = el.clientWidth;
       if (!ancho) return;
       const medir = medirCon(el);
-      setLineas(partirTextoConGuion(texto, (s) => medir(s) <= ancho + 0.5));
+      const reserva = prefijoRef.current ? prefijoRef.current.offsetWidth + 8 : 0;
+      setLineas(partirTextoConGuion(texto, (s, primera) => {
+        const limite = primera ? Math.max(12, ancho - reserva) : ancho;
+        return medir(s) <= limite + 0.5;
+      }));
     };
     pintar();
     const ro = new ResizeObserver(pintar);
     ro.observe(el);
+    if (prefijoRef.current) ro.observe(prefijoRef.current);
     return () => ro.disconnect();
-  }, [texto, activo]);
+  }, [texto, activo, prefijo]);
+
+  const marca = prefijo ? (
+    <span ref={prefijoRef} style={{ float: 'left', marginRight: 8, lineHeight: 1 }}>
+      {prefijo}
+    </span>
+  ) : null;
 
   if (!activo) {
-    return <span style={style}>{texto}</span>;
+    return (
+      <span ref={ref} style={{ display: 'block', minWidth: 0, ...style }}>
+        {marca}
+        {texto}
+      </span>
+    );
   }
   return (
     <span
       ref={ref}
       style={{
-        ...style,
         display: 'block',
         minWidth: 0,
         maxWidth: '100%',
         whiteSpace: 'pre-line',
         wordBreak: 'normal',
         overflowWrap: 'normal',
+        ...style,
       }}
     >
+      {marca}
       {lineas ? lineas.join('\n') : texto}
     </span>
   );

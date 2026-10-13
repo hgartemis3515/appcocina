@@ -1672,6 +1672,20 @@ const MonitorConfigPanel = ({
 
         {/* Cronómetro (chip de temporizador) */}
         <Section title="Cronómetro (chip)" colorAcento={colorAcento}>
+          <label style={{ ...lbl, display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={configVisual.cronometroPegado === true}
+              onChange={(e) => guardar({ cronometroPegado: e.target.checked })}
+              style={{ width: 18, height: 18, marginTop: 2 }}
+            />
+            <span>
+              Pegado al borde
+              <span style={{ display: 'block', fontWeight: 500, opacity: 0.8 }}>
+                El cronómetro se pega al lado de la tarjeta y no deja hueco. El nombre del plato usa ese espacio.
+              </span>
+            </span>
+          </label>
           {[
             ['cronometroColor', 'Color texto', configVisual.cronometroColor, '#d4af37'],
             ['cronometroContorno', 'Color contorno', configVisual.cronometroContorno, '#d4af37'],

@@ -9,6 +9,7 @@ export function partirTextoConGuion(texto, cabe) {
   if (typeof cabe !== 'function') return [String(texto)];
   const lineas = [];
   let actual = '';
+  const cabeEn = (s) => cabe(s, lineas.length === 0);
   const cerrar = (s) => {
     const t = String(s || '').replace(/[ \t]+$/g, '');
     if (t) lineas.push(t);
@@ -20,7 +21,7 @@ export function partirTextoConGuion(texto, cabe) {
       actual = '';
       continue;
     }
-    if (cabe(actual + ch)) {
+    if (cabeEn(actual + ch)) {
       actual += ch;
       continue;
     }
@@ -40,17 +41,17 @@ export function partirTextoConGuion(texto, cabe) {
       i -= 1;
       continue;
     }
-    if (cabe(`${actual}-`)) {
+    if (cabeEn(`${actual}-`)) {
       lineas.push(`${actual}-`);
       actual = ch;
       continue;
     }
     const ultimo = actual.slice(-1);
     const base = actual.slice(0, -1);
-    if (base && cabe(`${base}-`)) {
+    if (base && cabeEn(`${base}-`)) {
       lineas.push(`${base}-`);
       actual = ultimo + ch;
-      if (!cabe(actual) && cabe(`${ultimo}-`)) {
+      if (!cabeEn(actual) && cabeEn(`${ultimo}-`)) {
         lineas.push(`${ultimo}-`);
         actual = ch;
       }

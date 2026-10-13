@@ -137,15 +137,10 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           gap: '8px',
         }}
       >
-        {cantidadVaALaIzquierda(configVisual) && (
-          <span style={estiloCantidadBadge(configVisual)}>
-            {textoCantidadBadge(cantidadTotal, configVisual)}
-          </span>
-        )}
         <span
           style={{
             minWidth: 0,
-            flex: configVisual.cortarNombreConGuion === true ? '1 1 0%' : undefined,
+            flex: '1 1 0%',
             color: colorNombrePlato,
             ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
           }}
@@ -158,6 +153,11 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
               fontWeight: pesoFuentePlato,
               color: 'inherit',
             }}
+            prefijo={cantidadVaALaIzquierda(configVisual) ? (
+              <span style={estiloCantidadBadge(configVisual)}>
+                {textoCantidadBadge(cantidadTotal, configVisual)}
+              </span>
+            ) : null}
           />
         </span>
         {hayParaLlevar && (
@@ -219,7 +219,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
         display: 'flex',
         flexDirection: 'column',
         alignItems: disposicionVertical ? 'flex-start' : 'flex-end',
-        marginLeft: disposicionVertical ? 0 : '24px',
+        marginLeft: disposicionVertical || configVisual.cronometroPegado === true ? 0 : '24px',
         marginTop: disposicionVertical ? '10px' : 0,
         flexShrink: 0,
       }}

@@ -419,6 +419,7 @@ const CocineroPlatoCard = React.forwardRef(({
   const gapTarjeta = configVisual.tarjetaGap != null && configVisual.tarjetaGap !== ''
     ? Math.max(0, Number(configVisual.tarjetaGap) || 16)
     : 16;
+  const cronometroPegado = configVisual.cronometroPegado === true;
 
   // Fondo de la tarjeta: degradado configurable o color fijo
   const usarDegradado = configVisual.degradadoTarjeta !== false;
@@ -541,11 +542,6 @@ const CocineroPlatoCard = React.forwardRef(({
             Plato:
           </span>
         )}
-        {cantidadVaALaIzquierda(configVisual) && !modoG && (
-          <span style={estiloCantidadBadge(configVisual)}>
-            {textoCantidadBadge(cantidadTotal, configVisual)}
-          </span>
-        )}
         <div
           style={{
             fontSize: `${fsPlatoAcomodado}px`,
@@ -556,8 +552,8 @@ const CocineroPlatoCard = React.forwardRef(({
             wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
             overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
             whiteSpace: 'normal',
-            flex: configVisual.cortarNombreConGuion === true ? '1 1 0%' : undefined,
-            minWidth: configVisual.cortarNombreConGuion === true ? 0 : undefined,
+            flex: '1 1 0%',
+            minWidth: 0,
             ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
           }}
         >
@@ -565,6 +561,11 @@ const CocineroPlatoCard = React.forwardRef(({
             texto={nombreVisible}
             activo={configVisual.cortarNombreConGuion === true}
             style={{ color: 'inherit', font: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }}
+            prefijo={cantidadVaALaIzquierda(configVisual) && !modoG ? (
+              <span style={estiloCantidadBadge(configVisual)}>
+                {textoCantidadBadge(cantidadTotal, configVisual)}
+              </span>
+            ) : null}
           />
         </div>
         <ChipsOrdenCantidadRow chips={chipsOrden} fontSize={Math.max(14, Math.round((tamanioFuentePlato || 38) * 0.45))} />
@@ -734,16 +735,24 @@ const CocineroPlatoCard = React.forwardRef(({
   const ocultarCronometroG = (esGuarnicion && configVisual.ocultarCronometroGuarniciones === true)
     || item.soloContadorEnCocina === true
     || item.ocultarCronometroCocina === true;
+  const padLateral = (() => {
+    const parts = String(paddingTarjeta || '').trim().split(/\s+/);
+    const raw = parts.length >= 2 ? parts[1] : parts[0];
+    return parseFloat(raw) || 0;
+  })();
   const ladoDerecho = ocultarCronometroG ? null : (
     <div
       style={{
         flex: '0 0 auto',
         minWidth: 0,
-        maxWidth: disposicionVertical ? 'none' : (estiloTemporizador === 'vertical' ? '160px' : 'none'),
+        maxWidth: disposicionVertical ? 'none' : (cronometroPegado || estiloTemporizador !== 'vertical' ? 'none' : '160px'),
         width: disposicionVertical ? '100%' : undefined,
         display: 'flex',
         alignItems: compacto ? 'center' : 'flex-start',
         justifyContent: disposicionVertical ? 'flex-start' : 'flex-end',
+        alignSelf: cronometroPegado ? 'stretch' : undefined,
+        marginRight: cronometroPegado && !disposicionVertical ? `-${padLateral}px` : 0,
+        marginTop: cronometroPegado && disposicionVertical ? `-${padLateral}px` : 0,
       }}
     >
       <TemporizadorChips
@@ -774,7 +783,7 @@ const CocineroPlatoCard = React.forwardRef(({
           display: 'flex',
           flexDirection: disposicionVertical ? 'column' : 'row',
           alignItems: disposicionVertical ? 'stretch' : (compacto ? 'center' : 'stretch'),
-          gap: `${gapTarjeta}px`,
+          gap: cronometroPegado ? 0 : `${gapTarjeta}px`,
           flex: 1,
           minWidth: 0,
         }}
