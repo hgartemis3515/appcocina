@@ -17,6 +17,7 @@ import ProtectedRoute from './common/ProtectedRoute';
 import PantallaBloqueoOverlay from './common/PantallaBloqueoOverlay';
 import { FaSpinner } from 'react-icons/fa';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
+import NoticiaDelDia from './NoticiaDelDia';
 import useConfiguracionCocina from '../hooks/useConfiguracionCocina';
 
 /**
@@ -206,7 +207,15 @@ const AppRouter = () => {
 
   // En cualquier vista autenticada (incluido monitor TV) montamos el overlay de alertas
   // para que las alertas lleguen a las pantallas de cocina aunque el FAB de chat esté oculto.
-  const alertasOverlay = <AlertaOverlayCocina />;
+  const esPantallaFija = isMonitorMode || cocinaOptions?.modoKiosk
+    || new URLSearchParams(window.location.search).get('modo') === 'kiosk'
+    || new URLSearchParams(window.location.search).get('modo') === 'completo-fijo';
+  const alertasOverlay = (
+    <>
+      <AlertaOverlayCocina />
+      {esPantallaFija ? null : <NoticiaDelDia />}
+    </>
+  );
 
   // Vista de Menú (requiere autenticación)
   if (currentView === 'MENU') {
