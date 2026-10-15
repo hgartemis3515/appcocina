@@ -23,6 +23,7 @@ export default function NoticiaDelDia() {
   const [fecha, setFecha] = useState('');
   const [abierta, setAbierta] = useState(false);
   const [nuevasIds, setNuevasIds] = useState([]);
+  const [flash, setFlash] = useState(null);
   const rootRef = useRef(null);
   const tlRef = useRef(null);
 
@@ -71,6 +72,9 @@ export default function NoticiaDelDia() {
       transports: ['websocket', 'polling'],
     });
     socket.on('noticia-publicada', () => { cargar(); });
+    socket.on('noticia-temporal', (aviso) => {
+      if (aviso && aviso.titulo) setFlash(aviso);
+    });
     return () => socket.disconnect();
   }, [getToken, cargar]);
 
@@ -113,11 +117,33 @@ export default function NoticiaDelDia() {
     }
   });
 
-  if (!abierta || !noticias.length) return null;
+  const originPrevio = getServerBaseUrl();
+  const avisoFlash = flash ? (
+    <div className="fixed inset-0 z-[85] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={() => setFlash(null)} />
+      <div className="relative bg-gray-900 text-white rounded-2xl border border-amber-500/40 w-full max-w-lg max-h-[82vh] flex flex-col overflow-hidden">
+        <div className="px-5 pt-4 pb-1">
+          <p className="text-[11px] uppercase tracking-wide text-amber-300 font-bold">Solo esta vez</p>
+          <h2 className="text-xl font-bold">{flash.titulo}</h2>
+        </div>
+        <div
+          className="overflow-auto px-5 py-3 text-base leading-relaxed [&_img]:max-w-full [&_img]:rounded-lg"
+          dangerouslySetInnerHTML={{ __html: htmlVisible(flash.cuerpoHtml, originPrevio) }}
+        />
+        <button type="button" onClick={() => setFlash(null)} className="m-4 min-h-[52px] rounded-xl bg-amber-500 text-black font-bold">
+          Listo
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  if (!abierta || !noticias.length) return avisoFlash;
   const origin = getServerBaseUrl();
   const nNuevas = nuevasIds.length;
 
   return (
+    <>
+    {avisoFlash}
     <div ref={rootRef} className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div data-fondo className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={cerrar} />
       <div
@@ -164,5 +190,6 @@ export default function NoticiaDelDia() {
         </button>
       </div>
     </div>
+    </>
   );
 }
