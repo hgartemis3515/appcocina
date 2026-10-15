@@ -273,7 +273,7 @@ export function estadoEntregaTickets(tickets) {
 }
 
 const META_PENDIENTE_APROBACION = {
-  label: 'Pendiente de aprobación',
+  label: 'Pen-a-Cobrar',
   entregado: false,
   bg: 'bg-yellow-500/30 text-yellow-200 border border-yellow-500/40',
 };
