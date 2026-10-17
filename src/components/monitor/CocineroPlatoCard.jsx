@@ -569,7 +569,7 @@ const CocineroPlatoCard = React.forwardRef(({
           />
         </div>
         <ChipsOrdenCantidadRow chips={chipsOrden} fontSize={Math.max(14, Math.round((tamanioFuentePlato || 38) * 0.45))} />
-        {hayParaLlevar && (
+        {hayParaLlevar && configVisual.ocultarParaLlevarPlatos !== true && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
         )}
         {hayExtraLlevar && (

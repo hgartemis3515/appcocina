@@ -160,7 +160,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
             ) : null}
           />
         </span>
-        {hayParaLlevar && (
+        {hayParaLlevar && configVisual.ocultarParaLlevarPlatos !== true && (
           <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
         )}
         {hayExtraLlevar && (

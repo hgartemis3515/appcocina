@@ -605,6 +605,12 @@ const MonitorConfigPanel = ({
             />
             Animaciones de tarjetas
           </label>
+          <CheckG
+            k="ocultarParaLlevarPlatos"
+            label="Ocultar Para llevar en los platos"
+            help="Quita la etiqueta PARA LLEVAR junto al nombre. El plato sigue en Ver Cocina. Se guarda en el perfil."
+            {...checkGProps}
+          />
         </Section>
 
         {/* Tipografía */}

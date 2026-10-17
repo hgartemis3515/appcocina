@@ -247,6 +247,8 @@ const DEFAULT_CONFIG = {
   autoAcomodamiento: false,
   // Aprovechar espacio: altura al contenido + masonry (deja de ser simétrico)
   aprovecharEspacio: false,
+  // Oculta la etiqueta PARA LLEVAR junto al nombre del plato en Ver Cocina.
+  ocultarParaLlevarPlatos: false,
 };
 
 /** Snapshot de Personalizar: todas las claves de DEFAULT_CONFIG + extras del panel. */
