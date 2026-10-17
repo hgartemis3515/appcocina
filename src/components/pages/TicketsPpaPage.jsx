@@ -146,6 +146,30 @@ function opcionesComandasTicketCocina(tickets) {
   return [...seen.values()].sort((a, b) => Number(a.numero || 0) - Number(b.numero || 0));
 }
 
+function unirOpcionesImpresion(base, comandas) {
+  const seen = new Map((base || []).map((o) => [o.key, o]));
+  for (const c of comandas || []) {
+    if (!c?._id) continue;
+    const n = c.numero != null && c.numero !== '' ? Number(c.numero) : null;
+    const key = Number.isFinite(n) ? `n:${n}` : `id:${c._id}`;
+    if (seen.has(key)) continue;
+    const rev = Number(c.revisionTicket) || 0;
+    const id = String(c._id);
+    seen.set(key, {
+      key,
+      ticket: { comandaId: id },
+      numero: Number.isFinite(n) ? n : null,
+      comandaId: id,
+      revisionTicket: rev,
+      mesa: c.mesa,
+      mozo: c.mozo,
+      anulada: c.eliminada === true,
+      label: Number.isFinite(n) ? `#${n}${letraRevisionTicket(rev)}` : 'Comanda',
+    });
+  }
+  return [...seen.values()].sort((a, b) => Number(a.numero || 0) - Number(b.numero || 0));
+}
+
 function VistaModoToggle({ modo, onChange }) {
   const opts = [
     { id: 'basico', label: 'Básico' },
@@ -225,8 +249,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [showTablaConfig, setShowTablaConfig] = useState(false);
   const [showModalTicketCocina, setShowModalTicketCocina] = useState(false);
   const [showModalTicketCaja, setShowModalTicketCaja] = useState(false);
-  const [comandasCaja, setComandasCaja] = useState([]);
   const [busquedaCaja, setBusquedaCaja] = useState('');
+  const [comandasPeriodo, setComandasPeriodo] = useState([]);
   const [pagoPartesFila, setPagoPartesFila] = useState(null);
   const [pagoPartesModo, setPagoPartesModo] = useState('monto');
   const [pagoPartesMonto, setPagoPartesMonto] = useState('');
@@ -537,8 +561,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   );
 
   const opcionesTicketCocina = useMemo(
-    () => opcionesComandasTicketCocina(itemsFiltrados),
-    [itemsFiltrados],
+    () => unirOpcionesImpresion(opcionesComandasTicketCocina(itemsEnPeriodo), comandasPeriodo),
+    [itemsEnPeriodo, comandasPeriodo],
   );
 
   const opcionesTicketCocinaFiltradas = useMemo(() => {
@@ -549,9 +573,31 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     );
   }, [opcionesTicketCocina, busquedaTicketCocina]);
 
-  const abrirSelectorTicketCocina = () => {
-    if (!opcionesTicketCocina.length) {
-      alert('No hay comandas en la vista actual para imprimir.');
+  const cargarComandasPeriodo = async () => {
+    try {
+      const data = await apiGet('/api/aprobacion/comandas-imprimibles', {
+        desde: fechaDesde,
+        hasta: fechaHasta,
+      });
+      const lista = Array.isArray(data?.comandas) ? data.comandas : [];
+      const delPeriodo = lista.filter((c) => matchFechaRangoTicket(c.createdAt, {
+        periodo: filtroPeriodo,
+        primerCierreHoyAt,
+        desde: fechaDesde,
+        hasta: fechaHasta,
+      }));
+      setComandasPeriodo(delPeriodo);
+      return delPeriodo;
+    } catch {
+      return comandasPeriodo;
+    }
+  };
+
+  const abrirSelectorTicketCocina = async () => {
+    const extra = await cargarComandasPeriodo();
+    const lista = unirOpcionesImpresion(opcionesComandasTicketCocina(itemsEnPeriodo), extra);
+    if (!lista.length) {
+      alert('No hay comandas en este período para imprimir.');
       return;
     }
     setBusquedaTicketCocina('');
@@ -559,28 +605,29 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   };
 
   const abrirSelectorTicketCaja = async () => {
-    try {
-      const data = await apiGet('/api/aprobacion/comandas-imprimibles', {
-        desde: fechaDesde,
-        hasta: fechaHasta,
-      });
-      const lista = Array.isArray(data?.comandas) ? data.comandas : [];
-      if (!lista.length) {
-        alert('No hay comandas para imprimir en este período.');
-        return;
-      }
-      setComandasCaja(lista);
-      setBusquedaCaja('');
-      setShowModalTicketCaja(true);
-    } catch (err) {
-      alert(err?.userMessage || err?.message || 'No se pudo cargar las comandas');
+    const extra = await cargarComandasPeriodo();
+    const lista = unirOpcionesImpresion(opcionesComandasTicketCocina(itemsEnPeriodo), extra);
+    if (!lista.length) {
+      alert('No hay comandas en este período para imprimir.');
+      return;
     }
+    setBusquedaCaja('');
+    setShowModalTicketCaja(true);
   };
 
-  const imprimirTicketCaja = async (comanda) => {
-    if (!comanda?._id) return;
+  const ticketParaImprimir = (opcion) => (
+    opcion?.ticket?._id ? opcion.ticket : { comandaId: opcion?.comandaId }
+  );
+
+  const imprimirTicketCaja = async (opcion) => {
+    if (!opcion?.ticket?._id && !opcion?.comandaId) return;
     try {
-      await imprimirComanda({ _id: comanda._id, comandas: [comanda._id] });
+      await imprimirComanda(ticketParaImprimir(opcion), {
+        ticketCaja: true,
+        filtrarComandaNumero: opcion.numero,
+        filtrarComandaId: opcion.comandaId,
+        revisionTicket: opcion.revisionTicket,
+      });
       setShowModalTicketCaja(false);
     } catch (err) {
       alert('Error al imprimir ticket de caja: ' + (err.userMessage || err.message));
@@ -719,10 +766,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   };
 
   const handleImprimirTicketCocina = async (opcion) => {
-    if (!opcion?.ticket) return;
+    if (!opcion?.ticket?._id && !opcion?.comandaId) return;
     setImprimiendoTicketCocina(true);
     try {
-      await imprimirComanda(opcion.ticket, {
+      await imprimirComanda(ticketParaImprimir(opcion), {
         ticketCocina: true,
         filtrarComandaNumero: opcion.numero,
         filtrarComandaId: opcion.comandaId,
@@ -1850,19 +1897,22 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 value={busquedaCaja}
                 onChange={(e) => setBusquedaCaja(e.target.value)}
               />
-              <div className="overflow-y-auto px-3 pb-4 flex flex-wrap gap-2">
-                {comandasCaja.filter((c) => {
+              <div className="overflow-y-auto px-3 pb-4 space-y-1">
+                {opcionesTicketCocina.filter((o) => {
                   const q = busquedaCaja.trim().toLowerCase();
                   if (!q) return true;
-                  return `${c.numero} ${c.mesa} ${c.mozo} ${c.clienteNombre}`.toLowerCase().includes(q);
-                }).map((c) => (
+                  return `${o.label} ${o.mesa} ${o.mozo}`.toLowerCase().includes(q);
+                }).map((o) => (
                   <button
-                    key={String(c._id)}
+                    key={String(o.key)}
                     type="button"
-                    onClick={() => imprimirTicketCaja(c)}
-                    className={`px-3 py-2 rounded-lg text-white text-sm font-bold ${c.eliminada ? 'bg-rose-700' : 'bg-emerald-700'}`}
+                    onClick={() => imprimirTicketCaja(o)}
+                    className="w-full text-left px-3 py-2.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white text-sm flex items-center justify-between gap-2"
                   >
-                    #{c.numero} {c.mesa}{c.clienteNombre ? ` · ${c.clienteNombre}` : ''}{c.eliminada ? ' · eliminada' : ''}
+                    <span className="font-bold tabular-nums">{o.label}{o.anulada ? ' · anulada' : ''}</span>
+                    <span className="text-xs text-emerald-100 truncate">
+                      Mesa {o.mesa || '—'} · {o.mozo || '—'}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -2002,7 +2052,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     onClick={() => handleImprimirTicketCocina(o)}
                     className="w-full text-left px-3 py-2.5 rounded-lg bg-gray-700/80 hover:bg-violet-700 text-white text-sm flex items-center justify-between gap-2 disabled:opacity-50"
                   >
-                    <span className="font-bold tabular-nums">{o.label}</span>
+                    <span className="font-bold tabular-nums">{o.label}{o.anulada ? ' · anulada' : ''}</span>
                     <span className="text-xs text-gray-300 truncate">
                       Mesa {o.mesa || '—'} · {o.mozo || '—'}
                     </span>

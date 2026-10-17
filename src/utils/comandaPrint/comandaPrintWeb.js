@@ -223,6 +223,79 @@ export function abrirVentanaImpresion(existente) {
   return printWin;
 }
 
+function quienEliminoLinea(comanda, linea) {
+  let usuario = String(linea?.eliminadoPorNombre || '').trim();
+  if (!usuario && linea?.eliminadoPor && typeof linea.eliminadoPor === 'object') {
+    usuario = String(linea.eliminadoPor.name || linea.eliminadoPor.nombre || '').trim();
+  }
+  const pid = linea?.platoId != null ? String(linea.platoId) : '';
+  const hist = comanda?.historialPlatos || [];
+  if (!usuario) {
+    for (let i = hist.length - 1; i >= 0; i -= 1) {
+      const h = hist[i];
+      if (!h) continue;
+      if (pid && h.platoId != null && String(h.platoId) !== pid) continue;
+      usuario = String(h.usuarioNombre || h.usuario?.name || '').trim();
+      if (usuario) break;
+    }
+  }
+  return usuario || '—';
+}
+
+function docComanda(res) {
+  if (!res || typeof res !== 'object') return null;
+  if (Array.isArray(res.platos)) return res;
+  if (res.comanda && Array.isArray(res.comanda.platos)) return res.comanda;
+  if (res.data && Array.isArray(res.data.platos)) return res.data;
+  return null;
+}
+
+/** Platos vivos de la comanda: los que siguen y los anulados, con el mismo formato del ticket automático. */
+async function mezclarPlatosEliminados(datos, fetchJson, ids) {
+  const vivos = [];
+  const idsOk = new Set();
+  for (const id of ids) {
+    if (!id) continue;
+    let c = null;
+    try {
+      c = docComanda(await fetchJson(`/api/comanda/${id}`));
+    } catch {
+      continue;
+    }
+    if (!c || !Array.isArray(c.platos) || !c.platos.length) continue;
+    const num = c.numeroComandaDia ?? c.comandaNumber;
+    const cid = String(c._id || id);
+    idsOk.add(cid);
+    c.platos.forEach((p, index) => {
+      if (!p) return;
+      const plato = p.plato && typeof p.plato === 'object' ? p.plato : null;
+      const precio = Number(p.precioUnitario ?? p.precio ?? plato?.precio) || 0;
+      const cantidad = Number(c.cantidades?.[index] || p.cantidad) || 1;
+      const anulada = p.eliminado === true || p.anulado === true;
+      vivos.push({
+        nombre: p.nombreCocinaPedido || p.nombre || plato?.nombreCocina || plato?.nombre || 'Plato',
+        cantidad,
+        precio,
+        subtotal: precio * cantidad,
+        tipoServicio: p.tipoServicio || 'mesa',
+        comandaNumber: num,
+        comandaId: cid,
+        platoLineaId: p._id ? String(p._id) : null,
+        eliminado: anulada || undefined,
+        lineaAnulada: anulada ? {
+          usuario: quienEliminoLinea(c, p),
+          motivo: p.eliminadoRazon || p.anuladoRazon || '',
+        } : undefined,
+        guarnicionesCambio: p.guarnicionesCambio || null,
+      });
+    });
+  }
+  if (!idsOk.size) return datos;
+  const resto = (datos?.productos || []).filter((p) => p?.comandaId && !idsOk.has(String(p.comandaId)));
+  const productos = ids.length === 1 ? vivos : [...resto, ...vivos];
+  return { ...datos, productos };
+}
+
 export async function imprimirComandaWeb(opts = {}) {
   try {
     const fetchJson = opts.fetchJson || defaultFetchJson;
@@ -279,7 +352,16 @@ export async function imprimirComandaWeb(opts = {}) {
       datos = { ...datos, comandaNumeroDisplay: letreroPrevio };
     }
 
-    if (opts.ticketCocina === true) {
+    const termico = opts.ticketCocina === true || opts.ticketCaja === true;
+    if (termico) {
+      const idsTermico = [...new Set([
+        opts.filtrarComandaId,
+        opts.comandaId,
+        ...(Array.isArray(opts.comandaIds) ? opts.comandaIds : []),
+      ].filter(Boolean).map(String))];
+      if (idsTermico.length) {
+        datos = await mezclarPlatosEliminados(datos, fetchJson, idsTermico);
+      }
       datos = filtrarDatosTicketCocina(datos, {
         filtrarComandaNumero: opts.filtrarComandaNumero,
         filtrarComandaId: opts.filtrarComandaId,
@@ -301,8 +383,8 @@ export async function imprimirComandaWeb(opts = {}) {
     }
 
     // 6. Generate full HTML
-    const generated = opts.ticketCocina === true
-      ? generarHtmlTicketCocina({ datos })
+    const generated = termico
+      ? generarHtmlTicketCocina({ datos, cocina: opts.ticketCaja !== true })
       : generarHtmlComanda({
         datos,
         plantilla,

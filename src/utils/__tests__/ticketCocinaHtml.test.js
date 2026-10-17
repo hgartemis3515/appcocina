@@ -49,7 +49,7 @@ describe('ticket cocina compacto', () => {
     expect(letraRevisionTicket(2)).toBe('c');
   });
 
-  test('plato eliminado: se queda el nombre y a la derecha Anulado, quién y motivo', () => {
+  test('plato eliminado: tachado, X a los lados y quién lo quitó', () => {
     const { html } = generarHtmlTicketCocina({
       datos: {
         comandaNumeroDisplay: '#3b',
@@ -70,10 +70,13 @@ describe('ticket cocina compacto', () => {
         total: 0,
       },
     });
+    expect(html).toContain('>X<');
     expect(html).toContain('Ceviche');
-    expect(html).toContain('>Anulado<');
     expect(html).toContain('María');
-    expect(html).toContain('Cliente canceló');
+    expect(html).not.toContain('Anulado');
+    expect(html).not.toContain('Cliente canceló');
+    expect(html).toContain('top:34%');
+    expect(html).toContain('top:64%');
     expect(html).toContain('TOTAL S/.25.00');
     expect(html).not.toContain('ANULADO X');
   });

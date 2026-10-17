@@ -655,6 +655,7 @@ export default function useTablaAprobacion({
         serverOrigin: getServerBaseUrl(),
         omitirGuarniciones,
         ticketCocina: extra.ticketCocina === true,
+        ticketCaja: extra.ticketCaja === true,
         filtrarComandaNumero: extra.filtrarComandaNumero,
         filtrarComandaId: extra.filtrarComandaId,
         revisionTicket: extra.revisionTicket,
