@@ -216,12 +216,42 @@ function nombreClienteTicket(c) {
   ).trim();
 }
 
-function productosDe(grupo, incluirEliminados = false) {
+function comandaViva(c) {
+  if (!c || c.eliminada === true) return false;
+  const st = String(c.status || c.estado || '').toLowerCase();
+  return st !== 'cancelado';
+}
+
+function datoAnulacionLinea(comanda, linea) {
+  const motivo = String(linea?.eliminadoRazon || linea?.anuladoRazon || '').trim();
+  let usuario = String(linea?.eliminadoPorNombre || '').trim();
+  if (!usuario && linea?.eliminadoPor && typeof linea.eliminadoPor === 'object') {
+    usuario = String(linea.eliminadoPor.name || linea.eliminadoPor.nombre || '').trim();
+  }
+  const pid = linea?.platoId != null ? String(linea.platoId) : '';
+  const hist = comanda?.historialPlatos || comanda?.historialBajas || [];
+  if (!usuario) {
+    for (let i = hist.length - 1; i >= 0; i -= 1) {
+      const h = hist[i];
+      if (!h) continue;
+      if (pid && h.platoId != null && String(h.platoId) !== pid) continue;
+      usuario = String(h.usuarioNombre || h.quien || '').trim();
+      if (usuario) break;
+    }
+  }
+  return { usuario: usuario || '—', motivo: motivo || '—' };
+}
+
+function productosDe(grupo, incluirEliminados = false, incluirLineasAnuladas = false) {
   const out = [];
   for (const c of grupo) {
     (c.platos || []).forEach((linea, index) => {
       if (!linea) return;
-      if (!incluirEliminados && (linea.eliminado === true || linea.anulado === true)) return;
+      const anulada = linea.eliminado === true || linea.anulado === true;
+      if (anulada && !incluirEliminados && !incluirLineasAnuladas) return;
+      const marca = anulada && incluirLineasAnuladas && !incluirEliminados
+        ? datoAnulacionLinea(c, linea)
+        : null;
       const mostrado = obtenerNombreDisplayCocina(linea);
       const platoObj = linea?.plato && typeof linea.plato === 'object' ? linea.plato : {};
       const nombre = (mostrado && mostrado !== 'Plato')
@@ -237,6 +267,8 @@ function productosDe(grupo, incluirEliminados = false) {
         precio: unit,
         tipoServicio: linea.tipoServicio || 'mesa',
         guarnicionesCambio: linea.guarnicionesCambio || null,
+        eliminado: marca ? true : undefined,
+        lineaAnulada: marca || undefined,
       });
     });
   }
@@ -244,7 +276,11 @@ function productosDe(grupo, incluirEliminados = false) {
 }
 
 function datosTicketDeGrupo(lista, extra = {}) {
-  const productos = productosDe(lista, extra.incluirEliminados === true);
+  const productos = productosDe(
+    lista,
+    extra.incluirEliminados === true,
+    extra.incluirLineasAnuladas === true,
+  );
   const base = lista[0] || {};
   const desc = lista.reduce((s, c) => s + (Number(c.montoDescuento) || 0), 0);
   const motivo = lista.map((c) => c.motivoDescuento).find(Boolean) || '';
@@ -302,9 +338,9 @@ async function paradasDeTicket(datos) {
   return paradasImpresionAutomatica();
 }
 
-export async function imprimirTicketCocinaKds(grupo) {
+export async function imprimirTicketCocinaKds(grupo, extra = {}) {
   const lista = (grupo || []).filter(Boolean);
-  const datos = datosTicketDeGrupo(lista);
+  const datos = datosTicketDeGrupo(lista, extra);
   if (!(datos.productos || []).length && !datos.anulacion) return;
   const parada = await paradasDeTicket(datos);
   if (parada.cocina && parada.caja) return;
@@ -338,7 +374,7 @@ export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
   if (!actualizada) return;
   const pid = idPedido(actualizada);
   const hermanas = pid
-    ? (todas || []).filter((c) => idPedido(c) === pid)
+    ? (todas || []).filter((c) => idPedido(c) === pid && comandaViva(c))
     : [];
   const src = hermanas.length ? hermanas : [actualizada];
   const grupo = src.map((c) => (
@@ -347,7 +383,7 @@ export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
   if (!grupo.some((c) => String(c._id) === String(actualizada._id))) {
     grupo.push(fusionarLineas(null, actualizada));
   }
-  await imprimirTicketCocinaKds(grupo);
+  await imprimirTicketCocinaKds(grupo.filter(comandaViva), { incluirLineasAnuladas: true });
 }
 
 /** Hoja de anulación: incluye los platos ya marcados eliminados y el pie ANULADO X. */

@@ -49,6 +49,35 @@ describe('ticket cocina compacto', () => {
     expect(letraRevisionTicket(2)).toBe('c');
   });
 
+  test('plato eliminado: se queda el nombre y a la derecha Anulado, quién y motivo', () => {
+    const { html } = generarHtmlTicketCocina({
+      datos: {
+        comandaNumeroDisplay: '#3b',
+        mozo: 'Ana',
+        mesa: 2,
+        productos: [
+          { nombre: 'Lomo', cantidad: 1, precio: 25, subtotal: 25 },
+          {
+            nombre: 'Ceviche',
+            cantidad: 1,
+            precio: 28,
+            subtotal: 28,
+            eliminado: true,
+            lineaAnulada: { usuario: 'María', motivo: 'Cliente canceló' },
+          },
+        ],
+        montoDescuento: 0,
+        total: 0,
+      },
+    });
+    expect(html).toContain('Ceviche');
+    expect(html).toContain('>Anulado<');
+    expect(html).toContain('María');
+    expect(html).toContain('Cliente canceló');
+    expect(html).toContain('TOTAL S/.25.00');
+    expect(html).not.toContain('ANULADO X');
+  });
+
   test('anulación: nombre del plato y ANULADO a la derecha', () => {
     const { html } = generarHtmlTicketCocina({
       datos: {
