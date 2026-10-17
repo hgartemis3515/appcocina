@@ -542,36 +542,37 @@ const CocineroPlatoCard = React.forwardRef(({
             Plato:
           </span>
         )}
-        <div
-          style={{
-            fontSize: `${fsPlatoAcomodado}px`,
-            fontWeight: pesoFuentePlato,
-            lineHeight: 1.05,
-            color: colorNombrePlato,
-            textShadow: hayLlevarColor ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
-            wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
-            overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
-            whiteSpace: 'normal',
-            flex: '1 1 0%',
-            minWidth: 0,
-            ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
-          }}
-        >
-          <NombreConCorte
-            texto={nombreVisible}
-            activo={configVisual.cortarNombreConGuion === true}
-            style={{ color: 'inherit', font: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }}
-            prefijo={cantidadVaALaIzquierda(configVisual) && !modoG ? (
-              <span style={estiloCantidadBadge(configVisual)}>
-                {textoCantidadBadge(cantidadTotal, configVisual)}
-              </span>
-            ) : null}
-          />
+        <div style={{ flex: '1 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+          <div
+            style={{
+              fontSize: `${fsPlatoAcomodado}px`,
+              fontWeight: pesoFuentePlato,
+              lineHeight: 1.05,
+              color: colorNombrePlato,
+              textShadow: hayLlevarColor ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
+              wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
+              overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
+              whiteSpace: 'normal',
+              maxWidth: '100%',
+              ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
+            }}
+          >
+            <NombreConCorte
+              texto={nombreVisible}
+              activo={configVisual.cortarNombreConGuion === true}
+              style={{ color: 'inherit', font: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }}
+              prefijo={cantidadVaALaIzquierda(configVisual) && !modoG ? (
+                <span style={estiloCantidadBadge(configVisual)}>
+                  {textoCantidadBadge(cantidadTotal, configVisual)}
+                </span>
+              ) : null}
+            />
+          </div>
+          {hayParaLlevar && configVisual.ocultarParaLlevarPlatos !== true && (
+            <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
+          )}
         </div>
         <ChipsOrdenCantidadRow chips={chipsOrden} fontSize={Math.max(14, Math.round((tamanioFuentePlato || 38) * 0.45))} />
-        {hayParaLlevar && configVisual.ocultarParaLlevarPlatos !== true && (
-          <BadgeParaLlevar fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
-        )}
         {hayExtraLlevar && (
           <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round(escalaDetalle(tamanioFuenteDetalle, 0.7)))} />
         )}

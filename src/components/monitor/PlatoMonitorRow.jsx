@@ -141,28 +141,37 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           style={{
             minWidth: 0,
             flex: '1 1 0%',
-            color: colorNombrePlato,
-            ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '4px',
           }}
         >
-          <NombreConCorte
-            texto={nombreVisible}
-            activo={configVisual.cortarNombreConGuion === true}
+          <span
             style={{
-              fontSize: `${tamanioFuentePlato}px`,
-              fontWeight: pesoFuentePlato,
-              color: 'inherit',
+              color: colorNombrePlato,
+              ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
             }}
-            prefijo={cantidadVaALaIzquierda(configVisual) ? (
-              <span style={estiloCantidadBadge(configVisual)}>
-                {textoCantidadBadge(cantidadTotal, configVisual)}
-              </span>
-            ) : null}
-          />
+          >
+            <NombreConCorte
+              texto={nombreVisible}
+              activo={configVisual.cortarNombreConGuion === true}
+              style={{
+                fontSize: `${tamanioFuentePlato}px`,
+                fontWeight: pesoFuentePlato,
+                color: 'inherit',
+              }}
+              prefijo={cantidadVaALaIzquierda(configVisual) ? (
+                <span style={estiloCantidadBadge(configVisual)}>
+                  {textoCantidadBadge(cantidadTotal, configVisual)}
+                </span>
+              ) : null}
+            />
+          </span>
+          {hayParaLlevar && configVisual.ocultarParaLlevarPlatos !== true && (
+            <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
+          )}
         </span>
-        {hayParaLlevar && configVisual.ocultarParaLlevarPlatos !== true && (
-          <BadgeParaLlevar fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
-        )}
         {hayExtraLlevar && (
           <BadgeParaLlevar texto="EXTRA CLIENTE" fontSize={Math.max(11, Math.round((tamanioFuenteDetalle || 20) * 0.55))} />
         )}
