@@ -1,6 +1,7 @@
 import {
   INTERVALO_AVISO_RESERVA_MS,
   horaDisponibleReserva,
+  reservaCobradaPendienteDeCocina,
   reservasParaAvisar,
   textoAvisoReserva,
 } from '../avisoReservasKds';
@@ -13,6 +14,21 @@ const reserva = (id, hora) => ({
 });
 
 describe('aviso de reservas en KDS', () => {
+  test('pendiente de cobro no enciende el icono Reserva', () => {
+    expect(reservaCobradaPendienteDeCocina({
+      estado: 'pendiente_aprobar',
+      pagoAdelantado: { estadoTicket: 'pendiente_aprobacion' },
+    })).toBe(false);
+    expect(reservaCobradaPendienteDeCocina({
+      estado: 'pendiente',
+      pagoAdelantado: { estadoTicket: 'pendiente_aprobacion' },
+    })).toBe(false);
+    expect(reservaCobradaPendienteDeCocina({
+      estado: 'pendiente',
+      pagoAdelantado: { estadoTicket: 'aprobado' },
+    })).toBe(true);
+  });
+
   test('el texto dice la comanda y la hora en que está disponible', () => {
     const texto = textoAvisoReserva(reserva('a', '2026-10-17T19:30:00-05:00'));
     expect(texto).toContain('Comanda #18');

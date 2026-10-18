@@ -1,6 +1,15 @@
 /** Recordatorio de reservas cobradas que todavía no entraron a cocina. */
 export const INTERVALO_AVISO_RESERVA_MS = 30 * 60 * 1000;
 
+/** Solo después de Cobrar. Pendiente de cobro no enciende el icono Reserva. */
+export function reservaCobradaPendienteDeCocina(reserva) {
+  const estado = String(reserva?.estado || '').toLowerCase();
+  if (estado !== 'pendiente') return false;
+  const ticket = String(reserva?.pagoAdelantado?.estadoTicket || '').toLowerCase();
+  if (ticket === 'pendiente_aprobacion' || ticket === 'rechazado') return false;
+  return true;
+}
+
 export function horaDisponibleReserva(reserva) {
   const fecha = reserva?.fechaCocina || reserva?.fechaReserva;
   if (!fecha) return '—';

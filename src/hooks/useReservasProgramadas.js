@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { apiGet } from '../config/apiClient';
+import { reservaCobradaPendienteDeCocina } from '../utils/avisoReservasKds';
 
 export default function useReservasProgramadas(socket, cocineroId = null) {
   const [reservas, setReservas] = useState([]);
@@ -17,7 +18,8 @@ export default function useReservasProgramadas(socket, cocineroId = null) {
     try {
       const params = cocineroId ? { cocineroId } : {};
       const data = await apiGet('/api/vista-cocina/reservadas', params);
-      setReservas(Array.isArray(data) ? data : (data?.reservas || []));
+      const lista = Array.isArray(data) ? data : (data?.reservas || []);
+      setReservas(lista.filter(reservaCobradaPendienteDeCocina));
     } catch (e) {
       setError(e?.response?.data?.error || e?.userMessage || e?.message || 'Error al cargar reservas');
     } finally {
