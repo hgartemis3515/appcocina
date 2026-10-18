@@ -12,9 +12,9 @@ import { estiloCantidadBadge, radioForma, textoCantidadBadge, cantidadVaALaIzqui
 import NombreConCorte from './NombreConCorte';
 import { tokenGuarnicion, nombresListaGuarniciones, textosGuarnicionesDeGrupo, platoConCantidadDeLinea, labelConCantidadTotal } from '../../utils/guarnicionesKds';
 import { pronombreReferenciaPrincipal, tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
-import { esPlatoLlevarColor, grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
+import { esPlatoLlevarColor, grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, grupoEsReserva, obtenerNombreDisplayCocina } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
-import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
+import { estiloCuadroNombreParaLlevar, estiloCuadroNombreReserva } from '../../utils/estiloParaLlevarKds';
 
 /**
  * CocineroPlatoCard - Tarjeta por combinación cocinero + plato.
@@ -266,6 +266,7 @@ const CocineroPlatoCard = React.forwardRef(({
   const hayLlevarColor = esGuarnicion
     ? (item.paraLlevar === true || (platos.length > 0 && platos.every((p) => esPlatoLlevarColor(p))))
     : grupoTieneLlevarColor(platos);
+  const hayReservaColor = grupoEsReserva(platos);
 
   if (esGuarnicion && configVisual.ocultarCuadroGuarniciones === true) {
     const textoNombres = modoG
@@ -306,6 +307,7 @@ const CocineroPlatoCard = React.forwardRef(({
         conCuadro={forzarCuadroPorNota}
         colorCuadro={colorAcento}
         paraLlevar={hayLlevarColor}
+        reserva={hayReservaColor}
       />
     );
   }
@@ -549,12 +551,14 @@ const CocineroPlatoCard = React.forwardRef(({
               fontWeight: pesoFuentePlato,
               lineHeight: 1.05,
               color: colorNombrePlato,
-              textShadow: hayLlevarColor ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
+              textShadow: (hayReservaColor || hayLlevarColor) ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
               wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
               overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
               whiteSpace: 'normal',
               maxWidth: '100%',
-              ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null),
+              ...(hayReservaColor
+                ? estiloCuadroNombreReserva(fsPlatoAcomodado)
+                : (hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null)),
             }}
           >
             <NombreConCorte
@@ -590,6 +594,7 @@ const CocineroPlatoCard = React.forwardRef(({
             fontSize={tamanioFuentePlato}
             color={colorTextoPadre}
             paraLlevar={hayLlevarColor}
+            reserva={hayReservaColor}
           />
           {textoPronombreRef ? (
             <span

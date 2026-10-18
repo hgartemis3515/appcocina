@@ -2,8 +2,10 @@ const {
   estiloParaLlevarKds,
   tamanoParaLlevarKds,
   estiloCuadroNombreParaLlevar,
+  estiloCuadroNombreReserva,
   PARA_LLEVAR_DEFAULT,
   COLOR_PARA_LLEVAR,
+  COLOR_RESERVA,
 } = require('./estiloParaLlevarKds');
 
 describe('estiloParaLlevarKds', () => {
@@ -23,6 +25,10 @@ describe('estiloCuadroNombreParaLlevar', () => {
   test('usa el morado de PARA LLEVAR', () => {
     const st = estiloCuadroNombreParaLlevar(36);
     expect(st.backgroundColor).toBe(COLOR_PARA_LLEVAR);
+  });
+
+  test('el recuadro de reserva es rosado', () => {
+    expect(estiloCuadroNombreReserva(36).backgroundColor).toBe(COLOR_RESERVA);
   });
 
   test('el recuadro crece con el tamaño de letra del plato', () => {

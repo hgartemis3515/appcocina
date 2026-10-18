@@ -6,9 +6,9 @@ import NombreConCorte from './NombreConCorte';
 import { colorNombrePlatoMonitor, colorDetallePlatoMonitor, estiloDetalleGuarnicionPlato } from '../../config/monitorVisualConstants';
 import { textosGuarnicionesDeGrupo } from '../../utils/guarnicionesKds';
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
-import { grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, obtenerNombreDisplayCocina, textoMesaComanda } from '../../utils/platoHelpers';
+import { grupoTieneParaLlevar, grupoTieneExtraLlevar, grupoTieneLlevarColor, grupoEsReserva, obtenerNombreDisplayCocina, textoMesaComanda } from '../../utils/platoHelpers';
 import BadgeParaLlevar from './BadgeParaLlevar';
-import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
+import { estiloCuadroNombreParaLlevar, estiloCuadroNombreReserva } from '../../utils/estiloParaLlevarKds';
 
 /**
  * PlatoMonitorRow - Fila AGRUPADA de un plato en el monitor Ver Cocina
@@ -89,10 +89,14 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
   const hayParaLlevar = grupoTieneParaLlevar(platos);
   const hayExtraLlevar = grupoTieneExtraLlevar(platos);
   const hayLlevarColor = grupoTieneLlevarColor(platos);
+  const hayReservaColor = grupoEsReserva(platos);
 
   // Config visual
   const fuenteFamilia = configVisual.fuenteFamilia || 'Inter, system-ui, sans-serif';
   const tamanioFuentePlato = configVisual.tamanioFuentePlato || 36;
+  const estiloNombre = hayReservaColor
+    ? estiloCuadroNombreReserva(tamanioFuentePlato)
+    : (hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null);
   const tamanioFuenteDetalle = configVisual.tamanioFuenteDetalle || 20;
   const tamanioFuenteCronometro = configVisual.tamanioFuenteCronometro || 28;
   const colorTextoPrincipal = configVisual.colorTextoPrincipal || '#ffffff';
@@ -150,7 +154,7 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
           <span
             style={{
               color: colorNombrePlato,
-              ...(hayLlevarColor ? estiloCuadroNombreParaLlevar(tamanioFuentePlato) : null),
+              ...(estiloNombre || null),
             }}
           >
             <NombreConCorte

@@ -354,6 +354,15 @@ export const grupoTieneParaLlevar = (platos = []) => platos.some(esPlatoParaLlev
 export const grupoTieneExtraLlevar = (platos = []) => platos.some(esPlatoExtraLlevar);
 export const grupoTieneLlevarColor = (platos = []) => platos.some(esPlatoLlevarColor);
 
+export function platoEsDeReserva(item) {
+  const comanda = item?.comanda || item;
+  return comanda?.origenCreacion === 'reserva'
+    || !!comanda?.origenReserva
+    || comanda?.programadaPorReserva === true;
+}
+
+export const grupoEsReserva = (platos = []) => platos.some(platoEsDeReserva);
+
 export const LABEL_PARA_LLEVAR = 'PARA LLEVAR';
 export const LABEL_EXTRA_CLIENTE = 'EXTRA CLIENTE';
 export const LABEL_SIN_MESA = 'Sin mesa';

@@ -3,7 +3,7 @@ import { calcularSegundos, formatearCronometro } from '../../hooks/useCocinaMoni
 import NotaEnCuadroMonitor from './NotaEnCuadroMonitor';
 import { tokensEstiloPronombreGuarnicion } from '../../utils/notasMonitor';
 import { ChipsOrdenCantidadRow } from './ChipOrdenCantidad';
-import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
+import { estiloCuadroNombreParaLlevar, estiloCuadroNombreReserva } from '../../utils/estiloParaLlevarKds';
 
 /**
  * Línea de lista (cuadro OFF) para el panel derecho de Ver Cocina Completo.
@@ -11,14 +11,21 @@ import { estiloCuadroNombreParaLlevar } from '../../utils/estiloParaLlevarKds';
  */
 const GAP = { unido: 0, compacto: 4, normal: 8, amplio: 14 };
 
-export function LineasCambioGuarnicion({ cambios, fontSize, color, paraLlevar = false }) {
+function cajaNombre(fontSize, { reserva = false, paraLlevar = false } = {}) {
+  if (reserva) return estiloCuadroNombreReserva(fontSize);
+  if (paraLlevar) return estiloCuadroNombreParaLlevar(fontSize);
+  return null;
+}
+
+export function LineasCambioGuarnicion({ cambios, fontSize, color, paraLlevar = false, reserva = false }) {
   if (!Array.isArray(cambios) || cambios.length === 0) return null;
   const fs = Math.max(12, Math.round((Number(fontSize) || 18) * 0.72));
-  const caja = paraLlevar ? estiloCuadroNombreParaLlevar(fs) : null;
+  const marcado = reserva || paraLlevar;
+  const caja = cajaNombre(fs, { reserva, paraLlevar });
   return (
     <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
       {cambios.map((c, i) => (
-        <div key={`${c.salio || ''}-${c.entro || ''}-${i}`} style={{ fontSize: `${fs}px`, color: paraLlevar ? '#ffffff' : color, lineHeight: 1.25, ...(caja || {}) }}>
+        <div key={`${c.salio || ''}-${c.entro || ''}-${i}`} style={{ fontSize: `${fs}px`, color: marcado ? '#ffffff' : color, lineHeight: 1.25, ...(caja || {}) }}>
           {c.salio ? <span style={{ textDecoration: 'line-through' }}>{c.salio}</span> : null}
           {c.salio && c.entro ? ' → ' : null}
           {!c.salio && c.entro ? '→ ' : null}
@@ -51,6 +58,7 @@ const GuarnicionListaLinea = ({
   conCuadro = false,
   colorCuadro,
   paraLlevar = false,
+  reserva = false,
 }) => {
   const gap = GAP[espaciado] ?? GAP.normal;
   const mostrarReloj = !ocultarCronometro && cronometroIso;
@@ -89,11 +97,11 @@ const GuarnicionListaLinea = ({
           style={{
             fontSize: `${tamanioFuente}px`,
             fontWeight: pesoFuente,
-            color: paraLlevar ? '#ffffff' : colorTexto,
+            color: (reserva || paraLlevar) ? '#ffffff' : colorTexto,
             lineHeight: 1.25,
             whiteSpace: 'normal',
             wordBreak: 'break-word',
-            ...(paraLlevar ? estiloCuadroNombreParaLlevar(tamanioFuente) : null),
+            ...(cajaNombre(tamanioFuente, { reserva, paraLlevar }) || null),
           }}
         >
           {texto}
@@ -148,7 +156,7 @@ const GuarnicionListaLinea = ({
           </span>
         )}
       </div>
-      <LineasCambioGuarnicion cambios={cambios} fontSize={tamanioFuente} color={colorPadre || colorTexto} paraLlevar={paraLlevar} />
+      <LineasCambioGuarnicion cambios={cambios} fontSize={tamanioFuente} color={colorPadre || colorTexto} paraLlevar={paraLlevar} reserva={reserva} />
       <NotaEnCuadroMonitor
         texto={textoNota}
         configVisual={configVisual}

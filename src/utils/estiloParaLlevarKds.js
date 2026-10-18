@@ -5,6 +5,8 @@
 
 export const COLOR_PARA_LLEVAR = '#7c3aed';
 export const COLOR_PARA_LLEVAR_BORDE = '#6d28d9';
+export const COLOR_RESERVA = '#be185d';
+export const COLOR_RESERVA_BORDE = '#f9a8d4';
 
 export const PARA_LLEVAR_DEFAULT = {
   paraLlevarTamano: 11,
@@ -70,5 +72,14 @@ export function estiloCuadroNombreParaLlevar(fontSizePx) {
     boxDecorationBreak: 'clone',
     WebkitBoxDecorationBreak: 'clone',
     boxShadow: `0 0 0 1px ${COLOR_PARA_LLEVAR_BORDE}`,
+  };
+}
+
+/** Mismo recuadro que para llevar, en rosado, para platos de una comanda reserva. */
+export function estiloCuadroNombreReserva(fontSizePx) {
+  return {
+    ...estiloCuadroNombreParaLlevar(fontSizePx),
+    backgroundColor: COLOR_RESERVA,
+    boxShadow: `0 0 0 1px ${COLOR_RESERVA_BORDE}`,
   };
 }
