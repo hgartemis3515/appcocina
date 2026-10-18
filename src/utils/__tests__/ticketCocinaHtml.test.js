@@ -49,7 +49,7 @@ describe('ticket cocina compacto', () => {
     expect(letraRevisionTicket(2)).toBe('c');
   });
 
-  test('plato eliminado: doble tachado, Anulado y sin precios', () => {
+  test('plato eliminado: doble tachado en el nombre y triple en los precios', () => {
     const { html } = generarHtmlTicketCocina({
       datos: {
         comandaNumeroDisplay: '#3b',
@@ -75,7 +75,10 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('font-size:11px;font-weight:900;');
     expect(html).toContain('María');
     expect(html).not.toContain('>X<');
-    expect(html).not.toContain('28.00');
+    expect(html).toContain('28.00');
+    expect(html).toContain('top:22%');
+    expect(html).toContain('top:50%');
+    expect(html).toContain('top:78%');
     expect(html).not.toContain('Cliente canceló');
     expect(html).toContain('top:34%');
     expect(html).toContain('top:64%');
