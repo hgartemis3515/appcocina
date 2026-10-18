@@ -7,6 +7,8 @@ import { FaTimes, FaClock, FaUser, FaUtensils, FaCalendarAlt, FaRocket, FaSyncAl
 import useReservasProgramadas from '../../hooks/useReservasProgramadas';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { apiPost } from '../../config/apiClient';
+import { numeroDiaComandaReserva } from '../../utils/ticketComandaDisplay';
+import { letraRevisionTicket } from '../../utils/comandaPrint/ticketCocinaHtml';
 
 const formatTime = (d) => {
   if (!d) return '—';
@@ -120,9 +122,9 @@ export default function ReservaSidebar({ socket, onClose }) {
                     RESERVA
                   </span>
                 </div>
-                {(r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber) ? (
+                {numeroDiaComandaReserva(r) != null ? (
                   <div className="text-pink-100 text-xs font-mono mt-1">
-                    Comanda #{r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber}
+                    Comanda #{numeroDiaComandaReserva(r)}{letraRevisionTicket(r.comandaGenerada?.revisionTicket || r.comanda?.revisionTicket)}
                   </div>
                 ) : null}
                 <div className="flex items-center gap-1 mt-1 text-gray-300 text-xs">

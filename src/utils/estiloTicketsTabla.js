@@ -102,6 +102,13 @@ export function estiloCuerpoParaLlevarTickets(prefs = {}) {
   };
 }
 
+export function estiloCuerpoReservaTickets() {
+  return {
+    backgroundColor: '#be185d',
+    boxShadow: 'inset 0 0 0 2px #f9a8d4',
+  };
+}
+
 export function estilosTextoTicketsTabla(prefs = {}) {
   const v = normalizeTicketsTablaVisual(prefs);
   const meta = Math.max(TICKETS_TABLA_TEXTO_TAMANO_MIN, v.textoTamano - 2);

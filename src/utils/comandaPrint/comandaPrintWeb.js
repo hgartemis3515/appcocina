@@ -119,15 +119,25 @@ export function mergeDatosImprimibles(lista) {
     totalSinDescuento: Number(subtotal.toFixed(2)),
     tipoPago,
     pagoForzado,
+    reserva: items.some((d) => d.reserva === true),
     esPrueba: items.some((d) => d.esPrueba === true),
   };
+}
+
+function ticketEsReservaImpresion(ticket) {
+  if (!ticket) return false;
+  if (String(ticket.origen || '').toLowerCase() === 'reserva' || ticket.reserva) return true;
+  return (ticket.comandas || []).some((c) => c && (
+    c.origenCreacion === 'reserva' || c.origenReserva || c.programadaPorReserva === true
+  ));
 }
 
 function conMarcaPagoCaja(datos, ticket) {
   if (!datos || !ticket) return datos;
   const forzado = ticket.pagoForzado === true || ticket.origen === 'forzado';
-  if (!forzado) return datos;
-  return { ...datos, pagoForzado: true };
+  const reserva = datos.reserva === true || ticketEsReservaImpresion(ticket);
+  if (!forzado && !reserva) return datos;
+  return { ...datos, pagoForzado: forzado || datos.pagoForzado === true, reserva };
 }
 
 async function fetchYFusionarComandas(ids, fetchJson) {
@@ -534,6 +544,7 @@ function mapearTicketADatos(ticket) {
     tipoPago: resolverTipoPagoImpresion(ticket),
     pagoForzado: ticket.pagoForzado === true || ticket.origen === 'forzado',
     esPrueba: ticket.esPrueba === true || (Array.isArray(ticket.comandas) && ticket.comandas.some((c) => c?.esPrueba === true)),
+    reserva: ticketEsReservaImpresion(ticket),
     observaciones: ticket.observaciones || '',
     productos,
     subtotal: montoDescuento > 0 || haySnapshot ? bruto : totales.subtotal,

@@ -354,6 +354,14 @@ function esFullParaLlevar(platos) {
   return activos.every(platoEsParaLlevar);
 }
 
+export function ticketEsReserva(ticket) {
+  if (!ticket) return false;
+  if (String(ticket.origen || '').toLowerCase() === 'reserva' || ticket.reserva) return true;
+  return (ticket.comandas || []).some((c) => c && (
+    c.origenCreacion === 'reserva' || c.origenReserva || c.programadaPorReserva === true
+  ));
+}
+
 /** Solo morado si el ticket es 100% para llevar. Sin evidencia, queda el color normal. */
 export function ticketEsParaLlevar(ticket) {
   if (!ticket) return false;

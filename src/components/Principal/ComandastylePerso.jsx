@@ -5027,8 +5027,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
                 : toastMessage.type === 'error'
                 ? 'bg-red-500 text-white'
                 : 'bg-blue-500 text-white'
-            }`}
+            } ${toastMessage.cerrable ? 'cursor-pointer' : ''}`}
             style={{ fontFamily: 'Arial, sans-serif' }}
+            onClick={toastMessage.cerrable ? () => setToastMessage(null) : undefined}
+            title={toastMessage.cerrable ? 'Clic para ocultar' : undefined}
           >
             <div className="flex items-center gap-3">
               {toastMessage.type === 'success' && (

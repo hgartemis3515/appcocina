@@ -10,6 +10,16 @@ function numeroDiaDeDoc(c) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Número del día que usa comandas.html. No el correlativo histórico. */
+export function numeroDiaComandaReserva(reserva) {
+  const c = reserva?.comandaGenerada || reserva?.comanda;
+  if (!c || typeof c !== 'object') return null;
+  const raw = c.numeroComandaDia != null && c.numeroComandaDia !== '' ? c.numeroComandaDia : null;
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Número del día (1…n). El histórico del ticket solo entra si la comanda no trae el del día. */
 export function getComandasNumbersFromTicket(ticket) {
   if (!ticket) return [];

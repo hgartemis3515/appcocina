@@ -39,8 +39,9 @@ import {
   ticketTieneExtraLlevar,
   rangoConsultaDesglose,
   ticketEsParaLlevar,
+  ticketEsReserva,
 } from '../../utils/ticketAprobacionUi';
-import { estiloCuerpoParaLlevarTickets, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
+import { estiloCuerpoParaLlevarTickets, estiloCuerpoReservaTickets, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
 import { platosTicketVisibles, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet, apiPost } from '../../config/apiClient';
@@ -146,26 +147,42 @@ function opcionesComandasTicketCocina(tickets) {
   return [...seen.values()].sort((a, b) => Number(a.numero || 0) - Number(b.numero || 0));
 }
 
+function opcionImpresionComanda(c, key) {
+  const n = c.numero != null && c.numero !== '' ? Number(c.numero) : null;
+  const rev = Number(c.revisionTicket) || 0;
+  const id = String(c._id);
+  return {
+    key,
+    ticket: { comandaId: id },
+    numero: Number.isFinite(n) ? n : null,
+    comandaId: id,
+    revisionTicket: rev,
+    mesa: c.mesa,
+    mozo: c.mozo,
+    anulada: c.eliminada === true,
+    label: Number.isFinite(n) ? `#${n}${letraRevisionTicket(rev)}` : 'Comanda',
+  };
+}
+
 function unirOpcionesImpresion(base, comandas) {
   const seen = new Map((base || []).map((o) => [o.key, o]));
   for (const c of comandas || []) {
     if (!c?._id) continue;
+    const anulada = c.eliminada === true;
     const n = c.numero != null && c.numero !== '' ? Number(c.numero) : null;
-    const key = Number.isFinite(n) ? `n:${n}` : `id:${c._id}`;
-    if (seen.has(key)) continue;
-    const rev = Number(c.revisionTicket) || 0;
-    const id = String(c._id);
-    seen.set(key, {
-      key,
-      ticket: { comandaId: id },
-      numero: Number.isFinite(n) ? n : null,
-      comandaId: id,
-      revisionTicket: rev,
-      mesa: c.mesa,
-      mozo: c.mozo,
-      anulada: c.eliminada === true,
-      label: Number.isFinite(n) ? `#${n}${letraRevisionTicket(rev)}` : 'Comanda',
-    });
+    const keyNum = Number.isFinite(n) ? `n:${n}` : `id:${c._id}`;
+    if (anulada) {
+      const previa = seen.get(keyNum);
+      if (previa && String(previa.comandaId) === String(c._id)) {
+        previa.anulada = true;
+        continue;
+      }
+      const key = `anulada:${c._id}`;
+      if (!seen.has(key)) seen.set(key, opcionImpresionComanda(c, key));
+      continue;
+    }
+    if (seen.has(keyNum)) continue;
+    seen.set(keyNum, opcionImpresionComanda(c, keyNum));
   }
   return [...seen.values()].sort((a, b) => Number(a.numero || 0) - Number(b.numero || 0));
 }
@@ -817,8 +834,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const mostrarSaldoPend = saldoPend != null && saldoPend > 0;
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
                 const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
-                const esParaLlevar = ticketEsParaLlevar(ticket);
-                const estiloCuerpoPL = esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined;
+                const esReserva = ticketEsReserva(ticket);
+                const esParaLlevar = !esReserva && ticketEsParaLlevar(ticket);
+                const estiloCuerpoPL = esReserva
+                  ? estiloCuerpoReservaTickets()
+                  : (esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
                 const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-gray-700';
                 return (
                   <motion.div
@@ -1521,9 +1541,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   const primero = fila.tickets[0];
                   const grupoSel = modoEliminar && fila.tickets.every((t) => idsEliminar.includes(String(t._id)));
                   const extraLlevar = fila.tickets.some(ticketTieneExtraLlevar);
-                  const estiloGrupo = fila.tickets.some(ticketEsParaLlevar)
-                    ? estiloCuerpoParaLlevarTickets(tablaPrefs)
-                    : undefined;
+                  const grupoReserva = fila.tickets.some(ticketEsReserva);
+                  const estiloGrupo = grupoReserva
+                    ? estiloCuerpoReservaTickets()
+                    : (fila.tickets.some(ticketEsParaLlevar) ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
                   const forzablesGrupo = ticketsForzablesDeGrupo(fila.tickets);
                   const solicitudesGrupo = fila.tickets.filter((t) => {
                     if (!ticketPuedeAprobarse(t)) return false;

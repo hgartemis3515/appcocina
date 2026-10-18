@@ -15,6 +15,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import useReservasProgramadas from '../../hooks/useReservasProgramadas';
 import useSocketCocina from '../../hooks/useSocketCocina';
 import SocketConnectionBadge from '../common/SocketConnectionBadge';
+import { numeroDiaComandaReserva } from '../../utils/ticketComandaDisplay';
+import { letraRevisionTicket } from '../../utils/comandaPrint/ticketCocinaHtml';
 
 const formatDateTime = (d) => {
   if (!d) return '—';
@@ -154,9 +156,9 @@ export default function ReservadasPage({ onGoToMenu }) {
                             ) : null}
                           </span>
                         </div>
-                        {(r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber) ? (
+                        {numeroDiaComandaReserva(r) != null ? (
                           <div className="text-indigo-100 text-xs font-mono mt-1">
-                            Comanda #{r.comandaGenerada?.comandaNumber || r.comanda?.comandaNumber}
+                            Comanda #{numeroDiaComandaReserva(r)}{letraRevisionTicket(r.comandaGenerada?.revisionTicket)}
                           </div>
                         ) : null}
                         <div className="flex items-center gap-3 mt-1">

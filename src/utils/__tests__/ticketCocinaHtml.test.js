@@ -49,7 +49,7 @@ describe('ticket cocina compacto', () => {
     expect(letraRevisionTicket(2)).toBe('c');
   });
 
-  test('plato eliminado: tachado, X a los lados y quién lo quitó', () => {
+  test('plato eliminado: doble tachado, Anulado y sin precios', () => {
     const { html } = generarHtmlTicketCocina({
       datos: {
         comandaNumeroDisplay: '#3b',
@@ -70,10 +70,12 @@ describe('ticket cocina compacto', () => {
         total: 0,
       },
     });
-    expect(html).toContain('>X<');
     expect(html).toContain('Ceviche');
+    expect(html).toContain('>Anulado<');
+    expect(html).toContain('font-size:11px;font-weight:900;');
     expect(html).toContain('María');
-    expect(html).not.toContain('Anulado');
+    expect(html).not.toContain('>X<');
+    expect(html).not.toContain('28.00');
     expect(html).not.toContain('Cliente canceló');
     expect(html).toContain('top:34%');
     expect(html).toContain('top:64%');
@@ -137,6 +139,21 @@ describe('ticket cocina compacto', () => {
     expect(nombre).toBeLessThan(valor);
     expect(html).not.toContain('>Tipo<');
     expect(html).toContain('font-size:10.8px');
+  });
+
+  test('reserva dice COCINA RESERVA y CAJA RESERVA', () => {
+    const datos = {
+      reserva: true,
+      comandaNumeroDisplay: '#8',
+      mozo: 'Ana',
+      mesa: 3,
+      productos: [{ nombre: 'Lomo', cantidad: 1, precio: 20, subtotal: 20 }],
+      montoDescuento: 0,
+      total: 20,
+    };
+    expect(generarHtmlTicketCocina({ datos, cocina: true }).html).toContain('COCINA RESERVA');
+    expect(generarHtmlTicketCocina({ datos, cocina: false }).html).toContain('CAJA RESERVA');
+    expect(generarHtmlTicketCocina({ datos: { ...datos, reserva: false } }).html).toContain('>COCINA<');
   });
 
   test('el cuadro Tipo distingue mesa, llevar y extra', () => {

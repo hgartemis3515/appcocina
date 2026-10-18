@@ -1,5 +1,7 @@
 import {
   INTERVALO_AVISO_RESERVA_MS,
+  DURACION_AVISO_RESERVA_MS,
+  avisoReservasAToast,
   horaDisponibleReserva,
   reservaCobradaPendienteDeCocina,
   reservasParaAvisar,
@@ -9,7 +11,7 @@ import {
 const reserva = (id, hora) => ({
   _id: id,
   mesa: { nummesa: 4 },
-  comandaGenerada: { comandaNumber: 18 },
+  comandaGenerada: { comandaNumber: 1800, numeroComandaDia: 8 },
   fechaCocina: hora,
 });
 
@@ -31,7 +33,9 @@ describe('aviso de reservas en KDS', () => {
 
   test('el texto dice la comanda y la hora en que está disponible', () => {
     const texto = textoAvisoReserva(reserva('a', '2026-10-17T19:30:00-05:00'));
-    expect(texto).toContain('Comanda #18');
+    expect(texto).toContain('Comanda #8');
+    expect(texto).not.toContain('1800');
+    expect(avisoReservasAToast([reserva('a', '2026-10-17T19:30:00-05:00')]).duration).toBe(DURACION_AVISO_RESERVA_MS);
     expect(texto).toContain('Mesa 4');
     expect(texto).toContain('disponible a las');
     expect(horaDisponibleReserva(reserva('a', '2026-10-17T19:30:00-05:00'))).toContain('19:30');

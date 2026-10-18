@@ -1,5 +1,9 @@
+import { numeroDiaComandaReserva } from './ticketComandaDisplay';
+import { letraRevisionTicket } from './letraRevisionTicket';
+
 /** Recordatorio de reservas cobradas que todavía no entraron a cocina. */
 export const INTERVALO_AVISO_RESERVA_MS = 30 * 60 * 1000;
+export const DURACION_AVISO_RESERVA_MS = 20 * 1000;
 
 /** Solo después de Cobrar. Pendiente de cobro no enciende el icono Reserva. */
 export function reservaCobradaPendienteDeCocina(reserva) {
@@ -20,11 +24,9 @@ export function horaDisponibleReserva(reserva) {
 
 export function textoAvisoReserva(reserva) {
   const mesa = reserva?.mesa?.nummesa ?? '?';
-  const num = reserva?.comandaGenerada?.numeroComandaDia
-    || reserva?.comandaGenerada?.comandaNumber
-    || reserva?.comanda?.comandaNumber
-    || '';
-  const comanda = num ? `Comanda #${num}` : 'Comanda reserva';
+  const num = numeroDiaComandaReserva(reserva);
+  const rev = letraRevisionTicket(reserva?.comandaGenerada?.revisionTicket || reserva?.comanda?.revisionTicket);
+  const comanda = num != null ? `Comanda #${num}${rev}` : 'Comanda reserva';
   return `${comanda} · Mesa ${mesa} disponible a las ${horaDisponibleReserva(reserva)}`;
 }
 
@@ -44,6 +46,7 @@ export function avisoReservasAToast(reservas) {
   return {
     type: 'info',
     message: textos.join(' · ') || 'Reserva disponible',
-    duration: 12000,
+    duration: DURACION_AVISO_RESERVA_MS,
+    cerrable: true,
   };
 }

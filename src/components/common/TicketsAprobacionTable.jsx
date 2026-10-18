@@ -10,10 +10,11 @@ import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, etiquetaMesaTicket,
   esTicketComanda, esPagoParcial,
   nombresClienteDeTicket, nombresClienteDeTickets,
-  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago,
+  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago, ticketEsReserva,
   estadoEntregaComandaTicket, estadoVisibleTicket, estadoVisibleTickets, ticketTieneExtraLlevar,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
+import { estiloCuerpoReservaTickets } from '../../utils/estiloTicketsTabla';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
 import { platosTicketVisibles, saldoPendienteTicket, totalesVistaTicket } from '../../utils/ticketTotales';
 import {
@@ -202,6 +203,7 @@ function FilaTicketAvanzado({
         seleccionActiva,
         resaltadoVerde: pintado,
       })}
+      style={ticketEsReserva(ticket) ? estiloCuerpoReservaTickets() : undefined}
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
     >
       {seleccionActiva && (
@@ -524,6 +526,7 @@ export default function TicketsAprobacionTable({
                       esGrupo: true,
                       resaltadoVerde: grupoPintado,
                     })}
+                    style={fila.tickets.some(ticketEsReserva) ? estiloCuerpoReservaTickets() : undefined}
                     onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
                   >
                     {seleccionActiva && (
