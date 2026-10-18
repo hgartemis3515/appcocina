@@ -266,8 +266,8 @@ const KdsTopBar = ({
 
         <button
           onClick={onToggleReserva || onShowReservadas}
-          className={`inline-flex items-center justify-center gap-1.5 rounded text-white text-xs font-medium transition-all duration-150 shadow-sm hover:shadow-md min-h-[44px] min-w-[44px] px-3 py-2 bg-pink-500 hover:bg-pink-400 active:bg-pink-700 relative ${reservadasCount > 0 ? "animate-pulse" : ""}`}
-          title="Reservas programadas (horario de habilitación KDS)"
+          className={`inline-flex items-center justify-center gap-1.5 rounded text-white text-xs font-medium shadow-sm hover:shadow-md min-h-[44px] min-w-[44px] px-3 py-2 bg-pink-500 hover:bg-pink-400 active:bg-pink-700 relative ${reservadasCount > 0 ? "kds-reserva-parpadeo" : "transition-all duration-150"}`}
+          title={reservadasCount > 0 ? "Hay reservas con comanda disponible. Aún no entraron a cocina." : "Reservas programadas (horario de habilitación KDS)"}
           aria-label="Reserva"
         >
           <FaCalendarAlt className="text-xs" />

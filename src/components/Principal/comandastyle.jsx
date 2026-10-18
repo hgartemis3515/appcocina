@@ -111,7 +111,9 @@ import {
   unidadesParaVistaKds,
   unidadGuarnicionVisibleEnTablaKds
 } from "../../utils/guarnicionesKds";
-import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
+import { playKdsEventSound, playKdsNotificationSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
+import useAvisoReservasKds from "../../hooks/useAvisoReservasKds";
+import { avisoReservasAToast } from "../../utils/avisoReservasKds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
 import useDeseleccionPlatoKds, { segundosParpadeoSos } from "../../hooks/useDeseleccionPlatoKds";
 
@@ -1258,6 +1260,10 @@ const ComandaStyle = ({
   const { cantidadPendientes: ppaCount } = useTablaAprobacion({ socket: cocinaSocket });
   const { reservas: reservasProgramadas } = useReservasProgramadas(cocinaSocket);
   const reservadasCount = reservasProgramadas?.length || 0;
+  useAvisoReservasKds(reservasProgramadas, (lista) => {
+    setToastMessage(avisoReservasAToast(lista));
+    playKdsNotificationSound({ force: true });
+  });
 
   // Hidratar overrides aprobados vigentes desde API (por si el socket se perdió)
   useEffect(() => {

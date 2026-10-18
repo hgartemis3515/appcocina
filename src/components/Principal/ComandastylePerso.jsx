@@ -78,7 +78,9 @@ import { contarPlatosReversiblesKds } from "../../utils/kdsRevertirPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma, aplicarTomaPlatoEnComandas, aplicarLiberacionPlatoEnComandas } from "../../utils/platoHelpers";
 import { esEventoGuarnicion, aplicarEventoGuarnicion, expandirUnidadesTrabajo, esClaveGuarnicion, esTipoGuarnicionKds, agrupacionGuarnicionesOn, estadoAlertaGuarnicion, prioridadUnidad, tiempoInicioGrupo, unidadesParaVistaKds, unidadGuarnicionVisibleEnTablaKds } from "../../utils/guarnicionesKds";
 import { CocineroInfo, ZoneChipsCompact, FilterStatusBadge } from "../common/ZoneSelector";
-import { playKdsEventSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
+import { playKdsEventSound, playKdsNotificationSound, playKdsSoundForPlatoEstado } from "../../utils/kdsNotificationSounds";
+import useAvisoReservasKds from "../../hooks/useAvisoReservasKds";
+import { avisoReservasAToast } from "../../utils/avisoReservasKds";
 import { siguienteEstadoToquePlato } from "../../utils/cicloToquePlatoKds";
 import useDeseleccionPlatoKds from "../../hooks/useDeseleccionPlatoKds";
 import {
@@ -1583,6 +1585,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
   const { cantidadPendientes: ppaCount } = useTablaAprobacion({ socket: cocinaSocket });
   const { reservas: reservasProgramadas } = useReservasProgramadas(cocinaSocket);
   const reservadasCount = reservasProgramadas?.length || 0;
+  useAvisoReservasKds(reservasProgramadas, (lista) => {
+    setToastMessage(avisoReservasAToast(lista));
+    playKdsNotificationSound({ force: true });
+  });
 
   // Actualizar estado de conexión
   useEffect(() => {
