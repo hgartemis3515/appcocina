@@ -167,4 +167,33 @@ describe('ticket cocina compacto', () => {
       { tipoServicio: 'extra_llevar' },
     ])).toBe('Mesa extra llevar');
   });
+
+  test('ticket de eliminados: triple tachado y sin total ni ANULADO X', () => {
+    const { html } = generarHtmlTicketCocina({
+      datos: {
+        comandaNumeroDisplay: '#1b',
+        sinTotal: true,
+        mozo: 'Ana',
+        mesa: 2,
+        productos: [{
+          nombre: 'Pollo',
+          cantidad: 1,
+          precio: 22,
+          subtotal: 22,
+          lineaAnulada: { usuario: 'María', motivo: 'Cliente canceló' },
+        }],
+        montoDescuento: 5,
+        anulacion: { usuario: 'María', hora: '21/10/2026 12:00', motivo: 'no' },
+        total: 0,
+      },
+    });
+    expect(html).toContain('#1b');
+    expect(html).toContain('Pollo');
+    expect(html).toContain('top:22%');
+    expect(html).toContain('top:50%');
+    expect(html).toContain('top:78%');
+    expect(html).not.toContain('TOTAL');
+    expect(html).not.toContain('ANULADO X');
+    expect(html).not.toContain('Descuento');
+  });
 });

@@ -32,6 +32,7 @@ const DEFAULT = {
     ignorarFondoVistaMozo: false,
     ocultarAnularEnTablasKds: true,
     ocultarTablasKdsMenosSupervisor: true,
+    ticketsBajaPlatoLetras: true,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: 1.5,
         umbralCriticaMultiplo: 2,
@@ -64,6 +65,7 @@ const construirConfigDesdeBackend = (cfg) => ({
     ignorarFondoVistaMozo: cfg.ignorarFondoVistaMozo === true,
     ocultarAnularEnTablasKds: cfg.ocultarAnularEnTablasKds !== false,
     ocultarTablasKdsMenosSupervisor: cfg.ocultarTablasKdsMenosSupervisor !== false,
+    ticketsBajaPlatoLetras: cfg.ticketsBajaPlatoLetras !== false,
     tiemposGuarnicion: {
         umbralAlertaMultiplo: cfg.tiemposGuarnicion?.umbralAlertaMultiplo ?? 1.5,
         umbralCriticaMultiplo: cfg.tiemposGuarnicion?.umbralCriticaMultiplo ?? 2,

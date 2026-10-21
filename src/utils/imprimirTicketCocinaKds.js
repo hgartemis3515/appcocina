@@ -338,20 +338,20 @@ async function paradasDeTicket(datos) {
   return paradasImpresionAutomatica();
 }
 
-export async function imprimirTicketCocinaKds(grupo, extra = {}) {
-  const lista = (grupo || []).filter(Boolean);
-  const datos = datosTicketDeGrupo(lista, extra);
-  if (!(datos.productos || []).length && !datos.anulacion) return;
+export async function imprimirDatosTicketKds(datos, canales = {}) {
+  if (!datos || (!(datos.productos || []).length && !datos.anulacion)) return;
+  const quiereCocina = canales.cocina !== false;
+  const quiereCaja = canales.caja !== false;
   const parada = await paradasDeTicket(datos);
-  if (parada.cocina && parada.caja) return;
+  if ((parada.cocina || !quiereCocina) && (parada.caja || !quiereCaja)) return;
   const trabajos = [];
-  if (!parada.cocina) {
+  if (quiereCocina && !parada.cocina) {
     const cocinaGen = generarHtmlTicketCocina({ datos, cocina: true });
     trabajos.push(rasterizarHtmlTicket(cocinaGen.htmlInner).then((img) => (
       enviarEpos(IP_IMPRESORA_COCINA, xmlImagenEpos(img), 'cocina')
     )));
   }
-  if (!parada.caja) {
+  if (quiereCaja && !parada.caja) {
     const cajaGen = generarHtmlTicketCocina({ datos, cocina: false });
     trabajos.push(rasterizarHtmlTicket(cajaGen.htmlInner).then((img) => (
       enviarEpos(IP_IMPRESORA_CAJA, xmlImagenEpos(img), 'caja')
@@ -365,12 +365,18 @@ export async function imprimirTicketCocinaKds(grupo, extra = {}) {
   if (fallos.length) throw new Error(fallos.join('\n'));
 }
 
+export async function imprimirTicketCocinaKds(grupo, extra = {}) {
+  const lista = (grupo || []).filter(Boolean);
+  const datos = datosTicketDeGrupo(lista, extra);
+  await imprimirDatosTicketKds(datos);
+}
+
 /**
  * Reimprime cocina y caja tras eliminar plato o bajar cantidad.
  * Usa la comanda ya guardada: platos activos, cantidades que quedan y revisionTicket.
  * Letra: 0 sin sufijo, 1 = b, 2 = c. Solo la comanda editada cambia de letra.
  */
-export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
+export async function imprimirTicketCocinaTrasEliminar(actualizada, todas, extra = {}) {
   if (!actualizada) return;
   const pid = idPedido(actualizada);
   const hermanas = pid
@@ -383,7 +389,27 @@ export async function imprimirTicketCocinaTrasEliminar(actualizada, todas) {
   if (!grupo.some((c) => String(c._id) === String(actualizada._id))) {
     grupo.push(fusionarLineas(null, actualizada));
   }
-  await imprimirTicketCocinaKds(grupo.filter(comandaViva), { incluirLineasAnuladas: true });
+  await imprimirTicketCocinaKds(grupo.filter(comandaViva), {
+    incluirLineasAnuladas: extra.incluirLineasAnuladas !== false,
+  });
+}
+
+/** Eliminados (foto) y, si quedan platos, el ticket del grupo sin las líneas tachadas. */
+export async function imprimirTrasBajaPlato(data, todas) {
+  if (data?.ticketsBaja?.eliminados?.datos) {
+    await imprimirDatosTicketKds(data.ticketsBaja.eliminados.datos);
+    if (data.comanda) {
+      await imprimirTicketCocinaTrasEliminar(data.comanda, todas, { incluirLineasAnuladas: false });
+    }
+    return;
+  }
+  if (data?.comandaEliminadaCompleta && data?.ticketAnulacion) {
+    await imprimirTicketAnulacionKds(data.comanda, data.ticketAnulacion);
+    return;
+  }
+  if (data?.comanda) {
+    await imprimirTicketCocinaTrasEliminar(data.comanda, todas);
+  }
 }
 
 /** Hoja de anulación: incluye los platos ya marcados eliminados y el pie ANULADO X. */

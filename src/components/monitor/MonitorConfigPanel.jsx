@@ -28,6 +28,7 @@ import {
   posicionCantidadGuarnicion,
   textoNombreConCantidadGuarnicion,
 } from '../../utils/guarnicionesKds';
+import NombreConCorte from './NombreConCorte';
 
 const FUENTES_DISPONIBLES = [
   { id: 'inter', label: 'Inter (default)', value: 'Inter, system-ui, sans-serif' },
@@ -2893,25 +2894,28 @@ const MonitorConfigPanel = ({
             </span>
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: `${Math.min(configVisual.tamanioFuentePlato, 28)}px`,
-            fontWeight: configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT,
-            color: configVisual.colorTextoPlato || configVisual.colorTextoPrincipal,
-            wordBreak: 'break-word',
-          }}>
-            Pachamanca
-          </span>
-          <span style={{
-            color: configVisual.colorAcento,
-            fontSize: `${Math.min(configVisual.tamanioFuentePlato * 0.7, 20)}px`,
-            fontWeight: 900,
-            background: `${configVisual.colorAcento}18`,
-            padding: '0 8px',
-            borderRadius: '6px',
-          }}>
-            ×4
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', maxWidth: 280 }}>
+          <div style={{ flex: '1 1 auto', minWidth: 0, width: '100%' }}>
+            <NombreConCorte
+              texto="Agua mineral San Mateo"
+              activo={configVisual.cortarNombreConGuion === true}
+              style={{
+                fontSize: `${Math.min(configVisual.tamanioFuentePlato || 28, 28)}px`,
+                fontWeight: configVisual.pesoFuentePlato || MONITOR_TIPOGRAFIA.PESO_DEFAULT,
+                color: configVisual.colorTextoPlato || configVisual.colorTextoPrincipal,
+              }}
+              prefijo={cantidadVaALaIzquierda(configVisual) ? (
+                <span style={estiloCantidadBadge({ ...configVisual, tamanioFuentePlato: Math.min(configVisual.tamanioFuentePlato || 28, 28) })}>
+                  {textoCantidadBadge(3, configVisual)}
+                </span>
+              ) : null}
+            />
+          </div>
+          {!cantidadVaALaIzquierda(configVisual) && (
+            <span style={estiloCantidadBadge({ ...configVisual, tamanioFuentePlato: Math.min(configVisual.tamanioFuentePlato || 28, 28) })}>
+              {textoCantidadBadge(3, configVisual)}
+            </span>
+          )}
         </div>
         {configVisual.mostrarComplementos !== false && (
           <div style={{

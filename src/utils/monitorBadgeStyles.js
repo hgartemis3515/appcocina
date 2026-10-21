@@ -180,6 +180,8 @@ export function estiloCantidadBadge(configVisual = {}) {
     color,
     fontSize: `${fontSize}px`,
     fontWeight: Number(peso) || 900,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
     flexShrink: 0,
     boxShadow: `0 0 8px ${contorno}33`,
   };

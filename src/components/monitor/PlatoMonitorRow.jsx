@@ -155,6 +155,10 @@ const PlatoMonitorRow = React.forwardRef(({ item, configVisual = {}, tick = 0, m
             style={{
               color: colorNombrePlato,
               ...(estiloNombre || null),
+              display: 'block',
+              width: '100%',
+              minWidth: 0,
+              maxWidth: '100%',
             }}
           >
             <NombreConCorte

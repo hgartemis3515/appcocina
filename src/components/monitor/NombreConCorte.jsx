@@ -42,15 +42,26 @@ export default function NombreConCorte({ texto, activo, style, prefijo = null })
     return () => ro.disconnect();
   }, [texto, activo, prefijo]);
 
+  // En línea con el nombre: el renglón siguiente arranca a la izquierda, debajo del cuadro.
+  // Un float no lo hace: overflow-wrap deja el texto en columna al lado del cuadro.
   const marca = prefijo ? (
-    <span ref={prefijoRef} style={{ float: 'left', marginRight: 8, lineHeight: 1 }}>
+    <span
+      ref={prefijoRef}
+      style={{
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        marginRight: 8,
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
       {prefijo}
     </span>
   ) : null;
 
   if (!activo) {
     return (
-      <span ref={ref} style={{ display: 'block', minWidth: 0, ...style }}>
+      <span ref={ref} style={{ display: 'block', width: '100%', minWidth: 0, maxWidth: '100%', ...style }}>
         {marca}
         {texto}
       </span>
@@ -61,6 +72,7 @@ export default function NombreConCorte({ texto, activo, style, prefijo = null })
       ref={ref}
       style={{
         display: 'block',
+        width: '100%',
         minWidth: 0,
         maxWidth: '100%',
         whiteSpace: 'pre-line',

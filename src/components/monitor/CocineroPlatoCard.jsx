@@ -544,7 +544,7 @@ const CocineroPlatoCard = React.forwardRef(({
             Plato:
           </span>
         )}
-        <div style={{ flex: '1 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+        <div style={{ flex: '1 1 0%', minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
           <div
             style={{
               fontSize: `${fsPlatoAcomodado}px`,
@@ -552,13 +552,16 @@ const CocineroPlatoCard = React.forwardRef(({
               lineHeight: 1.05,
               color: colorNombrePlato,
               textShadow: (hayReservaColor || hayLlevarColor) ? 'none' : '0 2px 8px rgba(0,0,0,0.45)',
-              wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
-              overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
-              whiteSpace: 'normal',
-              maxWidth: '100%',
               ...(hayReservaColor
                 ? estiloCuadroNombreReserva(fsPlatoAcomodado)
                 : (hayLlevarColor ? estiloCuadroNombreParaLlevar(fsPlatoAcomodado) : null)),
+              wordBreak: configVisual.cortarNombreConGuion === true ? 'normal' : 'break-word',
+              overflowWrap: configVisual.cortarNombreConGuion === true ? 'normal' : 'anywhere',
+              whiteSpace: 'normal',
+              display: 'block',
+              width: '100%',
+              maxWidth: '100%',
+              alignSelf: 'stretch',
             }}
           >
             <NombreConCorte

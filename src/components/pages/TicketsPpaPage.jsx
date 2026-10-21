@@ -45,6 +45,7 @@ import { estiloCuerpoParaLlevarTickets, estiloCuerpoReservaTickets, estilosTexto
 import { platosTicketVisibles, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet, apiPost } from '../../config/apiClient';
+import { imprimirDatosTicketKds } from '../../utils/imprimirTicketCocinaKds';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
 import { letraRevisionTicket } from '../../utils/comandaPrint/ticketCocinaHtml';
 
@@ -164,6 +165,80 @@ function opcionImpresionComanda(c, key) {
   };
 }
 
+function FilaComandaImpresion({ o, imprimiendo, claseFila, claseMeta, onImprimir, onImprimirLetra, mostrarHistorial = true }) {
+  const [abierto, setAbierto] = useState(false);
+  const [letras, setLetras] = useState(null);
+  const [cargando, setCargando] = useState(false);
+
+  const toggle = async (e) => {
+    e.stopPropagation();
+    if (abierto) {
+      setAbierto(false);
+      return;
+    }
+    setAbierto(true);
+    if (letras || !o.comandaId) return;
+    setCargando(true);
+    try {
+      const data = await apiGet(`/api/comanda/${o.comandaId}/historial-letras`);
+      setLetras(Array.isArray(data?.letras) ? data.letras : []);
+    } catch {
+      setLetras([]);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const items = letras == null
+    ? []
+    : (letras.length ? letras : [{ letrero: o.label, sinFoto: true }]);
+
+  return (
+    <div>
+      <div className={`w-full rounded-lg text-white text-sm flex items-stretch ${claseFila}`}>
+        <button
+          type="button"
+          disabled={imprimiendo}
+          onClick={() => onImprimir(o)}
+          className="flex-1 min-w-0 text-left px-3 py-2.5 flex items-center justify-between gap-2 disabled:opacity-50"
+        >
+          <span className="font-bold tabular-nums">{o.label}{o.anulada ? ' · anulada' : ''}</span>
+          <span className={`text-xs truncate ${claseMeta}`}>
+            Mesa {o.mesa || '—'} · {o.mozo || '—'}
+          </span>
+        </button>
+        {mostrarHistorial && (
+        <button
+          type="button"
+          disabled={imprimiendo || !o.comandaId}
+          onClick={toggle}
+          title="Historial de letras"
+          className="shrink-0 w-10 my-1 mr-1 rounded-lg bg-black/30 text-white font-bold text-lg leading-none disabled:opacity-40"
+        >
+          {abierto ? '−' : '+'}
+        </button>
+        )}
+      </div>
+      {mostrarHistorial && abierto && (
+        <div className="ml-3 mb-1 mt-1 space-y-1">
+          {cargando && <p className="text-xs text-gray-400 px-2 py-1">Cargando letras…</p>}
+          {!cargando && items.map((letra) => (
+            <button
+              key={`${o.key}-${letra.letrero}`}
+              type="button"
+              disabled={imprimiendo}
+              onClick={() => (letra.sinFoto || !letra.datos ? onImprimir(o) : onImprimirLetra(letra))}
+              className="w-full text-left px-3 py-1.5 rounded-lg bg-black/25 hover:bg-black/40 text-white text-xs font-bold tabular-nums disabled:opacity-50"
+            >
+              {letra.letrero}{letra.tipo === 'eliminados' ? ' · eliminados' : ''}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function unirOpcionesImpresion(base, comandas) {
   const seen = new Map((base || []).map((o) => [o.key, o]));
   for (const c of comandas || []) {
@@ -234,7 +309,7 @@ function KpiChip({ label, value, valueClass, ocultable = false, visible = true, 
 export default function TicketsPpaPage({ onGoToMenu }) {
   const { user } = useAuth();
   const puedeGestionarTickets = user?.rol === 'admin' || user?.rol === 'supervisor' || user?.rol === 'cajero';
-  const { cobroPorCantidad } = useConfiguracionCocina();
+  const { cobroPorCantidad, ticketsBajaPlatoLetras } = useConfiguracionCocina();
   const hoyOp = getFechaOperativa();
   const [filtroPeriodo, setFiltroPeriodo] = useState('hoy');
   const [fechaDesde, setFechaDesde] = useState(hoyOp);
@@ -651,6 +726,16 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
+  const imprimirLetraCaja = async (letra) => {
+    if (!letra?.datos) return;
+    try {
+      await imprimirDatosTicketKds(letra.datos, { cocina: false, caja: true });
+      setShowModalTicketCaja(false);
+    } catch (err) {
+      alert('Error al imprimir ticket de caja: ' + (err.userMessage || err.message));
+    }
+  };
+
   const comandasDeFila = (fila) => {
     const map = new Map();
     (fila?.tickets || []).forEach((t) => {
@@ -792,6 +877,19 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         filtrarComandaId: opcion.comandaId,
         revisionTicket: opcion.revisionTicket,
       });
+      setShowModalTicketCocina(false);
+    } catch (err) {
+      alert('Error al imprimir ticket de cocina: ' + (err.userMessage || err.message));
+    } finally {
+      setImprimiendoTicketCocina(false);
+    }
+  };
+
+  const imprimirLetraCocina = async (letra) => {
+    if (!letra?.datos) return;
+    setImprimiendoTicketCocina(true);
+    try {
+      await imprimirDatosTicketKds(letra.datos, { cocina: true, caja: false });
       setShowModalTicketCocina(false);
     } catch (err) {
       alert('Error al imprimir ticket de cocina: ' + (err.userMessage || err.message));
@@ -1202,8 +1300,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               className="relative p-2 rounded-lg border border-emerald-500/50 text-white bg-emerald-700 hover:bg-emerald-600 transition-colors"
               title="Imprimir ticket de caja"
             >
-              <FaPrint className="text-sm" />
-              <span className="absolute -bottom-0.5 -right-0.5 text-[11px] leading-none" aria-hidden>💵</span>
+              <FaPrint className="text-[1.225rem]" />
+              <span className="absolute -bottom-1 -right-1 text-[15.4px] leading-none" aria-hidden>💵</span>
             </button>
             <button
               type="button"
@@ -1211,8 +1309,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               className="relative p-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-amber-500/50 transition-colors"
               title="Imprimir ticket de cocina"
             >
-              <FaPrint className="text-sm" />
-              <span className="absolute -bottom-0.5 -right-0.5 text-[11px] leading-none" aria-hidden>🍳</span>
+              <FaPrint className="text-[1.225rem]" />
+              <span className="absolute -bottom-1 -right-1 text-[15.4px] leading-none" aria-hidden>🍳</span>
             </button>
             <VistaModoToggle modo={modoVista} onChange={handleModoVista} />
             <button
@@ -1924,17 +2022,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   if (!q) return true;
                   return `${o.label} ${o.mesa} ${o.mozo}`.toLowerCase().includes(q);
                 }).map((o) => (
-                  <button
+                  <FilaComandaImpresion
                     key={String(o.key)}
-                    type="button"
-                    onClick={() => imprimirTicketCaja(o)}
-                    className="w-full text-left px-3 py-2.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white text-sm flex items-center justify-between gap-2"
-                  >
-                    <span className="font-bold tabular-nums">{o.label}{o.anulada ? ' · anulada' : ''}</span>
-                    <span className="text-xs text-emerald-100 truncate">
-                      Mesa {o.mesa || '—'} · {o.mozo || '—'}
-                    </span>
-                  </button>
+                    o={o}
+                    claseFila="bg-emerald-800"
+                    claseMeta="text-emerald-100"
+                    mostrarHistorial={ticketsBajaPlatoLetras !== false}
+                    onImprimir={imprimirTicketCaja}
+                    onImprimirLetra={imprimirLetraCaja}
+                  />
                 ))}
               </div>
             </div>
@@ -2066,18 +2162,16 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   <p className="text-gray-500 text-sm py-4 text-center">Sin coincidencias.</p>
                 )}
                 {opcionesTicketCocinaFiltradas.map((o) => (
-                  <button
+                  <FilaComandaImpresion
                     key={o.key}
-                    type="button"
-                    disabled={imprimiendoTicketCocina}
-                    onClick={() => handleImprimirTicketCocina(o)}
-                    className="w-full text-left px-3 py-2.5 rounded-lg bg-gray-700/80 hover:bg-violet-700 text-white text-sm flex items-center justify-between gap-2 disabled:opacity-50"
-                  >
-                    <span className="font-bold tabular-nums">{o.label}{o.anulada ? ' · anulada' : ''}</span>
-                    <span className="text-xs text-gray-300 truncate">
-                      Mesa {o.mesa || '—'} · {o.mozo || '—'}
-                    </span>
-                  </button>
+                    o={o}
+                    imprimiendo={imprimiendoTicketCocina}
+                    claseFila="bg-gray-700/80"
+                    claseMeta="text-gray-300"
+                    mostrarHistorial={ticketsBajaPlatoLetras !== false}
+                    onImprimir={handleImprimirTicketCocina}
+                    onImprimirLetra={imprimirLetraCocina}
+                  />
                 ))}
               </div>
               <button

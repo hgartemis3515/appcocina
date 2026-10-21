@@ -48,7 +48,7 @@ import useTablaAprobacion from "../../hooks/useTablaAprobacion";
 import useReservasProgramadas from "../../hooks/useReservasProgramadas";
 import { getApiUrl } from "../../config/apiConfig";
 import { apiPut } from "../../config/apiClient";
-import { imprimirTicketCocinaTrasEliminar, imprimirTicketAnulacionKds } from "../../utils/imprimirTicketCocinaKds";
+import { imprimirTrasBajaPlato } from "../../utils/imprimirTicketCocinaKds";
 import { useAuth } from "../../contexts/AuthContext";
 import useConfiguracionCocina from "../../hooks/useConfiguracionCocina";
 import { useConfig } from "../../contexts/ConfigContext";
@@ -3569,12 +3569,18 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
 
     try {
       for (const platoIndex of platosMarcados) {
-        await apiPut(`/api/comanda/${comandaId}/anular-plato/${platoIndex}`, {
+        const data = await apiPut(`/api/comanda/${comandaId}/anular-plato/${platoIndex}`, {
           motivo: anularMotivo,
           observaciones: anularObservaciones,
           sourceApp: 'cocina',
           usuarioId: userId || undefined,
+          usuarioNombre: userName || undefined,
         });
+        try {
+          await imprimirTrasBajaPlato(data, comandas);
+        } catch (printErr) {
+          alert(printErr?.message || 'El plato se anuló, pero no se imprimió el ticket.');
+        }
       }
 
       setAnularMotivo('');
@@ -3589,7 +3595,7 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
     } finally {
       setAnularLoading(false);
     }
-  }, [selectedOrders, platosChecked, platoStates, anularMotivo, anularObservaciones, obtenerComandas, userId]);
+  }, [selectedOrders, platosChecked, platoStates, anularMotivo, anularObservaciones, obtenerComandas, userId, userName, comandas]);
 
   // 🔥 NUEVO: Función para anular toda la comanda
   const handleAnularComandaCompleta = useCallback(async () => {
@@ -3690,18 +3696,10 @@ const ComandaStylePerso = ({ onGoToMenu, initialOptions }) => {
           usuarioId: userId || undefined,
           usuarioNombre: userName || undefined,
         });
-        if (data?.comandaEliminadaCompleta && data?.ticketAnulacion) {
-          try {
-            await imprimirTicketAnulacionKds(data.comanda, data.ticketAnulacion);
-          } catch (printErr) {
-            alert(printErr?.message || 'La comanda se eliminó, pero no se imprimió el ticket de anulación.');
-          }
-        } else if (data?.comanda) {
-          try {
-            await imprimirTicketCocinaTrasEliminar(data.comanda, comandas);
-          } catch (printErr) {
-            alert(printErr?.message || 'El plato se eliminó, pero no se imprimió el ticket de cocina.');
-          }
+        try {
+          await imprimirTrasBajaPlato(data, comandas);
+        } catch (printErr) {
+          alert(printErr?.message || 'El plato se eliminó, pero no se imprimió el ticket.');
         }
       }
       setEliminarPlatoMotivo('');

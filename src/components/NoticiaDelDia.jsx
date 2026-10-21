@@ -3,8 +3,14 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { gsap, useGSAP } from '../utils/registerGsapPlugins';
+import { playKdsEventSound } from '../utils/kdsNotificationSounds';
 
 const KEY = 'gambusinas_noticias_vistas';
+const CIERRE_MS = 10000;
+
+function sonarComoComanda() {
+  playKdsEventSound('nuevaComanda');
+}
 
 function htmlVisible(html, origin) {
   return String(html || '').replace(/src="\/uploads\//g, `src="${origin}/uploads/`);
@@ -24,6 +30,7 @@ export default function NoticiaDelDia() {
   const [abierta, setAbierta] = useState(false);
   const [nuevasIds, setNuevasIds] = useState([]);
   const [flash, setFlash] = useState(null);
+  const [avisoNonce, setAvisoNonce] = useState(0);
   const rootRef = useRef(null);
   const tlRef = useRef(null);
 
@@ -71,9 +78,18 @@ export default function NoticiaDelDia() {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
-    socket.on('noticia-publicada', () => { cargar(); });
+    socket.on('noticia-publicada', (payload) => {
+      if (payload?.accion !== 'retirada') {
+        sonarComoComanda();
+        setAvisoNonce((n) => n + 1);
+      }
+      cargar();
+    });
     socket.on('noticia-temporal', (aviso) => {
-      if (aviso && aviso.titulo) setFlash(aviso);
+      if (aviso && aviso.titulo) {
+        sonarComoComanda();
+        setFlash(aviso);
+      }
     });
     return () => socket.disconnect();
   }, [getToken, cargar]);
@@ -116,6 +132,20 @@ export default function NoticiaDelDia() {
       setAbierta(false);
     }
   });
+  const cerrarRef = useRef(cerrar);
+  cerrarRef.current = cerrar;
+
+  useEffect(() => {
+    if (!abierta) return undefined;
+    const t = setTimeout(() => cerrarRef.current(), CIERRE_MS);
+    return () => clearTimeout(t);
+  }, [abierta, avisoNonce]);
+
+  useEffect(() => {
+    if (!flash) return undefined;
+    const t = setTimeout(() => setFlash(null), CIERRE_MS);
+    return () => clearTimeout(t);
+  }, [flash]);
 
   const originPrevio = getServerBaseUrl();
   const avisoFlash = flash ? (
