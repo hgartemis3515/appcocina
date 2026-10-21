@@ -213,7 +213,7 @@ const AppRouter = () => {
   const alertasOverlay = (
     <>
       <AlertaOverlayCocina />
-      {esPantallaFija ? null : <NoticiaDelDia />}
+      <NoticiaDelDia esMonitor={!!esPantallaFija} numeroPantalla={cocinaOptions?.numeroPantalla ?? null} />
     </>
   );
 
