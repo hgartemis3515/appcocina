@@ -148,7 +148,9 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
   const plano = String(aviso.cuerpoHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const tieneImagen = /<img/i.test(aviso.cuerpoHtml || '');
   const letras = (aviso.titulo || '').length + plano.length + (tieneImagen ? 40 : 0);
-  const ancho = letras < 40 ? 'min(92vw, 28rem)' : letras < 120 ? 'min(92vw, 40rem)' : 'min(92vw, 56rem)';
+  const ancho = tieneImagen
+    ? 'min(92vw, 70rem)'
+    : letras < 40 ? 'min(92vw, 28rem)' : letras < 120 ? 'min(92vw, 40rem)' : 'min(92vw, 56rem)';
   const tituloCls = letras < 40
     ? 'text-6xl md:text-7xl'
     : letras < 120
@@ -162,7 +164,7 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
         className="pointer-events-auto bg-[#1a1a28] rounded-2xl border-[3px] border-[#d4af37] shadow-2xl overflow-hidden flex flex-col"
         style={{
           width: ancho,
-          maxHeight: '70vh',
+          maxHeight: tieneImagen ? '88vh' : '70vh',
           ...(reduce ? {} : {
             animation: 'resplandorUrgente 1.6s ease-in-out infinite',
             '--kds-alerta-color': '#d4af37',
@@ -183,7 +185,7 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
         ) : null}
         {plano || tieneImagen ? (
           <div
-            className="px-6 pb-3 overflow-y-auto text-center text-4xl font-bold text-white leading-snug [&_p]:text-white [&_strong]:text-[#d4af37] [&_img]:mx-auto [&_img]:max-h-64 [&_img]:max-w-full [&_img]:rounded-lg"
+            className="px-6 pb-3 overflow-y-auto text-center text-4xl font-bold text-white leading-snug [&_p]:text-white [&_strong]:text-[#d4af37] [&_img]:mx-auto [&_img]:block [&_img]:w-full [&_img]:max-w-full [&_img]:h-auto [&_img]:max-h-[40rem] [&_img]:object-contain [&_img]:rounded-lg"
             dangerouslySetInnerHTML={{ __html: htmlVisible(aviso.cuerpoHtml, origin) }}
           />
         ) : null}
