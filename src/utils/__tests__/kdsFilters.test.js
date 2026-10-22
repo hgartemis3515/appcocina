@@ -287,30 +287,28 @@ describe('aplicarFiltrosAComandas', () => {
     expect(aplicarFiltrosAComandas('invalid', {})).toEqual([]);
   });
 
-  // Test 4: No elimina comandas vacías si están en estado recoger/entregado
-  test('mantiene comandas en estado recoger aunque no tengan platos visibles', () => {
+  test('no muestra una comanda en recoger si ninguno de sus platos pasa el filtro', () => {
     const comandas = [
       {
         _id: '1',
         comandaNumber: 1,
         status: 'recoger',
         platos: [
-          { platoId: 1, plato: { nombre: 'Lomo', categoria: 'Postres' } } // No coincide con filtros
+          { platoId: 1, plato: { nombre: 'Lomo', categoria: 'Postres' } }
         ]
       }
     ];
-    
+
     const config = {
       filtrosPlatos: {
         modoInclusion: true,
         categoriasPermitidas: ['Carnes']
       }
     };
-    
+
     const resultado = aplicarFiltrosAComandas(comandas, config);
-    
-    // La comanda en recoger se mantiene aunque no tenga platos visibles
-    expect(resultado).toHaveLength(1);
+
+    expect(resultado).toHaveLength(0);
   });
 });
 

@@ -11,6 +11,29 @@
 
 import moment from 'moment-timezone';
 
+function mismaZona(zona, zonaId) {
+  if (!zona || zonaId == null) return false;
+  return String(zona._id || zona.id || '') === String(zonaId);
+}
+
+export function zonaRestringePlatos(zona) {
+  if (!zona || zona.activo === false) return false;
+  const f = zona.filtrosPlatos;
+  if (!f || typeof f !== 'object') return false;
+  const modo = f.modoFiltro || (f.modoInclusion === false ? 'no-ver' : 'solo');
+  if (modo === 'todos') return false;
+  return [
+    f.platosPermitidos, f.platosExcluidos,
+    f.categoriasPermitidas, f.categoriasExcluidas,
+    f.tiposPermitidos, f.tiposExcluidos,
+  ].some((lista) => Array.isArray(lista) && lista.length > 0);
+}
+
+export function usuarioObligadoAZona(user, zonas) {
+  if (!user) return false;
+  return (zonas || []).some(zonaRestringePlatos);
+}
+
 // ============================================================
 // FUNCIONES PRINCIPALES
 // ============================================================
@@ -51,9 +74,7 @@ export function debeMostrarPlato(plato, configCocinero, zonasAsignadas = [], zon
 
   // 1. Si hay zona activa específica, usar solo filtros de esa zona
   if (zonaActivaId) {
-    const zonaActiva = zonas.find(z => 
-      z && (z._id === zonaActivaId || z.id === zonaActivaId) && z.activo !== false
-    );
+    const zonaActiva = zonas.find(z => mismaZona(z, zonaActivaId) && z.activo !== false);
     
     if (zonaActiva?.filtrosPlatos && Object.keys(zonaActiva.filtrosPlatos).length > 0) {
       return pasaFiltrosZonaPlato(plato, zonaActiva.filtrosPlatos);
@@ -115,9 +136,7 @@ export function debeMostrarComanda(comanda, configCocinero, zonasAsignadas = [],
 
   // 1. Si hay zona activa específica
   if (zonaActivaId) {
-    const zonaActiva = zonas.find(z => 
-      z && (z._id === zonaActivaId || z.id === zonaActivaId) && z.activo !== false
-    );
+    const zonaActiva = zonas.find(z => mismaZona(z, zonaActivaId) && z.activo !== false);
     
     if (zonaActiva?.filtrosComandas && typeof zonaActiva.filtrosComandas === 'object' && Object.keys(zonaActiva.filtrosComandas).length > 0) {
       if (!pasaFiltrosZonaComanda(comanda, zonaActiva.filtrosComandas)) {
@@ -210,13 +229,7 @@ export function aplicarFiltrosAComandas(comandas, cocineroConfig) {
         _platosOcultos: comanda.platos.length - platosFiltrados.length // Metadata para debugging
       };
     })
-    .filter(comanda => {
-      // Mantener comandas que tengan al menos un plato visible
-      // O que estén en estado 'recoger'/'entregado' (para no perderlas de vista)
-      if (comanda.platos && comanda.platos.length > 0) return true;
-      if (comanda.status === 'recoger' || comanda.status === 'entregado') return true;
-      return false;
-    });
+    .filter(comanda => comanda.platos && comanda.platos.length > 0);
 }
 
 /**
@@ -285,7 +298,7 @@ function pasaFiltrosZonaPlato(plato, filtros) {
   // Determinar modo de filtro (compatibilidad con versiones anteriores)
   // modoFiltro: 'todos' = mostrar todo, 'solo' = inclusión, 'no-ver' = exclusión
   const esModoInclusion = modoFiltro === 'solo' || (modoFiltro === 'todos' && modoInclusion === true);
-  const esModoExclusion = modoFiltro === 'no-ver';
+  const esModoExclusion = modoFiltro === 'no-ver' || (modoFiltro === 'todos' && modoInclusion === false);
 
   // Obtener datos del plato de forma segura
   // El plato puede venir en diferentes estructuras:

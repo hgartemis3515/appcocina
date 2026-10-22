@@ -28,6 +28,7 @@ import BotonCandadoCocina from '../common/BotonCandadoCocina';
 import ChatFabCocina from '../Chat/ChatFabCocina';
 import useFullscreen from '../../hooks/useFullscreen';
 import useConfiguracionCocina from '../../hooks/useConfiguracionCocina';
+import { usuarioObligadoAZona } from '../../utils/kdsFilters';
 
 /**
  * MenuPage - Menú principal del App de Cocina
@@ -47,6 +48,7 @@ const MenuPage = ({ onNavigate }) => {
   // Obtener zonas activas del cocinero
   const zonasActivas = useMemo(() => getZonasActivas(), [getZonasActivas]);
   const tieneZonas = zonasActivas.length > 0;
+  const filtroObligatorio = usuarioObligadoAZona(user, zonasActivas);
   const tieneConfiguracion = cocineroConfig && (tieneZonas || cocineroConfig.filtrosPlatos || cocineroConfig.filtrosComandas);
 
   const handleLogout = () => {
@@ -59,9 +61,9 @@ const MenuPage = ({ onNavigate }) => {
   // Ahora navega a componentes específicos en lugar de usar viewMode
   const handleNavigateToCocina = (selectedViewMode) => {
     setShowViewSelector(false);
-    if (selectedViewMode === 'personalizada') {
-      onNavigate('COCINA_PERSONALIZADA');
-    } else if (selectedViewMode === 'supervisor') {
+    if (filtroObligatorio || selectedViewMode === 'supervisor') {
+      onNavigate('COCINA_SUPERVISOR');
+    } else if (selectedViewMode === 'personalizada') {
       onNavigate('COCINA_SUPERVISOR');
     } else {
       onNavigate('COCINA');
@@ -143,14 +145,14 @@ const MenuPage = ({ onNavigate }) => {
     {
       id: 'cocina',
       title: 'Ver Comandas',
-      subtitle: ocultarTablasKdsMenosSupervisor || esSupervisorOAdmin
+      subtitle: filtroObligatorio || ocultarTablasKdsMenosSupervisor || esSupervisorOAdmin
         ? 'Vista Supervisor · un toque'
         : 'Tablero KDS en tiempo real',
       icon: FaUtensils,
       color: 'from-green-500 to-emerald-600',
       shadowColor: 'shadow-green-500/30',
       action: () => {
-        if (ocultarTablasKdsMenosSupervisor || esSupervisorOAdmin) {
+        if (filtroObligatorio || ocultarTablasKdsMenosSupervisor || esSupervisorOAdmin) {
           onNavigate('COCINA_SUPERVISOR');
         } else if (tieneConfiguracion) {
           onNavigate('COCINA_PERSONALIZADA');
@@ -159,7 +161,7 @@ const MenuPage = ({ onNavigate }) => {
         }
       },
       onContextMenu: (e) => {
-        if (ocultarTablasKdsMenosSupervisor) return;
+        if (ocultarTablasKdsMenosSupervisor || filtroObligatorio) return;
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         setShowViewSelector(true);
       },

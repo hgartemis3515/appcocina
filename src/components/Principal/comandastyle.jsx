@@ -93,7 +93,7 @@ import { etiquetasTipoPreparacionKds } from "../../utils/tipoPlatoReglasCocina";
 import { resolverEstiloHeaderTarjetaComanda, paddingHeaderTarjetaKds, colorBarraSuperiorMozo } from "../../utils/estiloHeaderTarjetaKds";
 import { varsScrollPlatosKds } from "../../utils/estiloCuadroPlatosKds";
 import { verificarNecesidadLimpieza, STORAGE_KEYS, colorFondoConjuntoTarjetas } from "../../config/kdsConfigConstants";
-import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda } from "../../utils/kdsFilters";
+import { esComandaReserva, clasesHeaderReservaKds, platoRetenidoFueraDeCocina, instanteInicioCocinaComanda, aplicarFiltrosAComandas, usuarioObligadoAZona } from "../../utils/kdsFilters";
 import { indicesPlatosMarcadosKds, comandaIdDesdePlatosMarcados, PERMISO_ELIMINAR_PLATOS_COCINA, PERMISO_ELIMINAR_COMANDAS_COCINA, haySeleccionEliminarPlatoKds, resolverAccionEliminarKds, resumenPlatosSeleccionadosKds, etiquetaBotonEliminarKds, clasesBotonEliminarKds, camuflarEliminarPlatoEpa, estiloBotonEliminarKds, textoBotonEliminarKds, resolverEliminarSeleccionKds, esEstadoSeleccionEliminarPlato, lotesEliminarKds } from "../../utils/kdsAnularPlatos";
 import { contarPlatosReversiblesKds } from "../../utils/kdsRevertirPlatos";
 import { obtenerNombrePlato, obtenerNombreDisplayCocina, resolverIndicePlato, platoCoincideId, nombreMesaKds, fusionarComandaPreservandoToma } from "../../utils/platoHelpers";
@@ -1620,6 +1620,15 @@ const ComandaStyle = ({
   // Filtrar comandas por término de búsqueda - Usar useBuscadorPlatos para filtrado mejorado
   // El hook filtra a nivel de plato y solo muestra comandas con coincidencias
   // Pasamos searchTerm externo para sincronizar con SearchBar
+  const comandasDeZona = useMemo(() => {
+    const zonas = cocineroConfig?.zonasAsignadas || [];
+    if (!usuarioObligadoAZona({ rol: userRole }, zonas)) return comandas;
+    return aplicarFiltrosAComandas(comandas, {
+      zonasAsignadas: zonas,
+      zonaActivaId: cocineroConfig?.zonaActivaId || null,
+    });
+  }, [comandas, cocineroConfig, userRole]);
+
   const {
     comandasFiltradas: comandasConPlatosFiltrados,
     totalPlatosEncontrados,
@@ -1627,7 +1636,7 @@ const ComandaStyle = ({
     hayFiltroActivo,
     sugerencias,
     getPlatosVisibles
-  } = useBuscadorPlatos(comandas, searchTerm, { soloUltimaComanda: reglaSoloUltimaComandaBuscador });
+  } = useBuscadorPlatos(comandasDeZona, searchTerm, { soloUltimaComanda: reglaSoloUltimaComandaBuscador });
 
   // 🔥 BÚSQUEDA: Cuando se activa el filtro, volver a la página 0 para que la
   // comanda más antigua (regla solo-ultima-comanda-buscador) sea visible aun si
@@ -1643,7 +1652,7 @@ const ComandaStyle = ({
   // 
   // IMPORTANTE: Cuando hay búsqueda activa, filtrar desde comandasConPlatosFiltrados (ya filtradas por búsqueda)
   // Cuando no hay búsqueda, filtrar desde comandas directamente
-  const comandasBase = hayFiltroActivo ? comandasConPlatosFiltrados : comandas;
+  const comandasBase = hayFiltroActivo ? comandasConPlatosFiltrados : comandasDeZona;
   
   const enEspera = comandasBase.filter(c => {
     // Si hay búsqueda activa, mostrar la comanda si coincide algún plato con el

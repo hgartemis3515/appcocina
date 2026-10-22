@@ -19,6 +19,7 @@ import { FaSpinner } from 'react-icons/fa';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
 import NoticiaDelDia from './NoticiaDelDia';
 import useConfiguracionCocina from '../hooks/useConfiguracionCocina';
+import { usuarioObligadoAZona } from '../utils/kdsFilters';
 
 /**
  * Router interno de la App de Cocina
@@ -31,7 +32,7 @@ import useConfiguracionCocina from '../hooks/useConfiguracionCocina';
 const AppRouter = () => {
   const [currentView, setCurrentView] = useState('LOADING');
   const [cocinaOptions, setCocinaOptions] = useState(null);
-  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor, getToken } = useAuth();
+  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor, getToken, user, cocineroConfig } = useAuth();
   const { ocultarTablasKdsMenosSupervisor } = useConfiguracionCocina(getToken);
 
   // Determinar la vista inicial basada en el estado de autenticación
@@ -149,6 +150,11 @@ const AppRouter = () => {
     let dest = view;
     if (ocultarTablasKdsMenosSupervisor && (dest === 'COCINA' || dest === 'COCINA_PERSONALIZADA')) {
       dest = 'COCINA_SUPERVISOR';
+    } else if (
+      (dest === 'COCINA' || dest === 'COCINA_PERSONALIZADA')
+      && usuarioObligadoAZona(user, cocineroConfig?.zonasAsignadas)
+    ) {
+      dest = 'COCINA_SUPERVISOR';
     }
     console.log('🔄 Navegando a:', dest, options ? 'con opciones' : '');
     
@@ -166,7 +172,13 @@ const AppRouter = () => {
 
     setCocinaOptions(options);
     setCurrentView(dest);
-  }, [ocultarTablasKdsMenosSupervisor, cocinaOptions?.modoFijo]);
+  }, [ocultarTablasKdsMenosSupervisor, cocinaOptions?.modoFijo, user, cocineroConfig]);
+
+  useEffect(() => {
+    if (currentView !== 'COCINA' && currentView !== 'COCINA_PERSONALIZADA') return;
+    if (!usuarioObligadoAZona(user, cocineroConfig?.zonasAsignadas)) return;
+    setCurrentView('COCINA_SUPERVISOR');
+  }, [currentView, user, cocineroConfig]);
 
   useEffect(() => {
     if (!ocultarTablasKdsMenosSupervisor) return;

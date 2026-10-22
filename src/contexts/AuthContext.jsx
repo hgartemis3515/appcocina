@@ -722,11 +722,15 @@ export const AuthProvider = ({ children }) => {
         aliasCocinero: config.aliasCocinero || user.name
       };
 
-      // Restaurar zona activa desde localStorage
+      const activas = zonasAsignadas.filter((z) => z && z.activo !== false);
       const savedZonaActiva = localStorage.getItem('cocinaZonaActiva');
-      if (savedZonaActiva && zonasAsignadas.some(z => z._id === savedZonaActiva)) {
-        setZonaActivaId(savedZonaActiva);
-        fullConfig.zonaActivaId = savedZonaActiva;
+      const guardada = activas.find((z) => String(z._id || z.id || '') === String(savedZonaActiva || ''));
+      const unica = activas.length === 1 ? activas[0] : null;
+      const zonaInicial = guardada || unica;
+      if (zonaInicial) {
+        const zonaId = String(zonaInicial._id || zonaInicial.id);
+        setZonaActivaId(zonaId);
+        fullConfig.zonaActivaId = zonaId;
       }
 
       setCocineroConfig(fullConfig);
