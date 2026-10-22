@@ -219,13 +219,20 @@ const AppRouter = () => {
 
   // En cualquier vista autenticada (incluido monitor TV) montamos el overlay de alertas
   // para que las alertas lleguen a las pantallas de cocina aunque el FAB de chat esté oculto.
+  const paramsNoticia = new URLSearchParams(window.location.search);
+  const modoNoticia = paramsNoticia.get('modo');
+  const monitorNoticia = paramsNoticia.get('monitor') || paramsNoticia.get('pantalla');
   const esPantallaFija = isMonitorMode || cocinaOptions?.modoKiosk
-    || new URLSearchParams(window.location.search).get('modo') === 'kiosk'
-    || new URLSearchParams(window.location.search).get('modo') === 'completo-fijo';
+    || modoNoticia === 'kiosk'
+    || modoNoticia === 'completo-fijo'
+    || modoNoticia === 'fijo';
+  const numeroPantallaNoticia = cocinaOptions?.numeroPantalla
+    ?? monitorData?.numeroPantalla
+    ?? (monitorNoticia ? Number(monitorNoticia) : null);
   const alertasOverlay = (
     <>
       <AlertaOverlayCocina />
-      <NoticiaDelDia esMonitor={!!esPantallaFija} numeroPantalla={cocinaOptions?.numeroPantalla ?? null} />
+      <NoticiaDelDia esMonitor={!!esPantallaFija} numeroPantalla={numeroPantallaNoticia} />
     </>
   );
 

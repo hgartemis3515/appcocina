@@ -53,7 +53,7 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
   }, [userKey, vistas]);
 
   const abrir = useCallback((data, sonar) => {
-    if (!data?.titulo || !meToca(data, esMonitor, numeroPantalla)) return;
+    if (!data || !meToca(data, esMonitor, numeroPantalla)) return;
     const segundos = Math.min(120, Math.max(5, Number(data.segundosEnPantalla) || 15));
     setResta(segundos);
     setAviso({ ...data, segundos });
@@ -112,7 +112,7 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
       abrir(payload, true);
     });
     socket.on('noticia-temporal', (payload) => {
-      if (payload?.titulo) abrir({ ...payload, temporal: true }, true);
+      if (payload) abrir({ ...payload, temporal: true }, true);
     });
     return () => socket.disconnect();
   }, [getToken, abrir]);
@@ -176,9 +176,11 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
             {esMonitor ? `Aviso · Pantalla ${numeroPantalla || ''}` : 'Aviso a cocina'}
           </span>
         </div>
-        <div className="px-6 pt-4 pb-2 text-center">
-          <h2 className={`${tituloCls} font-black text-white leading-tight`}>{aviso.titulo}</h2>
-        </div>
+        {aviso.titulo ? (
+          <div className="px-6 pt-4 pb-2 text-center">
+            <h2 className={`${tituloCls} font-black text-white leading-tight`}>{aviso.titulo}</h2>
+          </div>
+        ) : null}
         {plano || tieneImagen ? (
           <div
             className="px-6 pb-3 overflow-y-auto text-center text-4xl font-bold text-white leading-snug [&_p]:text-white [&_strong]:text-[#d4af37] [&_img]:mx-auto [&_img]:max-h-64 [&_img]:max-w-full [&_img]:rounded-lg"
