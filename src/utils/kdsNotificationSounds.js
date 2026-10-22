@@ -39,15 +39,32 @@ const CLAVE_SET = new Set(KDS_TIMBRES.map((t) => t.clave));
 let audioCtx = null;
 let lastOsc = [];
 
-function getCtx() {
+function soltarAudioPorGesto() {
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return null;
-  if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AC();
+  if (!AC) return;
+  try {
+    if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AC();
+  } catch (_) {
+    return;
   }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+}
+
+function instalarGestoAudio() {
+  if (typeof window === 'undefined' || instalarGestoAudio.listo) return;
+  instalarGestoAudio.listo = true;
+  const unaVez = () => {
+    soltarAudioPorGesto();
+    window.removeEventListener('pointerdown', unaVez, true);
+    window.removeEventListener('keydown', unaVez, true);
+  };
+  window.addEventListener('pointerdown', unaVez, true);
+  window.addEventListener('keydown', unaVez, true);
+}
+instalarGestoAudio();
+
+function getCtx() {
+  if (!audioCtx || audioCtx.state !== 'running') return null;
   return audioCtx;
 }
 

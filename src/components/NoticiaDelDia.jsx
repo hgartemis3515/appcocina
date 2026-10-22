@@ -103,7 +103,12 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
       transports: ['websocket', 'polling'],
     });
     socket.on('noticia-publicada', (payload) => {
-      if (!payload || payload.accion === 'retirada') return;
+      if (!payload) return;
+      if (payload.accion === 'retirada') {
+        const id = String(payload.noticiaId || '');
+        setAviso((actual) => (actual && id && String(actual.noticiaId || '') === id ? null : actual));
+        return;
+      }
       abrir(payload, true);
     });
     socket.on('noticia-temporal', (payload) => {
@@ -145,10 +150,10 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
   const letras = (aviso.titulo || '').length + plano.length + (tieneImagen ? 40 : 0);
   const ancho = letras < 40 ? 'min(92vw, 28rem)' : letras < 120 ? 'min(92vw, 40rem)' : 'min(92vw, 56rem)';
   const tituloCls = letras < 40
-    ? 'text-3xl md:text-5xl'
+    ? 'text-6xl md:text-7xl'
     : letras < 120
-      ? 'text-2xl md:text-4xl'
-      : 'text-xl md:text-3xl';
+      ? 'text-5xl md:text-6xl'
+      : 'text-5xl';
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
@@ -176,7 +181,7 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
         </div>
         {plano || tieneImagen ? (
           <div
-            className="px-6 pb-3 overflow-y-auto text-center text-lg font-bold text-white leading-snug [&_p]:text-white [&_strong]:text-[#d4af37] [&_img]:mx-auto [&_img]:max-h-28 [&_img]:rounded-lg"
+            className="px-6 pb-3 overflow-y-auto text-center text-4xl font-bold text-white leading-snug [&_p]:text-white [&_strong]:text-[#d4af37] [&_img]:mx-auto [&_img]:max-h-64 [&_img]:max-w-full [&_img]:rounded-lg"
             dangerouslySetInnerHTML={{ __html: htmlVisible(aviso.cuerpoHtml, origin) }}
           />
         ) : null}
