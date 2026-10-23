@@ -185,6 +185,7 @@ function FilaTicketAvanzado({
   pintado = false,
   onTogglePintar,
   tamanoFecha = 14,
+  verNumerosMozo = false,
 }) {
   const badge = tipoBadge(ticket.tipo);
   const estadoComanda = estadoEntregaComandaTicket(ticket);
@@ -493,6 +494,7 @@ export default function TicketsAprobacionTable({
                 onToggleSeleccion,
                 ocultarGuarniciones,
                 tamanoFecha,
+                verNumerosMozo,
                 vistaCobro: (vistaPorTicket && fila.tickets.map((t) => vistaPorTicket.get(String(t?._id))).find(Boolean)) || null,
               };
               if (fila.tipo !== 'grupo') {
