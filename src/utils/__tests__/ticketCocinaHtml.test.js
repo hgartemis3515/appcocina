@@ -105,6 +105,8 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('font-size:11px;font-weight:900;');
     expect(html).not.toContain('justify-content:space-between');
     expect(html).toContain('ANULADO X');
+    expect(html.indexOf('TOTAL S/.28.00')).toBeGreaterThan(-1);
+    expect(html.indexOf('ANULADO X')).toBeGreaterThan(html.indexOf('TOTAL S/.28.00'));
   });
 
   test('PRUEBA solo si la comanda es de prueba', () => {
@@ -169,7 +171,7 @@ describe('ticket cocina compacto', () => {
     ])).toBe('Mesa extra llevar');
   });
 
-  test('ticket de eliminados: triple tachado, ANULADO X arriba del número y sin total', () => {
+  test('ticket de eliminados: triple tachado, ANULADO X bajo el ticket y sin total', () => {
     const { html } = generarHtmlTicketCocina({
       datos: {
         comandaNumeroDisplay: '#1b',
@@ -194,8 +196,7 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('top:50%');
     expect(html).toContain('top:78%');
     expect(html).not.toContain('TOTAL');
-    expect(html.indexOf('ANULADO X')).toBeGreaterThan(-1);
-    expect(html.indexOf('ANULADO X')).toBeLessThan(html.indexOf('#1b'));
+    expect(html.indexOf('ANULADO X')).toBeGreaterThan(html.indexOf('#1b'));
     expect(html).not.toContain('Descuento');
   });
 });

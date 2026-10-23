@@ -53,6 +53,30 @@ describe('groupTicketsComoComandasHtml', () => {
     expect(grupo.tickets.map((t) => t._id)).toEqual(['2', '1']);
     expect(solo.tickets[0]._id).toBe('3');
   });
+
+  test('el nombre escrito del cliente gana sobre Cliente-N', () => {
+    const filas = groupTicketsComoComandasHtml([
+      {
+        _id: '1',
+        numMesa: 4,
+        pedido: 'cccccccccccccccccccccccc',
+        clienteNombre: 'Cliente-1771',
+        comandas: [{ clienteNombre: 'Rosa' }],
+        comandasNumbers: [20],
+        createdAt: '2026-09-02T12:00:00Z',
+      },
+      {
+        _id: '2',
+        numMesa: 4,
+        pedido: 'cccccccccccccccccccccccc',
+        clienteNombre: 'Cliente-1771',
+        comandasNumbers: [21],
+        createdAt: '2026-09-02T12:01:00Z',
+      },
+    ]);
+    const grupo = filas.find((f) => f.tipo === 'grupo');
+    expect(grupo.clienteNombre).toBe('Rosa');
+  });
 });
 
 describe('ticketParaDetalleGrupo', () => {

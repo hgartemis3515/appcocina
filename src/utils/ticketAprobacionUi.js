@@ -289,6 +289,10 @@ export function estadoVisibleTickets(tickets) {
   return estadoEntregaTickets(list);
 }
 
+function esNombreClienteAnonimo(nombre) {
+  return /^cliente-\d+$/i.test(String(nombre || '').trim());
+}
+
 export function nombresClienteDeTicket(ticket) {
   const set = new Set();
   const push = (v) => {
@@ -296,24 +300,31 @@ export function nombresClienteDeTicket(ticket) {
     if (!s || s === 'Cliente' || s === 'Sin cliente') return;
     set.add(s);
   };
-  push(ticket?.cliente?.nombre);
-  push(ticket?.nombreCliente);
   push(ticket?.clienteNombre);
   push(ticket?.clienteNombreParaLlevar);
+  push(ticket?.nombreCliente);
   (ticket?.comandas || []).forEach((c) => {
     if (!c || typeof c !== 'object') return;
     push(c.clienteNombre);
     push(c.clienteNombreParaLlevar);
-    push(c.cliente?.nombre);
   });
   (ticket?.platos || []).forEach((p) => push(p?.clienteNombreLinea));
-  return [...set];
+  push(ticket?.cliente?.nombre);
+  (ticket?.comandas || []).forEach((c) => {
+    if (!c || typeof c !== 'object') return;
+    push(c.cliente?.nombre);
+  });
+  const todos = [...set];
+  const escritos = todos.filter((n) => !esNombreClienteAnonimo(n));
+  return escritos.length ? escritos : todos;
 }
 
 export function nombresClienteDeTickets(tickets) {
   const set = new Set();
   (tickets || []).forEach((t) => nombresClienteDeTicket(t).forEach((n) => set.add(n)));
-  return [...set];
+  const todos = [...set];
+  const escritos = todos.filter((n) => !esNombreClienteAnonimo(n));
+  return escritos.length ? escritos : todos;
 }
 
 export const nombreClienteTicket = (ticket) =>

@@ -1,7 +1,7 @@
 import { getComandasNumbersFromTicket, getComandaIdsFromTicket } from './ticketComandaDisplay';
 import { formatComandasNumbersLabel } from './comandaPrint/comandaHtml';
 import { totalesVistaTicket } from './ticketTotales';
-import { ticketsForzablesDeGrupo } from './ticketAprobacionUi';
+import { ticketsForzablesDeGrupo, nombresClienteDeTicket, nombresClienteDeTickets } from './ticketAprobacionUi';
 import { colorPerfilDeTicket, colorLetraDeTicket } from './estiloMozoNombreKds';
 import { etiquetaMozoDeTickets } from './numeroComandaMozo';
 
@@ -316,7 +316,7 @@ export function groupTicketsComoComandasHtml(tickets, opts = {}) {
     const pedidoId = pedidoIdDeTicket(t);
     const clienteId = clienteIdDeTicket(t);
     const mesaNum = t.numMesa != null && t.numMesa !== '' ? t.numMesa : null;
-    const clienteNombre = t.clienteNombre || t.cliente?.nombre || null;
+    const clienteNombre = nombresClienteDeTicket(t)[0] || null;
 
     if (pedidoId) {
       const key = `pedido_${pedidoId}`;
@@ -357,7 +357,7 @@ export function groupTicketsComoComandasHtml(tickets, opts = {}) {
         id: g.key,
         key: g.key,
         mesa: g.mesa,
-        clienteNombre: g.clienteNombre,
+        clienteNombre: nombresClienteDeTickets(g.tickets)[0] || g.clienteNombre,
         tickets: g.tickets,
         label: labelComandasDeTickets(g.tickets),
       });
@@ -374,7 +374,7 @@ export function groupTicketsComoComandasHtml(tickets, opts = {}) {
       id: String(t._id),
       key: String(t._id),
       mesa: t.numMesa != null && t.numMesa !== '' ? t.numMesa : null,
-      clienteNombre: t.clienteNombre || t.cliente?.nombre || null,
+      clienteNombre: nombresClienteDeTicket(t)[0] || null,
       tickets: [t],
       label: labelComandasDeTickets([t]),
     });
