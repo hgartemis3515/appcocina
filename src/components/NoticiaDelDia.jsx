@@ -15,16 +15,41 @@ function sonarComoComanda() {
   playKdsEventSound('nuevaComanda');
 }
 
+function numeroDeEstaPantalla(numeroPantalla) {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const raw = q.get('monitor') || q.get('pantalla');
+    const desdeUrl = Number(raw);
+    if (Number.isFinite(desdeUrl) && desdeUrl > 0) return desdeUrl;
+  } catch (_) {}
+  const n = Number(numeroPantalla);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function cocinerosDeEstaVentana() {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('cocineroId') || '';
+    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
 function meToca(aviso, esMonitor, numeroPantalla) {
   const canal = aviso?.canal || aviso?.cocinaAlcance || 'todas';
   if (canal === 'todas') return true;
   if (canal === 'kds') return !esMonitor;
-  if (canal === 'pantallas') {
-    if (!esMonitor) return false;
-    const n = Number(numeroPantalla);
-    if (aviso.pantalla != null) return Number(aviso.pantalla) === n;
-    const lista = (aviso.pantallas || []).map(Number);
-    return !lista.length || lista.includes(n);
+  if (canal === 'pantallas' || canal === 'hub') {
+    const n = numeroDeEstaPantalla(numeroPantalla);
+    const lista = (aviso.pantallas || []).map(Number).filter((x) => Number.isFinite(x) && x > 0);
+    if (aviso.pantalla != null) {
+      const uno = Number(aviso.pantalla);
+      if (Number.isFinite(uno) && uno > 0 && !lista.includes(uno)) lista.push(uno);
+    }
+    if (n != null && lista.includes(n)) return true;
+    const mios = cocinerosDeEstaVentana();
+    const destinos = (aviso.cocinaCocineroIds || []).map(String);
+    return mios.length > 0 && destinos.some((id) => mios.includes(id));
   }
   return !esMonitor;
 }
