@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getServerBaseUrl } from '../config/apiConfig';
-import { gsap } from '../utils/registerGsapPlugins';
-import { playKdsEventSound } from '../utils/kdsNotificationSounds';
+import { gsap, useGSAP } from '../utils/registerGsapPlugins';
 
 const KEY = 'gambusinas_noticias_vistas';
 
@@ -11,54 +10,29 @@ function htmlVisible(html, origin) {
   return String(html || '').replace(/src="\/uploads\//g, `src="${origin}/uploads/`);
 }
 
-function sonarComoComanda() {
-  playKdsEventSound('nuevaComanda');
+function paraZona(aviso, zona) {
+  const d = aviso?.destinos;
+  if (!Array.isArray(d) || d.length === 0) return zona !== 'caja';
+  return d.includes(zona);
 }
 
-function numeroDeEstaPantalla(numeroPantalla) {
-  try {
-    const q = new URLSearchParams(window.location.search);
-    const raw = q.get('monitor') || q.get('pantalla');
-    const desdeUrl = Number(raw);
-    if (Number.isFinite(desdeUrl) && desdeUrl > 0) return desdeUrl;
-  } catch (_) {}
-  const n = Number(numeroPantalla);
-  return Number.isFinite(n) && n > 0 ? n : null;
+function fechaLegible(ymd) {
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-function cocinerosDeEstaVentana() {
-  try {
-    const raw = new URLSearchParams(window.location.search).get('cocineroId') || '';
-    return raw.split(',').map((s) => s.trim()).filter(Boolean);
-  } catch (_) {
-    return [];
-  }
-}
-
-function meToca(aviso, esMonitor, numeroPantalla) {
-  const canal = aviso?.canal || aviso?.cocinaAlcance || 'todas';
-  if (canal === 'todas') return true;
-  if (canal === 'kds') return !esMonitor;
-  if (canal === 'pantallas' || canal === 'hub') {
-    const n = numeroDeEstaPantalla(numeroPantalla);
-    const lista = (aviso.pantallas || []).map(Number).filter((x) => Number.isFinite(x) && x > 0);
-    if (aviso.pantalla != null) {
-      const uno = Number(aviso.pantalla);
-      if (Number.isFinite(uno) && uno > 0 && !lista.includes(uno)) lista.push(uno);
-    }
-    if (n != null && lista.includes(n)) return true;
-    const mios = cocinerosDeEstaVentana();
-    const destinos = (aviso.cocinaCocineroIds || []).map(String);
-    return mios.length > 0 && destinos.some((id) => mios.includes(id));
-  }
-  return !esMonitor;
-}
-
-export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null }) {
+export default function NoticiaDelDia({ zona = 'cocina' }) {
   const { getToken, user } = useAuth();
-  const [aviso, setAviso] = useState(null);
-  const [resta, setResta] = useState(15);
-  const franjaRef = useRef(null);
+  const [noticias, setNoticias] = useState([]);
+  const [fecha, setFecha] = useState('');
+  const [abierta, setAbierta] = useState(false);
+  const [nuevasIds, setNuevasIds] = useState([]);
+  const [flash, setFlash] = useState(null);
+  const rootRef = useRef(null);
+  const tlRef = useRef(null);
+
   const userKey = String(user?._id || user?.id || 'cocinero');
 
   const vistas = useCallback((ymd) => {
@@ -71,54 +45,30 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
     }
   }, [userKey]);
 
-  const marcar = useCallback((id, ymd) => {
-    if (!id || !ymd) return;
-    const prev = vistas(ymd);
-    localStorage.setItem(KEY, JSON.stringify({ user: userKey, ymd, ids: [...new Set([...prev, String(id)])] }));
-  }, [userKey, vistas]);
-
-  const abrir = useCallback((data, sonar) => {
-    if (!data || !meToca(data, esMonitor, numeroPantalla)) return;
-    const segundos = Math.min(120, Math.max(5, Number(data.segundosEnPantalla) || 15));
-    setResta(segundos);
-    setAviso({ ...data, segundos });
-    if (sonar) sonarComoComanda();
-  }, [esMonitor, numeroPantalla]);
-
-  const cerrar = useCallback(() => {
-    if (aviso?.noticiaId && aviso?.fechaOperativa && !aviso.temporal) marcar(aviso.noticiaId, aviso.fechaOperativa);
-    setAviso(null);
-  }, [aviso, marcar]);
-
-  useEffect(() => {
+  const cargar = useCallback(async () => {
     const token = getToken();
-    if (!token) return undefined;
-    let vivo = true;
-    (async () => {
-      try {
-        const res = await fetch(`${getServerBaseUrl()}/api/noticias/hoy`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        });
-        if (!res.ok || !vivo) return;
-        const data = await res.json();
-        const ya = vistas(data.fechaOperativa);
-        const nueva = (data.noticias || []).find((n) => !ya.includes(String(n._id)) && meToca(n, esMonitor, numeroPantalla));
-        if (nueva) {
-          abrir({
-            titulo: nueva.titulo,
-            cuerpoHtml: nueva.cuerpoHtml,
-            segundosEnPantalla: nueva.segundosEnPantalla,
-            cocinaAlcance: nueva.cocinaAlcance,
-            pantallas: nueva.pantallas,
-            noticiaId: nueva._id,
-            fechaOperativa: data.fechaOperativa,
-          }, false);
-        }
-      } catch (_) { /* sin red */ }
-    })();
-    return () => { vivo = false; };
-  }, [getToken, vistas, abrir, esMonitor, numeroPantalla]);
+    if (!token) return;
+    try {
+      const res = await fetch(`${getServerBaseUrl()}/api/noticias/hoy?destino=${encodeURIComponent(zona)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const lista = (Array.isArray(data.noticias) ? data.noticias : []).filter((n) => paraZona(n, zona));
+      const ymd = data.fechaOperativa || '';
+      setFecha(ymd);
+      setNoticias(lista);
+      const ya = vistas(ymd);
+      const nuevas = lista.filter((n) => !ya.includes(String(n._id))).map((n) => String(n._id));
+      setNuevasIds(nuevas);
+      if (nuevas.length) setAbierta(true);
+    } catch (_) {
+      /* sin red no se marca */
+    }
+  }, [getToken, vistas, zona]);
+
+  useEffect(() => { cargar(); }, [cargar]);
 
   useEffect(() => {
     const token = getToken();
@@ -127,106 +77,122 @@ export default function NoticiaDelDia({ esMonitor = false, numeroPantalla = null
       auth: { token },
       transports: ['websocket', 'polling'],
     });
-    socket.on('noticia-publicada', (payload) => {
-      if (!payload) return;
-      if (payload.accion === 'retirada') {
-        const id = String(payload.noticiaId || '');
-        setAviso((actual) => (actual && id && String(actual.noticiaId || '') === id ? null : actual));
-        return;
-      }
-      abrir(payload, true);
-    });
-    socket.on('noticia-temporal', (payload) => {
-      if (payload) abrir({ ...payload, temporal: true }, true);
+    socket.on('noticia-publicada', (aviso) => { if (paraZona(aviso, zona)) cargar(); });
+    socket.on('noticia-temporal', (aviso) => {
+      if (aviso && aviso.titulo && paraZona(aviso, zona)) setFlash(aviso);
     });
     return () => socket.disconnect();
-  }, [getToken, abrir]);
+  }, [getToken, cargar, zona]);
 
-  useEffect(() => {
-    if (!aviso) return undefined;
-    const t = setInterval(() => {
-      setResta((n) => {
-        if (n <= 1) {
-          cerrar();
-          return 0;
-        }
-        return n - 1;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [aviso, cerrar]);
+  const { contextSafe } = useGSAP(() => {
+    if (!abierta) return undefined;
+    const mm = gsap.matchMedia();
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      tl.fromTo('[data-hoja]', { y: 32, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.5 })
+        .fromTo('[data-noticia]', { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.07 }, '-=0.25')
+        .fromTo('[data-listo]', { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3 }, '-=0.2');
+      tlRef.current = tl;
+      return () => { tlRef.current = null; };
+    });
+    mm.add('(prefers-reduced-motion: reduce)', () => {
+      tlRef.current = null;
+    });
+    return () => mm.revert();
+  }, { scope: rootRef, dependencies: [abierta], revertOnUpdate: true });
 
-  useEffect(() => {
-    const el = franjaRef.current;
-    if (!el || !aviso) return undefined;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce || typeof gsap === 'undefined') return undefined;
-    const tween = gsap.fromTo(el, { y: -28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' });
-    return () => tween.kill();
-  }, [aviso]);
+  const marcarVistas = useCallback(() => {
+    if (fecha && noticias.length) {
+      localStorage.setItem(KEY, JSON.stringify({
+        user: userKey,
+        ymd: fecha,
+        ids: noticias.map((n) => String(n._id)),
+      }));
+    }
+  }, [fecha, noticias, userKey]);
 
-  if (!aviso) return null;
-  const total = aviso.segundos || 15;
-  const pct = Math.max(0, Math.round((resta / total) * 100));
-  const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const origin = getServerBaseUrl();
-  const plano = String(aviso.cuerpoHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  const tieneImagen = /<img/i.test(aviso.cuerpoHtml || '');
-  const letras = (aviso.titulo || '').length + plano.length + (tieneImagen ? 40 : 0);
-  const ancho = tieneImagen
-    ? 'min(92vw, 70rem)'
-    : letras < 40 ? 'min(92vw, 28rem)' : letras < 120 ? 'min(92vw, 40rem)' : 'min(92vw, 56rem)';
-  const tituloCls = letras < 40
-    ? 'text-6xl md:text-7xl'
-    : letras < 120
-      ? 'text-5xl md:text-6xl'
-      : 'text-5xl';
+  const cerrar = contextSafe(() => {
+    marcarVistas();
+    const tl = tlRef.current;
+    if (tl) {
+      tl.eventCallback('onReverseComplete', () => setAbierta(false));
+      tl.timeScale(1.7).reverse();
+    } else {
+      setAbierta(false);
+    }
+  });
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
-      <div
-        ref={franjaRef}
-        className="pointer-events-auto bg-[#1a1a28] rounded-2xl border-[3px] border-[#d4af37] shadow-2xl overflow-hidden flex flex-col"
-        style={{
-          width: ancho,
-          maxHeight: tieneImagen ? '88vh' : '70vh',
-          ...(reduce ? {} : {
-            animation: 'resplandorUrgente 1.6s ease-in-out infinite',
-            '--kds-alerta-color': '#d4af37',
-          }),
-        }}
-        role="dialog"
-        aria-label="Aviso de cocina"
-      >
-        <div className="bg-[#12121a] px-4 py-2 border-b border-[rgba(212,175,55,0.35)] text-center">
-          <span className="text-xs uppercase tracking-widest font-black text-[#d4af37]">
-            {esMonitor ? `Aviso · Pantalla ${numeroPantalla || ''}` : 'Aviso a cocina'}
-          </span>
+  const originPrevio = getServerBaseUrl();
+  const avisoFlash = flash ? (
+    <div className="fixed bottom-4 right-4 z-[85] w-[min(100%-2rem,28rem)] pointer-events-none">
+      <div className="pointer-events-auto bg-gray-900 text-white rounded-2xl border border-amber-500/40 w-full max-h-[70vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="px-5 pt-4 pb-1">
+          <p className="text-[11px] uppercase tracking-wide text-amber-300 font-bold">Solo esta vez</p>
+          <h2 className="text-xl font-bold">{flash.titulo}</h2>
         </div>
-        {aviso.titulo ? (
-          <div className="px-6 pt-4 pb-2 text-center">
-            <h2 className={`${tituloCls} font-black text-white leading-tight`}>{aviso.titulo}</h2>
-          </div>
-        ) : null}
-        {plano || tieneImagen ? (
-          <div
-            className="px-6 pb-3 overflow-y-auto text-center text-4xl font-bold text-white leading-snug [&_p]:text-white [&_strong]:text-[#d4af37] [&_img]:mx-auto [&_img]:block [&_img]:w-full [&_img]:max-w-full [&_img]:h-auto [&_img]:max-h-[40rem] [&_img]:object-contain [&_img]:rounded-lg"
-            dangerouslySetInnerHTML={{ __html: htmlVisible(aviso.cuerpoHtml, origin) }}
-          />
-        ) : null}
-        <div className="px-6 pb-4 flex items-center justify-center gap-3">
-          <div className="flex items-baseline gap-1 bg-[#0a0a0f] border-2 border-[rgba(212,175,55,0.5)] px-3 py-1.5 rounded-xl">
-            <span className="text-3xl font-black text-[#d4af37] font-mono tabular-nums leading-none">{resta}</span>
-            <span className="text-xs font-extrabold text-white uppercase">seg</span>
-          </div>
-          <button type="button" onClick={cerrar} className="h-12 px-5 bg-[#d4af37] text-[#0a0a0f] font-black uppercase rounded-xl">
-            Cerrar
-          </button>
-        </div>
-        <div className="w-full h-1.5 bg-white/10">
-          <div className="h-full bg-[#d4af37]" style={{ width: `${pct}%` }} />
-        </div>
+        <div
+          className="overflow-auto px-5 py-3 text-base leading-relaxed [&_img]:max-w-full [&_img]:rounded-lg"
+          dangerouslySetInnerHTML={{ __html: htmlVisible(flash.cuerpoHtml, originPrevio) }}
+        />
+        <button type="button" onClick={() => setFlash(null)} className="m-4 min-h-[52px] rounded-xl bg-amber-500 text-black font-bold">
+          Listo
+        </button>
       </div>
     </div>
+  ) : null;
+
+  if (!abierta || !noticias.length) return avisoFlash;
+  const origin = getServerBaseUrl();
+  const nNuevas = nuevasIds.length;
+
+  return (
+    <>
+    {avisoFlash}
+    <div ref={rootRef} className="fixed bottom-4 right-4 z-[80] w-[min(100%-2rem,28rem)] pointer-events-none">
+      <div
+        data-hoja
+        className="pointer-events-auto bg-gray-900 text-white rounded-2xl border border-amber-500/40 shadow-[0_30px_80px_rgba(0,0,0,0.6)] w-full max-h-[70vh] flex flex-col overflow-hidden"
+        role="dialog"
+        aria-modal="false"
+        aria-label="Noticias de hoy"
+      >
+        <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-300" />
+        <div className="px-5 pt-4 pb-2 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold leading-tight">Noticias de hoy</h2>
+            <p className="text-xs text-gray-400 capitalize mt-0.5">{fechaLegible(fecha)}</p>
+          </div>
+          <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-400/30">
+            {nNuevas > 0 ? `${nNuevas} ${nNuevas === 1 ? 'nueva' : 'nuevas'}` : `${noticias.length}`}
+          </span>
+        </div>
+        <div className="overflow-auto px-5 py-3 space-y-4">
+          {noticias.map((n) => (
+            <article key={n._id} data-noticia className="rounded-xl bg-gray-800/60 border border-white/5 p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <h3 className="font-semibold text-lg leading-snug">{n.titulo}</h3>
+                {nuevasIds.includes(String(n._id)) ? (
+                  <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-400 text-black">Nuevo</span>
+                ) : null}
+              </div>
+              <div
+                className="text-base leading-relaxed [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                dangerouslySetInnerHTML={{ __html: htmlVisible(n.cuerpoHtml, origin) }}
+              />
+              {n.autor?.nombre ? <p className="text-[11px] text-gray-500 mt-2">— {n.autor.nombre}</p> : null}
+            </article>
+          ))}
+        </div>
+        <button
+          type="button"
+          data-listo
+          onClick={cerrar}
+          className="m-4 min-h-[52px] rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] transition-colors text-black font-bold text-lg"
+        >
+          Listo
+        </button>
+      </div>
+    </div>
+    </>
   );
 }

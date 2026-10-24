@@ -19,7 +19,6 @@ import { FaSpinner } from 'react-icons/fa';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
 import NoticiaDelDia from './NoticiaDelDia';
 import useConfiguracionCocina from '../hooks/useConfiguracionCocina';
-import { usuarioObligadoAZona } from '../utils/kdsFilters';
 
 /**
  * Router interno de la App de Cocina
@@ -32,7 +31,7 @@ import { usuarioObligadoAZona } from '../utils/kdsFilters';
 const AppRouter = () => {
   const [currentView, setCurrentView] = useState('LOADING');
   const [cocinaOptions, setCocinaOptions] = useState(null);
-  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor, getToken, user, cocineroConfig } = useAuth();
+  const { isAuthenticated, loading, isMonitorMode, monitorData, bootstrapMonitor, getToken } = useAuth();
   const { ocultarTablasKdsMenosSupervisor } = useConfiguracionCocina(getToken);
 
   // Determinar la vista inicial basada en el estado de autenticación
@@ -150,11 +149,6 @@ const AppRouter = () => {
     let dest = view;
     if (ocultarTablasKdsMenosSupervisor && (dest === 'COCINA' || dest === 'COCINA_PERSONALIZADA')) {
       dest = 'COCINA_SUPERVISOR';
-    } else if (
-      (dest === 'COCINA' || dest === 'COCINA_PERSONALIZADA')
-      && usuarioObligadoAZona(user, cocineroConfig?.zonasAsignadas)
-    ) {
-      dest = 'COCINA_SUPERVISOR';
     }
     console.log('🔄 Navegando a:', dest, options ? 'con opciones' : '');
     
@@ -172,13 +166,7 @@ const AppRouter = () => {
 
     setCocinaOptions(options);
     setCurrentView(dest);
-  }, [ocultarTablasKdsMenosSupervisor, cocinaOptions?.modoFijo, user, cocineroConfig]);
-
-  useEffect(() => {
-    if (currentView !== 'COCINA' && currentView !== 'COCINA_PERSONALIZADA') return;
-    if (!usuarioObligadoAZona(user, cocineroConfig?.zonasAsignadas)) return;
-    setCurrentView('COCINA_SUPERVISOR');
-  }, [currentView, user, cocineroConfig]);
+  }, [ocultarTablasKdsMenosSupervisor, cocinaOptions?.modoFijo]);
 
   useEffect(() => {
     if (!ocultarTablasKdsMenosSupervisor) return;
@@ -219,20 +207,13 @@ const AppRouter = () => {
 
   // En cualquier vista autenticada (incluido monitor TV) montamos el overlay de alertas
   // para que las alertas lleguen a las pantallas de cocina aunque el FAB de chat esté oculto.
-  const paramsNoticia = new URLSearchParams(window.location.search);
-  const modoNoticia = paramsNoticia.get('modo');
-  const monitorNoticia = paramsNoticia.get('monitor') || paramsNoticia.get('pantalla');
   const esPantallaFija = isMonitorMode || cocinaOptions?.modoKiosk
-    || modoNoticia === 'kiosk'
-    || modoNoticia === 'completo-fijo'
-    || modoNoticia === 'fijo';
-  const numeroPantallaNoticia = cocinaOptions?.numeroPantalla
-    ?? monitorData?.numeroPantalla
-    ?? (monitorNoticia ? Number(monitorNoticia) : null);
+    || new URLSearchParams(window.location.search).get('modo') === 'kiosk'
+    || new URLSearchParams(window.location.search).get('modo') === 'completo-fijo';
   const alertasOverlay = (
     <>
       <AlertaOverlayCocina />
-      <NoticiaDelDia esMonitor={!!esPantallaFija} numeroPantalla={numeroPantallaNoticia} />
+      {esPantallaFija ? null : <NoticiaDelDia zona="cocina" />}
     </>
   );
 
@@ -292,6 +273,7 @@ const AppRouter = () => {
     return (
       <ProtectedRoute onRedirect={handleNotAuthenticated}>
         <TicketsPpaPage onGoToMenu={goToMenu} />
+        <NoticiaDelDia zona="caja" />
       </ProtectedRoute>
     );
   }
