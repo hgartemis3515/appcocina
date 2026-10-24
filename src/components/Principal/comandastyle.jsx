@@ -151,7 +151,7 @@ const ComandaStyle = ({
   
   // PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: flags de cocina
   // + PLAN NOMBRE_PLATO_COCINA: flag de alias en tabla KDS
-  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, ocultarAnularEnTablasKds, ordenSinAutorizacionCategorias, ordenSinAutorizacionPlatos, sosCategoriasAlFinal, vistaCocinaGuarnicionComoPlato } = useConfiguracionCocina(getToken);
+  const { obligarOrdenAsignacion, solicitudOrdenFueraDeCola, permitirGuarnicionesSeparadas, deshabilitarOrdenSecuencialGuarniciones, deshabilitarAgrupacionGuarniciones, tiemposGuarnicion, primerToqueFinalizarAsignado, entregarPlatoEnteroAbsoluto, ocultarAnularEnTablasKds, ordenSinAutorizacionCategorias, ordenSinAutorizacionPlatos, sosCategoriasAlFinal } = useConfiguracionCocina(getToken);
   const asignacionBackupSnapshot = useAsignacionBackupKds();
   const agrupacionOn = agrupacionGuarnicionesOn({
     permitirGuarnicionesSeparadas,
@@ -6640,7 +6640,7 @@ const SicarComandaCard = ({
                         || (unidad.tipo === 'grupo_guarniciones'
                         ? (unidad.comps || []).reduce((s, c) => s + (Number(c.cantidad) || 1), 0)
                           : (comp.cantidad || 1));
-                      const vistaClasica = vistaCocinaGuarnicionComoPlato === false;
+                      const vistaClasica = cocinaCfg.vistaCocinaGuarnicionComoPlato === false;
                       const nombrePlatoPadre = obtenerNombreDisplayCocina(plato, {
                         habilitadoEnKds: usarNombreCocinaEnTablaKds
                       }) || 'Plato';

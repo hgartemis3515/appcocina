@@ -11,9 +11,11 @@ function htmlVisible(html, origin) {
 }
 
 function paraZona(aviso, zona) {
-  const d = aviso?.destinos;
-  if (!Array.isArray(d) || d.length === 0) return zona !== 'caja';
-  return d.includes(zona);
+  const d = Array.isArray(aviso?.destinos) ? aviso.destinos : [];
+  const esCaja = d.includes('caja') || aviso?.cocinaAlcance === 'caja' || aviso?.canal === 'caja';
+  if (zona === 'caja') return esCaja;
+  if (!d.length && !aviso?.canal) return true;
+  return d.includes('cocina') && !esCaja;
 }
 
 function fechaLegible(ymd) {

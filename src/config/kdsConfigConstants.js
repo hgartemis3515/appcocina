@@ -269,6 +269,7 @@ export const DEFAULT_KDS_CONFIG = {
   usarNombreCocinaEnTablaKds: true,
   ocultarCuadroCocineroAsignado: false,
   usarPronombreCocineroKds: false,
+  ocultarNumeroOrdenPlato: false,
   cocineroNombreColor: '#fef08a',
   cocineroNombreFondo: '#713f12',
   ocultarComplementosEnTablaKds: false,

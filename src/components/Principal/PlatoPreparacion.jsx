@@ -401,7 +401,7 @@ const PlatoPreparacion = ({
                 {textoCocinero}
               </span>
               {/* PLAN OBLIGAR_ORDEN_ASIGNACION_KDS_SUPERVISOR: #N de cola por cocinero (FIFO por timestamp) */}
-              {numeroColaCocinero != null && !ocultaColaYCronometro && (
+              {numeroColaCocinero != null && !ocultaColaYCronometro && kdsConfig.ocultarNumeroOrdenPlato !== true && (
                 <span
                   className="ml-1 shrink-0"
                   style={estiloOrdenCola}

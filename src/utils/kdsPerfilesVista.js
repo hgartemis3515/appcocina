@@ -28,6 +28,7 @@ export const KDS_PERFIL_VISTA_KEYS = [
   'usarNombreCocinaEnTablaKds',
   'ocultarCuadroCocineroAsignado',
   'usarPronombreCocineroKds',
+  'ocultarNumeroOrdenPlato',
   'cocineroNombreColor',
   'cocineroNombreFondo',
   'ocultarComplementosEnTablaKds',

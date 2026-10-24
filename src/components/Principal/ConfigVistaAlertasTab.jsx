@@ -1305,6 +1305,20 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
               </span>
             </span>
           </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.ocultarNumeroOrdenPlato === true}
+              onChange={(e) => updateConfig({ ocultarNumeroOrdenPlato: e.target.checked })}
+              className="w-5 h-5 mt-0.5 rounded accent-lime-500"
+            />
+            <span>
+              <span className={`${textModal} font-semibold block`}>Ocultar número de orden de plato</span>
+              <span className={`${textSecondary} text-xs block mt-0.5`}>
+                Marcado: no muestra el número de orden junto al plato (#1, #2…). Desmarcado: se ve. Se guarda en este dispositivo y en el perfil de vista.
+              </span>
+            </span>
+          </label>
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
             <legend className={`${textModal} font-semibold`}>Cuadro del nombre del cocinero</legend>
             <p className={`${textSecondary} text-xs`}>
@@ -1479,12 +1493,14 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                 </select>
               </label>
             </div>
+            {config.ocultarNumeroOrdenPlato !== true && (
             <span
               className="rounded-full"
               style={estiloNumeroOrdenKds(config)}
             >
               {textoNumeroOrdenKds(1, config)}
             </span>
+            )}
           </fieldset>
 
           <fieldset className="space-y-3 pt-2 border-t border-gray-600/40">
@@ -1712,12 +1728,14 @@ const ConfigVistaAlertasTab = ({ nightMode = true }) => {
                   {config.usarNombreCocinaEnTablaKds !== false ? 'Bistec' : 'Bistec a lo pobre'}
                 </span>
                 {!cantidadPlatoVaALaIzquierda(config) && <span style={estiloCantidadPlatoKds(config)}>1</span>}
+                {config.ocultarNumeroOrdenPlato !== true && (
                 <span
                   className="rounded-full"
                   style={estiloNumeroOrdenKds(config)}
                 >
                   {textoNumeroOrdenKds(1, config)}
                 </span>
+                )}
               </div>
               {config.juntarGuarnicionesVisualKds !== false && config.ocultarComplementosEnTablaKds !== true && (
                 <div className="pl-1 mt-0.5 flex flex-col gap-0.5 leading-tight">
