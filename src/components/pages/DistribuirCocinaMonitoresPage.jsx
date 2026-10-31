@@ -119,10 +119,23 @@ const DistribuirCocinaMonitoresPage = ({ onGoToMenu }) => {
       setError(null);
       const token = getToken();
       if (!token) return;
-      const res = await axios.get(`${getServerBaseUrl()}/api/pantallas-cocina/activas`, {
-        headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
-      });
-      const data = res.data?.data || [];
+      let data = null;
+      const crudo = localStorage.getItem('cocina:pantallas');
+      if (crudo) {
+        try {
+          const guardado = JSON.parse(crudo);
+          if (guardado && Date.now() - guardado.at < 2 * 60 * 1000 && Array.isArray(guardado.data)) {
+            data = guardado.data;
+          }
+        } catch (_) { /* cache vieja */ }
+      }
+      if (!data) {
+        const res = await axios.get(`${getServerBaseUrl()}/api/pantallas-cocina/activas`, {
+          headers: { Authorization: `Bearer ${token}` }, timeout: 5000,
+        });
+        data = res.data?.data || [];
+        localStorage.setItem('cocina:pantallas', JSON.stringify({ at: Date.now(), data }));
+      }
       setPantallas(data);
       const map = {};
       const mapPerfil = {};

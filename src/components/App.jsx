@@ -15,7 +15,7 @@ import DesplegarMonitoresPage from './pages/DesplegarMonitoresPage';
 import DistribuirCocinaMonitoresPage from './pages/DistribuirCocinaMonitoresPage';
 import ProtectedRoute from './common/ProtectedRoute';
 import PantallaBloqueoOverlay from './common/PantallaBloqueoOverlay';
-import { FaSpinner } from 'react-icons/fa';
+import CargaCocina from './CargaCocina';
 import AlertaOverlayCocina from './Alertas/AlertaOverlayCocina';
 import NoticiaDelDia from './NoticiaDelDia';
 import useConfiguracionCocina from '../hooks/useConfiguracionCocina';
@@ -190,14 +190,7 @@ const AppRouter = () => {
 
   // Pantalla de carga inicial
   if (currentView === 'LOADING') {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <FaSpinner className="animate-spin text-5xl text-orange-500 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg">Iniciando sistema...</p>
-        </div>
-      </div>
-    );
+    return <CargaCocina />;
   }
 
   // Vista de Login (sin protección)
