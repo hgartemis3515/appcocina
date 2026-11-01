@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { gsap, useGSAP } from '../utils/registerGsapPlugins';
+import { noticiaAplicaEnPantalla } from '../utils/noticiaDestinoCocina';
 
 const KEY = 'gambusinas_noticias_vistas';
 
@@ -10,13 +12,6 @@ function htmlVisible(html, origin) {
   return String(html || '').replace(/src="\/uploads\//g, `src="${origin}/uploads/`);
 }
 
-function paraZona(aviso, zona) {
-  const d = Array.isArray(aviso?.destinos) ? aviso.destinos : [];
-  const esCaja = d.includes('caja') || aviso?.cocinaAlcance === 'caja' || aviso?.canal === 'caja';
-  if (zona === 'caja') return esCaja;
-  if (!d.length && !aviso?.canal) return true;
-  return d.includes('cocina') && !esCaja;
-}
 
 function fechaLegible(ymd) {
   if (!ymd) return '';
@@ -25,8 +20,19 @@ function fechaLegible(ymd) {
   return dt.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-export default function NoticiaDelDia({ zona = 'cocina' }) {
+export default function NoticiaDelDia({
+  zona = 'cocina',
+  superficie = null,
+  numeroPantalla = null,
+  cocineroId = null,
+}) {
   const { getToken, user } = useAuth();
+  const tipo = superficie || (zona === 'caja' ? 'caja' : 'kds');
+  const aplica = useCallback((aviso) => noticiaAplicaEnPantalla(aviso, {
+    tipo,
+    numeroPantalla,
+    cocineroId,
+  }), [tipo, numeroPantalla, cocineroId]);
   const [noticias, setNoticias] = useState([]);
   const [fecha, setFecha] = useState('');
   const [abierta, setAbierta] = useState(false);
@@ -57,7 +63,7 @@ export default function NoticiaDelDia({ zona = 'cocina' }) {
       });
       if (!res.ok) return;
       const data = await res.json();
-      const lista = (Array.isArray(data.noticias) ? data.noticias : []).filter((n) => paraZona(n, zona));
+      const lista = (Array.isArray(data.noticias) ? data.noticias : []).filter((n) => aplica(n));
       const ymd = data.fechaOperativa || '';
       setFecha(ymd);
       setNoticias(lista);
@@ -68,7 +74,7 @@ export default function NoticiaDelDia({ zona = 'cocina' }) {
     } catch (_) {
       /* sin red no se marca */
     }
-  }, [getToken, vistas, zona]);
+  }, [getToken, vistas, aplica]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -79,19 +85,20 @@ export default function NoticiaDelDia({ zona = 'cocina' }) {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
-    socket.on('noticia-publicada', (aviso) => { if (paraZona(aviso, zona)) cargar(); });
+    socket.on('noticia-publicada', (aviso) => { if (aplica(aviso)) cargar(); });
     socket.on('noticia-temporal', (aviso) => {
-      if (aviso && aviso.titulo && paraZona(aviso, zona)) setFlash(aviso);
+      if (aviso && (aviso.titulo || aviso.cuerpoHtml) && aplica(aviso)) setFlash(aviso);
     });
     return () => socket.disconnect();
-  }, [getToken, cargar, zona]);
+  }, [getToken, cargar, aplica]);
 
   const { contextSafe } = useGSAP(() => {
     if (!abierta) return undefined;
     const mm = gsap.matchMedia();
     mm.add('(prefers-reduced-motion: no-preference)', () => {
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-      tl.fromTo('[data-hoja]', { y: 32, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.5 })
+      tl.fromTo('[data-velo]', { opacity: 0 }, { opacity: 1, duration: 0.35 })
+        .fromTo('[data-hoja]', { y: 32, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.5 }, '-=0.2')
         .fromTo('[data-noticia]', { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.07 }, '-=0.25')
         .fromTo('[data-listo]', { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3 }, '-=0.2');
       tlRef.current = tl;
@@ -124,23 +131,42 @@ export default function NoticiaDelDia({ zona = 'cocina' }) {
     }
   });
 
+  useEffect(() => {
+    if (!flash) return undefined;
+    const total = Math.min(120, Math.max(5, Number(flash.segundosEnPantalla) || 15));
+    const fin = Date.now() + total * 1000;
+    const id = setInterval(() => {
+      if (Date.now() >= fin) setFlash(null);
+    }, 200);
+    return () => clearInterval(id);
+  }, [flash]);
+
   const originPrevio = getServerBaseUrl();
-  const avisoFlash = flash ? (
-    <div className="fixed bottom-4 right-4 z-[85] w-[min(100%-2rem,28rem)] pointer-events-none">
-      <div className="pointer-events-auto bg-gray-900 text-white rounded-2xl border border-amber-500/40 w-full max-h-[70vh] flex flex-col overflow-hidden shadow-2xl">
-        <div className="px-5 pt-4 pb-1">
-          <p className="text-[11px] uppercase tracking-wide text-amber-300 font-bold">Solo esta vez</p>
-          <h2 className="text-xl font-bold">{flash.titulo}</h2>
+  const avisoFlash = flash ? createPortal(
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-6">
+      <style>{`@keyframes noticiaVelo{from{opacity:0}to{opacity:1}}@keyframes noticiaHoja{from{opacity:0;transform:translateY(32px) scale(.96)}to{opacity:1;transform:none}}.noticia-velo{animation:noticiaVelo .35s ease-out both}.noticia-hoja{animation:noticiaHoja .5s cubic-bezier(.22,1,.36,1) both}@media (prefers-reduced-motion:reduce){.noticia-velo,.noticia-hoja{animation:none}}`}</style>
+      <button type="button" className="noticia-velo absolute inset-0 bg-black/70" onClick={() => setFlash(null)} aria-label="Cerrar aviso" />
+      <div
+        className="noticia-hoja relative w-[min(100%,42rem)] max-h-[82vh] flex flex-col overflow-hidden rounded-2xl border border-amber-500/50 bg-gray-900 text-white shadow-[0_30px_80px_rgba(0,0,0,0.6)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={flash.titulo || 'Aviso'}
+      >
+        <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-300" />
+        <div className="px-6 pt-5 pb-1">
+          <p className="text-xs uppercase tracking-wide text-amber-300 font-bold text-center">Aviso</p>
+          {flash.titulo ? <h2 className="text-3xl sm:text-4xl font-black leading-tight mt-1 text-center">{flash.titulo}</h2> : null}
         </div>
         <div
-          className="overflow-auto px-5 py-3 text-base leading-relaxed [&_img]:max-w-full [&_img]:rounded-lg"
+          className="overflow-auto px-6 py-4 text-xl sm:text-2xl leading-snug [&_img]:max-w-full [&_img]:rounded-lg [&_p]:mb-2"
           dangerouslySetInnerHTML={{ __html: htmlVisible(flash.cuerpoHtml, originPrevio) }}
         />
-        <button type="button" onClick={() => setFlash(null)} className="m-4 min-h-[52px] rounded-xl bg-amber-500 text-black font-bold">
+        <button type="button" onClick={() => setFlash(null)} className="m-5 min-h-[56px] rounded-xl bg-amber-500 text-black font-black text-lg">
           Listo
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   ) : null;
 
   if (!abierta || !noticias.length) return avisoFlash;
@@ -150,12 +176,14 @@ export default function NoticiaDelDia({ zona = 'cocina' }) {
   return (
     <>
     {avisoFlash}
-    <div ref={rootRef} className="fixed bottom-4 right-4 z-[80] w-[min(100%-2rem,28rem)] pointer-events-none">
+    {createPortal(
+    <div ref={rootRef} className="fixed inset-0 z-[80] flex items-center justify-center p-6">
+      <button type="button" data-velo className="absolute inset-0 bg-black/70" onClick={cerrar} aria-label="Cerrar noticias" />
       <div
         data-hoja
-        className="pointer-events-auto bg-gray-900 text-white rounded-2xl border border-amber-500/40 shadow-[0_30px_80px_rgba(0,0,0,0.6)] w-full max-h-[70vh] flex flex-col overflow-hidden"
+        className="relative w-[min(100%,42rem)] max-h-[82vh] flex flex-col overflow-hidden rounded-2xl border border-amber-500/50 bg-gray-900 text-white shadow-[0_30px_80px_rgba(0,0,0,0.6)]"
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         aria-label="Noticias de hoy"
       >
         <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-300" />
@@ -194,7 +222,9 @@ export default function NoticiaDelDia({ zona = 'cocina' }) {
           Listo
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
+    )}
     </>
   );
 }

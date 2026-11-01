@@ -198,15 +198,30 @@ const AppRouter = () => {
     return <LoginPage />;
   }
 
-  // En cualquier vista autenticada (incluido monitor TV) montamos el overlay de alertas
-  // para que las alertas lleguen a las pantallas de cocina aunque el FAB de chat esté oculto.
-  const esPantallaFija = isMonitorMode || cocinaOptions?.modoKiosk
-    || new URLSearchParams(window.location.search).get('modo') === 'kiosk'
-    || new URLSearchParams(window.location.search).get('modo') === 'completo-fijo';
+  // Alertas y noticias también en las ventanas fijas del Monitor Hub
+  // (?modo=completo-fijo / kiosk). Antes el aviso solo se montaba en la tabla KDS.
+  const paramsVista = new URLSearchParams(window.location.search);
+  const modoVista = paramsVista.get('modo');
+  const esMonitorHub = isMonitorMode || cocinaOptions?.modoKiosk
+    || modoVista === 'kiosk'
+    || modoVista === 'completo-fijo';
+  const numeroNoticia = cocinaOptions?.numeroPantalla
+    ?? monitorData?.numeroPantalla
+    ?? paramsVista.get('monitor')
+    ?? paramsVista.get('pantalla');
+  const cocineroNoticia = cocinaOptions?.cocineroIdFijo
+    || monitorData?.cocineroId
+    || paramsVista.get('cocineroId')
+    || '';
   const alertasOverlay = (
     <>
       <AlertaOverlayCocina />
-      {esPantallaFija ? null : <NoticiaDelDia zona="cocina" />}
+      <NoticiaDelDia
+        zona="cocina"
+        superficie={esMonitorHub ? 'monitor' : 'kds'}
+        numeroPantalla={numeroNoticia}
+        cocineroId={cocineroNoticia}
+      />
     </>
   );
 
