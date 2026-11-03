@@ -13,6 +13,12 @@ function htmlVisible(html, origin) {
 }
 
 
+function segundosAviso(aviso) {
+  const n = Number(aviso?.segundosEnPantalla);
+  const base = Number.isFinite(n) && n > 0 ? n : 15;
+  return Math.min(120, Math.max(5, Math.round(base)));
+}
+
 function fechaLegible(ymd) {
   if (!ymd) return '';
   const [y, m, d] = ymd.split('-').map(Number);
@@ -38,6 +44,7 @@ export default function NoticiaDelDia({
   const [abierta, setAbierta] = useState(false);
   const [nuevasIds, setNuevasIds] = useState([]);
   const [flash, setFlash] = useState(null);
+  const [segundosRestantes, setSegundosRestantes] = useState(15);
   const rootRef = useRef(null);
   const tlRef = useRef(null);
 
@@ -133,36 +140,79 @@ export default function NoticiaDelDia({
 
   useEffect(() => {
     if (!flash) return undefined;
-    const total = Math.min(120, Math.max(5, Number(flash.segundosEnPantalla) || 15));
+    const total = segundosAviso(flash);
     const fin = Date.now() + total * 1000;
+    setSegundosRestantes(total);
     const id = setInterval(() => {
-      if (Date.now() >= fin) setFlash(null);
+      const msRestantes = fin - Date.now();
+      if (msRestantes <= 0) {
+        setSegundosRestantes(0);
+        setFlash(null);
+      } else {
+        setSegundosRestantes(Math.ceil(msRestantes / 1000));
+      }
     }, 200);
     return () => clearInterval(id);
   }, [flash]);
 
   const originPrevio = getServerBaseUrl();
+  const totalSegundos = flash ? segundosAviso(flash) : 15;
+  const porcentajeBarra = Math.max(0, Math.min(100, (segundosRestantes / totalSegundos) * 100));
   const avisoFlash = flash ? createPortal(
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-6">
-      <style>{`@keyframes noticiaVelo{from{opacity:0}to{opacity:1}}@keyframes noticiaHoja{from{opacity:0;transform:translateY(32px) scale(.96)}to{opacity:1;transform:none}}.noticia-velo{animation:noticiaVelo .35s ease-out both}.noticia-hoja{animation:noticiaHoja .5s cubic-bezier(.22,1,.36,1) both}@media (prefers-reduced-motion:reduce){.noticia-velo,.noticia-hoja{animation:none}}`}</style>
-      <button type="button" className="noticia-velo absolute inset-0 bg-black/70" onClick={() => setFlash(null)} aria-label="Cerrar aviso" />
+      <style>{`
+        @keyframes kdsAvisoEntrada {
+          from { opacity: 0; transform: translateY(20px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .kds-aviso-anim { animation: kdsAvisoEntrada 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @media (prefers-reduced-motion: reduce) {
+          .kds-aviso-anim { animation: none !important; transform: none !important; }
+        }
+      `}</style>
+      <button type="button" className="absolute inset-0 bg-black/70" onClick={() => setFlash(null)} aria-label="Cerrar aviso" />
       <div
-        className="noticia-hoja relative w-[min(100%,42rem)] max-h-[82vh] flex flex-col overflow-hidden rounded-2xl border border-amber-500/50 bg-gray-900 text-white shadow-[0_30px_80px_rgba(0,0,0,0.6)]"
+        className="kds-aviso-anim relative w-[min(100%,42rem)] max-h-[82vh] flex flex-col overflow-hidden rounded-2xl border-4 border-[#FFE14A] bg-[#000000] text-white shadow-[0_0_50px_rgba(255,225,74,0.35),0_30px_80px_rgba(0,0,0,0.9)]"
         role="dialog"
         aria-modal="true"
         aria-label={flash.titulo || 'Aviso'}
       >
-        <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-300" />
-        <div className="px-6 pt-5 pb-1">
-          <p className="text-xs uppercase tracking-wide text-amber-300 font-bold text-center">Aviso</p>
-          {flash.titulo ? <h2 className="text-3xl sm:text-4xl font-black leading-tight mt-1 text-center">{flash.titulo}</h2> : null}
+        <div className="px-6 pt-6 pb-4">
+          <p className="text-sm uppercase tracking-widest text-[#FFE14A] font-black text-center">Aviso</p>
+          {flash.titulo ? <h2 className="text-3xl sm:text-4xl font-black leading-tight mt-1.5 text-center text-white">{flash.titulo}</h2> : null}
         </div>
         <div
-          className="overflow-auto px-6 py-4 text-xl sm:text-2xl leading-snug [&_img]:max-w-full [&_img]:rounded-lg [&_p]:mb-2"
+          className="overflow-auto px-6 py-4 text-xl sm:text-2xl leading-snug text-white [&_strong]:font-black [&_strong]:text-[#FFE14A] [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-xl [&_img]:my-3 [&_p]:mb-2"
           dangerouslySetInnerHTML={{ __html: htmlVisible(flash.cuerpoHtml, originPrevio) }}
         />
-        <button type="button" onClick={() => setFlash(null)} className="m-5 min-h-[56px] rounded-xl bg-amber-500 text-black font-black text-lg">
-          Listo
+        <button
+          type="button"
+          onClick={() => setFlash(null)}
+          aria-label={`Listo. Se cierra en ${segundosRestantes} segundos`}
+          className="relative m-6 mt-3 flex flex-col overflow-hidden rounded-xl border-2 border-[#FFE14A] bg-transparent px-5 py-3 text-white active:scale-[0.99]"
+        >
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl font-black tracking-wide text-white">
+            Listo
+          </span>
+          <span
+            className="relative z-10 flex items-center justify-between gap-4"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className="rounded-md border border-[#FFE14A] bg-black px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[#FFE14A]">
+              se cierra en
+            </span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-4xl sm:text-5xl font-black tabular-nums leading-none text-[#FFE14A]">{segundosRestantes}</span>
+              <span className="text-lg sm:text-xl font-black text-[#FFE14A]">s</span>
+            </span>
+          </span>
+          <span className="relative z-10 mt-2 block h-1.5 w-full overflow-hidden rounded-full" aria-hidden="true">
+            <span
+              className="block h-full rounded-full bg-[#FFE14A] transition-[width] duration-200 ease-linear"
+              style={{ width: `${porcentajeBarra}%` }}
+            />
+          </span>
         </button>
       </div>
     </div>,
