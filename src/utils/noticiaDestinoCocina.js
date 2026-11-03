@@ -38,6 +38,16 @@ function pantallaCoincide(aviso, superficie) {
   return cocineros.length > 0 && mios.some((id) => cocineros.includes(id));
 }
 
+/** La tabla KDS suena aunque el aviso solo se pinte en un monitor o en caja. */
+export function noticiaSuenaEnTablaKds(aviso) {
+  const destinos = Array.isArray(aviso?.destinos) ? aviso.destinos : [];
+  const alcance = alcanceDe(aviso);
+  if (destinos.includes('caja') || alcance === 'caja') return true;
+  if (alcance === 'ninguna') return false;
+  if (destinos.length && !destinos.includes('cocina')) return false;
+  return alcance === 'kds' || alcance === 'pantallas' || alcance === 'todas';
+}
+
 export function noticiaAplicaEnPantalla(aviso, superficie) {
   const tipo = superficie?.tipo || 'kds';
   const destinos = Array.isArray(aviso?.destinos) ? aviso.destinos : [];

@@ -1,4 +1,4 @@
-const { noticiaAplicaEnPantalla } = require('./noticiaDestinoCocina');
+const { noticiaAplicaEnPantalla, noticiaSuenaEnTablaKds } = require('./noticiaDestinoCocina');
 
 const kds = { tipo: 'kds' };
 const monitor2 = { tipo: 'monitor', numeroPantalla: 2, cocineroId: 'cook-a' };
@@ -37,5 +37,18 @@ describe('noticiaAplicaEnPantalla', () => {
     const soloHub = { destinos: ['cocina'], cocinaAlcance: 'pantallas', pantallas: [2] };
     expect(noticiaAplicaEnPantalla(soloHub, monitor2)).toBe(true);
     expect(noticiaAplicaEnPantalla(soloHub, monitor4)).toBe(false);
+  });
+});
+
+describe('noticiaSuenaEnTablaKds', () => {
+  test('toda la cocina, la tabla, un monitor y la caja hacen sonar la tabla', () => {
+    expect(noticiaSuenaEnTablaKds({ destinos: ['cocina'], canal: 'todas' })).toBe(true);
+    expect(noticiaSuenaEnTablaKds({ destinos: ['cocina'], canal: 'kds' })).toBe(true);
+    expect(noticiaSuenaEnTablaKds({ destinos: ['cocina'], canal: 'pantallas', pantallas: [2] })).toBe(true);
+    expect(noticiaSuenaEnTablaKds({ destinos: ['caja'], canal: 'caja' })).toBe(true);
+  });
+
+  test('solo mozos no suena en la tabla', () => {
+    expect(noticiaSuenaEnTablaKds({ destinos: ['mozos'], cocinaAlcance: 'ninguna' })).toBe(false);
   });
 });

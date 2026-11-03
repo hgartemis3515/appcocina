@@ -4,7 +4,8 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getServerBaseUrl } from '../config/apiConfig';
 import { gsap, useGSAP } from '../utils/registerGsapPlugins';
-import { noticiaAplicaEnPantalla } from '../utils/noticiaDestinoCocina';
+import { noticiaAplicaEnPantalla, noticiaSuenaEnTablaKds } from '../utils/noticiaDestinoCocina';
+import { playKdsEventSound } from '../utils/kdsNotificationSounds';
 
 const KEY = 'gambusinas_noticias_vistas';
 
@@ -92,12 +93,20 @@ export default function NoticiaDelDia({
       auth: { token },
       transports: ['websocket', 'polling'],
     });
-    socket.on('noticia-publicada', (aviso) => { if (aplica(aviso)) cargar(); });
+    const sonarEnTabla = (aviso) => {
+      if (tipo !== 'kds' || !noticiaSuenaEnTablaKds(aviso)) return;
+      playKdsEventSound('nuevaComanda');
+    };
+    socket.on('noticia-publicada', (aviso) => {
+      if (aviso?.accion === 'creada') sonarEnTabla(aviso);
+      if (aplica(aviso)) cargar();
+    });
     socket.on('noticia-temporal', (aviso) => {
+      sonarEnTabla(aviso);
       if (aviso && (aviso.titulo || aviso.cuerpoHtml) && aplica(aviso)) setFlash(aviso);
     });
     return () => socket.disconnect();
-  }, [getToken, cargar, aplica]);
+  }, [getToken, cargar, aplica, tipo]);
 
   const { contextSafe } = useGSAP(() => {
     if (!abierta) return undefined;
