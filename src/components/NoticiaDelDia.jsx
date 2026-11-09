@@ -191,7 +191,7 @@ export default function NoticiaDelDia({
           {flash.titulo ? <h2 className="text-3xl sm:text-4xl font-black leading-tight mt-1.5 text-center text-white">{flash.titulo}</h2> : null}
         </div>
         <div
-          className="overflow-auto px-6 py-4 text-xl sm:text-2xl leading-snug text-white [&_strong]:font-black [&_strong]:text-[#FFE14A] [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-xl [&_img]:my-3 [&_p]:mb-2"
+          className="overflow-auto px-6 py-4 text-xl sm:text-2xl leading-snug text-white [&_strong]:font-black [&_strong]:text-[#FFE14A] [&_img]:block [&_img]:max-w-full [&_img]:max-h-64 [&_img]:w-auto [&_img]:h-auto [&_img]:object-contain [&_img]:rounded-xl [&_img]:my-3 [&_p]:mb-2"
           dangerouslySetInnerHTML={{ __html: htmlVisible(flash.cuerpoHtml, originPrevio) }}
         />
         <button
@@ -265,7 +265,7 @@ export default function NoticiaDelDia({
                 ) : null}
               </div>
               <div
-                className="text-base leading-relaxed [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                className="text-base leading-relaxed [&_img]:block [&_img]:max-w-full [&_img]:max-h-64 [&_img]:w-auto [&_img]:h-auto [&_img]:object-contain [&_img]:rounded-lg [&_img]:my-2 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
                 dangerouslySetInnerHTML={{ __html: htmlVisible(n.cuerpoHtml, origin) }}
               />
               {n.autor?.nombre ? <p className="text-[11px] text-gray-500 mt-2">— {n.autor.nombre}</p> : null}
