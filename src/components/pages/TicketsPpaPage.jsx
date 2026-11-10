@@ -378,6 +378,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         filtroPeriodo: filtroPeriodoRef.current,
         turnosLimaYMD: turnosMetaRef.current.turnosLimaYMD,
         _turnosAutoNocheHecho: turnosMetaRef.current._turnosAutoNocheHecho,
+        _periodoActivoVisto: turnosMetaRef.current._periodoActivoVisto,
       },
       data
     );
@@ -386,6 +387,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     setTurnosMeta({
       turnosLimaYMD: next.turnosLimaYMD,
       _turnosAutoNocheHecho: next._turnosAutoNocheHecho,
+      _periodoActivoVisto: next._periodoActivoVisto,
+      segmentos: next.segmentos || [],
     });
     if (next.filtroPeriodo !== filtroPeriodoRef.current) {
       setFiltroPeriodo(next.filtroPeriodo);
@@ -602,12 +605,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
+  const turnosSegmentos = turnosMeta.segmentos || [];
   const itemsEnPeriodo = useMemo(() => items.filter((t) => matchFechaRangoTicket(t.createdAt, {
     periodo: filtroPeriodo,
     primerCierreHoyAt,
     desde: fechaDesde,
     hasta: fechaHasta,
-  })), [items, filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta]);
+    segmentos: turnosSegmentos,
+  })), [items, filtroPeriodo, primerCierreHoyAt, fechaDesde, fechaHasta, turnosSegmentos]);
 
   const kpisPeriodo = useMemo(() => resumenKpisTickets(itemsEnPeriodo), [itemsEnPeriodo]);
   const kpisHeader = kpisCierre || {
@@ -677,6 +682,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         primerCierreHoyAt,
         desde: fechaDesde,
         hasta: fechaHasta,
+        segmentos: turnosSegmentos,
       }));
       setComandasPeriodo(delPeriodo);
       return delPeriodo;
@@ -1439,26 +1445,51 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {showTurnoDiaNoche && ['dia', 'noche'].map((id) => {
-              const Icono = id === 'dia' ? FaSun : FaMoon;
-              const on = filtroPeriodo === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setPeriodo(id)}
-                  style={{ fontSize: `${letraFiltro}px` }}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
-                    on
-                      ? 'bg-amber-600 text-white border-amber-400'
-                      : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
-                  }`}
-                >
-                  <Icono size={Math.max(16, letraFiltro)} />
-                  {id === 'dia' ? 'Día' : 'Noche'}
-                </button>
-              );
-            })}
+            {showTurnoDiaNoche && (
+              <button
+                type="button"
+                onClick={() => setPeriodo('dia')}
+                style={{ fontSize: `${letraFiltro}px` }}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
+                  filtroPeriodo === 'dia'
+                    ? 'bg-amber-600 text-white border-amber-400'
+                    : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                }`}
+              >
+                <FaSun size={Math.max(16, letraFiltro)} />
+                Día
+              </button>
+            )}
+            {turnosSegmentos.filter((s) => String(s.id).startsWith('caja-')).map((seg) => (
+              <button
+                key={seg.id}
+                type="button"
+                onClick={() => setPeriodo(seg.id)}
+                style={{ fontSize: `${letraFiltro}px` }}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
+                  filtroPeriodo === seg.id
+                    ? 'bg-emerald-600 text-white border-emerald-400'
+                    : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                }`}
+              >
+                {seg.label}
+              </button>
+            ))}
+            {showTurnoDiaNoche && (
+              <button
+                type="button"
+                onClick={() => setPeriodo('noche')}
+                style={{ fontSize: `${letraFiltro}px` }}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
+                  filtroPeriodo === 'noche'
+                    ? 'bg-amber-600 text-white border-amber-400'
+                    : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                }`}
+              >
+                <FaMoon size={Math.max(16, letraFiltro)} />
+                Noche
+              </button>
+            )}
             {PRESETS_PERIODO_TICKETS.map(({ id, label }) => {
               const iconos = {
                 hoy: FaCalendarDay,

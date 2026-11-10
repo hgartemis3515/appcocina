@@ -469,12 +469,38 @@ export function rangoFechasDePeriodo(periodo, customDesde, customHasta) {
   return { desde: hoy, hasta: hoy };
 }
 
+function instanteEnSegmento(t, key, { primerCierreHoyAt, segmentos }) {
+  const ymd = getFechaOperativa();
+  if (t < limaDayStart(ymd).getTime() || t > limaDayEnd(ymd).getTime()) return false;
+  const seg = (segmentos || []).find((s) => String(s.id).toLowerCase() === key);
+  if (!seg) {
+    const corte = primerCierreHoyAt ? new Date(primerCierreHoyAt).getTime() : NaN;
+    if (!Number.isFinite(corte)) return false;
+    if (key === 'dia') return t < corte;
+    if (key === 'noche') return t >= corte;
+    return false;
+  }
+  const desde = new Date(seg.desde).getTime();
+  const hasta = new Date(seg.hasta).getTime();
+  if (key === 'noche') {
+    if (t < desde || t > hasta) return false;
+    for (const ex of seg.excluir || []) {
+      const a = new Date(ex.desde).getTime();
+      const b = new Date(ex.hasta).getTime();
+      if (ex.abierto ? (t >= a && t <= b) : (t >= a && t < b)) return false;
+    }
+    return true;
+  }
+  return seg.abierto ? (t >= desde && t <= hasta) : (t >= desde && t < hasta);
+}
+
 /** Misma lógica que comandas.html matchFechaRango. */
 export function matchFechaRangoTicket(createdAt, {
   periodo = 'hoy',
   primerCierreHoyAt = null,
   desde = null,
   hasta = null,
+  segmentos = null,
 } = {}) {
   const key = String(periodo || 'hoy').toLowerCase();
   if (key === 'todos') return true;
@@ -482,13 +508,8 @@ export function matchFechaRangoTicket(createdAt, {
   const t = new Date(createdAt).getTime();
   if (!Number.isFinite(t)) return false;
 
-  if (key === 'dia' || key === 'noche') {
-    if (!primerCierreHoyAt) return false;
-    const corte = new Date(primerCierreHoyAt).getTime();
-    const ymd = getFechaOperativa();
-    if (t < limaDayStart(ymd).getTime() || t > limaDayEnd(ymd).getTime()) return false;
-    if (key === 'dia') return t < corte;
-    return t >= corte;
+  if (key === 'dia' || key === 'noche' || key.startsWith('caja-')) {
+    return instanteEnSegmento(t, key, { primerCierreHoyAt, segmentos });
   }
 
   const ymd = getFechaOperativa(createdAt);
@@ -553,18 +574,26 @@ export function nextTurnosCierreState(prev, data) {
   let autoNocheHecho = prev._turnosAutoNocheHecho === true;
   const diaCambio = prev.turnosLimaYMD && prev.turnosLimaYMD !== ymd;
 
+  const esTurno = (v) => v === 'dia' || v === 'noche' || String(v || '').startsWith('caja-');
   if (diaCambio) {
     autoNocheHecho = false;
-    if (filtroPeriodo === 'dia' || filtroPeriodo === 'noche') filtroPeriodo = 'hoy';
+    if (esTurno(filtroPeriodo)) filtroPeriodo = 'hoy';
   }
 
-  if (hay && !autoNocheHecho) {
-    filtroPeriodo = 'noche';
-    autoNocheHecho = true;
+  const segmentos = hay && Array.isArray(data.segmentos) ? data.segmentos : [];
+  const activo = mismoDia && data.periodoActivo ? data.periodoActivo : (hay ? 'noche' : 'hoy');
+  const visto = diaCambio ? '' : prev._periodoActivoVisto;
+  if (activo !== visto) {
+    if (activo === 'hoy') {
+      if (esTurno(filtroPeriodo)) filtroPeriodo = 'hoy';
+    } else {
+      filtroPeriodo = activo;
+    }
+    autoNocheHecho = hay;
   }
   if (!hay) {
     autoNocheHecho = false;
-    if (filtroPeriodo === 'dia' || filtroPeriodo === 'noche') filtroPeriodo = 'hoy';
+    if (esTurno(filtroPeriodo)) filtroPeriodo = 'hoy';
   }
 
   return {
@@ -574,6 +603,8 @@ export function nextTurnosCierreState(prev, data) {
     cierresHoyCount: cantidad,
     turnosLimaYMD: ymd,
     _turnosAutoNocheHecho: autoNocheHecho,
+    _periodoActivoVisto: activo,
+    segmentos,
   };
 }
 
