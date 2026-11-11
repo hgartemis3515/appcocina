@@ -96,7 +96,8 @@ describe('ticket cocina compacto', () => {
           { plato: { nombre: 'Ceviche', nombreCocina: 'Ceviche' }, cantidad: 1, precio: 28 },
         ],
         anulacion: { usuario: 'Admin', hora: '03/10/2026 12:00', motivo: 'Error' },
-        montoDescuento: 0,
+        montoDescuento: 5,
+        descuentos: [{ motivo: 'cortesía' }],
         total: 28,
       },
     });
@@ -105,8 +106,10 @@ describe('ticket cocina compacto', () => {
     expect(html).toContain('font-size:11px;font-weight:900;');
     expect(html).not.toContain('justify-content:space-between');
     expect(html).toContain('ANULADO X');
-    expect(html.indexOf('TOTAL S/.28.00')).toBeGreaterThan(-1);
-    expect(html.indexOf('ANULADO X')).toBeGreaterThan(html.indexOf('TOTAL S/.28.00'));
+    expect(html).toContain('TOTAL S/.0.00');
+    expect(html).not.toContain('TOTAL S/.28.00');
+    expect(html).not.toContain('Descuento');
+    expect(html.indexOf('ANULADO X')).toBeGreaterThan(html.indexOf('TOTAL S/.0.00'));
   });
 
   test('PRUEBA solo si la comanda es de prueba', () => {
