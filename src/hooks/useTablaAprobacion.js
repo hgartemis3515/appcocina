@@ -122,7 +122,7 @@ export default function useTablaAprobacion({
       if (incluirHistorial) {
         const { desde, hasta } = clampRangoFechas(fechaDesde, fechaHasta);
         try {
-          const todosData = await apiGet(`/api/aprobacion/fecha/${desde}`, { hasta });
+          const todosData = await apiGet(`/api/aprobacion/fecha/${desde}`, { hasta, incluirReservasAnuladas: '1' });
           if (todosData?.success && Array.isArray(todosData.tickets)) {
             historial = todosData.tickets.map(normalizeTicket);
           }

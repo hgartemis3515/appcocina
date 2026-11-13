@@ -109,6 +109,20 @@ export function estiloCuerpoReservaTickets() {
   };
 }
 
+/** Anulada automática: rojo, no el rosa de una reserva vigente. */
+export function estiloCuerpoReservaAnuladaTickets() {
+  return {
+    backgroundColor: '#dc2626',
+    boxShadow: 'inset 0 0 0 2px #7f1d1d',
+  };
+}
+
+export function estiloCuerpoSegunReserva({ anulada = false, reserva = false } = {}) {
+  if (anulada) return estiloCuerpoReservaAnuladaTickets();
+  if (reserva) return estiloCuerpoReservaTickets();
+  return undefined;
+}
+
 export function estilosTextoTicketsTabla(prefs = {}) {
   const v = normalizeTicketsTablaVisual(prefs);
   const meta = Math.max(TICKETS_TABLA_TEXTO_TAMANO_MIN, v.textoTamano - 2);

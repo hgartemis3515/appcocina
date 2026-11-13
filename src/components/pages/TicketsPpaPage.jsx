@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag, FaCheck, FaTimes, FaClock, FaUtensils, FaUser,
   FaMoneyBill, FaArrowLeft, FaSyncAlt, FaFilter, FaExclamationTriangle, FaPrint, FaTrash, FaCog,
-  FaCalendarDay, FaHistory, FaCalendarWeek, FaLayerGroup, FaSlidersH, FaSun, FaMoon,
+  FaCalendarDay, FaHistory, FaCalendarWeek, FaLayerGroup, FaSlidersH, FaSun, FaMoon, FaBookmark,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
@@ -40,8 +40,9 @@ import {
   rangoConsultaDesglose,
   ticketEsParaLlevar,
   ticketEsReserva,
+  ticketReservaAnulada,
 } from '../../utils/ticketAprobacionUi';
-import { estiloCuerpoParaLlevarTickets, estiloCuerpoReservaTickets, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
+import { estiloCuerpoParaLlevarTickets, estiloCuerpoSegunReserva, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
 import { platosTicketVisibles, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos, totalesVistaTicket } from '../../utils/ticketTotales';
 import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
 import { apiGet, apiPost } from '../../config/apiClient';
@@ -622,13 +623,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   };
 
   const itemsPorEstado = useMemo(() => {
-    if (filtro === 'pendientes') return itemsEnPeriodo.filter(t => t.estado === 'pendiente_aprobacion');
-    if (filtro === 'aprobados') return itemsEnPeriodo.filter(t => t.estado === 'aprobado');
-    if (filtro === 'reportados') return itemsEnPeriodo.filter(t => t.estado === 'reportado');
-    if (filtro === 'comandas') return itemsEnPeriodo.filter(t => t.tipo === 'comanda_completa');
-    if (filtro === 'adelantados') return itemsEnPeriodo.filter(t => t.tipo === 'pago_adelantado');
-    if (filtro === 'parciales') return itemsEnPeriodo.filter(t => t.tipo === 'pago_parcial');
-    return itemsEnPeriodo;
+    if (filtro === 'reservas') return itemsEnPeriodo.filter(ticketEsReserva);
+    const vigentes = itemsEnPeriodo.filter((t) => !ticketReservaAnulada(t));
+    if (filtro === 'pendientes') return vigentes.filter(t => t.estado === 'pendiente_aprobacion');
+    if (filtro === 'aprobados') return vigentes.filter(t => t.estado === 'aprobado');
+    if (filtro === 'reportados') return vigentes.filter(t => t.estado === 'reportado');
+    if (filtro === 'comandas') return vigentes.filter(t => t.tipo === 'comanda_completa');
+    if (filtro === 'adelantados') return vigentes.filter(t => t.tipo === 'pago_adelantado');
+    if (filtro === 'parciales') return vigentes.filter(t => t.tipo === 'pago_parcial');
+    return vigentes;
   }, [itemsEnPeriodo, filtro]);
 
   const mozosDisponibles = useMemo(
@@ -939,10 +942,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const estadoComanda = estadoEntregaComandaTicket(ticket);
                 const selEliminar = modoEliminar && idsEliminar.includes(String(ticket._id));
                 const esReserva = ticketEsReserva(ticket);
+                const esAnulada = ticketReservaAnulada(ticket);
                 const esParaLlevar = !esReserva && ticketEsParaLlevar(ticket);
-                const estiloCuerpoPL = esReserva
-                  ? estiloCuerpoReservaTickets()
-                  : (esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
+                const estiloCuerpoPL = estiloCuerpoSegunReserva({ anulada: esAnulada, reserva: esReserva })
+                  || (esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
                 const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-gray-700';
                 return (
                   <motion.div
@@ -952,11 +955,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     exit={{ opacity: 0, y: -20 }}
                     onClick={() => { if (modoEliminar) toggleSeleccionTickets(ticket); }}
                     className={`bg-gray-800 ${tablaPrefs.aprovechador ? 'rounded-none shadow-none' : 'rounded-xl shadow-lg'} border overflow-hidden ${
-                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-gray-700'
+                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : esAnulada ? 'border-red-500' : 'border-gray-700'
                     } ${modoEliminar ? 'cursor-pointer' : ''}`}
                   >
                     {/* Header del card */}
                     <div className={`p-3 ${
+                      esAnulada ? 'bg-red-700/50 border-b border-red-400' :
                       ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-600/20 border-b border-yellow-500/30' :
                       ticket.estado === 'aprobado' ? 'bg-green-600/20 border-b border-green-500/30' :
                       ticket.estado === 'reportado' ? 'bg-red-600/20 border-b border-red-500/30' :
@@ -1411,6 +1415,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               { key: 'reportados', label: 'Reportados', icon: FaExclamationTriangle },
               { key: 'todos', label: 'Todos', icon: FaFilter },
               { key: 'comandas', label: 'Comandas', icon: FaUtensils },
+              { key: 'reservas', label: 'Reserva', icon: FaBookmark },
               { key: 'parciales', label: 'Parciales', icon: FaShoppingBag },
               { key: 'adelantados', label: 'Adelantados', icon: FaMoneyBill },
             ].map(({ key, label, icon: Icon }) => (
@@ -1421,8 +1426,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 style={{ fontSize: `${letraFiltro}px` }}
                 className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-colors border
                   ${filtro === key
-                    ? 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-900/40'
-                    : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600'}`}
+                    ? (key === 'reservas'
+                      ? 'bg-red-600 text-white border-red-300 shadow-md shadow-red-950/50'
+                      : 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-900/40')
+                    : (key === 'reservas'
+                      ? 'bg-red-950/80 text-red-100 hover:bg-red-800 hover:text-white border-red-600'
+                      : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600')}`}
               >
                 <Icon size={Math.max(16, letraFiltro)} />
                 {label}
@@ -1580,7 +1589,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             emptyLabel={
               filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro === 'reservas' ? 'de reserva' : filtro}`
             }
             sortBy={sortBy}
             sortDir={sortDir}
@@ -1615,7 +1624,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             emptyLabel={
               filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro === 'reservas' ? 'de reserva' : filtro}`
             }
             mozoFilter={filtroMozo}
             mozosDisponibles={mozosDisponibles}
@@ -1652,7 +1661,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <p className="text-gray-400 text-lg">
               {filtroMozo
                 ? `Sin tickets del mozo "${mozosDisponibles.find((m) => m.key === filtroMozo)?.nombre || filtroMozo}"`
-                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro}`}
+                : `Sin tickets ${filtro === 'aprobados' ? 'cobrados' : filtro === 'reservas' ? 'de reserva' : filtro}`}
             </p>
           </div>
         ) : (
@@ -1671,9 +1680,9 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   const grupoSel = modoEliminar && fila.tickets.every((t) => idsEliminar.includes(String(t._id)));
                   const extraLlevar = fila.tickets.some(ticketTieneExtraLlevar);
                   const grupoReserva = fila.tickets.some(ticketEsReserva);
-                  const estiloGrupo = grupoReserva
-                    ? estiloCuerpoReservaTickets()
-                    : (fila.tickets.some(ticketEsParaLlevar) ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
+                  const grupoAnulado = fila.tickets.length > 0 && fila.tickets.every(ticketReservaAnulada);
+                  const estiloGrupo = estiloCuerpoSegunReserva({ anulada: grupoAnulado, reserva: grupoReserva })
+                    || (fila.tickets.some(ticketEsParaLlevar) ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
                   const forzablesGrupo = ticketsForzablesDeGrupo(fila.tickets);
                   const solicitudesGrupo = fila.tickets.filter((t) => {
                     if (!ticketPuedeAprobarse(t)) return false;
@@ -1712,7 +1721,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         grupoSel ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-amber-500/50'
                       } ${modoEliminar ? 'cursor-pointer' : ''}`}
                     >
-                      <div className="p-3 bg-amber-600/20 border-b border-amber-500/40">
+                      <div className={`p-3 border-b ${grupoAnulado ? 'bg-red-700/50 border-red-400' : 'bg-amber-600/20 border-amber-500/40'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"

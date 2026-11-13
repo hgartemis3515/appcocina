@@ -1,11 +1,21 @@
 import {
   estiloCuerpoParaLlevarTickets,
+  estiloCuerpoReservaAnuladaTickets,
+  estiloCuerpoSegunReserva,
   estilosTextoTicketsTabla,
   normalizeTicketsTablaVisual,
   TICKETS_TABLA_VISUAL_DEFAULT,
 } from './estiloTicketsTabla';
 
 describe('estiloTicketsTabla', () => {
+  test('reserva anulada es roja, no rosa', () => {
+    const st = estiloCuerpoReservaAnuladaTickets();
+    expect(st.backgroundColor).toBe('#dc2626');
+    expect(st.backgroundColor).not.toBe('#be185d');
+    expect(estiloCuerpoSegunReserva({ anulada: true, reserva: true }).backgroundColor).toBe('#dc2626');
+    expect(estiloCuerpoSegunReserva({ reserva: true }).backgroundColor).toBe('#be185d');
+  });
+
   test('cuerpo para llevar usa fondo y contorno', () => {
     const st = estiloCuerpoParaLlevarTickets({
       paraLlevarFondo: '#7c3aed',

@@ -278,7 +278,14 @@ const META_PENDIENTE_APROBACION = {
   bg: 'bg-yellow-500/30 text-yellow-200 border border-yellow-500/40',
 };
 
+const META_RESERVA_ANULADA = {
+  label: 'Anulada',
+  entregado: false,
+  bg: 'bg-red-600 text-white border border-red-300',
+};
+
 export function estadoVisibleTicket(ticket, entrega) {
+  if (ticketReservaAnulada(ticket)) return META_RESERVA_ANULADA;
   if (ticket?.estado === 'pendiente_aprobacion') return META_PENDIENTE_APROBACION;
   return entrega || META_ENTREGA_NO;
 }
@@ -286,6 +293,7 @@ export function estadoVisibleTicket(ticket, entrega) {
 export function estadoVisibleTickets(tickets) {
   const list = Array.isArray(tickets) ? tickets : [];
   if (list.some((t) => t?.estado === 'pendiente_aprobacion')) return META_PENDIENTE_APROBACION;
+  if (list.length && list.every(ticketReservaAnulada)) return META_RESERVA_ANULADA;
   return estadoEntregaTickets(list);
 }
 
@@ -371,6 +379,12 @@ export function ticketEsReserva(ticket) {
   return (ticket.comandas || []).some((c) => c && (
     c.origenCreacion === 'reserva' || c.origenReserva || c.programadaPorReserva === true
   ));
+}
+
+/** Reserva que no se cobró y quedó rechazada (anulación automática de caja). */
+export function ticketReservaAnulada(ticket) {
+  if (!ticketEsReserva(ticket)) return false;
+  return String(ticket.estado || '').toLowerCase() === 'rechazado';
 }
 
 /** Solo morado si el ticket es 100% para llevar. Sin evidencia, queda el color normal. */

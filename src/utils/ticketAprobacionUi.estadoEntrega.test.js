@@ -1,4 +1,4 @@
-import { estadoEntregaComandaTicket, estadoEntregaTickets, rangoConsultaDesglose, rangoFechasDePeriodo } from './ticketAprobacionUi';
+import { estadoEntregaComandaTicket, estadoEntregaTickets, estadoVisibleTicket, rangoConsultaDesglose, rangoFechasDePeriodo, ticketReservaAnulada } from './ticketAprobacionUi';
 
 describe('estadoEntregaComandaTicket', () => {
   test('comanda pagada y mesa libre → ENTREGADO (como comandas.html)', () => {
@@ -66,6 +66,16 @@ describe('estadoEntregaComandaTicket', () => {
       comandas: [{ status: 'en_espera', platos: [{ estado: 'entregado' }] }],
     });
     expect(meta.entregado).toBe(true);
+  });
+
+  test('reserva rechazada se muestra Anulada en rojo', () => {
+    const ticket = { origen: 'reserva', estado: 'rechazado', tipo: 'pago_adelantado' };
+    expect(ticketReservaAnulada(ticket)).toBe(true);
+    expect(ticketReservaAnulada({ origen: 'reserva', estado: 'aprobado' })).toBe(false);
+    const meta = estadoVisibleTicket(ticket, { label: 'Pendiente', entregado: false });
+    expect(meta.label).toBe('Anulada');
+    expect(meta.bg).toContain('bg-red-600');
+    expect(meta.bg).not.toContain('rose');
   });
 
   test('estadoEntregaTickets exige todas las filas entregadas', () => {

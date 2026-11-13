@@ -10,11 +10,11 @@ import {
   formatCurrency, formatDateTime, labelPagoTicket, tipoBadge, etiquetaMesaTicket,
   esTicketComanda, esPagoParcial,
   nombresClienteDeTicket, nombresClienteDeTickets,
-  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago, ticketEsReserva,
+  ticketPuedeAprobarse, ticketPuedeForzarPago, ticketsForzablesDeGrupo, ticketEsAltaSinPago, ticketEsReserva, ticketReservaAnulada,
   estadoEntregaComandaTicket, estadoVisibleTicket, estadoVisibleTickets, ticketTieneExtraLlevar,
 } from '../../utils/ticketAprobacionUi';
 import PlatoTicketItem from './PlatoTicketItem';
-import { estiloCuerpoReservaTickets } from '../../utils/estiloTicketsTabla';
+import { estiloCuerpoSegunReserva } from '../../utils/estiloTicketsTabla';
 import TicketComandaDetalleModal from './TicketComandaDetalleModal';
 import { platosTicketVisibles, saldoPendienteTicket, totalesVistaTicket } from '../../utils/ticketTotales';
 import {
@@ -204,7 +204,10 @@ function FilaTicketAvanzado({
         seleccionActiva,
         resaltadoVerde: pintado,
       })}
-      style={ticketEsReserva(ticket) ? estiloCuerpoReservaTickets() : undefined}
+      style={estiloCuerpoSegunReserva({
+        anulada: ticketReservaAnulada(ticket),
+        reserva: ticketEsReserva(ticket),
+      })}
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
     >
       {seleccionActiva && (
@@ -528,7 +531,10 @@ export default function TicketsAprobacionTable({
                       esGrupo: true,
                       resaltadoVerde: grupoPintado,
                     })}
-                    style={fila.tickets.some(ticketEsReserva) ? estiloCuerpoReservaTickets() : undefined}
+                    style={estiloCuerpoSegunReserva({
+                      anulada: fila.tickets.length > 0 && fila.tickets.every(ticketReservaAnulada),
+                      reserva: fila.tickets.some(ticketEsReserva),
+                    })}
                     onClick={() => { if (seleccionActiva) onToggleSeleccion?.(fila.tickets); }}
                   >
                     {seleccionActiva && (
