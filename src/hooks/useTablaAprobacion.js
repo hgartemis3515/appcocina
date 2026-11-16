@@ -34,6 +34,7 @@ import { apiGet, apiPut } from '../config/apiClient';
 import { io } from 'socket.io-client';
 import { imprimirComandaDesdeTicket } from '../utils/comandaPrint/comandaPrintWeb';
 import { aplicarTotalNetoTicket } from '../utils/ticketTotales';
+import { aplicarMarcasFactura, listarMarcasFacturadas } from '../utils/facturacionCobro';
 import { clampRangoFechas, loadTicketsTablaPrefs } from '../utils/ticketAprobacionUi';
 
 const TICKETS_REFRESH_INTERVAL = 30000;
@@ -144,7 +145,14 @@ export default function useTablaAprobacion({
         }
       }
 
-      setItems([...byId.values()]);
+      let marcas = [];
+      try {
+        marcas = await listarMarcasFacturadas();
+      } catch (marcaErr) {
+        console.warn('[TablaAprobacion] No se leyeron comprobantes:', marcaErr.message);
+      }
+
+      setItems(aplicarMarcasFactura([...byId.values()], marcas));
       setError(null);
 
       try {
@@ -155,7 +163,7 @@ export default function useTablaAprobacion({
             const newPpaTickets = ppaData.tickets
               .map(normalizeTicket)
               .filter((t) => !existingIds.has(String(t._id)));
-            return [...prev, ...newPpaTickets];
+            return aplicarMarcasFactura([...prev, ...newPpaTickets], marcas);
           });
         }
       } catch (ppaErr) {
@@ -681,6 +689,16 @@ export default function useTablaAprobacion({
     }
   }, []);
 
+  const anotarComprobante = useCallback((ticketIds, marca) => {
+    if (!marca?.serieNumero) return;
+    const ids = new Set((ticketIds || []).map((id) => String(id)));
+    setItems((prev) => prev.map((t) => (
+      ids.has(String(t._id))
+        ? { ...t, comprobanteSerieNumero: marca.serieNumero, comprobanteTipo: marca.tipo }
+        : t
+    )));
+  }, []);
+
   const isPendiente = (t) => t.estado === 'pendiente_aprobacion';
   const cantidadPendientes = items.filter(isPendiente).length;
   const cantidadComandas = items.filter(t => t.tipo === 'comanda_completa' && isPendiente(t)).length;
@@ -702,6 +720,7 @@ export default function useTablaAprobacion({
     quitarDuplicadoItem,
     forzarPagoItem,
     forzarPagoGrupo,
+    anotarComprobante,
     imprimirComanda,
     cantidadPendientes,
     cantidadComandas,

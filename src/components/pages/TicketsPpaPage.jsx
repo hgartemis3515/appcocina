@@ -44,7 +44,8 @@ import {
 } from '../../utils/ticketAprobacionUi';
 import { estiloCuerpoParaLlevarTickets, estiloCuerpoSegunReserva, estilosTextoTicketsTabla } from '../../utils/estiloTicketsTabla';
 import { platosTicketVisibles, resumenKpisTickets, saldoPendienteTicket, saldoPendienteTicketsUnicos, totalesVistaTicket } from '../../utils/ticketTotales';
-import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
+import CobroFacturacionModal from '../common/CobroFacturacionModal';
+import { emitirComprobanteTicket, idsTicketsCobro } from '../../utils/facturacionCobro';
 import { apiGet, apiPost } from '../../config/apiClient';
 import { imprimirDatosTicketKds } from '../../utils/imprimirTicketCocinaKds';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -321,7 +322,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     turnosLimaYMD: hoyOp,
     _turnosAutoNocheHecho: false,
   });
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, quitarDuplicadoItem, forzarPagoItem, forzarPagoGrupo, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, quitarDuplicadoItem, forzarPagoItem, forzarPagoGrupo, anotarComprobante, imprimirComanda, connectionStatus, authError } = useTablaAprobacion({
     fechaDesde,
     fechaHasta,
     incluirHistorial: true,
@@ -361,7 +362,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   const [filtroDetalleDraft, setFiltroDetalleDraft] = useState({ numero: '', mesa: '' });
   const [showFiltroDetalle, setShowFiltroDetalle] = useState(false);
   const [forzarPagoLoading, setForzarPagoLoading] = useState({});
-  const [ticketForzarPago, setTicketForzarPago] = useState(null);
+  const [cobroModal, setCobroModal] = useState(null);
+  const emitidoCobroRef = useRef(null);
   const [modoEliminar, setModoEliminar] = useState(false);
   const [idsEliminar, setIdsEliminar] = useState([]);
   const [motivoEliminarLote, setMotivoEliminarLote] = useState('Ticket duplicado');
@@ -458,24 +460,6 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     setTablaPrefs((prev) => saveTicketsTablaPrefs({ ...prev, ...patch }));
   };
 
-  const handleAprobar = async (ticket) => {
-    if (!ticketPuedeAprobarse(ticket)) {
-      alert('Este ticket aún no tiene cobro. Use Forzar cobro o espere la solicitud del mozo.');
-      return;
-    }
-    if (aprobarLoading[ticket._id]) return;
-    setAprobarLoading(prev => ({ ...prev, [ticket._id]: true }));
-    try {
-      const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.tipo === 'ADELANTADO') ? 'ADELANTADO' : 'COMANDA';
-      const result = await aprobarItem(ticket._id, ticketTipo, user?._id || user?.id, user?.name || 'Cocina');
-      if (result?.alreadyApproved || result?.skipped) return;
-    } catch (err) {
-      alert('Error al aprobar: ' + (err.userMessage || err.message));
-    } finally {
-      setAprobarLoading(prev => ({ ...prev, [ticket._id]: false }));
-    }
-  };
-
   const handleReportar = async (ticketId) => {
     const motivo = (reportarMotivo[ticketId] || '').trim();
     if (motivo.length < 3) {
@@ -562,47 +546,82 @@ export default function TicketsPpaPage({ onGoToMenu }) {
     }
   };
 
-  const abrirForzarPago = (ticket) => {
+  const abrirCobro = (ticket, mode = 'cobrar') => {
     if (!ticket) return;
-    if (ticket._esGrupoComandas) {
-      const cobro = ticketParaCobroGrupo(ticket._grupoTickets);
-      if (!cobro) {
+    if (mode === 'cobrar' && !ticketPuedeAprobarse(ticket)) {
+      alert('Este ticket aún no tiene cobro. Use Forzar cobro o espere la solicitud del mozo.');
+      return;
+    }
+    let destino = ticket;
+    if (mode === 'forzar' && ticket._esGrupoComandas) {
+      destino = ticketParaCobroGrupo(ticket._grupoTickets);
+      if (!destino) {
         alert('Ninguna comanda del grupo se puede forzar.');
         return;
       }
-      setTicketForzarPago(cobro);
-      return;
     }
-    setTicketForzarPago(ticket);
+    emitidoCobroRef.current = null;
+    setCobroModal({ ticket: destino, mode });
   };
 
-  const handleForzarPago = async (pago) => {
-    const ticket = ticketForzarPago;
+  const abrirForzarPago = (ticket) => abrirCobro(ticket, 'forzar');
+
+  const handleConfirmCobro = async (payload) => {
+    const ticket = cobroModal?.ticket;
     if (!ticket) return;
-    const idsGrupo = ticket._esGrupoComandas
-      ? (ticket._grupoTickets || []).map((t) => t._id).filter(Boolean)
-      : null;
-    const loadingIds = idsGrupo?.length ? idsGrupo : [ticket._id];
-    setForzarPagoLoading((prev) => {
-      const next = { ...prev };
-      loadingIds.forEach((id) => { next[id] = true; });
-      return next;
-    });
-    try {
-      if (idsGrupo && idsGrupo.length > 1) {
-        await forzarPagoGrupo(idsGrupo, pago, user?._id || user?.id, user?.name || 'Cocina');
+    const ids = idsTicketsCobro(ticket);
+    const loadingIds = ids.length ? ids : [ticket._id];
+    const marcarCarga = (on) => {
+      if (payload.mode === 'forzar') {
+        setForzarPagoLoading((prev) => {
+          const next = { ...prev };
+          loadingIds.forEach((id) => { next[id] = on; });
+          return next;
+        });
       } else {
-        await forzarPagoItem(ticket._id, pago, user?._id || user?.id, user?.name || 'Cocina');
+        setAprobarLoading((prev) => {
+          const next = { ...prev };
+          loadingIds.forEach((id) => { next[id] = on; });
+          return next;
+        });
       }
-      setTicketForzarPago(null);
-    } catch (err) {
-      alert('Error al forzar pago: ' + (err.userMessage || err.message));
+    };
+    marcarCarga(true);
+    const cajero = user?.name || 'Cocina';
+    const usuarioId = user?._id || user?.id;
+    try {
+      let marca = emitidoCobroRef.current;
+      if (!marca && payload.sincronizarFacturacion && payload.tipoComprobante !== 'ninguno') {
+        marca = await emitirComprobanteTicket(ticket, payload, cajero, payload.pinSupervisor, payload.totalFiscal);
+        emitidoCobroRef.current = marca;
+        anotarComprobante(ids, marca);
+      }
+      const pago = {
+        metodoPago: payload.metodoPago,
+        montoRecibido: payload.montoRecibido,
+        vuelto: payload.vuelto,
+        motivo: payload.referenciaPago || null,
+      };
+      try {
+        if (payload.mode === 'forzar') {
+          if (ids.length > 1) await forzarPagoGrupo(ids, pago, usuarioId, cajero);
+          else await forzarPagoItem(ticket._id, pago, usuarioId, cajero);
+        } else {
+          const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.tipo === 'ADELANTADO') ? 'ADELANTADO' : 'COMANDA';
+          await aprobarItem(ticket._id, ticketTipo, usuarioId, cajero);
+        }
+      } catch (err) {
+        const msg = err.userMessage || err.message;
+        if (marca?.serieNumero) {
+          const e = new Error(`El comprobante ${marca.serieNumero} ya se emitió. El cobro de caja no se cerró: ${msg}`);
+          e.marca = marca;
+          throw e;
+        }
+        throw err;
+      }
+      setCobroModal(null);
     } finally {
-      setForzarPagoLoading((prev) => {
-        const next = { ...prev };
-        loadingIds.forEach((id) => { next[id] = false; });
-        return next;
-      });
+      marcarCarga(false);
     }
   };
 
@@ -1127,7 +1146,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         )}
                         {puedeGestionarTickets && ticketPuedeAprobarse(ticket) && (
                         <button
-                          onClick={() => handleAprobar(ticket)}
+                          onClick={() => abrirCobro(ticket)}
                           disabled={aprobarLoading[ticket._id]}
                           className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500
                             disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-[13px] font-extrabold leading-tight"
@@ -1586,7 +1605,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             sortDir={sortDir}
             onSortChange={handleSortChange}
             onImprimir={handleImprimir}
-            onAprobar={puedeGestionarTickets ? handleAprobar : undefined}
+            onAprobar={puedeGestionarTickets ? abrirCobro : undefined}
             onReportar={puedeGestionarTickets ? (ticket) => {
               setShowReportarModal(ticket._id);
               setReportarMotivo((prev) => ({ ...prev, [ticket._id]: '' }));
@@ -1621,7 +1640,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             mozosDisponibles={mozosDisponibles}
             onMozoFilterChange={setFiltroMozo}
             onImprimir={handleImprimir}
-            onAprobar={puedeGestionarTickets ? handleAprobar : undefined}
+            onAprobar={puedeGestionarTickets ? abrirCobro : undefined}
             onReportar={puedeGestionarTickets ? (ticket) => {
               setShowReportarModal(ticket._id);
               setReportarMotivo((prev) => ({ ...prev, [ticket._id]: '' }));
@@ -1688,7 +1707,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         key={sol._id}
                         type="button"
                         disabled={aprobarLoading[sol._id]}
-                        onClick={(e) => { e.stopPropagation(); handleAprobar(sol); }}
+                        onClick={(e) => { e.stopPropagation(); abrirCobro(sol); }}
                         className={`text-[11px] px-2 py-1 rounded-md font-semibold border inline-flex items-center justify-center gap-1 ${
                           esParcial
                             ? 'bg-amber-500/30 text-amber-200 border-amber-500/40 hover:bg-amber-500/50'
@@ -1872,12 +1891,16 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         </div>
       </main>
 
-      {ticketForzarPago && (
-        <ForzarPagoTicketModal
-          ticket={ticketForzarPago}
-          loading={!!forzarPagoLoading[ticketForzarPago._id]}
-          onClose={() => setTicketForzarPago(null)}
-          onConfirm={handleForzarPago}
+      {cobroModal && (
+        <CobroFacturacionModal
+          ticket={cobroModal.ticket}
+          mode={cobroModal.mode}
+          ocultarGuarniciones={tablaPrefs.ocultarGuarniciones}
+          loading={cobroModal.mode === 'forzar'
+            ? !!(forzarPagoLoading[cobroModal.ticket._id] || idsTicketsCobro(cobroModal.ticket).some((id) => forzarPagoLoading[id]))
+            : !!aprobarLoading[cobroModal.ticket._id]}
+          onClose={() => setCobroModal(null)}
+          onConfirm={handleConfirmCobro}
         />
       )}
 

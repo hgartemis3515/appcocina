@@ -3,7 +3,7 @@
  * Renombrado: "Comandas y adelantados" (anteriormente "Tickets PPA")
  * Ahora incluye: Aprobar, Reportar (comandas), Imprimir
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaCheck, FaTimes, FaClock, FaUtensils, FaShoppingBag, FaUser, FaMoneyBill, FaPrint, FaExclamationTriangle } from 'react-icons/fa';
 import useTablaAprobacion from '../../hooks/useTablaAprobacion';
@@ -12,7 +12,8 @@ import SocketConnectionBadge from '../common/SocketConnectionBadge';
 import { getComandaDisplayLabel, getCantidadComandas, getInfoTicketMismaComanda } from '../../utils/ticketComandaDisplay';
 import PlatoTicketItem from '../common/PlatoTicketItem';
 import { platosTicketVisibles, totalesVistaTicket, saldoPendienteTicket } from '../../utils/ticketTotales';
-import ForzarPagoTicketModal from '../common/ForzarPagoTicketModal';
+import CobroFacturacionModal from '../common/CobroFacturacionModal';
+import { emitirComprobanteTicket, idsTicketsCobro } from '../../utils/facturacionCobro';
 import BadgeNombreMozo from '../common/BadgeNombreMozo';
 import { ticketPuedeAprobarse, ticketPuedeForzarPago, ticketEsAltaSinPago } from '../../utils/ticketAprobacionUi';
 import BotonCandadoCocina from '../common/BotonCandadoCocina';
@@ -44,7 +45,7 @@ export default function PpaSidebar({ socket, onClose }) {
   // PLAN_BUG_CONEXION_APROBACION_TICKETS_COCINA:
   // Reutilizar el socket del KDS (vía prop) para evitar una SEGUNDA conexión
   // /cocina simultánea que provocaba desconexiones y tormenta de eventos.
-  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, forzarPagoItem, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({ socket });
+  const { items, loading, error, fetchItems, aprobarItem, reportarItem, rechazarItem, forzarPagoItem, anotarComprobante, imprimirComanda, cantidadPendientes, cantidadComandas, cantidadParciales, cantidadPPA, connectionStatus, authError } = useTablaAprobacion({ socket });
   const [aprobarLoading, setAprobarLoading] = useState({});
   const [reportarLoading, setReportarLoading] = useState({});
   const [rechazarLoading, setRechazarLoading] = useState({});
@@ -52,28 +53,64 @@ export default function PpaSidebar({ socket, onClose }) {
   const [rechazarMotivo, setRechazarMotivo] = useState({});
   const [showReportarModal, setShowReportarModal] = useState(null);
   const [showRechazarModal, setShowRechazarModal] = useState(null);
-  const [ticketForzarPago, setTicketForzarPago] = useState(null);
+  const [cobroModal, setCobroModal] = useState(null);
+  const emitidoCobroRef = useRef(null);
   const [forzarPagoLoading, setForzarPagoLoading] = useState({});
 
-  const handleAprobar = async (ticket) => {
-    const ticketId = ticket._id;
-    if (!ticketPuedeAprobarse(ticket)) {
+  const nombreCaja = () => localStorage.getItem('userName') || localStorage.getItem('cocineroName') || user?.name || 'Cocina';
+  const idCaja = () => localStorage.getItem('userId') || localStorage.getItem('cocineroId') || user?._id || user?.id || '';
+
+  const abrirCobro = (ticket, mode = 'cobrar') => {
+    if (!ticket) return;
+    if (mode === 'cobrar' && !ticketPuedeAprobarse(ticket)) {
       alert('Este ticket aún no tiene cobro. Use Forzar cobro o espere la solicitud del mozo.');
       return;
     }
-    if (aprobarLoading[ticketId]) return;
-    setAprobarLoading(prev => ({ ...prev, [ticketId]: true }));
+    emitidoCobroRef.current = null;
+    setCobroModal({ ticket, mode });
+  };
+
+  const handleConfirmCobro = async (payload) => {
+    const ticket = cobroModal?.ticket;
+    if (!ticket) return;
+    const ids = idsTicketsCobro(ticket);
+    const on = (v) => {
+      if (payload.mode === 'forzar') setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: v }));
+      else setAprobarLoading((prev) => ({ ...prev, [ticket._id]: v }));
+    };
+    on(true);
     try {
-      const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
-      const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
-      const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.origen === 'reserva') ? 'ADELANTADO' : 'COMANDA';
-      const result = await aprobarItem(ticketId, ticketTipo, userId, userName);
-      if (result?.alreadyApproved || result?.skipped) return;
-    } catch (err) {
-      console.error('Error al aprobar:', err);
-      alert('Error al aprobar el ticket: ' + (err.userMessage || err.message));
+      let marca = emitidoCobroRef.current;
+      if (!marca && payload.sincronizarFacturacion && payload.tipoComprobante !== 'ninguno') {
+        marca = await emitirComprobanteTicket(ticket, payload, nombreCaja(), payload.pinSupervisor, payload.totalFiscal);
+        emitidoCobroRef.current = marca;
+        anotarComprobante(ids, marca);
+      }
+      const pago = {
+        metodoPago: payload.metodoPago,
+        montoRecibido: payload.montoRecibido,
+        vuelto: payload.vuelto,
+        motivo: payload.referenciaPago || null,
+      };
+      try {
+        if (payload.mode === 'forzar') {
+          await forzarPagoItem(ticket._id, pago, idCaja(), nombreCaja());
+        } else {
+          const ticketTipo = (ticket.tipo === 'pago_adelantado' || ticket.origen === 'reserva') ? 'ADELANTADO' : 'COMANDA';
+          await aprobarItem(ticket._id, ticketTipo, idCaja(), nombreCaja());
+        }
+      } catch (err) {
+        const msg = err.userMessage || err.message;
+        if (marca?.serieNumero) {
+          const e = new Error(`El comprobante ${marca.serieNumero} ya se emitió. El cobro de caja no se cerró: ${msg}`);
+          e.marca = marca;
+          throw e;
+        }
+        throw err;
+      }
+      setCobroModal(null);
     } finally {
-      setAprobarLoading(prev => ({ ...prev, [ticketId]: false }));
+      on(false);
     }
   };
 
@@ -114,22 +151,6 @@ export default function PpaSidebar({ socket, onClose }) {
       alert('Error al rechazar el ticket: ' + (err.userMessage || err.message));
     } finally {
       setRechazarLoading(prev => ({ ...prev, [ticketId]: false }));
-    }
-  };
-
-  const handleForzarPago = async (pago) => {
-    const ticket = ticketForzarPago;
-    if (!ticket) return;
-    setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: true }));
-    try {
-      const userId = localStorage.getItem('userId') || localStorage.getItem('cocineroId') || '';
-      const userName = localStorage.getItem('userName') || localStorage.getItem('cocineroName') || 'Cocina';
-      await forzarPagoItem(ticket._id, pago, userId, userName);
-      setTicketForzarPago(null);
-    } catch (err) {
-      alert('Error al forzar pago: ' + (err.userMessage || err.message));
-    } finally {
-      setForzarPagoLoading((prev) => ({ ...prev, [ticket._id]: false }));
     }
   };
 
@@ -326,7 +347,7 @@ export default function PpaSidebar({ socket, onClose }) {
                   )}
                   {puedeGestionarTickets && ticketPuedeAprobarse(ticket) && (
                   <button
-                    onClick={() => handleAprobar(ticket)}
+                    onClick={() => abrirCobro(ticket)}
                     disabled={aprobarLoading[ticket._id]}
                     className="flex-1 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-500
                       disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs py-1.5 rounded-lg
@@ -338,7 +359,7 @@ export default function PpaSidebar({ socket, onClose }) {
                   )}
                   {puedeGestionarTickets && ticketPuedeForzarPago(ticket) && !ticket.boucher && (
                   <button
-                    onClick={() => setTicketForzarPago(ticket)}
+                    onClick={() => abrirCobro(ticket, 'forzar')}
                     disabled={forzarPagoLoading[ticket._id]}
                     className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500
                       disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs py-1.5 rounded-lg
@@ -489,12 +510,13 @@ export default function PpaSidebar({ socket, onClose }) {
           </motion.div>
         )}
       </AnimatePresence>
-      {ticketForzarPago && (
-        <ForzarPagoTicketModal
-          ticket={ticketForzarPago}
-          loading={!!forzarPagoLoading[ticketForzarPago._id]}
-          onClose={() => setTicketForzarPago(null)}
-          onConfirm={handleForzarPago}
+      {cobroModal && (
+        <CobroFacturacionModal
+          ticket={cobroModal.ticket}
+          mode={cobroModal.mode}
+          loading={cobroModal.mode === 'forzar' ? !!forzarPagoLoading[cobroModal.ticket._id] : !!aprobarLoading[cobroModal.ticket._id]}
+          onClose={() => setCobroModal(null)}
+          onConfirm={handleConfirmCobro}
         />
       )}
     </div>
