@@ -30,10 +30,10 @@ const MOZO_VISTA_AVANZADA = { mozoNombreTamano: 20, mozoNombreColor: '#ffffff' }
 function CuadroMesaAvanzado({ texto, paraLlevar = false }) {
   if (!texto) return null;
   const tono = paraLlevar
-    ? 'bg-violet-600/45 text-violet-50 border-violet-300/55'
-    : 'bg-sky-600/50 text-white border-sky-300/60';
+    ? 'bg-violet-500/20 text-violet-200 border-violet-400/40'
+    : 'bg-sky-500/15 text-sky-200 border-sky-400/40';
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-bold text-base whitespace-nowrap ${tono}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border font-bold text-xs whitespace-nowrap ${tono}`}>
       {texto}
     </span>
   );
@@ -62,16 +62,16 @@ export function AccionesTicket({
     || (!ticket?._esGrupoComandas && ticketPuedeForzarPago(ticket) && !ticket.boucher);
   const puedeReportar = esComandaOParcial && pendiente && !ticketEsAltaSinPago(ticket);
   const btnPad = compact
-    ? 'p-1.5 w-8 h-8'
-    : 'p-2.5 w-10 h-10';
-  const iconCls = compact ? 'text-sm' : 'text-lg';
+    ? 'w-6 h-6 rounded-md'
+    : 'w-8 h-8 rounded-lg';
+  const iconCls = compact ? 'text-[11px]' : 'text-sm';
 
   return (
-    <div className={`flex items-center gap-1 flex-wrap ${compact ? 'justify-center' : 'justify-end'}`}>
+    <div className={`flex items-center gap-1 flex-nowrap whitespace-nowrap ${compact ? 'justify-center' : 'justify-end'}`}>
       <button
         type="button"
         onClick={() => onImprimir(ticket)}
-        className={`${btnPad} inline-flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-white`}
+        className={`${btnPad} inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700`}
         title="Imprimir"
       >
         <FaPrint className={iconCls} />
@@ -83,7 +83,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onAprobar(ticket)}
               disabled={aprobarLoading}
-              className={`${btnPad} inline-flex items-center justify-center rounded-md bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white`}
+              className={`${btnPad} inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white shadow-sm`}
               title="Cobrar solicitud de cobro"
             >
               <FaCheck className={iconCls} />
@@ -94,7 +94,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onForzarPago(ticket)}
               disabled={forzarPagoLoading}
-              className={`${btnPad} inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white`}
+              className={`${btnPad} inline-flex items-center justify-center bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white shadow-sm`}
               title={ticket?._esGrupoComandas ? 'Forzar cobro del grupo' : 'Forzar cobro'}
             >
               <FaMoneyBill className={iconCls} />
@@ -105,7 +105,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onReportar(ticket)}
               disabled={reportarLoading}
-              className={`${btnPad} inline-flex items-center justify-center rounded-md bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white`}
+              className={`${btnPad} inline-flex items-center justify-center bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white`}
               title="Reportar"
             >
               <FaExclamationTriangle className={iconCls} />
@@ -115,7 +115,7 @@ export function AccionesTicket({
               type="button"
               onClick={() => onRechazar(ticket)}
               disabled={rechazarLoading}
-              className={`${btnPad} inline-flex items-center justify-center rounded-md bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white`}
+              className={`${btnPad} inline-flex items-center justify-center bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white`}
               title="Rechazar"
             >
               <FaTimes className={iconCls} />
@@ -241,7 +241,7 @@ function FilaTicketAvanzado({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDetalle(ticket); }}
-            className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex-shrink-0"
             title="Detalle de la comanda"
           >
             <FaEye className="text-xs" />
@@ -290,17 +290,22 @@ function FilaTicketAvanzado({
           {badge.label}
         </span>
       </td>
-      <td className="px-3 py-2 text-right text-white font-bold whitespace-nowrap">
-        <TotalCuentaCobro vista={vistaCobro} neto={neto} montoDesc={montoDesc} />
-        <div className="text-[10px] text-gray-500 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
+      <td className="px-3 py-2 text-right whitespace-nowrap">
+        <div className="font-mono font-bold text-white text-sm">
+          <TotalCuentaCobro vista={vistaCobro} neto={neto} montoDesc={montoDesc} />
+        </div>
+        <div className="text-[11px] text-slate-400 font-normal">{nPlatos} plato{nPlatos !== 1 ? 's' : ''}</div>
         {!vistaCobro && mostrarSaldoPend && (
           <div className="text-[10px] text-amber-300 font-semibold whitespace-nowrap">
             Pendiente: {formatCurrency(saldoPend)}
           </div>
         )}
       </td>
-      <td className="px-3 py-2 text-xs text-gray-400 uppercase">
-        {labelPagoTicket(ticket)}
+      <td className="px-3 py-2 text-xs text-slate-300 uppercase whitespace-nowrap">
+        <div className="font-medium">{labelPagoTicket(ticket)}</div>
+        {ticket.comprobanteSerieNumero ? (
+          <div className="font-mono text-[11px] text-sky-300 normal-case mt-0.5">{ticket.comprobanteSerieNumero}</div>
+        ) : null}
       </td>
       <td className="px-3 py-2">
         <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold tracking-wide ${estadoVisibleTicket(ticket, estadoComanda).bg}`}>
@@ -403,7 +408,7 @@ export default function TicketsAprobacionTable({
     return (
       <div className="text-center py-16">
         <FaSyncAlt className="text-4xl text-violet-500 mx-auto mb-4 animate-spin" />
-        <p className="text-gray-400">Cargando tickets...</p>
+        <p className="text-slate-400">Cargando tickets...</p>
       </div>
     );
   }
@@ -412,13 +417,13 @@ export default function TicketsAprobacionTable({
     return (
       <div className="text-center py-16">
         <FaCheck className="text-4xl text-green-500 mx-auto mb-4" />
-        <p className="text-gray-400 text-lg">{emptyLabel}</p>
+        <p className="text-slate-300 font-medium text-base">{emptyLabel}</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900/60 border border-gray-700 rounded-xl overflow-hidden">
+    <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden">
       {detalleTicket && (
         <TicketComandaDetalleModal
           ticket={detalleTicket}
@@ -447,8 +452,8 @@ export default function TicketsAprobacionTable({
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[1080px]">
-          <thead className="sticky top-0 z-10 bg-gray-900 border-b border-gray-700">
-            <tr className="text-[10px] uppercase tracking-wider text-gray-400">
+          <thead className="sticky top-0 z-10 bg-[#0B101B] border-b border-slate-800">
+            <tr className="text-[11px] uppercase tracking-wider text-slate-400">
               {seleccionActiva && <th className="px-2 py-3 w-8" />}
               {[
                 { key: 'fecha', label: 'Fecha', align: 'text-left' },
@@ -457,7 +462,7 @@ export default function TicketsAprobacionTable({
                 { key: null, label: 'Mozo / Cliente', align: 'text-left' },
                 { key: 'tipo', label: 'Tipo', align: 'text-left' },
                 { key: 'total', label: 'Total', align: 'text-right' },
-                { key: null, label: 'Pago', align: 'text-left' },
+                { key: null, label: 'Pago / Factura', align: 'text-left' },
                 { key: null, label: 'Estado', align: 'text-left' },
                 { key: null, label: 'Acciones', align: 'text-right' },
               ].map((col, i) => {
@@ -469,7 +474,7 @@ export default function TicketsAprobacionTable({
                       <button
                         type="button"
                         onClick={() => handleSort(col.key)}
-                        className={`inline-flex items-center ${active ? 'text-violet-300' : 'hover:text-white'}`}
+                        className={`inline-flex items-center ${active ? 'text-amber-300' : 'hover:text-white'}`}
                       >
                         {col.label}
                         <SortIcon active={active} dir={sortDir} />
@@ -572,7 +577,7 @@ export default function TicketsAprobacionTable({
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setDetalleTicket(grupoTicket); }}
-                          className="p-1.5 rounded-md bg-gray-700 hover:bg-violet-600 text-white flex-shrink-0"
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex-shrink-0"
                           title="Ver detalle del grupo"
                         >
                           <FaEye className="text-xs" />
@@ -596,7 +601,7 @@ export default function TicketsAprobacionTable({
                         Grupo
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right text-amber-300 font-bold whitespace-nowrap">
+                    <td className="px-3 py-2 text-right text-amber-300 font-mono font-bold whitespace-nowrap">
                       <TotalCuentaCobro
                         vista={fila.tickets.map((t) => vistaPorTicket?.get(String(t?._id))).find(Boolean) || null}
                         neto={neto}
@@ -620,20 +625,20 @@ export default function TicketsAprobacionTable({
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onImprimir(grupoTicket); }}
-                          className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+                          className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
                           title="Imprimir grupo de comandas"
                         >
-                          <FaPrint className="text-lg" />
+                          <FaPrint className="text-sm" />
                         </button>
                         {ticketsForzablesDeGrupo(fila.tickets).length > 0 && onForzarPago && (
                           <button
                             type="button"
                             disabled={fila.tickets.some((t) => forzarPagoLoading[t._id])}
                             onClick={(e) => { e.stopPropagation(); onForzarPago(grupoTicket); }}
-                            className="p-2.5 w-10 h-10 inline-flex items-center justify-center rounded-md bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white"
+                            className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white"
                             title="Forzar cobro del grupo"
                           >
-                            <FaMoneyBill className="text-lg" />
+                            <FaMoneyBill className="text-sm" />
                           </button>
                         )}
                       </div>
@@ -654,7 +659,7 @@ export default function TicketsAprobacionTable({
               );
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 bg-gray-950 border-t-2 border-amber-500/50">
+          <tfoot className="sticky bottom-0 bg-[#0B101B] border-t-2 border-amber-500/40">
             <tr>
               <td colSpan={seleccionActiva ? 6 : 5} className="px-3 py-3 text-sm font-semibold text-gray-200">
                 Total ventas
@@ -662,7 +667,7 @@ export default function TicketsAprobacionTable({
                   {filas.length} comanda{filas.length !== 1 ? 's' : ''} en esta vista
                 </span>
               </td>
-              <td className="px-3 py-3 text-right text-lg font-black text-amber-300 tabular-nums whitespace-nowrap">
+              <td className="px-3 py-3 text-right text-lg font-mono font-bold text-amber-300 tabular-nums whitespace-nowrap">
                 {formatCurrency(totalVentas)}
               </td>
               <td colSpan={3} />

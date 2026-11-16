@@ -40,8 +40,8 @@ export default function ForzarPagoTicketModal({ ticket, loading, onClose, onConf
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 border border-gray-600 rounded-xl p-4 w-full max-w-sm shadow-xl">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#111827] border border-slate-700 rounded-2xl p-4 w-full max-w-sm shadow-xl">
         <div className="flex items-center gap-2 text-white font-semibold mb-2">
           <FaMoneyBill className="text-amber-400" />
           Forzar cobro

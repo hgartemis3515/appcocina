@@ -36,8 +36,8 @@ function MozoFilterButton({ mozoFilter, mozosDisponibles, onMozoFilterChange }) 
         title={mozoActivo ? `Filtrando: ${mozoActivo.nombre}` : 'Filtrar por mozo'}
         className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap border
           ${mozoFilter
-            ? 'bg-blue-600/80 text-white border-blue-500/50'
-            : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border-gray-700'}`}
+            ? 'bg-sky-600/80 text-white border-sky-500/50'
+            : 'bg-[#0B0F17] text-slate-400 hover:bg-slate-800 hover:text-white border-slate-800'}`}
       >
         <FaUser className="text-[9px]" />
         {labelCorto}
@@ -145,8 +145,8 @@ export default function TicketSortBar({
             style={{ fontSize: `${px}px` }}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold transition-colors border
               ${active
-                ? 'bg-violet-600 text-white border-violet-400 shadow-sm'
-                : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600'}`}
+                ? 'bg-amber-600 text-white border-amber-400 shadow-sm'
+                : 'bg-[#0B0F17] text-slate-300 hover:bg-slate-800 hover:text-white border-slate-800'}`}
           >
             {label}
             <SortIcon active={active} dir={sortDir} />

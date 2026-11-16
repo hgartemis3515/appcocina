@@ -89,7 +89,7 @@ function FilaTicket({
   const estadoComanda = estadoEntregaComandaTicket(ticket);
   return (
     <tr
-      className={`border-t border-gray-800/80 hover:bg-gray-800/40 ${indent ? 'bg-gray-950/50' : ''} ${seleccionado ? 'bg-rose-900/30' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
+      className={`border-t border-slate-800/80 hover:bg-slate-800/40 ${indent ? 'bg-[#0B0F17]/70' : ''} ${seleccionado ? 'bg-rose-950/40' : ''} ${seleccionActiva ? 'cursor-pointer' : ''}`}
       onClick={() => { if (seleccionActiva) onToggleSeleccion?.(ticket); }}
     >
       {seleccionActiva && (
@@ -185,10 +185,10 @@ function CuadroMozo({
   return (
     <section
       id={`mozo-pendiente-${grupo.key}`}
-      className={`flex flex-col min-h-0 bg-gray-900/80 border border-amber-500/25 rounded-xl overflow-hidden
+      className={`flex flex-col min-h-0 bg-[#111827] border border-slate-800 rounded-xl overflow-hidden
         ${soloUno ? 'min-h-[420px]' : 'h-[calc((100vh-13.5rem)/2)] min-h-[280px]'}`}
     >
-      <header className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-gray-800/90 border-b border-amber-500/20">
+      <header className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-[#0B101B] border-b border-slate-800">
         <FaUser className="text-amber-400 text-xs flex-shrink-0" />
         <h3 className="truncate min-w-0">
           <BadgeNombreMozo nombre={grupo.etiqueta || grupo.nombre} colorPerfil={grupo.colorPerfil} colorLetra={grupo.colorLetra} configVista={{ verNumerosMozo }} />
@@ -200,8 +200,8 @@ function CuadroMozo({
 
       <div className="flex-1 min-h-0 overflow-auto">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 z-[1] bg-gray-900 border-b border-gray-700">
-            <tr className="text-[9px] uppercase tracking-wider text-gray-400">
+          <thead className="sticky top-0 z-[1] bg-[#0B101B] border-b border-slate-800">
+            <tr className="text-[9px] uppercase tracking-wider text-slate-400">
               {seleccionActiva && <th className="w-6 px-1 py-1" />}
               <th className="text-left px-2 py-1 font-semibold">Mesa</th>
               <th className="text-left px-2 py-1 font-semibold">Comanda</th>
@@ -450,7 +450,7 @@ export default function TicketsMozosPendientesGrid({
           className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border
             ${!mozoFilter
               ? 'bg-amber-500 text-black border-amber-400'
-              : 'bg-gray-800 text-gray-300 border-gray-700 hover:text-white'}`}
+              : 'bg-[#0B0F17] text-slate-300 border-slate-800 hover:text-white'}`}
         >
           Todos ({mozosDisponibles.reduce((s, m) => s + m.count, 0)})
         </button>
@@ -462,7 +462,7 @@ export default function TicketsMozosPendientesGrid({
             className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap
               ${mozoFilter === m.key
                 ? 'bg-amber-500 text-black border-amber-400'
-                : 'bg-gray-800 text-gray-300 border-gray-700 hover:text-white'}`}
+                : 'bg-[#0B0F17] text-slate-300 border-slate-800 hover:text-white'}`}
           >
             <BadgeNombreMozo nombre={m.etiqueta || m.nombre} colorPerfil={m.colorPerfil} colorLetra={m.colorLetra} configVista={{ verNumerosMozo }} />
             <span className="ml-1 opacity-70">{m.count}</span>

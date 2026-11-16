@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+.tickets-caja {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: #0B0F17;
+  color: #F1F5F9;
+}
+.tickets-caja h1,
+.tickets-caja .font-display {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+.tickets-caja .font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Estilos globales para mejor experiencia de usuario */
 * {
   -webkit-font-smoothing: antialiased;

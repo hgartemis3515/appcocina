@@ -36,7 +36,7 @@ export default function PlatoTicketItem({
     <div className={`py-1 ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-1.5 min-w-0 flex-1">
-          <span className={`${g('text-gray-400')} flex-shrink-0 ${metaClass}`} style={estiloMeta}>
+          <span className={`${g('text-amber-300/90')} font-mono font-semibold flex-shrink-0 tabular-nums ${metaClass}`} style={estiloMeta}>
             {plato.cantidad}x
           </span>
           <div className="min-w-0 flex-1">
@@ -45,7 +45,7 @@ export default function PlatoTicketItem({
                 {plato.nombre}
               </span>
               {(plato.tipoServicio === 'para_llevar' || plato.tipoServicio === 'extra_llevar') && (
-                <span className={`${metaClass} bg-amber-600/30 text-amber-300 px-1 rounded flex-shrink-0`}>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300 bg-violet-500/20 border border-violet-400/30 px-1.5 py-0.5 rounded flex-shrink-0">
                   {plato.tipoServicio === 'extra_llevar'
                     ? (isCompact ? 'EXTRA' : 'EXTRA LLEVAR')
                     : (isCompact ? 'Llevar' : 'Para llevar')}

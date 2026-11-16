@@ -270,14 +270,14 @@ function VistaModoToggle({ modo, onChange }) {
     { id: 'mozos', label: 'Mozos pendientes' },
   ];
   return (
-    <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1 border border-gray-700">
+    <div className="flex items-center gap-1 bg-[#0B0F17] rounded-xl p-1 border border-slate-800">
       {opts.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
-          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap
-            ${modo === o.id ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap
+            ${modo === o.id ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
         >
           {o.label}
         </button>
@@ -293,14 +293,14 @@ function KpiChip({ label, value, valueClass, ocultable = false, visible = true, 
       type="button"
       disabled={!ocultable}
       onClick={ocultable ? onToggle : undefined}
-      className={`bg-gray-800/90 border border-amber-500/20 rounded-lg px-2.5 py-1 min-w-[6.5rem] text-left ${
+      className={`bg-[#0B0F17] border border-slate-800 rounded-lg px-3 py-1.5 min-w-[7.2rem] text-left ${
         ocultable ? 'cursor-pointer hover:border-amber-400/40' : 'cursor-default'
       }`}
       title={ocultable ? (mostrar ? 'Ocultar montos' : 'Mostrar montos') : undefined}
       aria-pressed={ocultable ? mostrar : undefined}
     >
-      <p className="text-[9px] uppercase tracking-wide text-gray-400 leading-tight">{label}</p>
-      <p className={`text-sm font-bold tabular-nums leading-tight ${mostrar ? valueClass : 'text-gray-500 tracking-widest'}`}>
+      <p className="text-[11px] text-slate-400 leading-tight">{label}</p>
+      <p className={`text-sm font-mono font-bold tabular-nums leading-tight ${mostrar ? valueClass : 'text-slate-600 tracking-widest'}`}>
         {mostrar ? value : '####'}
       </p>
     </button>
@@ -946,7 +946,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 const esParaLlevar = !esReserva && ticketEsParaLlevar(ticket);
                 const estiloCuerpoPL = estiloCuerpoSegunReserva({ anulada: esAnulada, reserva: esReserva })
                   || (esParaLlevar ? estiloCuerpoParaLlevarTickets(tablaPrefs) : undefined);
-                const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-gray-700';
+                const bordeSeccion = esParaLlevar ? 'border-white/25' : 'border-slate-800/80';
                 return (
                   <motion.div
                     key={ticket._id}
@@ -954,17 +954,13 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     onClick={() => { if (modoEliminar) toggleSeleccionTickets(ticket); }}
-                    className={`bg-gray-800 ${tablaPrefs.aprovechador ? 'rounded-none shadow-none' : 'rounded-xl shadow-lg'} border overflow-hidden ${
-                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : esAnulada ? 'border-red-500' : 'border-gray-700'
+                    className={`bg-[#111827] flex flex-col ${tablaPrefs.aprovechador ? 'rounded-none shadow-none' : 'rounded-xl'} border overflow-hidden ${
+                      selEliminar ? 'border-rose-500 ring-2 ring-rose-500/40' : esAnulada ? 'border-rose-500' : 'border-slate-800'
                     } ${modoEliminar ? 'cursor-pointer' : ''}`}
                   >
                     {/* Header del card */}
-                    <div className={`p-3 ${
-                      esAnulada ? 'bg-red-700/50 border-b border-red-400' :
-                      ticket.estado === 'pendiente_aprobacion' ? 'bg-yellow-600/20 border-b border-yellow-500/30' :
-                      ticket.estado === 'aprobado' ? 'bg-green-600/20 border-b border-green-500/30' :
-                      ticket.estado === 'reportado' ? 'bg-red-600/20 border-b border-red-500/30' :
-                      'bg-violet-600/20 border-b border-violet-500/30'
+                    <div className={`px-3.5 py-3 border-b ${
+                      esAnulada ? 'bg-rose-950/50 border-rose-400' : 'bg-[#0B101B] border-slate-800'
                     }`}>
                       <div className={`flex items-center justify-between ${tablaPrefs.aprovechador ? 'flex-nowrap gap-1' : ''}`}>
                         <span className={`text-yellow-300 text-sm font-mono font-bold flex items-center gap-2 ${tablaPrefs.aprovechador ? 'flex-shrink-0 whitespace-nowrap' : ''}`}>
@@ -1116,13 +1112,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
                     {/* Acciones según estado del ticket */}
                     {ticket.estado === 'pendiente_aprobacion' && (
-                      <div className="p-3 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="grid grid-cols-3" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleImprimir(ticket)}
-                          className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500
-                            text-white py-2 rounded-lg transition-colors font-medium text-sm"
+                          className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-[13px] font-extrabold leading-tight"
                         >
-                          <FaPrint className="text-xs" />
+                          <FaPrint className="text-sm" />
                           Imprimir
                         </button>
                         {!puedeGestionarTickets && (
@@ -1134,9 +1129,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         <button
                           onClick={() => handleAprobar(ticket)}
                           disabled={aprobarLoading[ticket._id]}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500
-                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                            transition-colors font-medium text-sm"
+                          className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500
+                            disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-[13px] font-extrabold leading-tight"
                         >
                           <FaCheck />
                           {aprobarLoading[ticket._id] ? 'Cobrando...' : 'Cobrar'}
@@ -1146,9 +1140,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                         <button
                           onClick={() => abrirForzarPago(ticket)}
                           disabled={forzarPagoLoading[ticket._id]}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500
-                            disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                            transition-colors font-medium text-sm"
+                          className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500
+                            disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-[13px] font-extrabold leading-tight"
                         >
                           <FaMoneyBill className="text-xs" />
                           Forzar cobro
@@ -1161,11 +1154,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                               setReportarMotivo(prev => ({ ...prev, [ticket._id]: '' }));
                             }}
                             disabled={reportarLoading[ticket._id]}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
-                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                              transition-colors font-medium text-sm"
+                            className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-rose-600 hover:bg-rose-500
+                              disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-[13px] font-extrabold leading-tight"
                           >
-                            <FaExclamationTriangle className="text-xs" />
+                            <FaExclamationTriangle className="text-sm" />
                             Reportar
                           </button>
                         ) : puedeGestionarTickets && !isComanda ? (
@@ -1175,11 +1167,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                               setRechazarLoading(prev => ({ ...prev, [ticket._id + '_motivo']: '' }));
                             }}
                             disabled={rechazarLoading[ticket._id]}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500
-                              disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg
-                              transition-colors font-medium text-sm"
+                            className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-rose-600 hover:bg-rose-500
+                              disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-[13px] font-extrabold leading-tight"
                           >
-                            <FaTimes className="text-xs" />
+                            <FaTimes className="text-sm" />
                             Rechazar
                           </button>
                         ) : null}
@@ -1188,14 +1179,14 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
                     {/* Aprobados: imprimir */}
                     {ticket.estado === 'aprobado' && (
-                      <div className="p-2" onClick={(e) => e.stopPropagation()}>
+                      <div onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleImprimir(ticket)}
-                          className="w-full flex items-center justify-center gap-1.5 bg-green-700 hover:bg-green-600
-                            text-white py-2 rounded-lg transition-colors text-sm font-medium"
+                          className="w-full min-h-[50px] flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600
+                            text-white text-sm font-extrabold"
                         >
-                          <FaPrint className="text-xs" />
-                          Imprimir
+                          <FaPrint className="text-sm" />
+                          Imprimir copia
                         </button>
                       </div>
                     )}
@@ -1251,10 +1242,10 @@ export default function TicketsPpaPage({ onGoToMenu }) {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+    <div className="tickets-caja h-screen flex flex-col overflow-hidden bg-[#0B0F17]">
       {/* Header */}
-      <header className="flex-shrink-0 bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <header className="flex-shrink-0 bg-[#0B101B]/95 backdrop-blur-md border-b border-slate-800/90 z-50">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={onGoToMenu}
@@ -1262,12 +1253,12 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             >
               <FaArrowLeft className="text-lg" />
             </button>
-            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <FaShoppingBag className="text-white" />
+            <div className="w-9 h-9 bg-amber-500/15 border border-amber-500/35 rounded-xl flex items-center justify-center flex-shrink-0 text-amber-400">
+              <FaShoppingBag />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-white truncate">Tablas de tickets y Pagos Adelantados</h1>
-              <p className="text-gray-400 text-xs">Cobrar comandas, reportar incidencias</p>
+              <h1 className="font-display text-base sm:text-lg font-bold text-white truncate tracking-tight">Caja & Tickets Cocina</h1>
+              <p className="text-slate-500 text-[11px]">Tickets y pagos adelantados</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <KpiChip
@@ -1307,26 +1298,26 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             <button
               type="button"
               onClick={abrirSelectorTicketCaja}
-              className="relative p-2 rounded-lg border border-emerald-500/50 text-white bg-emerald-700 hover:bg-emerald-600 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-200 text-xs font-semibold"
               title="Imprimir ticket de caja"
             >
-              <FaPrint className="text-[1.225rem]" />
-              <span className="absolute -bottom-1 -right-1 text-[15.4px] leading-none" aria-hidden>💵</span>
+              <FaPrint />
+              <span>Caja</span>
             </button>
             <button
               type="button"
               onClick={abrirSelectorTicketCocina}
-              className="relative p-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-amber-500/50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold"
               title="Imprimir ticket de cocina"
             >
-              <FaPrint className="text-[1.225rem]" />
-              <span className="absolute -bottom-1 -right-1 text-[15.4px] leading-none" aria-hidden>🍳</span>
+              <FaPrint />
+              <span>Cocina</span>
             </button>
             <VistaModoToggle modo={modoVista} onChange={handleModoVista} />
             <button
               type="button"
               onClick={() => setShowTablaConfig(true)}
-              className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-amber-500/50 transition-colors"
+              className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white"
               title="Personalizar tabla"
             >
               <FaCog className="text-sm" />
@@ -1340,7 +1331,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               className={`p-2 rounded-lg border transition-colors ${
                 modoEliminar
                   ? 'bg-rose-700 border-rose-400 text-white'
-                  : 'border-gray-700 text-gray-400 hover:text-white hover:border-rose-500/50'
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
               }`}
               title="Eliminar tickets de la tabla (marcar comandas)"
             >
@@ -1360,7 +1351,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   { id: 'b', nombre: '', metodoPago: 'efectivo', modo: 'monto', monto: '', platoLineaIds: [] },
                 ]);
               }}
-              className="px-2.5 py-2 rounded-lg border border-violet-400 bg-violet-700 text-white text-xs font-bold hover:bg-violet-600"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold"
               title="Pago en partes: elegir tickets"
             >
               En partes
@@ -1406,8 +1397,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
         </div>
       )}
 
-      <div className="flex-shrink-0 z-40 bg-gray-900/95 border-b border-gray-800">
-        <div className="max-w-7xl w-full mx-auto px-4 py-3 space-y-2">
+      <div className="flex-shrink-0 z-40 bg-[#111827]/75 border-b border-slate-800/90">
+        <div className="max-w-[1600px] w-full mx-auto px-3 sm:px-4 py-2.5 space-y-2">
           <div className="flex flex-wrap gap-2 items-center">
             {[
               { key: 'pendientes', label: 'Pendientes', icon: FaClock },
@@ -1427,11 +1418,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-colors border
                   ${filtro === key
                     ? (key === 'reservas'
-                      ? 'bg-red-600 text-white border-red-300 shadow-md shadow-red-950/50'
-                      : 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-900/40')
+                      ? 'bg-pink-600 text-white border-pink-400'
+                      : 'bg-amber-600 text-white border-amber-400')
                     : (key === 'reservas'
-                      ? 'bg-red-950/80 text-red-100 hover:bg-red-800 hover:text-white border-red-600'
-                      : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600')}`}
+                      ? 'bg-pink-950/70 text-pink-100 hover:bg-pink-800 hover:text-white border-pink-700'
+                      : 'bg-[#0B0F17] text-slate-300 hover:border-slate-600 hover:text-white border-slate-800')}`}
               >
                 <Icon size={Math.max(16, letraFiltro)} />
                 {label}
@@ -1446,8 +1437,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
               style={{ fontSize: `${letraFiltro}px` }}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-colors border
                 ${(filtroDetalle.numero || filtroDetalle.mesa)
-                  ? 'bg-violet-600 text-white border-violet-400'
-                  : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 hover:text-white border-gray-600'}`}
+                  ? 'bg-sky-600 text-white border-sky-400'
+                  : 'bg-[#0B0F17] text-slate-300 hover:border-slate-600 hover:text-white border-slate-800'}`}
             >
               <FaSlidersH size={Math.max(16, letraFiltro)} />
               Filtro
@@ -1462,7 +1453,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
                   filtroPeriodo === 'dia'
                     ? 'bg-amber-600 text-white border-amber-400'
-                    : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                    : 'bg-[#0B0F17] text-slate-300 hover:text-white border-slate-800'
                 }`}
               >
                 <FaSun size={Math.max(16, letraFiltro)} />
@@ -1478,7 +1469,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
                   filtroPeriodo === seg.id
                     ? 'bg-emerald-600 text-white border-emerald-400'
-                    : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                    : 'bg-[#0B0F17] text-slate-300 hover:text-white border-slate-800'
                 }`}
               >
                 {seg.label}
@@ -1492,7 +1483,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                 className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
                   filtroPeriodo === 'noche'
                     ? 'bg-amber-600 text-white border-amber-400'
-                    : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                    : 'bg-[#0B0F17] text-slate-300 hover:text-white border-slate-800'
                 }`}
               >
                 <FaMoon size={Math.max(16, letraFiltro)} />
@@ -1517,8 +1508,8 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                   style={{ fontSize: `${letraFiltro}px` }}
                   className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border ${
                     on
-                      ? 'bg-violet-600 text-white border-violet-400'
-                      : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-600'
+                    ? 'bg-amber-600 text-white border-amber-400'
+                    : 'bg-[#0B0F17] text-slate-300 hover:text-white border-slate-800'
                   }`}
                 >
                   <Icono size={Math.max(16, letraFiltro)} />
@@ -1581,7 +1572,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
 
       {/* Contenido con scroll independiente */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className={`${modoVista === 'basico' ? 'max-w-none' : modoVista === 'mozos' ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-3 py-4`}>
+        <div className={`${modoVista === 'basico' ? 'max-w-none' : 'max-w-[1600px]'} mx-auto px-3 py-3`}>
         {modoVista === 'avanzado' ? (
           <TicketsAprobacionTable
             tickets={itemsFiltrados}
@@ -1665,7 +1656,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
             </p>
           </div>
         ) : (
-          <div className={`grid ${tablaPrefs.aprovechador ? 'gap-0' : 'gap-3'}`} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+          <div className={`grid ${tablaPrefs.aprovechador ? 'gap-0' : 'gap-2.5'}`} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
             <AnimatePresence>
               {filasBasico.map((fila) => {
                 if (fila.tipo === 'grupo') {
@@ -1717,11 +1708,11 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       onClick={() => { if (modoEliminar) toggleSeleccionTickets(fila.tickets); }}
-                      className={`bg-gray-800 rounded-xl border overflow-hidden shadow-lg ${
+                      className={`bg-[#111827] rounded-xl border overflow-hidden flex flex-col ${
                         grupoSel ? 'border-rose-500 ring-2 ring-rose-500/40' : 'border-amber-500/50'
                       } ${modoEliminar ? 'cursor-pointer' : ''}`}
                     >
-                      <div className={`p-3 border-b ${grupoAnulado ? 'bg-red-700/50 border-red-400' : 'bg-amber-600/20 border-amber-500/40'}`}>
+                      <div className={`px-3.5 py-3 border-b ${grupoAnulado ? 'bg-rose-950/50 border-rose-400' : 'bg-amber-500/10 border-amber-500/25'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
@@ -1835,15 +1826,15 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                               </div>
                             )}
                           </div>
-                          <div className="p-3 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="grid grid-cols-3" onClick={(e) => e.stopPropagation()}>
                             {forzablesGrupo.length > 0 && (
                               <button
                                 type="button"
                                 disabled={cargandoGrupo}
                                 onClick={() => abrirForzarPago(grupoTicket)}
-                                className="flex-1 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 text-white py-2 rounded-lg font-medium text-sm"
+                                className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white text-[13px] font-extrabold leading-tight"
                               >
-                                <FaMoneyBill className="text-xs" />
+                                <FaMoneyBill className="text-sm" />
                                 {cargandoGrupo ? 'Cobrando…' : 'Forzar cobro'}
                               </button>
                             )}
@@ -1851,7 +1842,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                             <button
                               type="button"
                               onClick={() => handleImprimir(grupoTicket)}
-                              className="flex-1 flex items-center justify-center gap-1 bg-gray-600 hover:bg-gray-500 text-white py-2 rounded-lg font-medium text-sm"
+                              className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-[13px] font-extrabold leading-tight"
                             >
                               <FaPrint className="text-xs" />
                               Imprimir
@@ -1863,7 +1854,7 @@ export default function TicketsPpaPage({ onGoToMenu }) {
                                 next.add(fila.id);
                                 return next;
                               })}
-                              className="flex-1 flex items-center justify-center gap-1 bg-amber-700 hover:bg-amber-600 text-white py-2 rounded-lg font-medium text-sm"
+                              className="min-h-[60px] py-2.5 px-1 flex flex-col items-center justify-center gap-1 bg-amber-700 hover:bg-amber-600 text-white text-[13px] font-extrabold leading-tight"
                             >
                               Ver {fila.tickets.length} comandas
                             </button>
